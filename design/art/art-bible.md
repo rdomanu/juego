@@ -115,3 +115,8 @@ posición. Los tipos de trámite y denuncia usan icono + etiqueta además del co
 construcción modular — evitar su aspereza de prisión); *This Is the Police* (paleta sobria, gestión
 policial adulta — evitar el noir); fotos reales de comisarías del CNP (autenticidad y azul corporativo);
 *Two Point Hospital* como **anti-referencia** de tono (evitar su caricatura).
+
+**Regla de assets ya acordada — DIVISAS (rangos CNP)**: las divisas/insignias de rango se representan
+con la **imagen real exacta** de cada divisa (Orden INT/430/2014), aplicando un **filtro adaptado al
+estilo del juego**. NUNCA se dibujan a mano ni se aproximan. Son símbolos oficiales del Estado: revisar
+el uso legal si el juego se comercializa. (Detalle de rangos en `design/gdd/systems-index.md`.)

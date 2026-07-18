@@ -3,25 +3,29 @@
 *Última actualización: 2026-07-19*
 
 ## Tarea actual
-Pre-producción del juego **"Comisario"**. Prototipo de concepto **CERRADO con veredicto PROCEDE**.
-Siguiente: diseño formal (art-bible → map-systems → design-system).
+Pre-producción de **"Comisario"**. Índice de sistemas creado. Siguiente: escribir GDDs por sistema
+(empezando por Sistema de Tiempo) con `/design-system`.
 
 ## Hecho en esta sesión
 - ✅ Plantilla CCGS instalada + GitHub `rdomanu/juego` + Godot 4.6 configurado.
-- ✅ Concepto en `design/gdd/game-concept.md`.
-- ✅ Prototipo HTML construido, validado (4 iteraciones) y documentado en
-  `prototypes/comisaria-flujo-concept/REPORT.md`. **Veredicto: PROCEDE** (el flujo es divertido).
+- ✅ Concepto (`design/gdd/game-concept.md`).
+- ✅ Prototipo HTML validado — PROCEDE (`prototypes/comisaria-flujo-concept/REPORT.md`).
+- ✅ Art bible núcleo visual 1-4 (`design/art/art-bible.md`).
+- ✅ Índice de sistemas — 27 sistemas (`design/gdd/systems-index.md`).
 
-## Aprendizajes del prototipo (para los GDDs) — ver REPORT.md
-- Trámites: DNI 12€/12min · Pasaporte 30€/15min · TIE 18€/15min. Puestos DNI/Pasaporte y TIE separados.
-- Horarios Documentación 09:00–14:30 base; peonada 16:00–20:00 y apertura 08:00 con **horas extra 15€/h/funcionario** (toda hora fuera de 09:00–14:30).
-- **Mecánicas emergentes a diseñar**: política **cita previa vs. sin cita**; sistema de **horarios/peonadas** (idealmente por servicio); puestos especializados y reconfigurables (ODAC por tipo de denuncia); **paciencia** + **objetos de sala**; **día/noche** (de noche cierra Doc, sube criminalidad).
-- Concepto clave a enseñar al jugador: **demanda vs. capacidad** (más puestos ≠ más gente).
-- **Estructura por brigadas** = esqueleto de la escalera de carrera (ver REPORT / concepto).
+## Decisiones/datos clave nuevos
+- **Rangos reales del CNP** para los ascensos (Subinspector → Inspector → Inspector Jefe → Comisario →
+  Comisario Principal), con divisas de la Orden INT/430/2014. **Regla firme**: las divisas se hacen con
+  la **imagen real filtrada**, NO dibujadas. (Verificar posible reforma "Policía de Primera Clase /
+  Inspector Principal" antes de arte final.)
+- Orden de diseño MVP: Tiempo → Datos → Economía → Flujo y Colas → Demanda → Personal → Construcción →
+  Documentación → ODAC → Paciencia → UI/HUD → Feedback.
 
-## Setup técnico (recordatorio)
-- Godot 4.6 + GDScript en `C:\Users\manur\Godot\` (atajo `godot` en PATH). GitHub `rdomanu/juego` (main).
+## Limitación técnica de la sesión
+- Los **subagentes fallan** (créditos de contexto 1M no activos). El hilo principal (Opus) redacta todo
+  directamente. Para usar el estudio de agentes en paralelo: `/model` → Opus 4.8 contexto estándar, o
+  `/usage-credits`.
 
 ## Siguiente paso
-`/art-bible` (identidad visual 2D isométrica, seria) → `/map-systems` → `/design-system`
-(empezando por Documentación y ODAC, con los valores/mecánicas del REPORT).
+`/design-system Sistema de Tiempo` (o `/map-systems next`) para el primer GDD.
+El usuario quería revisar el índice de sistemas con calma antes de avanzar.
