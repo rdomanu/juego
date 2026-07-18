@@ -3,39 +3,25 @@
 *Última actualización: 2026-07-19*
 
 ## Tarea actual
-**Prototipo de concepto** del juego "Comisario" — veredicto **PROCEDE** (el flujo es divertido,
-confirmado en playtest). Decidiendo si cerrar el prototipo y pasar al diseño real.
-
-## Prototipo
-- Ruta HTML: `prototypes/comisaria-flujo-concept/prototype.html` (v2: reloj real, horarios, tiempos
-  reales DNI 12/Pasaporte 15/TIE 15 min, puestos DNI/Pasaporte vs TIE separados, día/noche).
-- **Veredicto: PROCEDE** — "me ha parecido divertido" (hipótesis confirmada).
+Pre-producción del juego **"Comisario"**. Prototipo de concepto **CERRADO con veredicto PROCEDE**.
+Siguiente: diseño formal (art-bible → map-systems → design-system).
 
 ## Hecho en esta sesión
 - ✅ Plantilla CCGS instalada + GitHub `rdomanu/juego` + Godot 4.6 configurado.
 - ✅ Concepto en `design/gdd/game-concept.md`.
-- ✅ Prototipo HTML construido y validado (2 iteraciones).
+- ✅ Prototipo HTML construido, validado (4 iteraciones) y documentado en
+  `prototypes/comisaria-flujo-concept/REPORT.md`. **Veredicto: PROCEDE** (el flujo es divertido).
 
-## Conocimiento de dominio capturado (para /map-systems y GDDs)
-**Estructura por brigadas** (comisaría local): Seguridad Ciudadana (Zetas), Policía Judicial (de ella
-cuelga la ODAC), Información, Policía Científica, Extranjería y Fronteras. **Documentación** cuelga de
-la **Secretaría** (no de una brigada); a nivel nacional tiene división propia. Las brigadas = esqueleto
-de la escalera de carrera.
+## Aprendizajes del prototipo (para los GDDs) — ver REPORT.md
+- Trámites: DNI 12€/12min · Pasaporte 30€/15min · TIE 18€/15min. Puestos DNI/Pasaporte y TIE separados.
+- Horarios Documentación 09:00–14:30 base; peonada 16:00–20:00 y apertura 08:00 con **horas extra 15€/h/funcionario** (toda hora fuera de 09:00–14:30).
+- **Mecánicas emergentes a diseñar**: política **cita previa vs. sin cita**; sistema de **horarios/peonadas** (idealmente por servicio); puestos especializados y reconfigurables (ODAC por tipo de denuncia); **paciencia** + **objetos de sala**; **día/noche** (de noche cierra Doc, sube criminalidad).
+- Concepto clave a enseñar al jugador: **demanda vs. capacidad** (más puestos ≠ más gente).
+- **Estructura por brigadas** = esqueleto de la escalera de carrera (ver REPORT / concepto).
 
-**Trámites de Documentación**: DNI 12€ / 12 min · Pasaporte 30€ / 15 min · TIE 18€ / 15 min. Los puestos
-de TIE y de DNI/Pasaporte son DISTINTOS (un puesto de TIE no hace DNI).
-
-**Sistema de Horarios y peonadas** (idea a diseñar como sistema propio):
-- Horario normal de Documentación: 09:00–14:30.
-- Peonada de tarde opcional: 16:00–20:00 (coste extra). Sábados a veces (coste extra).
-- Toda hora después de las 14:30 = +15€/hora por funcionario trabajando (horas extra).
-- Horarios configurables por servicio (p. ej. TIE desde 08:00, DNI desde 09:30).
-- Se cruza con el ciclo día/noche (de noche cierra Documentación y sube la criminalidad → más denuncias).
-
-**ODAC**: puestos especializados por tipo de denuncia, reconfigurables en caliente (permisos de viaje,
-estafas y lesiones, pérdidas/sustracciones, VioGén prioritaria…). Los denunciantes tienen paciencia;
-objetos de sala (cafetera, vending, revistas, aire, asientos) la frenan y algunos dan ingresos.
+## Setup técnico (recordatorio)
+- Godot 4.6 + GDScript en `C:\Users\manur\Godot\` (atajo `godot` en PATH). GitHub `rdomanu/juego` (main).
 
 ## Siguiente paso
-Escribir REPORT.md del prototipo → luego diseñar de verdad: `/art-bible` (look 2D isométrico) →
-`/map-systems` → `/design-system` (empezando por Documentación y ODAC, incluyendo Horarios y peonadas).
+`/art-bible` (identidad visual 2D isométrica, seria) → `/map-systems` → `/design-system`
+(empezando por Documentación y ODAC, con los valores/mecánicas del REPORT).
