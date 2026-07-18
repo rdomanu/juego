@@ -3,25 +3,33 @@
 *Última actualización: 2026-07-18*
 
 ## Tarea actual
-Pre-producción del juego **"Comisario"** (tycoon de gestión de comisarías del CNP). Concepto
-recién definido vía `/brainstorm`.
+**Prototipo de concepto** del juego "Comisario" — validar si gestionar el flujo de ciudadanos
+es divertido. Fase: **playtest** (jugador probando el prototipo HTML).
+
+## Hipótesis del prototipo
+Si el jugador organiza puestos y asigna agentes para atender la cola de ciudadanos (Documentación
++ ODAC), sentirá la satisfacción de optimizar el flujo. Señal: ajusta activamente su oficina ≥3
+veces en ~5 min para bajar la cola, en vez de mirar pasivamente.
+
+## Prototipo
+- Ruta: **HTML** (un archivo, sin instalar). Ubicación: `prototypes/comisaria-flujo-concept/prototype.html`
+- Incluye: 2 oficinas con salas de espera separadas (Documentación‑Secretaría / ODAC‑Policía Judicial),
+  puestos de ODAC reconfigurables por tipo de denuncia (permisos de viaje / estafas / pérdidas),
+  paciencia de los ciudadanos, objetos de sala (cafetera, vending, revistas, aire, asientos) que
+  frenan la pérdida de paciencia y algunos dan ingresos, presupuesto, agentes, ciclo de días con
+  demanda creciente, objetivo (llegar al Día 6 con satisfacción ≥60% → ascenso).
 
 ## Hecho en esta sesión
-- ✅ Instalada la plantilla Claude Code Game Studios (aplanada en la raíz).
-- ✅ Git propio + GitHub `rdomanu/juego` (rama main).
-- ✅ Motor Godot 4.6 + GDScript instalado (`C:\Users\manur\Godot\`, atajo `godot` en PATH) y configurado (`/setup-engine`).
-- ✅ Concepto del juego escrito en `design/gdd/game-concept.md`.
+- ✅ Plantilla CCGS instalada + GitHub `rdomanu/juego` + Godot 4.6 configurado.
+- ✅ Concepto en `design/gdd/game-concept.md`.
+- ✅ Prototipo HTML construido.
 
-## Decisiones clave
-- Tycoon realista (no caricatura), 2D cenital/isométrico, PC, un jugador.
-- Núcleo = flujo de personas por el edificio; progresión = escalera de carrera (Subinspector → Comisario → toda España).
-- Tiempo real con pausa + ciclo día/noche y turnos.
-- MVP = solo la Oficina de Denuncias.
-- Ruta elegida: **prototipo primero** (validar que el flujo es divertido antes de GDDs extensos).
+## Conocimiento de dominio capturado (para /map-systems)
+- La comisaría se divide en **brigadas**: Seguridad Ciudadana (Zetas), Policía Judicial (de ella cuelga
+  la ODAC), Información, Policía Científica, Extranjería y Fronteras. **Documentación** cuelga de la
+  **Secretaría** (no de una brigada); a nivel nacional tiene división propia. Las brigadas son el
+  esqueleto natural de la escalera de carrera.
 
 ## Siguiente paso
-`/prototype` del flujo de la Oficina de Denuncias. Después `/art-bible` → `/map-systems` → `/design-system`.
-
-## Preguntas abiertas
-- ¿El flujo de una sola oficina es divertido por sí solo? (lo resuelve el prototipo)
-- Equilibrio del sistema de presión/influencia (diseño cuidadoso pendiente).
+Playtest del prototipo → debrief (¿enganchó?) → REPORT.md con veredicto PROCEDE/PIVOTA/DESCARTA.
+Si PROCEDE: `/art-bible` → `/map-systems` → `/design-system`.
