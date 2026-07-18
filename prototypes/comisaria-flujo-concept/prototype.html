@@ -3,37 +3,30 @@
   PROTOTYPE - NOT FOR PRODUCTION
   Question: ¿Es divertido gestionar el flujo de ciudadanos por dos oficinas (Documentación + ODAC),
             asignando agentes/puestos con presupuesto, para que fluya sin que la gente se vaya enfadada?
-  Date: 2026-07-18
+  Date: 2026-07-19  (v2: reloj real, horarios, tiempos reales, puestos DNI/Pasaporte vs TIE separados)
 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comisaría — Prototipo de flujo</title>
+<title>Comisaría — Prototipo de flujo v2</title>
 <style>
   * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    background: #0f1720; color: #e5e9f0; font-size: 14px;
-  }
-  header {
-    background: #10233b; border-bottom: 2px solid #1c3a5e; padding: 8px 14px;
-    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  }
+  body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #0f1720; color: #e5e9f0; font-size: 14px; }
+  header { background: #10233b; border-bottom: 2px solid #1c3a5e; padding: 8px 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   header h1 { font-size: 16px; margin: 0; color: #7dd3fc; letter-spacing: .5px; }
-  .hud { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-variant-numeric: tabular-nums; }
+  .hud { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-variant-numeric: tabular-nums; }
   .stat { display: flex; flex-direction: column; line-height: 1.1; }
   .stat .k { font-size: 10px; color: #7e8aa0; text-transform: uppercase; letter-spacing: .5px; }
   .stat .v { font-size: 16px; font-weight: 700; }
-  .bar { width: 120px; height: 8px; background: #1c2836; border-radius: 4px; overflow: hidden; margin-top: 3px; }
+  .bar { width: 110px; height: 8px; background: #1c2836; border-radius: 4px; overflow: hidden; margin-top: 3px; }
   .bar > i { display: block; height: 100%; background: #4ade80; transition: width .2s, background .2s; }
-  #objective { font-size: 12px; color: #a9b4c7; margin-left: auto; max-width: 320px; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+  .pill.open { background: #14532d; color: #86efac; } .pill.closed { background: #4a2b12; color: #fdba74; }
+  #objective { font-size: 12px; color: #a9b4c7; margin-left: auto; max-width: 300px; }
 
   #toolbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px; background: #0c1521; border-bottom: 1px solid #1c2836; }
-  button {
-    background: #1c3350; color: #e5e9f0; border: 1px solid #2b4a6f;
-    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-family: inherit;
-  }
+  button { background: #1c3350; color: #e5e9f0; border: 1px solid #2b4a6f; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
   button:hover:not(:disabled) { background: #244a72; }
   button:disabled { opacity: .4; cursor: not-allowed; }
   button .cost { color: #fca5a5; font-size: 11px; }
@@ -43,30 +36,22 @@
   .office { background: #131f2e; border: 1px solid #24344a; border-radius: 10px; padding: 10px; min-height: 340px; }
   .office h2 { margin: 0 0 2px; font-size: 15px; }
   .office .sub { font-size: 11px; color: #7e8aa0; margin-bottom: 8px; }
-  .doc h2 { color: #7dd3fc; }
-  .odac h2 { color: #fca5a5; }
+  .doc h2 { color: #7dd3fc; } .odac h2 { color: #fca5a5; }
 
-  .waiting {
-    background: #0e1826; border: 1px dashed #2b3d55; border-radius: 8px; padding: 8px;
-    min-height: 78px; display: flex; flex-wrap: wrap; gap: 5px; align-content: flex-start; margin-bottom: 10px;
-  }
+  .waiting { background: #0e1826; border: 1px dashed #2b3d55; border-radius: 8px; padding: 8px; min-height: 78px; display: flex; flex-wrap: wrap; gap: 5px; align-content: flex-start; margin-bottom: 10px; }
   .waiting .label { width: 100%; font-size: 10px; color: #6b7688; text-transform: uppercase; letter-spacing: .5px; }
   .dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid transparent; }
   .dot.low { border-color: #ef4444; animation: pulse .7s infinite alternate; }
   @keyframes pulse { to { transform: scale(1.25); } }
 
   .desks { display: flex; flex-wrap: wrap; gap: 8px; }
-  .desk {
-    width: 108px; background: #0e1826; border: 1px solid #2b3d55; border-radius: 8px; padding: 7px; font-size: 11px;
-  }
+  .desk { width: 118px; background: #0e1826; border: 1px solid #2b3d55; border-radius: 8px; padding: 7px; font-size: 11px; }
   .desk .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .desk .who { font-weight: 700; }
   .desk .status { font-size: 10px; padding: 1px 5px; border-radius: 4px; }
-  .desk.serving { border-color: #4ade80; }
-  .desk.serving .status { background: #14532d; color: #86efac; }
+  .desk.serving { border-color: #4ade80; } .desk.serving .status { background: #14532d; color: #86efac; }
   .desk.idle .status { background: #1e3a5f; color: #93c5fd; }
-  .desk.noagent { opacity: .55; }
-  .desk.noagent .status { background: #4a2b12; color: #fdba74; }
+  .desk.noagent { opacity: .55; } .desk.noagent .status { background: #4a2b12; color: #fdba74; }
   .desk .typebtn { width: 100%; margin-top: 5px; font-size: 10px; padding: 3px; }
   .desk .servedbar { height: 5px; background: #1c2836; border-radius: 3px; margin-top: 5px; overflow: hidden; }
   .desk .servedbar > i { display: block; height: 100%; background: #4ade80; width: 0%; }
@@ -76,29 +61,28 @@
   #legend { padding: 6px 14px; font-size: 11px; color: #8b97ad; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   #legend span { display: inline-flex; align-items: center; gap: 5px; }
   #legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .help { font-size: 11px; color: #7e8aa0; padding: 4px 14px 0; }
 
-  #overlay {
-    position: fixed; inset: 0; background: rgba(6,10,16,.92); display: none;
-    align-items: center; justify-content: center; text-align: center; z-index: 10;
-  }
+  #overlay { position: fixed; inset: 0; background: rgba(6,10,16,.92); display: none; align-items: center; justify-content: center; text-align: center; z-index: 10; }
   #overlay .box { background: #12243c; border: 1px solid #2b4a6f; border-radius: 12px; padding: 28px 36px; max-width: 440px; }
   #overlay h2 { margin-top: 0; }
   #overlay button { font-size: 15px; padding: 10px 20px; margin-top: 14px; background: #2563eb; }
-  .help { font-size: 11px; color: #7e8aa0; padding: 4px 14px 0; }
 </style>
 </head>
 <body>
 <header>
-  <h1>🚔 COMISARÍA — Prototipo de flujo</h1>
+  <h1>🚔 COMISARÍA v2</h1>
   <div class="hud">
+    <div class="stat"><span class="k">Reloj</span><span class="v" id="clock">08:00</span></div>
+    <div class="stat"><span class="k">Día</span><span class="v" id="day">1</span></div>
+    <div class="stat"><span class="k">Documentación</span><span class="pill open" id="docStatus">Abierta</span></div>
     <div class="stat"><span class="k">Caja</span><span class="v" id="money">—</span></div>
     <div class="stat"><span class="k">Ingresos hoy</span><span class="v" id="income" style="color:#86efac">—</span></div>
     <div class="stat"><span class="k">Satisfacción</span><span class="v" id="satTxt">—</span><div class="bar"><i id="satBar"></i></div></div>
-    <div class="stat"><span class="k">Día</span><span class="v" id="day">1</span></div>
     <div class="stat"><span class="k">Agentes (usados/total)</span><span class="v" id="agents">0/0</span></div>
     <div class="stat"><span class="k">Demanda</span><span class="v" id="demand">—</span></div>
   </div>
-  <div id="objective">🎯 <b>Objetivo:</b> llega al <b>Día 6</b> con satisfacción ≥ 60% sin arruinarte → <b>¡Ascenso a Inspector!</b></div>
+  <div id="objective">🎯 <b>Objetivo:</b> llega al <b>Día 5</b> con satisfacción ≥ 60% sin arruinarte → <b>¡Ascenso a Inspector!</b></div>
 </header>
 
 <div id="toolbar">
@@ -115,18 +99,19 @@
   <button class="speed" data-s="0" onclick="setSpeed(0)">⏸</button>
   <button class="speed active" data-s="1" onclick="setSpeed(1)">▶ 1x</button>
   <button class="speed" data-s="2" onclick="setSpeed(2)">⏩ 2x</button>
+  <button class="speed" data-s="4" onclick="setSpeed(4)">⏩⏩ 4x</button>
 </div>
 
-<div class="help">Consejo: los <b>puestos de ODAC</b> se pulsan para cambiar el <b>tipo de denuncia</b> que atienden. Los agentes ocupan puestos abiertos automáticamente (usa el ▲/▼ del puesto para abrir/cerrar). ¡Equilibra dinero (Documentación) y obligación (denuncias)!</div>
+<div class="help">Los <b>puestos</b> se pulsan para cambiar su especialidad: en Documentación entre <b>DNI/Pasaporte</b> y <b>TIE</b> (¡son distintos!); en ODAC entre tipos de denuncia. Usa ▲/▼ para abrir/cerrar un puesto. De noche Documentación cierra y hay más denuncias.</div>
 
 <div id="offices">
   <div class="office doc">
-    <h2>🪪 Documentación <span class="sub">(Secretaría · genera ingresos)</span></h2>
+    <h2>🪪 Documentación <span class="sub">(Secretaría · genera ingresos · horario 08:00–15:00)</span></h2>
     <div class="waiting" id="wait-DOC"><span class="label">Sala de espera</span></div>
     <div class="desks" id="desks-DOC"></div>
   </div>
   <div class="office odac">
-    <h2>📝 ODAC · Denuncias <span class="sub">(Brigada de Policía Judicial · obligación)</span></h2>
+    <h2>📝 ODAC · Denuncias <span class="sub">(Brigada de Policía Judicial · 24h · obligación)</span></h2>
     <div class="waiting" id="wait-ODAC"><span class="label">Sala de espera</span></div>
     <div class="desks" id="desks-ODAC"></div>
   </div>
@@ -136,252 +121,206 @@
 <div id="ticker"></div>
 
 <div id="overlay"><div class="box">
-  <h2 id="ov-title"></h2>
-  <p id="ov-text"></p>
+  <h2 id="ov-title"></h2><p id="ov-text"></p>
   <button onclick="location.reload()">🔄 Jugar otra vez</button>
 </div></div>
 
 <script>
-// ---------- Datos de trámites ----------
+// ---------- Trámites (tiempos en MINUTOS de juego) ----------
 const DOC_TYPES = {
-  DNI:       { label:'DNI',       fee:12, time:6,  color:'#38bdf8' },
-  PASAPORTE: { label:'Pasaporte', fee:30, time:10, color:'#a78bfa' },
-  TIE:       { label:'TIE',       fee:18, time:8,  color:'#fbbf24' },
+  DNI:       { label:'DNI',       fee:12, time:12, color:'#38bdf8', desk:'DNIPAS' },
+  PASAPORTE: { label:'Pasaporte', fee:30, time:15, color:'#a78bfa', desk:'DNIPAS' },
+  TIE:       { label:'TIE',       fee:18, time:15, color:'#fbbf24', desk:'TIE' },
 };
+const DOC_DESK = { DNIPAS:{label:'DNI/Pasaporte', color:'#7dd3fc'}, TIE:{label:'TIE', color:'#fbbf24'} };
+const DOC_DESK_KEYS = ['DNIPAS','TIE'];
 const DEN_TYPES = {
-  VIAJE:   { label:'Permisos de viaje',      time:5,  color:'#4ade80' },
-  ESTAFA:  { label:'Estafas y lesiones',     time:12, color:'#f87171' },
-  PERDIDA: { label:'Pérdidas y sustracción', time:5,  color:'#60a5fa' },
+  VIAJE:   { label:'Permisos de viaje',      time:10, color:'#4ade80' },
+  ESTAFA:  { label:'Estafas y lesiones',     time:30, color:'#f87171' },
+  PERDIDA: { label:'Pérdidas y sustracción', time:10, color:'#60a5fa' },
 };
 const DEN_KEYS = Object.keys(DEN_TYPES);
 
+// ---------- Tiempo ----------
+const TIME_SCALE = 8;      // minutos de juego por segundo real (a 1x)
+const DOC_OPEN = 8*60, DOC_CLOSE = 15*60;  // 08:00 - 15:00
+function docOpen(){ return S.clock >= DOC_OPEN && S.clock < DOC_CLOSE; }
+function isNight(){ return S.clock >= 22*60 || S.clock < 6*60; }
+function fmtClock(m){ m=((m%1440)+1440)%1440; const h=Math.floor(m/60), mm=Math.floor(m%60); return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
+
 // ---------- Estado ----------
 let S;
-function initState() {
+function initState(){
   S = {
     money: 3500, incomeToday: 0, satisfaction: 75,
-    day: 1, dayTimer: 0, dayLength: 45,
+    clock: 8*60, day: 1,
     agents: 0, salary: 80,
-    spawnInterval: 2.6, spawnTimer: 0, minInterval: 0.85,
+    spawnEvery: 18, spawnTimer: 0, minSpawn: 6, // en minutos de juego
     speed: 1, over: false,
     amenities: { cafetera:false, vending:false, revistas:false, aire:false, asientos:false },
     citizens: [], nextId: 1,
     desks: [
-      { id:1, office:'DOC', open:true, busy:false, timer:0, dur:0, serving:null },
-      { id:2, office:'ODAC', type:'VIAJE', open:true, busy:false, timer:0, dur:0, serving:null },
+      { id:1, office:'DOC', type:'DNIPAS', open:true, busy:false, timer:0, dur:0, serving:null },
+      { id:2, office:'ODAC', type:'VIAJE',  open:true, busy:false, timer:0, dur:0, serving:null },
       { id:3, office:'ODAC', type:'ESTAFA', open:true, busy:false, timer:0, dur:0, serving:null },
     ],
     nextDesk: 4,
   };
 }
 const COSTS = { agent:400, desk:700, cafetera:600, vending:400, revistas:150, aire:500, asientos:300 };
-const WAIT_CAP = 16;
-const PATIENCE_BASE = 2.7; // puntos/seg (100 = lleno)
+const WAIT_CAP = 18;
+const PATIENCE_DECAY = 0.9; // puntos por minuto de juego
 
-function decayMult() {
-  let m = 1;
-  if (S.amenities.cafetera) m -= 0.15;
-  if (S.amenities.vending)  m -= 0.05;
-  if (S.amenities.revistas) m -= 0.10;
-  if (S.amenities.aire)     m -= 0.15;
-  if (S.amenities.asientos) m -= 0.10;
-  return Math.max(0.3, m);
-}
-function amenityIncome() { // por día
-  return (S.amenities.cafetera?50:0) + (S.amenities.vending?40:0);
-}
+function decayMult(){ let m=1;
+  if(S.amenities.cafetera)m-=0.15; if(S.amenities.vending)m-=0.05; if(S.amenities.revistas)m-=0.10;
+  if(S.amenities.aire)m-=0.15; if(S.amenities.asientos)m-=0.10; return Math.max(0.3,m); }
+function amenityIncome(){ return (S.amenities.cafetera?50:0)+(S.amenities.vending?40:0); }
+function serviceable(d){ return d.open && (d.office==='ODAC' || docOpen()); }
 
-// ---------- Acciones del jugador ----------
-function pay(n){ if (S.money >= n){ S.money -= n; return true; } log('❌ Sin presupuesto suficiente'); return false; }
-function hireAgent(){ if(S.over) return; if(pay(COSTS.agent)){ S.agents++; log('👮 Nuevo agente contratado'); } }
-function buildDesk(office){ if(S.over) return; if(pay(COSTS.desk)){
-  const d = { id:S.nextDesk++, office, open:true, busy:false, timer:0, dur:0, serving:null };
-  if(office==='ODAC') d.type = 'VIAJE';
-  S.desks.push(d); log((office==='DOC'?'🪪':'📝')+' Nuevo puesto de '+office);
-}}
-function buyAmenity(k){ if(S.over) return; if(S.amenities[k]) return; if(pay(COSTS[k])){ S.amenities[k]=true; log('✨ Instalado: '+k); document.getElementById('b-'+k).disabled=true; } }
-function cycleType(deskId){
-  const d = S.desks.find(x=>x.id===deskId); if(!d||d.office!=='ODAC') return;
-  const i = DEN_KEYS.indexOf(d.type); d.type = DEN_KEYS[(i+1)%DEN_KEYS.length];
-  log('🔀 Puesto ODAC ahora atiende: '+DEN_TYPES[d.type].label);
-}
-function toggleDesk(deskId){ const d=S.desks.find(x=>x.id===deskId); if(d){ d.open=!d.open; if(!d.open && d.busy){/*deja terminar*/} } }
-function setSpeed(s){ S.speed=s; document.querySelectorAll('.speed').forEach(b=>b.classList.toggle('active', +b.dataset.s===s)); }
+// ---------- Acciones ----------
+function pay(n){ if(S.money>=n){ S.money-=n; return true; } log('❌ Sin presupuesto suficiente'); return false; }
+function hireAgent(){ if(S.over)return; if(pay(COSTS.agent)){ S.agents++; log('👮 Nuevo agente contratado'); } }
+function buildDesk(office){ if(S.over)return; if(pay(COSTS.desk)){
+  const d={ id:S.nextDesk++, office, open:true, busy:false, timer:0, dur:0, serving:null };
+  d.type = office==='DOC' ? 'DNIPAS' : 'VIAJE';
+  S.desks.push(d); log((office==='DOC'?'🪪':'📝')+' Nuevo puesto de '+office); } }
+function buyAmenity(k){ if(S.over)return; if(S.amenities[k])return; if(pay(COSTS[k])){ S.amenities[k]=true; log('✨ Instalado: '+k); document.getElementById('b-'+k).disabled=true; } }
+function cycleType(id){ const d=S.desks.find(x=>x.id===id); if(!d)return;
+  if(d.office==='DOC'){ d.type = d.type==='DNIPAS'?'TIE':'DNIPAS'; log('🔀 Puesto Documentación → '+DOC_DESK[d.type].label); }
+  else { const i=DEN_KEYS.indexOf(d.type); d.type=DEN_KEYS[(i+1)%DEN_KEYS.length]; log('🔀 Puesto ODAC → '+DEN_TYPES[d.type].label); } }
+function toggleDesk(id){ const d=S.desks.find(x=>x.id===id); if(d) d.open=!d.open; }
+function setSpeed(s){ S.speed=s; document.querySelectorAll('.speed').forEach(b=>b.classList.toggle('active',+b.dataset.s===s)); }
 
-// ---------- Log / ticker ----------
-let logLines = [];
-function log(msg){ logLines.unshift(msg); if(logLines.length>4) logLines.pop(); }
+// ---------- Log ----------
+let logLines=[]; function log(m){ logLines.unshift(m); if(logLines.length>4)logLines.pop(); }
 
 // ---------- Simulación ----------
 function spawnCitizen(){
-  const office = Math.random() < 0.55 ? 'DOC' : 'ODAC';
+  const canDoc = docOpen();
+  const office = (canDoc && Math.random()<0.55) ? 'DOC' : 'ODAC';
   const waiting = S.citizens.filter(c=>c.office===office && c.state==='waiting').length;
-  let need, color;
-  if(office==='DOC'){
-    const r = Math.random(); need = r<0.6?'DNI':(r<0.8?'PASAPORTE':'TIE'); color = DOC_TYPES[need].color;
-  } else {
-    need = DEN_KEYS[Math.floor(Math.random()*DEN_KEYS.length)]; color = DEN_TYPES[need].color;
-  }
-  if(waiting >= WAIT_CAP){ // sala llena -> se marcha
-    S.satisfaction = Math.max(0, S.satisfaction - 1);
-    log('🚪 Sala de '+office+' llena: un ciudadano se marchó');
-    return;
-  }
+  let need,color;
+  if(office==='DOC'){ const r=Math.random(); need=r<0.6?'DNI':(r<0.8?'PASAPORTE':'TIE'); color=DOC_TYPES[need].color; }
+  else { need=DEN_KEYS[Math.floor(Math.random()*DEN_KEYS.length)]; color=DEN_TYPES[need].color; }
+  if(waiting>=WAIT_CAP){ S.satisfaction=Math.max(0,S.satisfaction-1); log('🚪 Sala de '+office+' llena: un ciudadano se marchó'); return; }
   S.citizens.push({ id:S.nextId++, office, need, color, state:'waiting', patience:100 });
 }
-
 function findWaiting(desk){
-  // el que más lleva esperando (menor patience como proxy razonable: usamos orden de llegada -> id)
   let best=null;
   for(const c of S.citizens){
-    if(c.state!=='waiting' || c.office!==desk.office) continue;
+    if(c.state!=='waiting'||c.office!==desk.office) continue;
+    if(desk.office==='DOC' && DOC_TYPES[c.need].desk!==desk.type) continue;
     if(desk.office==='ODAC' && c.need!==desk.type) continue;
-    if(!best || c.id<best.id) best=c;
+    if(!best||c.id<best.id) best=c;
   }
   return best;
 }
-
 function tick(){
-  if(S.over) return;
-  const dt = 0.1 * S.speed;
-  if(dt>0){
-    // paciencia
-    const dm = decayMult();
-    for(const c of S.citizens){
-      if(c.state==='waiting'){
-        c.patience -= PATIENCE_BASE * dm * dt;
-        if(c.patience<=0){
-          c.state='gone';
-          S.satisfaction = Math.max(0, S.satisfaction - 3);
-          log('😠 '+ (c.office==='DOC'?'Ciudadano':'Denunciante') +' se fue enfadado (sin atender)');
-        }
-      }
-    }
-    S.citizens = S.citizens.filter(c=>c.state!=='gone');
+  if(S.over){ return; }
+  const dtGameMin = 0.1 * S.speed * TIME_SCALE; // minutos de juego este tick
+  if(dtGameMin>0){
+    // reloj
+    const prev=S.clock; S.clock += dtGameMin;
+    if(S.clock>=1440){ S.clock-=1440; newDay(); }
 
-    // asignar agentes a puestos abiertos (en orden)
-    const openDesks = S.desks.filter(d=>d.open);
-    openDesks.forEach((d,i)=>{ d.staffed = i < S.agents; });
-    S.desks.filter(d=>!d.open).forEach(d=>d.staffed=false);
+    // paciencia
+    const dm=decayMult();
+    for(const c of S.citizens){ if(c.state==='waiting'){ c.patience -= PATIENCE_DECAY*dm*dtGameMin;
+      if(c.patience<=0){ c.state='gone'; S.satisfaction=Math.max(0,S.satisfaction-3); log('😠 '+(c.office==='DOC'?'Ciudadano':'Denunciante')+' se fue enfadado'); } } }
+    S.citizens=S.citizens.filter(c=>c.state!=='gone');
+
+    // staffing
+    const serv=S.desks.filter(serviceable); serv.forEach((d,i)=>d.staffed=i<S.agents);
+    S.desks.filter(d=>!serviceable(d)).forEach(d=>d.staffed=false);
 
     // atender
     for(const d of S.desks){
-      if(d.busy){
-        d.timer -= dt;
-        if(d.timer<=0){
-          const c = d.serving;
+      if(d.busy){ d.timer-=dtGameMin;
+        if(d.timer<=0){ const c=d.serving;
           if(c.office==='DOC'){ const fee=DOC_TYPES[c.need].fee; S.money+=fee; S.incomeToday+=fee; S.satisfaction=Math.min(100,S.satisfaction+0.3); log('✅ '+DOC_TYPES[c.need].label+' expedido (+'+fee+'€)'); }
           else { S.satisfaction=Math.min(100,S.satisfaction+0.6); log('✅ Denuncia atendida: '+DEN_TYPES[c.need].label); }
-          d.busy=false; d.serving=null;
-        }
-      }
-      if(!d.busy && d.staffed){
-        const c = findWaiting(d);
-        if(c){ c.state='serving'; d.busy=true; d.serving=c; d.dur = (d.office==='DOC'?DOC_TYPES[c.need].time:DEN_TYPES[d.type].time); d.timer=d.dur; }
-      }
+          d.busy=false; d.serving=null; } }
+      if(!d.busy && d.staffed){ const c=findWaiting(d);
+        if(c){ c.state='serving'; d.busy=true; d.serving=c; d.dur=(d.office==='DOC'?DOC_TYPES[c.need].time:DEN_TYPES[d.type].time); d.timer=d.dur; } }
     }
 
-    // spawn
-    S.spawnTimer += dt;
-    if(S.spawnTimer >= S.spawnInterval){ S.spawnTimer=0; spawnCitizen(); }
+    // spawn (más frecuente de noche)
+    S.spawnTimer += dtGameMin;
+    const every = S.spawnEvery * (isNight()?0.6:1);
+    if(S.spawnTimer>=every){ S.spawnTimer=0; spawnCitizen(); }
 
-    // día
-    S.dayTimer += dt;
-    if(S.dayTimer >= S.dayLength){
-      S.dayTimer=0; S.day++;
-      const wages = S.agents*S.salary; S.money -= wages;
-      const inc = amenityIncome(); S.money += inc;
-      S.spawnInterval = Math.max(S.minInterval, S.spawnInterval*0.86);
-      log('📅 DÍA '+S.day+' — Sueldos -'+wages+'€'+(inc?' · Servicios +'+inc+'€':'')+' · sube la demanda');
-      S.incomeToday = 0;
-      checkEnd();
-    }
-    // derrota por dinero / satisfacción
-    if(S.money < 0) endGame(false, 'Te quedaste sin presupuesto. La comisaría no puede operar.');
-    else if(S.satisfaction <= 20) endGame(false, 'La satisfacción ciudadana se hundió. Te relevan del puesto.');
+    if(S.money<0) endGame(false,'Te quedaste sin presupuesto. La comisaría no puede operar.');
+    else if(S.satisfaction<=20) endGame(false,'La satisfacción ciudadana se hundió. Te relevan del puesto.');
   }
   render();
 }
-
-function checkEnd(){
-  if(S.day >= 6){
-    if(S.satisfaction >= 60) endGame(true, '¡Sobreviviste 5 días con la ciudadanía contenta! Tu gestión eficiente te vale el ascenso.');
-    else endGame(false, 'Llegaste al Día 6 pero con la satisfacción por debajo del 60%. Necesitas afinar la gestión.');
-  }
+function newDay(){
+  S.day++; const wages=S.agents*S.salary; S.money-=wages; const inc=amenityIncome(); S.money+=inc;
+  S.spawnEvery=Math.max(S.minSpawn, S.spawnEvery*0.88); S.incomeToday=0;
+  log('📅 DÍA '+S.day+' — Sueldos -'+wages+'€'+(inc?' · Servicios +'+inc+'€':'')+' · sube la demanda');
+  if(S.day>=5){ if(S.satisfaction>=60) endGame(true,'¡Aguantaste con la ciudadanía contenta! Tu gestión eficiente te vale el ascenso.'); else endGame(false,'Llegaste al Día 5 pero con la satisfacción por debajo del 60%.'); }
 }
-function endGame(win, text){
-  if(S.over) return; S.over=true; S.speed=0;
-  document.getElementById('ov-title').textContent = win ? '🎖️ ¡ASCENSO A INSPECTOR!' : '📉 FIN DE LA PARTIDA';
-  document.getElementById('ov-title').style.color = win ? '#86efac' : '#fca5a5';
-  document.getElementById('ov-text').textContent = text;
-  document.getElementById('overlay').style.display='flex';
-}
+function endGame(win,text){ if(S.over)return; S.over=true; S.speed=0;
+  const t=document.getElementById('ov-title'); t.textContent=win?'🎖️ ¡ASCENSO A INSPECTOR!':'📉 FIN DE LA PARTIDA'; t.style.color=win?'#86efac':'#fca5a5';
+  document.getElementById('ov-text').textContent=text; document.getElementById('overlay').style.display='flex'; }
 
 // ---------- Render ----------
 function render(){
+  document.getElementById('clock').textContent = fmtClock(S.clock) + (isNight()?' 🌙':' ☀️');
+  document.getElementById('day').textContent = S.day;
+  const ds=document.getElementById('docStatus'); const op=docOpen();
+  ds.textContent = op?'Abierta':'Cerrada'; ds.className='pill '+(op?'open':'closed');
   document.getElementById('money').textContent = Math.round(S.money)+'€';
-  document.getElementById('money').style.color = S.money<400 ? '#fca5a5' : '#e5e9f0';
+  document.getElementById('money').style.color = S.money<400?'#fca5a5':'#e5e9f0';
   document.getElementById('income').textContent = '+'+Math.round(S.incomeToday)+'€';
   document.getElementById('satTxt').textContent = Math.round(S.satisfaction)+'%';
-  const sb = document.getElementById('satBar'); sb.style.width = S.satisfaction+'%';
-  sb.style.background = S.satisfaction>=60?'#4ade80':(S.satisfaction>=35?'#fbbf24':'#ef4444');
-  document.getElementById('day').textContent = S.day;
-  const used = S.desks.filter(d=>d.open && d.staffed).length;
+  const sb=document.getElementById('satBar'); sb.style.width=S.satisfaction+'%';
+  sb.style.background=S.satisfaction>=60?'#4ade80':(S.satisfaction>=35?'#fbbf24':'#ef4444');
+  const used=S.desks.filter(d=>serviceable(d)&&d.staffed).length;
   document.getElementById('agents').textContent = used+'/'+S.agents;
-  document.getElementById('demand').textContent = (60/S.spawnInterval).toFixed(0)+'/min';
+  document.getElementById('demand').textContent = (1440/S.spawnEvery/24).toFixed(1)+'/h';
 
   ['DOC','ODAC'].forEach(office=>{
-    const wc = document.getElementById('wait-'+office);
-    const label = office==='DOC' ? 'Sala de espera' : 'Sala de espera';
-    let html = '<span class="label">'+label+' ('+S.citizens.filter(c=>c.office===office&&c.state==='waiting').length+')</span>';
-    for(const c of S.citizens){
-      if(c.office!==office || c.state!=='waiting') continue;
-      const low = c.patience<30 ? ' low':'';
-      const op = 0.35 + 0.65*(c.patience/100);
-      const need = office==='DOC'?DOC_TYPES[c.need].label:DEN_TYPES[c.need].label;
-      html += '<div class="dot'+low+'" style="background:'+c.color+';opacity:'+op.toFixed(2)+'" title="'+need+' · paciencia '+Math.round(c.patience)+'%"></div>';
-    }
-    wc.innerHTML = html;
+    const wc=document.getElementById('wait-'+office);
+    let html='<span class="label">Sala de espera ('+S.citizens.filter(c=>c.office===office&&c.state==='waiting').length+')</span>';
+    for(const c of S.citizens){ if(c.office!==office||c.state!=='waiting')continue;
+      const low=c.patience<30?' low':''; const op=0.35+0.65*(c.patience/100);
+      const need=office==='DOC'?DOC_TYPES[c.need].label:DEN_TYPES[c.need].label;
+      html+='<div class="dot'+low+'" style="background:'+c.color+';opacity:'+op.toFixed(2)+'" title="'+need+' · paciencia '+Math.round(c.patience)+'%"></div>'; }
+    wc.innerHTML=html;
 
-    const dc = document.getElementById('desks-'+office);
-    let dh = '';
+    const dc=document.getElementById('desks-'+office); let dh='';
     for(const d of S.desks.filter(x=>x.office===office)){
-      let cls='desk', status='Libre', statusCls='idle';
-      if(!d.open){ cls+=' noagent'; status='Cerrado'; }
+      let cls='desk',status='Libre',statusCls='idle';
+      if(office==='DOC' && !docOpen()){ cls+=' noagent'; status='Fuera de horario'; }
+      else if(!d.open){ cls+=' noagent'; status='Cerrado'; }
       else if(!d.staffed){ cls+=' noagent'; status='Sin agente'; }
       else if(d.busy){ cls+=' serving'; status='Atendiendo'; statusCls='serving'; }
       else cls+=' idle';
-      const title = office==='DOC' ? 'Ventanilla' : DEN_TYPES[d.type].label;
-      const titleColor = office==='ODAC' ? DEN_TYPES[d.type].color : '#7dd3fc';
-      const pct = d.busy ? (100*(1-d.timer/d.dur)) : 0;
-      dh += '<div class="'+cls+'">'
-          + '<div class="top"><span class="who" style="color:'+titleColor+'">'+ (office==='DOC'?'🪪 Ventanilla':'📝 Puesto') +'</span>'
-          + '<button style="padding:0 6px" onclick="toggleDesk('+d.id+')" title="Abrir/Cerrar">'+(d.open?'▼':'▲')+'</button></div>'
-          + '<div class="status '+statusCls+'">'+status+'</div>'
-          + (office==='ODAC' ? '<button class="typebtn" style="border-color:'+titleColor+'" onclick="cycleType('+d.id+')">'+DEN_TYPES[d.type].label+' ⟳</button>' : '')
-          + '<div class="servedbar"><i style="width:'+pct+'%"></i></div>'
-          + '</div>';
+      const typeLabel = office==='DOC'?DOC_DESK[d.type].label:DEN_TYPES[d.type].label;
+      const typeColor = office==='DOC'?DOC_DESK[d.type].color:DEN_TYPES[d.type].color;
+      const pct=d.busy?(100*(1-d.timer/d.dur)):0;
+      dh+='<div class="'+cls+'">'
+        +'<div class="top"><span class="who" style="color:'+typeColor+'">'+(office==='DOC'?'🪪':'📝')+'</span>'
+        +'<button style="padding:0 6px" onclick="toggleDesk('+d.id+')" title="Abrir/Cerrar">'+(d.open?'▼':'▲')+'</button></div>'
+        +'<div class="status '+statusCls+'">'+status+'</div>'
+        +'<button class="typebtn" style="border-color:'+typeColor+'" onclick="cycleType('+d.id+')">'+typeLabel+' ⟳</button>'
+        +'<div class="servedbar"><i style="width:'+pct+'%"></i></div></div>';
     }
-    dc.innerHTML = dh;
+    dc.innerHTML=dh;
   });
-
   document.getElementById('ticker').innerHTML = logLines.map(l=>'<div>'+l+'</div>').join('');
 }
-
-// ---------- Leyenda ----------
 function buildLegend(){
-  let h = '<b style="color:#7dd3fc">Documentación:</b> ';
-  for(const k in DOC_TYPES) h += '<span><i style="background:'+DOC_TYPES[k].color+'"></i>'+DOC_TYPES[k].label+' ('+DOC_TYPES[k].fee+'€)</span> ';
-  h += '&nbsp;&nbsp;<b style="color:#fca5a5">Denuncias:</b> ';
-  for(const k in DEN_TYPES) h += '<span><i style="background:'+DEN_TYPES[k].color+'"></i>'+DEN_TYPES[k].label+'</span> ';
-  document.getElementById('legend').innerHTML = h;
+  let h='<b style="color:#7dd3fc">Documentación:</b> ';
+  for(const k in DOC_TYPES) h+='<span><i style="background:'+DOC_TYPES[k].color+'"></i>'+DOC_TYPES[k].label+' ('+DOC_TYPES[k].fee+'€, '+DOC_TYPES[k].time+'min)</span> ';
+  h+='&nbsp;&nbsp;<b style="color:#fca5a5">Denuncias:</b> ';
+  for(const k in DEN_TYPES) h+='<span><i style="background:'+DEN_TYPES[k].color+'"></i>'+DEN_TYPES[k].label+' ('+DEN_TYPES[k].time+'min)</span> ';
+  document.getElementById('legend').innerHTML=h;
 }
-
-// ---------- Arranque ----------
 initState(); buildLegend();
-log('👋 Bienvenido, Subinspector. Contrata agentes y organiza los puestos.');
-setInterval(tick, 100);
-render();
+log('👋 Bienvenido, Subinspector. Contrata agentes y organiza los puestos. ¡Ojo al horario de Documentación!');
+setInterval(tick,100); render();
 </script>
 </body>
 </html>
