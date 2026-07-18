@@ -92,6 +92,7 @@
   <span style="width:1px;background:#24344a;margin:0 4px"></span>
   <button id="b-early" class="togg" onclick="toggleEarly()">🌅 Abrir 08:00 <span class="cost">+15€/h</span></button>
   <button id="b-peonada" class="togg" onclick="togglePeonada()">🌆 Peonada 16-20h <span class="cost">+15€/h</span></button>
+  <button id="b-cita" class="togg" onclick="toggleCita()">🎫 Cita previa</button>
   <span style="width:1px;background:#24344a;margin:0 4px"></span>
   <button id="b-cafetera" onclick="buyAmenity('cafetera')">☕ Cafetera <span class="cost">600€</span></button>
   <button id="b-vending" onclick="buyAmenity('vending')">🥤 Vending <span class="cost">400€</span></button>
@@ -106,8 +107,9 @@
 </div>
 
 <div class="help">
-  💡 Más puestos/agentes = más <b>capacidad</b> para atender, <b>NO</b> más gente. La <b>llegada</b> de gente depende de la <b>hora</b> (mañanas ajetreadas, noches con más denuncias). Para tener más gente en Documentación, <b>amplía el horario</b> con 🌅 y 🌆 (cuestan 15€/h por puesto tras las 14:30).<br>
-  🔀 Pulsa un <b>puesto</b> para cambiar su especialidad (DNI/Pasaporte ↔ TIE, o tipo de denuncia). Usa ▲/▼ para abrir/cerrar.
+  💡 Más puestos/agentes = más <b>capacidad</b> para atender, <b>NO</b> más gente. La <b>llegada</b> depende de la <b>hora</b> y de la política de cita.<br>
+  🎫 <b>Sin cita</b> (por defecto): mucho volumen y caos (como la v1). <b>Con cita previa</b>: flujo controlado a tu capacidad (más tranquilo, menos ingresos). Amplía horario con 🌅/🌆 (15€/h por puesto tras las 14:30).<br>
+  🔀 Pulsa un <b>puesto</b> para cambiar su especialidad (DNI/Pasaporte ↔ TIE, o tipo de denuncia). ▲/▼ para abrir/cerrar.
 </div>
 
 <div id="offices">
@@ -167,8 +169,8 @@ function initState(){
     money: 3500, incomeToday: 0, overtimeToday: 0, satisfaction: 75,
     clock: 8*60, day: 1,
     agents: 0, salary: 80,
-    spawnEvery: 12, spawnTimer: 0, minSpawn: 5, // minutos de juego entre llegadas
-    schedule: { early:false, peonada:false },
+    spawnEvery: 7, spawnTimer: 0, minSpawn: 4, // minutos de juego entre llegadas (bajo = más gente)
+    schedule: { early:false, peonada:false }, citaPrevia: false,
     speed: 1, over: false,
     amenities: { cafetera:false, vending:false, revistas:false, aire:false, asientos:false },
     citizens: [], nextId: 1,
@@ -205,7 +207,8 @@ function toggleDesk(id){ const d=S.desks.find(x=>x.id===id); if(d) d.open=!d.ope
 function setSpeed(s){ S.speed=s; document.querySelectorAll('.speed').forEach(b=>b.classList.toggle('active',+b.dataset.s===s)); }
 function toggleEarly(){ if(S.over)return; S.schedule.early=!S.schedule.early; log('🌅 Apertura 08:00 '+(S.schedule.early?'ACTIVADA (horas extra)':'desactivada')); syncSched(); }
 function togglePeonada(){ if(S.over)return; S.schedule.peonada=!S.schedule.peonada; log('🌆 Peonada de tarde '+(S.schedule.peonada?'ACTIVADA (horas extra)':'desactivada')); syncSched(); }
-function syncSched(){ document.getElementById('b-early').classList.toggle('active',S.schedule.early); document.getElementById('b-peonada').classList.toggle('active',S.schedule.peonada); }
+function toggleCita(){ if(S.over)return; S.citaPrevia=!S.citaPrevia; log(S.citaPrevia?'🎫 Documentación CON CITA (flujo controlado, menos volumen)':'🚶 Documentación SIN CITA (más volumen y caos)'); syncSched(); }
+function syncSched(){ document.getElementById('b-early').classList.toggle('active',S.schedule.early); document.getElementById('b-peonada').classList.toggle('active',S.schedule.peonada); document.getElementById('b-cita').classList.toggle('active',S.citaPrevia); }
 
 // ---------- Log ----------
 let logLines=[]; function log(m){ logLines.unshift(m); if(logLines.length>4)logLines.pop(); }
@@ -213,7 +216,13 @@ let logLines=[]; function log(m){ logLines.unshift(m); if(logLines.length>4)logL
 // ---------- Simulación ----------
 function spawnCitizen(){
   const canDoc = docOpen();
-  const office = (canDoc && Math.random()<0.55) ? 'DOC' : 'ODAC';
+  let office = (canDoc && Math.random()<0.6) ? 'DOC' : 'ODAC';
+  // Con cita previa, Documentación solo admite gente hasta llenar su capacidad (flujo controlado).
+  if(office==='DOC' && S.citaPrevia){
+    const openDoc = S.desks.filter(d=>d.office==='DOC' && serviceable(d)).length;
+    const docWaiting = S.citizens.filter(c=>c.office==='DOC' && c.state==='waiting').length;
+    if(docWaiting >= openDoc+2) return; // agenda completa: no entran walk-ins
+  }
   const waiting = S.citizens.filter(c=>c.office===office && c.state==='waiting').length;
   let need,color;
   if(office==='DOC'){ const r=Math.random(); need=r<0.6?'DNI':(r<0.8?'PASAPORTE':'TIE'); color=DOC_TYPES[need].color; }
