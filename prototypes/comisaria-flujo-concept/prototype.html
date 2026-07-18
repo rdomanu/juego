@@ -1,19 +1,18 @@
 <!DOCTYPE html>
 <!--
   PROTOTYPE - NOT FOR PRODUCTION
-  Question: ¿Es divertido gestionar el flujo de ciudadanos por dos oficinas (Documentación + ODAC),
-            asignando agentes/puestos con presupuesto, para que fluya sin que la gente se vaya enfadada?
-  Date: 2026-07-19  (v2: reloj real, horarios, tiempos reales, puestos DNI/Pasaporte vs TIE separados)
+  Question: ¿Es divertido gestionar el flujo de ciudadanos (Documentación + ODAC) con presupuesto?
+  Date: 2026-07-19  (v3: horarios configurables + peonadas/horas extra 15€/h tras 14:30, demanda base subida)
 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comisaría — Prototipo de flujo v2</title>
+<title>Comisaría — Prototipo de flujo v3</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #0f1720; color: #e5e9f0; font-size: 14px; }
-  header { background: #10233b; border-bottom: 2px solid #1c3a5e; padding: 8px 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header { background: #10233b; border-bottom: 2px solid #1c3a5e; padding: 8px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   header h1 { font-size: 16px; margin: 0; color: #7dd3fc; letter-spacing: .5px; }
   .hud { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-variant-numeric: tabular-nums; }
   .stat { display: flex; flex-direction: column; line-height: 1.1; }
@@ -23,14 +22,14 @@
   .bar > i { display: block; height: 100%; background: #4ade80; transition: width .2s, background .2s; }
   .pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
   .pill.open { background: #14532d; color: #86efac; } .pill.closed { background: #4a2b12; color: #fdba74; }
-  #objective { font-size: 12px; color: #a9b4c7; margin-left: auto; max-width: 300px; }
+  #objective { font-size: 12px; color: #a9b4c7; margin-left: auto; max-width: 290px; }
 
   #toolbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px; background: #0c1521; border-bottom: 1px solid #1c2836; }
   button { background: #1c3350; color: #e5e9f0; border: 1px solid #2b4a6f; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
   button:hover:not(:disabled) { background: #244a72; }
   button:disabled { opacity: .4; cursor: not-allowed; }
   button .cost { color: #fca5a5; font-size: 11px; }
-  .speed.active { background: #2563eb; border-color: #3b82f6; }
+  .speed.active, .togg.active { background: #2563eb; border-color: #3b82f6; }
 
   #offices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 14px; }
   .office { background: #131f2e; border: 1px solid #24344a; border-radius: 10px; padding: 10px; min-height: 340px; }
@@ -61,7 +60,7 @@
   #legend { padding: 6px 14px; font-size: 11px; color: #8b97ad; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   #legend span { display: inline-flex; align-items: center; gap: 5px; }
   #legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
-  .help { font-size: 11px; color: #7e8aa0; padding: 4px 14px 0; }
+  .help { font-size: 11px; color: #7e8aa0; padding: 4px 14px 0; line-height: 1.5; }
 
   #overlay { position: fixed; inset: 0; background: rgba(6,10,16,.92); display: none; align-items: center; justify-content: center; text-align: center; z-index: 10; }
   #overlay .box { background: #12243c; border: 1px solid #2b4a6f; border-radius: 12px; padding: 28px 36px; max-width: 440px; }
@@ -71,18 +70,19 @@
 </head>
 <body>
 <header>
-  <h1>🚔 COMISARÍA v2</h1>
+  <h1>🚔 COMISARÍA v3</h1>
   <div class="hud">
     <div class="stat"><span class="k">Reloj</span><span class="v" id="clock">08:00</span></div>
     <div class="stat"><span class="k">Día</span><span class="v" id="day">1</span></div>
     <div class="stat"><span class="k">Documentación</span><span class="pill open" id="docStatus">Abierta</span></div>
     <div class="stat"><span class="k">Caja</span><span class="v" id="money">—</span></div>
     <div class="stat"><span class="k">Ingresos hoy</span><span class="v" id="income" style="color:#86efac">—</span></div>
+    <div class="stat"><span class="k">Extra hoy</span><span class="v" id="overtime" style="color:#fdba74">—</span></div>
     <div class="stat"><span class="k">Satisfacción</span><span class="v" id="satTxt">—</span><div class="bar"><i id="satBar"></i></div></div>
     <div class="stat"><span class="k">Agentes (usados/total)</span><span class="v" id="agents">0/0</span></div>
     <div class="stat"><span class="k">Demanda</span><span class="v" id="demand">—</span></div>
   </div>
-  <div id="objective">🎯 <b>Objetivo:</b> llega al <b>Día 5</b> con satisfacción ≥ 60% sin arruinarte → <b>¡Ascenso a Inspector!</b></div>
+  <div id="objective">🎯 <b>Objetivo:</b> llega al <b>Día 5</b> con satisfacción ≥ 60% sin arruinarte → <b>¡Ascenso!</b></div>
 </header>
 
 <div id="toolbar">
@@ -90,10 +90,13 @@
   <button id="b-doc" onclick="buildDesk('DOC')">🪪 Puesto Documentación <span class="cost">700€</span></button>
   <button id="b-odac" onclick="buildDesk('ODAC')">📝 Puesto ODAC <span class="cost">700€</span></button>
   <span style="width:1px;background:#24344a;margin:0 4px"></span>
+  <button id="b-early" class="togg" onclick="toggleEarly()">🌅 Abrir 08:00 <span class="cost">+15€/h</span></button>
+  <button id="b-peonada" class="togg" onclick="togglePeonada()">🌆 Peonada 16-20h <span class="cost">+15€/h</span></button>
+  <span style="width:1px;background:#24344a;margin:0 4px"></span>
   <button id="b-cafetera" onclick="buyAmenity('cafetera')">☕ Cafetera <span class="cost">600€</span></button>
   <button id="b-vending" onclick="buyAmenity('vending')">🥤 Vending <span class="cost">400€</span></button>
   <button id="b-revistas" onclick="buyAmenity('revistas')">📖 Revistas <span class="cost">150€</span></button>
-  <button id="b-aire" onclick="buyAmenity('aire')">❄️ Aire acond. <span class="cost">500€</span></button>
+  <button id="b-aire" onclick="buyAmenity('aire')">❄️ Aire <span class="cost">500€</span></button>
   <button id="b-asientos" onclick="buyAmenity('asientos')">💺 Asientos <span class="cost">300€</span></button>
   <span style="width:1px;background:#24344a;margin:0 4px"></span>
   <button class="speed" data-s="0" onclick="setSpeed(0)">⏸</button>
@@ -102,11 +105,14 @@
   <button class="speed" data-s="4" onclick="setSpeed(4)">⏩⏩ 4x</button>
 </div>
 
-<div class="help">Los <b>puestos</b> se pulsan para cambiar su especialidad: en Documentación entre <b>DNI/Pasaporte</b> y <b>TIE</b> (¡son distintos!); en ODAC entre tipos de denuncia. Usa ▲/▼ para abrir/cerrar un puesto. De noche Documentación cierra y hay más denuncias.</div>
+<div class="help">
+  💡 Más puestos/agentes = más <b>capacidad</b> para atender, <b>NO</b> más gente. La <b>llegada</b> de gente depende de la <b>hora</b> (mañanas ajetreadas, noches con más denuncias). Para tener más gente en Documentación, <b>amplía el horario</b> con 🌅 y 🌆 (cuestan 15€/h por puesto tras las 14:30).<br>
+  🔀 Pulsa un <b>puesto</b> para cambiar su especialidad (DNI/Pasaporte ↔ TIE, o tipo de denuncia). Usa ▲/▼ para abrir/cerrar.
+</div>
 
 <div id="offices">
   <div class="office doc">
-    <h2>🪪 Documentación <span class="sub">(Secretaría · genera ingresos · horario 08:00–15:00)</span></h2>
+    <h2>🪪 Documentación <span class="sub">(Secretaría · ingresos · base 09:00–14:30 · peonadas con coste)</span></h2>
     <div class="waiting" id="wait-DOC"><span class="label">Sala de espera</span></div>
     <div class="desks" id="desks-DOC"></div>
   </div>
@@ -133,7 +139,6 @@ const DOC_TYPES = {
   TIE:       { label:'TIE',       fee:18, time:15, color:'#fbbf24', desk:'TIE' },
 };
 const DOC_DESK = { DNIPAS:{label:'DNI/Pasaporte', color:'#7dd3fc'}, TIE:{label:'TIE', color:'#fbbf24'} };
-const DOC_DESK_KEYS = ['DNIPAS','TIE'];
 const DEN_TYPES = {
   VIAJE:   { label:'Permisos de viaje',      time:10, color:'#4ade80' },
   ESTAFA:  { label:'Estafas y lesiones',     time:30, color:'#f87171' },
@@ -142,9 +147,16 @@ const DEN_TYPES = {
 const DEN_KEYS = Object.keys(DEN_TYPES);
 
 // ---------- Tiempo ----------
-const TIME_SCALE = 8;      // minutos de juego por segundo real (a 1x)
-const DOC_OPEN = 8*60, DOC_CLOSE = 15*60;  // 08:00 - 15:00
-function docOpen(){ return S.clock >= DOC_OPEN && S.clock < DOC_CLOSE; }
+const TIME_SCALE = 8; // minutos de juego por segundo real (a 1x)
+// Documentación: base 09:00–14:30 (gratis). Opcional: apertura 08:00 y peonada 16:00–20:00.
+// Toda hora fuera de 09:00–14:30 = horas extra: 15€/hora por cada puesto con agente.
+function docOpen(){
+  const mStart = S.schedule.early ? 8*60 : 9*60;
+  if(S.clock>=mStart && S.clock<14.5*60) return true;
+  if(S.schedule.peonada && S.clock>=16*60 && S.clock<20*60) return true;
+  return false;
+}
+function docOvertime(){ return docOpen() && (S.clock < 9*60 || S.clock >= 14.5*60); }
 function isNight(){ return S.clock >= 22*60 || S.clock < 6*60; }
 function fmtClock(m){ m=((m%1440)+1440)%1440; const h=Math.floor(m/60), mm=Math.floor(m%60); return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
 
@@ -152,10 +164,11 @@ function fmtClock(m){ m=((m%1440)+1440)%1440; const h=Math.floor(m/60), mm=Math.
 let S;
 function initState(){
   S = {
-    money: 3500, incomeToday: 0, satisfaction: 75,
+    money: 3500, incomeToday: 0, overtimeToday: 0, satisfaction: 75,
     clock: 8*60, day: 1,
     agents: 0, salary: 80,
-    spawnEvery: 18, spawnTimer: 0, minSpawn: 6, // en minutos de juego
+    spawnEvery: 12, spawnTimer: 0, minSpawn: 5, // minutos de juego entre llegadas
+    schedule: { early:false, peonada:false },
     speed: 1, over: false,
     amenities: { cafetera:false, vending:false, revistas:false, aire:false, asientos:false },
     citizens: [], nextId: 1,
@@ -169,7 +182,7 @@ function initState(){
 }
 const COSTS = { agent:400, desk:700, cafetera:600, vending:400, revistas:150, aire:500, asientos:300 };
 const WAIT_CAP = 18;
-const PATIENCE_DECAY = 0.9; // puntos por minuto de juego
+const PATIENCE_DECAY = 0.9;
 
 function decayMult(){ let m=1;
   if(S.amenities.cafetera)m-=0.15; if(S.amenities.vending)m-=0.05; if(S.amenities.revistas)m-=0.10;
@@ -190,6 +203,9 @@ function cycleType(id){ const d=S.desks.find(x=>x.id===id); if(!d)return;
   else { const i=DEN_KEYS.indexOf(d.type); d.type=DEN_KEYS[(i+1)%DEN_KEYS.length]; log('🔀 Puesto ODAC → '+DEN_TYPES[d.type].label); } }
 function toggleDesk(id){ const d=S.desks.find(x=>x.id===id); if(d) d.open=!d.open; }
 function setSpeed(s){ S.speed=s; document.querySelectorAll('.speed').forEach(b=>b.classList.toggle('active',+b.dataset.s===s)); }
+function toggleEarly(){ if(S.over)return; S.schedule.early=!S.schedule.early; log('🌅 Apertura 08:00 '+(S.schedule.early?'ACTIVADA (horas extra)':'desactivada')); syncSched(); }
+function togglePeonada(){ if(S.over)return; S.schedule.peonada=!S.schedule.peonada; log('🌆 Peonada de tarde '+(S.schedule.peonada?'ACTIVADA (horas extra)':'desactivada')); syncSched(); }
+function syncSched(){ document.getElementById('b-early').classList.toggle('active',S.schedule.early); document.getElementById('b-peonada').classList.toggle('active',S.schedule.peonada); }
 
 // ---------- Log ----------
 let logLines=[]; function log(m){ logLines.unshift(m); if(logLines.length>4)logLines.pop(); }
@@ -217,15 +233,14 @@ function findWaiting(desk){
 }
 function tick(){
   if(S.over){ return; }
-  const dtGameMin = 0.1 * S.speed * TIME_SCALE; // minutos de juego este tick
-  if(dtGameMin>0){
-    // reloj
-    const prev=S.clock; S.clock += dtGameMin;
+  const dtm = 0.1 * S.speed * TIME_SCALE; // minutos de juego este tick
+  if(dtm>0){
+    const prev=S.clock; S.clock += dtm;
     if(S.clock>=1440){ S.clock-=1440; newDay(); }
 
     // paciencia
     const dm=decayMult();
-    for(const c of S.citizens){ if(c.state==='waiting'){ c.patience -= PATIENCE_DECAY*dm*dtGameMin;
+    for(const c of S.citizens){ if(c.state==='waiting'){ c.patience -= PATIENCE_DECAY*dm*dtm;
       if(c.patience<=0){ c.state='gone'; S.satisfaction=Math.max(0,S.satisfaction-3); log('😠 '+(c.office==='DOC'?'Ciudadano':'Denunciante')+' se fue enfadado'); } } }
     S.citizens=S.citizens.filter(c=>c.state!=='gone');
 
@@ -235,7 +250,7 @@ function tick(){
 
     // atender
     for(const d of S.desks){
-      if(d.busy){ d.timer-=dtGameMin;
+      if(d.busy){ d.timer-=dtm;
         if(d.timer<=0){ const c=d.serving;
           if(c.office==='DOC'){ const fee=DOC_TYPES[c.need].fee; S.money+=fee; S.incomeToday+=fee; S.satisfaction=Math.min(100,S.satisfaction+0.3); log('✅ '+DOC_TYPES[c.need].label+' expedido (+'+fee+'€)'); }
           else { S.satisfaction=Math.min(100,S.satisfaction+0.6); log('✅ Denuncia atendida: '+DEN_TYPES[c.need].label); }
@@ -244,8 +259,14 @@ function tick(){
         if(c){ c.state='serving'; d.busy=true; d.serving=c; d.dur=(d.office==='DOC'?DOC_TYPES[c.need].time:DEN_TYPES[d.type].time); d.timer=d.dur; } }
     }
 
-    // spawn (más frecuente de noche)
-    S.spawnTimer += dtGameMin;
+    // horas extra (apertura temprana / peonada de tarde)
+    if(docOvertime()){
+      const staffedDoc = S.desks.filter(d=>d.office==='DOC'&&serviceable(d)&&d.staffed).length;
+      if(staffedDoc>0){ const cost=15*staffedDoc*(dtm/60); S.money-=cost; S.overtimeToday+=cost; }
+    }
+
+    // spawn (más frecuente de noche = más criminalidad)
+    S.spawnTimer += dtm;
     const every = S.spawnEvery * (isNight()?0.6:1);
     if(S.spawnTimer>=every){ S.spawnTimer=0; spawnCitizen(); }
 
@@ -256,8 +277,9 @@ function tick(){
 }
 function newDay(){
   S.day++; const wages=S.agents*S.salary; S.money-=wages; const inc=amenityIncome(); S.money+=inc;
-  S.spawnEvery=Math.max(S.minSpawn, S.spawnEvery*0.88); S.incomeToday=0;
-  log('📅 DÍA '+S.day+' — Sueldos -'+wages+'€'+(inc?' · Servicios +'+inc+'€':'')+' · sube la demanda');
+  S.spawnEvery=Math.max(S.minSpawn, S.spawnEvery*0.90);
+  log('📅 DÍA '+S.day+' — Sueldos -'+wages+'€'+(inc?' · Servicios +'+inc+'€':'')+(S.overtimeToday>0?' · Horas extra -'+Math.round(S.overtimeToday)+'€':'')+' · sube la demanda');
+  S.incomeToday=0; S.overtimeToday=0;
   if(S.day>=5){ if(S.satisfaction>=60) endGame(true,'¡Aguantaste con la ciudadanía contenta! Tu gestión eficiente te vale el ascenso.'); else endGame(false,'Llegaste al Día 5 pero con la satisfacción por debajo del 60%.'); }
 }
 function endGame(win,text){ if(S.over)return; S.over=true; S.speed=0;
@@ -269,16 +291,17 @@ function render(){
   document.getElementById('clock').textContent = fmtClock(S.clock) + (isNight()?' 🌙':' ☀️');
   document.getElementById('day').textContent = S.day;
   const ds=document.getElementById('docStatus'); const op=docOpen();
-  ds.textContent = op?'Abierta':'Cerrada'; ds.className='pill '+(op?'open':'closed');
+  ds.textContent = op?(docOvertime()?'Abierta (extra)':'Abierta'):'Cerrada'; ds.className='pill '+(op?'open':'closed');
   document.getElementById('money').textContent = Math.round(S.money)+'€';
   document.getElementById('money').style.color = S.money<400?'#fca5a5':'#e5e9f0';
   document.getElementById('income').textContent = '+'+Math.round(S.incomeToday)+'€';
+  document.getElementById('overtime').textContent = '-'+Math.round(S.overtimeToday)+'€';
   document.getElementById('satTxt').textContent = Math.round(S.satisfaction)+'%';
   const sb=document.getElementById('satBar'); sb.style.width=S.satisfaction+'%';
   sb.style.background=S.satisfaction>=60?'#4ade80':(S.satisfaction>=35?'#fbbf24':'#ef4444');
   const used=S.desks.filter(d=>serviceable(d)&&d.staffed).length;
   document.getElementById('agents').textContent = used+'/'+S.agents;
-  document.getElementById('demand').textContent = (1440/S.spawnEvery/24).toFixed(1)+'/h';
+  document.getElementById('demand').textContent = (60/S.spawnEvery).toFixed(1)+'/h';
 
   ['DOC','ODAC'].forEach(office=>{
     const wc=document.getElementById('wait-'+office);
@@ -319,7 +342,7 @@ function buildLegend(){
   document.getElementById('legend').innerHTML=h;
 }
 initState(); buildLegend();
-log('👋 Bienvenido, Subinspector. Contrata agentes y organiza los puestos. ¡Ojo al horario de Documentación!');
+log('👋 Bienvenido, Subinspector. Contrata agentes, organiza puestos y juega con los horarios de Documentación.');
 setInterval(tick,100); render();
 </script>
 </body>
