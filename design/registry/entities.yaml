@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: ""
+last_updated: "2026-07-21"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -48,7 +48,75 @@ last_updated: ""
 # Attribute fields: any key stats that could appear in another GDD
 #   (health, damage, drops, faction, etc.)
 
-entities: []
+entities:
+  - name: tramite_dni
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+      - design/gdd/documentation.md
+    tipo: tramite
+    servicio: Documentacion
+    duracion_min: 12
+    tarifa_eur: 12
+    puesto: puesto_doc_general
+    notes: "Tasa oficial (va a la DGP; la comisaria recibe tarifa x retorno_dgp). Valor del prototipo. Semilla tunable."
+    added: 2026-07-19
+    revised: ""
+  - name: tramite_pasaporte
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+      - design/gdd/documentation.md
+    tipo: tramite
+    servicio: Documentacion
+    duracion_min: 15
+    tarifa_eur: 30
+    puesto: puesto_doc_general
+    notes: "Tasa oficial (va a la DGP). Valor del prototipo. Semilla tunable."
+    added: 2026-07-19
+    revised: ""
+  - name: tramite_tie
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+      - design/gdd/documentation.md
+    tipo: tramite
+    servicio: Documentacion
+    duracion_min: 15
+    tarifa_eur: 18
+    puesto: puesto_tie
+    notes: "Tasa oficial (va a la DGP). Puesto separado del DNI/Pasaporte. Valor del prototipo. Semilla tunable."
+    added: 2026-07-19
+    revised: ""
+  - name: tramite_reclamacion
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/patience-satisfaction.md
+      - design/gdd/odac.md
+      - design/gdd/flow-queues.md
+    tipo: atencion
+    servicio: ODAC
+    duracion_min: 30
+    prioridad: Normal
+    tarifa_eur: 0
+    puesto: puesto_odac
+    notes: "Hoja de reclamaciones. NO es una denuncia de ciudadano: la GENERA Paciencia #10 (PS13) cuando alguien abandona Documentacion (con prob_reclamacion 0.4) y acude a ODAC a formalizarla. Sin tarifa (obligacion). Carga autoinfligida sobre ODAC (Doc mal gestionada la contamina). PENDIENTE de anadir a Datos F2 (catalogo). Semilla tunable."
+    added: 2026-07-21
+    revised: ""
 
 # Example (remove when first real entry is added):
 #
@@ -106,7 +174,99 @@ items: []
 #   output_range[min, max], added
 # Optional: expression (the actual formula), notes
 
-formulas: []
+formulas:
+  - name: retorno_dgp
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+      - design/gdd/data-config.md
+      - design/gdd/patience-satisfaction.md
+    variables:
+      - sat
+      - retorno_dgp_min
+      - retorno_dgp_max
+    output_range: [0.15, 0.45]
+    expression: "retorno_dgp_min + (retorno_dgp_max - retorno_dgp_min) * (clamp(sat,0,100)/100)"
+    notes: "Formula propiedad de Economia; Datos posee los params (min/max) y la referencia en su F8. sat (0-100) lo posee Paciencia #10 (F3): es sat_cierre_doc = la MEDIA CERRADA de satisfaccion de Documentacion de la JORNADA ANTERIOR (fija todo el dia; estable intra-jornada). 1a jornada sin datos = sat_inicial 50 -> retorno 0.30. ingreso_comisaria = tarifa_eur x retorno_dgp(sat)."
+    added: 2026-07-19
+    revised: ""
+  - name: duracion_efectiva
+    status: active
+    source: design/gdd/flow-queues.md
+    referenced_by:
+      - design/gdd/flow-queues.md
+      - design/gdd/staff-agents.md
+    variables:
+      - duracion_min
+      - modificador_produccion
+    output_range: [1, 1440]
+    expression: "duracion_min * modificador_produccion(agente)"
+    notes: "Flujo F1. duracion_min (Datos) x modificador_produccion. modificador_produccion lo computa PERSONAL desde la Rapidez del agente (staff-agents.md F2), rango [0.5, 1.3] (>1.0 = agente lento, <1.0 = rapido, default 1.0); Formacion #29 lo baja mas. Antes (0,1] cuando solo Formacion lo bajaba (revisado 2026-07-21 al disenar Personal). Clamp minimo 1 min. La rama atencion/satisfaccion (Trato) NO entra aqui: viaja en 'tramite completado' -> Paciencia #10."
+    added: 2026-07-19
+    revised: 2026-07-21
+  - name: throughput_puesto
+    status: active
+    source: design/gdd/flow-queues.md
+    referenced_by:
+      - design/gdd/flow-queues.md
+      - design/gdd/data-config.md
+      - design/gdd/demand-generation.md
+    variables:
+      - minutos_operativos_puesto
+      - duracion_efectiva_media
+    output_range: [0, 1440]
+    expression: "minutos_operativos_puesto / duracion_efectiva_media"
+    notes: "Flujo F2/F3 (tramites/dia). capacidad_servicio = suma de throughput_puesto; capacidad_max_servicio = num_puestos_max x throughput_puesto. Lado CAPACIDAD del invariante R5 (Datos posee R5; Demanda calibra la demanda contra esto). Refina el sanity check de Datos F8. minutos_operativos lo posee Documentacion/Horarios+Tiempo (provisional). Ej.: Doc 390/15=26 (ventana base 08:00-14:30); ODAC 960/30~=32 (media ponderada de la mezcla de 13 denuncias, Demanda F3 = 29,75; antes ~28 con 8 tipos)."
+    added: 2026-07-19
+    revised: ""
+  - name: demanda_dia_servicio
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/data-config.md
+    variables:
+      - poblacion
+      - tasa_base_servicio
+    output_range: [0, 180]
+    expression: "poblacion * (tasa_base_servicio / 1000)"
+    notes: "Demanda F1. Volumen diario de llegadas por servicio. Lado DEMANDA del invariante R5 (Datos posee R5; se calibra <= capacidad_max_servicio de Flujo). Semillas MVP Pozuelo: Doc tasa 0.5 -> 45/dia; ODAC tasa 0.4 -> 36/dia (dentro del 30-60/dia de Datos F8). tasa_base escala con el nivel (DG8)."
+    added: 2026-07-19
+    revised: ""
+  - name: salario_dia_efectivo
+    status: active
+    source: design/gdd/staff-agents.md
+    referenced_by:
+      - design/gdd/staff-agents.md
+      - design/gdd/economy-budget.md
+      - design/gdd/data-config.md
+    variables:
+      - salario_base
+      - media_atributos
+      - k_calidad
+      - prima_rango
+    output_range: [30, 200]
+    expression: "salario_base(tipo) * (1 + k_calidad * (media_atributos - 3)/2) * prima_rango"
+    notes: "Personal F1. Salario diario real del agente = salario_base del tipo (Datos: ag_doc 60, ag_odac 70) x prima por atributos (mejor = mas caro) x prima_rango (Policia 1.0, Oficial ~1.3). Lo cobra Economia (E3/F3). Nadie perfecto = raro y caro. NOTA: formar sube atributos -> sube este salario (Formacion #29)."
+    added: 2026-07-21
+    revised: ""
+  - name: coste_sala
+    status: active
+    source: design/gdd/construction-layout.md
+    referenced_by:
+      - design/gdd/construction-layout.md
+      - design/gdd/economy-budget.md
+      - design/gdd/data-config.md
+    variables:
+      - coste_base_sala
+      - coste_por_celda
+      - area_celdas
+    output_range: [0, 5000]
+    expression: "coste_base_sala + coste_por_celda * area_celdas"
+    notes: "Construccion #7 F1. Coste de una sala de tamano libre = base (Datos coste_construccion_sala_espera 200) + coste_por_celda x area_celdas. Sobredimensionar cuesta (no hay tope rigido). Oficinas (areas logicas) pueden tener base 0. Lo cobra Economia (E4). Ej.: 3x3 -> 380; 5x4 -> 600."
+    added: 2026-07-21
+    revised: ""
 
 # Example:
 #
@@ -139,7 +299,533 @@ formulas: []
 #
 # Required fields: name, status, source, referenced_by, value, unit, added
 
-constants: []
+constants:
+  - name: escala_tiempo
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+    value: 4
+    unit: min_juego_por_seg_real_1x
+    notes: "Rango seguro 3-12. Driver nº1 del ritmo. Default provisional (a fijar en playtest)."
+    added: 2026-07-19
+    revised: ""
+  - name: minutos_por_dia
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+    value: 1440
+    unit: min_de_juego
+    notes: "Un dia de 24 h. El reloj hace mod 1440 al cruzar 00:00 y dispara nuevo_dia."
+    added: 2026-07-19
+    revised: ""
+  - name: inicio_turno_manana
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+    value: 420
+    unit: min_del_dia
+    notes: "Inicio turno Manana = 07:00. Tuning knob inicio_mañana."
+    added: 2026-07-19
+    revised: ""
+  - name: inicio_turno_tarde
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+    value: 900
+    unit: min_del_dia
+    notes: "Inicio turno Tarde = 15:00. Tuning knob inicio_tarde."
+    added: 2026-07-19
+    revised: ""
+  - name: inicio_turno_noche
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+    value: 1380
+    unit: min_del_dia
+    notes: "Inicio turno Noche = 23:00 (cruza medianoche). Tuning knob inicio_noche."
+    added: 2026-07-19
+    revised: ""
+  - name: peonada_eur_hora
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/documentation.md
+    value: 15
+    unit: eur_por_hora_funcionario
+    notes: "Hora extra fuera del horario base, por funcionario. Semilla del prototipo. Tuning: Economia/Horarios."
+    added: 2026-07-19
+    revised: ""
+  - name: retorno_dgp_min
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+    value: 0.15
+    unit: fraccion_0_1
+    notes: "Suelo: fraccion de la tasa oficial que vuelve a la comisaria con satisfaccion 0. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: retorno_dgp_max
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+    value: 0.45
+    unit: fraccion_0_1
+    notes: "Fraccion con satisfaccion 100%. La DGP retiene siempre >=55%. retorno_DGP(sat) lineal entre min y max. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: poblacion_pozuelo
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/demand-generation.md
+    value: 90000
+    unit: habitantes
+    notes: "Escenario MVP Nivel 1 - Comisaria Local (Pozuelo). Ancla de demanda; sujeto al invariante R5. Tuning: Datos/Demanda."
+    added: 2026-07-19
+    revised: ""
+  # --- Salarios (TipoAgente.salario_dia_eur) — los leera Economia/Personal ---
+  - name: salario_dia_ag_doc
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/staff-agents.md
+    value: 60
+    unit: eur_por_dia
+    notes: "Funcionario de Documentacion (ag_doc). Semilla del prototipo. Tuning: Economia/Personal."
+    added: 2026-07-19
+    revised: ""
+  - name: salario_dia_ag_odac
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/staff-agents.md
+    value: 70
+    unit: eur_por_dia
+    notes: "Instructor de ODAC (ag_odac). Semilla del prototipo. Tuning: Economia/Personal."
+    added: 2026-07-19
+    revised: ""
+  - name: salario_dia_ag_seguridad
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+    value: 65
+    unit: eur_por_dia
+    notes: "Agente de Seguridad/Entrada (ag_seguridad). MVP: ambientacion fija NO gestionada (sin coste para el jugador); este es el valor cuando el sistema de Seguridad se active. Tuning: Economia/Personal."
+    added: 2026-07-19
+    revised: ""
+  # --- Costes de construccion (TipoPuesto/TipoSala.coste_construccion_eur) — los leera Economia/Construccion ---
+  - name: coste_construccion_puesto_doc_general
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/construction-layout.md
+    value: 500
+    unit: eur
+    notes: "Ventanilla Documentacion (DNI/Pasaporte). Semilla del prototipo. Tuning: Economia/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: coste_construccion_puesto_tie
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/construction-layout.md
+    value: 500
+    unit: eur
+    notes: "Puesto TIE (separado del DNI/Pasaporte). Semilla del prototipo. Tuning: Economia/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: coste_construccion_puesto_odac
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/construction-layout.md
+    value: 600
+    unit: eur
+    notes: "Puesto ODAC (reconfigurable en caliente). Semilla del prototipo. Tuning: Economia/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: coste_construccion_puesto_seguridad
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+    value: 400
+    unit: eur
+    notes: "Puesto Entrada/Seguridad. MVP: ambientacion fija NO construible por el jugador; valor para cuando el sistema se active. Tuning: Economia/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: coste_construccion_sala_espera
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/economy-budget.md
+      - design/gdd/construction-layout.md
+    value: 200
+    unit: eur
+    notes: "Sala de espera (Documentacion y ODAC comparten coste base). Semilla del prototipo. Tuning: Economia/Construccion."
+    added: 2026-07-19
+    revised: ""
+  # --- Topes de construccion del Escenario Pozuelo (por servicio) — los leera Construccion/Demanda; sujetos a R5 ---
+  - name: tope_pozuelo_doc_general
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+    value: 8
+    unit: puestos_max
+    notes: "Tope de puestos doc-general en Pozuelo. Sujeto al invariante R5. Tuning: Datos/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: tope_pozuelo_tie
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+    value: 2
+    unit: puestos_max
+    notes: "Tope de puestos TIE en Pozuelo. Sujeto a R5. Tuning: Datos/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: tope_pozuelo_odac
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/flow-queues.md
+      - design/gdd/demand-generation.md
+    value: 4
+    unit: puestos_max
+    notes: "Tope de puestos ODAC en Pozuelo. La demanda de ODAC (GDD Demanda) se calibra contra este tope (R5). Tuning: Datos/Construccion."
+    added: 2026-07-19
+    revised: ""
+  - name: tope_pozuelo_entrada
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+    value: 1
+    unit: puestos_max
+    notes: "Entrada/Seguridad en Pozuelo = 1, fija y NO construible por el jugador en MVP (ambientacion). Tuning: Datos/Construccion."
+    added: 2026-07-19
+    revised: ""
+  # --- Aforos de sala de espera (TipoSala.aforo_espera) — los leera Construccion/Paciencia; regla F8 ---
+  - name: aforo_sala_espera_doc
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/flow-queues.md
+      - design/gdd/construction-layout.md
+      - design/gdd/patience-satisfaction.md
+    value: 40
+    unit: personas_max
+    notes: "Aforo maximo sala de espera Documentacion. Regla F8: 10 puestos (8 doc-general + 2 TIE) x (60/15) = 40. Antes 32 (revisado en /design-review 2026-07-19). Umbral de hacinamiento para Paciencia #10 (F1: por encima, el drenaje se acelera). Tuning: Construccion/Paciencia."
+    added: 2026-07-19
+    revised: 2026-07-19
+  - name: aforo_sala_espera_odac
+    status: active
+    source: design/gdd/data-config.md
+    referenced_by:
+      - design/gdd/data-config.md
+      - design/gdd/flow-queues.md
+      - design/gdd/construction-layout.md
+      - design/gdd/patience-satisfaction.md
+    value: 10
+    unit: personas_max
+    notes: "Aforo maximo sala de espera ODAC. Regla F8: 4 puestos x (60/30) = 8 -> 10 (con holgura). Umbral de hacinamiento para Paciencia #10 (F1). Tuning: Construccion/Paciencia."
+    added: 2026-07-19
+    revised: ""
+  # --- Tuning de Economia (economy-budget.md) — provisionales, a validar en playtest ---
+  - name: caja_inicial_eur
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 3000
+    unit: eur
+    notes: "Saldo inicial del Escenario. Monta una oficina modesta + colchon de dias. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: interes_deuda_diario
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 0.02
+    unit: fraccion_0_1
+    notes: "Recargo diario sobre la deuda (saldo<0), al nuevo_dia. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: deuda_max_eur
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 1000
+    unit: eur
+    notes: "Suelo de insolvencia. Al alcanzarlo: rescate del Comisario si quedan prestamos, o game over. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: importe_prestamo_eur
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 1500
+    unit: eur
+    notes: "Efectivo que inyecta un prestamo del Comisario (E9) Y coste de saldarlo/devolverlo (cesa su penalizacion). Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: penalizacion_prestamo_diaria
+    status: deprecated
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 30
+    unit: eur_por_dia_por_prestamo
+    notes: "DEPRECATED en /design-review 2026-07-19: la penalizacion fija-unica se reemplaza por un modelo hibrido (penalizacion_fija_prestamo + pct_ingreso_prestamo, ambos por prestamo VIVO). Ver F8 de economy-budget.md."
+    added: 2026-07-19
+    revised: 2026-07-19
+  - name: penalizacion_fija_prestamo
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 30
+    unit: eur_por_dia_por_prestamo_vivo
+    notes: "Parte FIJA del coste diario por prestamo vivo (F8). Reemplaza penalizacion_prestamo_diaria. Se cobra hasta saldar el prestamo. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: pct_ingreso_prestamo
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 0.20
+    unit: fraccion_0_1
+    notes: "Parte % del coste diario por prestamo vivo (F8): mordida sobre ingreso_doc_dia, por prestamo vivo. Auto-escala con la actividad. 3 vivos = 60% de ingresos. Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: ventana_gracia_insolvencia_horas
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 12
+    unit: horas_de_juego
+    notes: "Horas de juego para remontar tras rechazar el modal de rescate antes de la inyeccion automatica de prestamo (E9). Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: num_prestamos_max
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+    value: 3
+    unit: prestamos
+    notes: "Salvavidas maximos EN TODA LA PARTIDA (limita prestamos_usados, contador historico que no baja al devolver). Insolvencia con los 3 gastados = game over (te echan). Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  - name: umbral_holgura_ui
+    status: active
+    source: design/gdd/economy-budget.md
+    referenced_by:
+      - design/gdd/economy-budget.md
+      - design/gdd/ui-hud.md
+    value: 500
+    unit: eur
+    notes: "Cosmetico: por debajo la HUD colorea 'justo' vs 'holgado'. No es un estado del sistema. UI/HUD #11 F1 lo usa para la banda de color del estado financiero (rojo<0, justo<500, holgado>=500). Tuning: Economia."
+    added: 2026-07-19
+    revised: ""
+  # --- Tuning de Demanda (demand-generation.md) — provisionales, a validar en playtest; sujetos a R5 ---
+  - name: tasa_base_doc
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/data-config.md
+    value: 0.5
+    unit: llegadas_por_1000_hab_dia
+    notes: "Demanda F1. Tasa base de Documentacion (Pozuelo, Nivel 1). 90000 x 0.5/1000 = 45/dia. Escala con el nivel (DG8). Sujeto a R5 (calibrada vs tope_construible). Tuning: Demanda."
+    added: 2026-07-19
+    revised: ""
+  - name: tasa_base_odac
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/data-config.md
+    value: 0.4
+    unit: llegadas_por_1000_hab_dia
+    notes: "Demanda F1. Tasa base de ODAC (Pozuelo). 90000 x 0.4/1000 = 36/dia (menos que Documentacion; dentro del 30-60/dia de Datos F8). Valle nocturno 00-07h reducido por mult_nocturno_odac (~10 en Pozuelo, escalable con poblacion). Sujeto a R5. Tuning: Demanda."
+    added: 2026-07-19
+    revised: ""
+  - name: max_llegadas_por_tick
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+    value: 3
+    unit: personas_por_tick
+    notes: "Demanda F4/DG5. Tope de rafaga anti-avalancha; el excedente se conserva en el acumulador. Tuning: Demanda."
+    added: 2026-07-19
+    revised: ""
+  - name: mult_nocturno_odac
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/odac.md
+      - design/gdd/time-system.md
+    value: 0.5
+    unit: multiplicador_0_1
+    notes: "Demanda F2. Multiplicador que reduce el peso horario de ODAC en la franja 00:00-07:00 (valle nocturno). Rango seguro 0.2-1.0. ESCALABLE con la poblacion: reemplaza el '~10 fijo' del prototipo -> el ~10 en Pozuelo es la salida DERIVADA, no el input, y otras poblaciones dan proporcionalmente mas/menos. ODAC/Tiempo lo referencian (por que no saltar la noche). Tuning/playtest: Demanda (default provisional)."
+    added: 2026-07-21
+    revised: ""
+  # --- Tuning de Personal (staff-agents.md) — provisionales, a validar en playtest ---
+  - name: k_calidad
+    status: active
+    source: design/gdd/staff-agents.md
+    referenced_by:
+      - design/gdd/staff-agents.md
+      - design/gdd/economy-budget.md
+    value: 0.5
+    unit: coeficiente
+    notes: "Personal F1. Cuanto encarece la calidad el salario: salario = base x (1 + k_calidad x (media_atributos-3)/2) x prima_rango. Media 5 -> x1.5; media 2 -> x0.75. Afecta la nomina que cobra Economia. Tuning: Personal."
+    added: 2026-07-21
+    revised: ""
+  - name: prima_rango_oficial
+    status: active
+    source: design/gdd/staff-agents.md
+    referenced_by:
+      - design/gdd/staff-agents.md
+      - design/gdd/economy-budget.md
+    value: 1.3
+    unit: multiplicador_salario
+    notes: "Personal F1. El Oficial cuesta ~1.3x un Policia de misma calidad (prima de mando). Max 1 Oficial por servicio (PA2). Tuning: Personal."
+    added: 2026-07-21
+    revised: ""
+  - name: base_ausencia
+    status: active
+    source: design/gdd/staff-agents.md
+    referenced_by:
+      - design/gdd/staff-agents.md
+    value: 0.03
+    unit: probabilidad_dia
+    notes: "Personal F4. Probabilidad base de ausencia/dia a Salud media (3). prob = clamp(base_ausencia - k_salud x (Salud-3), 0, 1). Salud 5 ~1%, Salud 1 ~7%. RNG sembrado. La fatiga futura (Bienestar #13/#15) la subiria. Tuning: Personal."
+    added: 2026-07-21
+    revised: ""
+  # --- Tuning de Construccion (construction-layout.md) — provisionales, a validar en playtest ---
+  - name: coste_por_celda
+    status: active
+    source: design/gdd/construction-layout.md
+    referenced_by:
+      - design/gdd/construction-layout.md
+      - design/gdd/economy-budget.md
+    value: 20
+    unit: eur_por_celda
+    notes: "Construccion #7 F1. Coste por celda de area de una sala (hace pagar el tamano; desincentivo natural de sobredimensionar en vez de tope rigido). Tuning: Construccion."
+    added: 2026-07-21
+    revised: ""
+  - name: pct_reembolso_demolicion
+    status: active
+    source: design/gdd/construction-layout.md
+    referenced_by:
+      - design/gdd/construction-layout.md
+      - design/gdd/economy-budget.md
+    value: 0.5
+    unit: fraccion_0_1
+    notes: "Construccion #7 F4. Fraccion del coste que se devuelve al demoler un elemento. Mover es gratis. Tuning: Construccion."
+    added: 2026-07-21
+    revised: ""
+  - name: densidad_asientos
+    status: active
+    source: design/gdd/construction-layout.md
+    referenced_by:
+      - design/gdd/construction-layout.md
+    value: 0.7
+    unit: plazas_por_celda
+    notes: "Construccion #7 F3. Plazas de asiento por celda (deja hueco para pasillos). aforo = min(asientos_colocados, floor(area x densidad_asientos)). Tuning: Construccion."
+    added: 2026-07-21
+    revised: ""
+  # --- Calendario (time-system.md) ---
+  - name: jornadas_por_mes
+    status: active
+    source: design/gdd/time-system.md
+    referenced_by:
+      - design/gdd/time-system.md
+      - design/gdd/economy-budget.md
+      - design/gdd/demand-generation.md
+    value: 4
+    unit: jornadas_por_mes
+    notes: "Tiempo #1 regla 7 (decision usuario 2026-07-21). Cada jornada de 24h = 1 SEMANA; 4 semanas = 1 mes; 48 jornadas = 1 anio. Fecha 'Mes . Semana N'. nuevo_mes cada 4 jornadas -> Economia cierra objetivo mensual; Demanda aplica perfil estacional (DG13). Comprime el calendario (estilo RimWorld/Stardew). Tuning: Tiempo."
+    added: 2026-07-21
+    revised: ""
+  # --- Tuning de Documentacion (documentation.md) ---
+  - name: margen_ultima_admision_min
+    status: active
+    source: design/gdd/documentation.md
+    referenced_by:
+      - design/gdd/documentation.md
+    value: 15
+    unit: minutos
+    notes: "Documentacion #8 F3/DO5. Minutos antes del cierre en que se deja de dar numero. Margen 15 = personal sale a su hora (contento). Margen 0 = exprime hasta el cierre (mas ingresos, DESMOTIVA por salir tarde, sin peonada). Tuning: Documentacion."
+    added: 2026-07-21
+    revised: ""
+  # --- Tuning de Paciencia y Satisfaccion (patience-satisfaction.md) ---
+  - name: sat_inicial
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+      - design/gdd/economy-budget.md
+    value: 50
+    unit: satisfaccion_0_100
+    notes: "Paciencia #10 F3/PS10. Satisfaccion de arranque de cada servicio (Doc y ODAC) en la 1a jornada sin datos. 50 = retorno_dgp 0.30 (ni premio ni castigo) hasta que haya una jornada cerrada. Tuning: Paciencia."
+    added: 2026-07-21
+    revised: ""
+  - name: prob_reclamacion
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+      - design/gdd/odac.md
+      - design/gdd/data-config.md
+    value: 0.4
+    unit: probabilidad_0_1
+    notes: "Paciencia #10 PS13. Fraccion de ciudadanos que, al ABANDONAR Documentacion, acuden a ODAC a formalizar la hoja de reclamaciones -> generan un tramite_reclamacion (30 min) en la cola de ODAC (bucle: Doc mal gestionada contamina ODAC). Sin recursion. Carga AUTOINFLIGIDA: no altera la demanda base de ODAC ni R5. Tuning: Paciencia."
+    added: 2026-07-21
+    revised: ""
 
 # Example:
 #
