@@ -19,8 +19,14 @@ Skills and agents are assigned to model tiers based on task complexity:
 | Tier | Model | When to use |
 |------|-------|-------------|
 | **Haiku** | `claude-haiku-4-5-20251001` | Read-only status checks, formatting, simple lookups — no creative judgment needed |
-| **Sonnet** | `claude-sonnet-4-6` | Implementation, design authoring, analysis of individual systems — default for most work |
+| **Sonnet** | **Sonnet 5** *(preferido; ID exacto a confirmar — ver nota)* | Implementation, design authoring, analysis of individual systems — default for most work |
 | **Opus** | `claude-opus-4-6` | Multi-document synthesis, high-stakes phase gate verdicts, cross-system holistic review |
+
+> **⚠️ Preferencia de modelo (usuario, 2026-07-19 — FIJA): cuando corresponda el tier Sonnet, usar SIEMPRE
+> Sonnet 5, NUNCA Sonnet 4.6.** Aplica a subagentes con `model: sonnet`, a skills del tier Sonnet y a
+> cualquier override de modelo. *(El ID literal de Sonnet 5 no está confirmado en este repo —mi conocimiento
+> base llega a Sonnet 4.6—; NO inventarlo. La selección efectiva del modelo se controla además con `/model` o
+> `.claude/settings.json`; el alias `model: "sonnet"` debe resolver a Sonnet 5 en la config del entorno.)*
 
 Skills with `model: haiku`: `/help`, `/sprint-status`, `/story-readiness`, `/scope-check`,
 `/project-stage-detect`, `/changelog`, `/patch-notes`, `/onboard`
