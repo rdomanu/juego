@@ -54,3 +54,22 @@ GDD de alta calidad; el riesgo estaba concentrado en el modelo de préstamos/ins
 aritmética (recargo) y su ciclo de vida (devolución + gracia) para que el game over terminal —decisión
 consciente del usuario— no traicione la anti-fantasía "no es quiebra cruel". Listo para
 `/consistency-check` y, tras él, para continuar con el siguiente sistema del MVP.
+
+---
+
+## Re-review — 2026-07-21 — Verdict: APPROVED
+- **Scope signal:** L (revisión); trabajo de corrección de esta pasada: S.
+- **Modo:** lean (lentes economy-designer / systems-designer / qa-lead / creative-director en el hilo principal; subagentes caídos por "1M context").
+- **Motivo de re-revisión:** el GDD se tocó tras su revisión previa — (a) **calendario semanal** de Tiempo #1 (jornada = 1 semana; mes = 4 jornadas); (b) **contrato `sat`** concretado = `sat_cierre_doc` (media cerrada de Documentación de la jornada anterior).
+- **Blocking items:** 0 | **Recommended:** 2 | **Nice-to-have:** 2 — **los 4 aplicados en la misma sesión.**
+- **Prior verdict resolved:** Yes (los 3 bloqueantes de 2026-07-19 siguen resueltos, sin regresión).
+
+### Cambios aplicados
+1. **[E6]** Añadido bloque "Vocabulario temporal": **"día" = jornada = ciclo de 24 h = `nuevo_dia`**; todos los cobros (salarios/peonada/recargo/penalización) son **por jornada**; el calendario semanal solo afecta a la **fecha mostrada** y al **cierre mensual** (cada 4 jornadas).
+2. **[F3]** "Salarios diarios" → **"Salarios por jornada"** (+ ejemplo en €/jornada).
+3. **[AC]** Añadido **AC-E03b** ("ingreso estable intra-jornada": el retorno usa `sat_cierre_doc` de la jornada *anterior* y es constante toda la jornada, aunque la satisfacción actual fluctúe).
+4. **[Dependencies]** Eliminada nota obsoleta (los GDD dependientes ya escritos listan Economía; el índice ya lista Datos, Tiempo).
+5. **[Metadatos]** `Last Updated`/`Last Verified` → 2026-07-21; el Status anota la re-revisión APPROVED.
+
+### Veredicto senior (síntesis)
+El contrato `sat = sat_cierre_doc` y el calendario semanal están **integrados sin contradicciones cruzadas**. Los cambios pendientes eran solo de claridad (vocabulario temporal) y de cobertura de test (AC de estabilidad intra-jornada), ya resueltos. **Economía queda re-aprobado.**

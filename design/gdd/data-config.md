@@ -1,9 +1,9 @@
 # Datos y Configuración
 
-> **Status**: Designed (pendiente de /design-review)
+> **Status**: Reviewed (/design-review 2026-07-19 NEEDS REVISION→resuelto; **re-revisión 2026-07-22 tras +`reclamacion` y catálogo a 13 denuncias: APPROVED**)
 > **Author**: manu.rdo + Claude (systems-designer)
-> **Last Updated**: 2026-07-19
-> **Last Verified**: 2026-07-19
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Infraestructura del principio "valores data-driven, nunca hardcoded" (sostiene el Pilar 4 — "Tu comisaría, tus decisiones")
 >
 > **Nota de proceso**: redactado y **revisado** en modo *lean* (hilo principal; los subagentes de estudio fallan con el error "1M context"). `/design-review` del 2026-07-19: veredicto **NEEDS REVISION (leve)**; ítems abordados en esta misma sesión — Escenario semilla completado (`servicios_activos`, `rango_requerido`), aforo Doc reconciliado a 40, R5/cita aclarada, registro `entities.yaml` ampliado, AC afinados. Historial en `design/gdd/reviews/data-config-review-log.md`.
@@ -77,7 +77,7 @@ partida.
 | Tipo | Deriva de | Campos propios | Semilla |
 |------|-----------|----------------|---------|
 | **`TramiteDoc`** (ingresos) | Atención | `tarifa_eur`, `requiere_cita` (bool) | DNI, Pasaporte, TIE |
-| **`DenunciaODAC`** (obligación) | Atención | `prioridad` (Normal/Prioritaria), `admite_cita` (bool) — **sin** tarifa | permisos de viaje, estafas, lesiones, pérdidas/sustracciones, **VioGén (Prioritaria)**, daños, amenazas, hurtos/robos |
+| **`DenunciaODAC`** (obligación) | Atención | `prioridad` (Normal/Prioritaria), `admite_cita` (bool) — **sin** tarifa | **13 tipos (ver F2):** 4 Prioritarias (VioGén, Desaparecidos, Agresión sexual, Robo con violencia) + 9 Normales |
 
 | Tipo | Campos clave |
 |------|--------------|
@@ -116,8 +116,8 @@ gestión** — nunca debe existir un estado irresoluble:
   capacidad_max_ODAC(Escenario)` a nivel de servicio aceptable. La fórmula de llegadas de ODAC (GDD
   Demanda) se **calibra contra** `tope_construible`, no al revés.
 - **Válvulas de alivio sin obra** (propiedad de Demanda/ODAC → Open Questions): priorización,
-  peonadas/refuerzo de agentes, reconfiguración en caliente, y `admite_cita`/derivación para denuncias no
-  urgentes.
+  peonadas/refuerzo de agentes, reconfiguración en caliente, y **derivación** de denuncias no urgentes.
+  *(Las denuncias NO usan cita —ver F2—; la cita como válvula es solo de Documentación, sistema #14.)*
 
 ### States and Transitions
 
@@ -195,26 +195,29 @@ Slice)**; el flag ya existe en el esquema. La política por trámite la posee Do
 ### F2 · Denuncias de ODAC (`DenunciaODAC`)
 
 Sin tarifa (obligación). Criterio: urgente/violento = **Prioritaria**; administrativo/patrimonial = Normal.
-**Directriz del usuario (2026-07-21): TODAS las denuncias admiten cita** (`admite_cita=true`; a materializar
-en **Cita previa #14** — MVP arranca **sin cita**). *(Catálogo ampliado 2026-07-21 a 13 tipos: +Desaparecidos,
-+Agresión sexual, +Robo con violencia, +Okupación, +Ciberestafa. Los `admite_cita=false` heredados de
-viogen/lesiones/amenazas se unificarán a true con #14.)*
+**Decisión de diseño (2026-07-22, realismo):** las denuncias **NO usan cita** — en la Policía Nacional se
+denuncia **sin cita**, atendidas por **llegada + prioridad** (`admite_cita=false` en las 13). La **cita
+previa (#14)** aplica solo a **Documentación** (DNI/Pasaporte/TIE, que sí la usan en la realidad). La
+**atención especial / saltarse la cola** no proviene de una cita, sino de un **favor solicitado por el
+comisario** → **Presión e Influencia #16** (fuera del MVP; hook en el índice). *(El flag `admite_cita` se
+conserva en el esquema por si #14 lo necesitara; hoy `false` en todas.)* *(Catálogo ampliado 2026-07-21 a
+13 tipos: +Desaparecidos, +Agresión sexual, +Robo con violencia, +Okupación, +Ciberestafa.)*
 
 | id | nombre | duracion_min | prioridad | admite_cita |
 |----|--------|-------------:|-----------|:-----------:|
 | `viogen` | Violencia de género (VioGén) | 60 | **Prioritaria** | false |
 | `lesiones` | Lesiones | 30 | Normal | false |
-| `estafa` | Estafas | 30 | Normal | true |
-| `hurto_robo` | Hurtos / robos | 30 | Normal | true |
+| `estafa` | Estafas | 30 | Normal | false |
+| `hurto_robo` | Hurtos / robos | 30 | Normal | false |
 | `amenazas` | Amenazas | 25 | Normal | false |
-| `danos` | Daños | 20 | Normal | true |
-| `perdida_sustraccion` | Pérdidas / sustracciones | 15 | Normal | true |
-| `permiso_viaje` | Permisos de viaje | 15 | Normal | true |
-| `desaparecidos` | Desaparecidos | 60 | **Prioritaria** | true |
-| `agresion_sexual` | Agresión sexual | 60 | **Prioritaria** | true |
-| `robo_violencia` | Robo con violencia / atraco | 35 | **Prioritaria** | true |
-| `okupacion` | Okupación de vivienda | 30 | Normal | true |
-| `ciberestafa` | Ciberestafa / delito informático | 35 | Normal | true |
+| `danos` | Daños | 20 | Normal | false |
+| `perdida_sustraccion` | Pérdidas / sustracciones | 15 | Normal | false |
+| `permiso_viaje` | Permisos de viaje | 15 | Normal | false |
+| `desaparecidos` | Desaparecidos | 60 | **Prioritaria** | false |
+| `agresion_sexual` | Agresión sexual | 60 | **Prioritaria** | false |
+| `robo_violencia` | Robo con violencia / atraco | 35 | **Prioritaria** | false |
+| `okupacion` | Okupación de vivienda | 30 | Normal | false |
+| `ciberestafa` | Ciberestafa / delito informático | 35 | Normal | false |
 
 **Atención especial (origen interno, NO denuncia ciudadana):**
 
@@ -309,7 +312,7 @@ dan los asientos colocados en la sala de tamaño libre — Construcción F3.)* L
   donde `Σ puestos_del_servicio` = **todos** los puestos del servicio que comparten esa sala (a tope de
   construcción) y `duración_media_min` es un tiempo de servicio representativo (conservador).
   *Comprobado Documentación (10 puestos: 8 doc-general + 2 TIE, dur ≈15): `10 × (60/15) = 40` ✔.*
-  *Comprobado ODAC (4 puestos, dur ≈28): `4 × (60/28) ≈ 9 → aforo 10` ✔.*
+  *Comprobado ODAC (4 puestos, dur ≈30 —media ponderada de las 13 denuncias, Demanda F3 = 29,75—): `4 × (60/30) = 8 → aforo 10` ✔.*
 - **Capacidad de un puesto/día** *(sanity)*: `≈ minutos_operativos / duracion_min`.
 - **Invariante R5**: `capacidad_max_ODAC(Escenario) ≥ demanda_max_ODAC(poblacion)`.
 
@@ -321,8 +324,10 @@ picos** para 90.000 hab → **absorbe con margen** ✔. *(Supuesto: tasa de denu
 muchas gestionadas online en la realidad. La fórmula de demanda la posee Demanda, calibrada a este tope.)*
 
 **Chequeo de pacing (a mano):** ~2 puestos de Documentación a 50 % de satisfacción ≈ **~230 €/día** de
-ingreso; 2 agentes ≈ **120 €/día** de salario → neto **~110 €/día**. Ahorrar un puesto nuevo (500 €) ≈
-**4–5 días de juego** → expansión **gradual** (no "máximo en 5 minutos") ✔.
+ingreso; pero el neto real cuenta también el **salario de ODAC obligatorio** (sin ingreso): 2 `ag_doc`
+(120) + 1 `ag_odac` (70) ≈ **190 €/día** de salario → neto **~40 €/día**. Ahorrar un puesto nuevo (500 €)
+≈ **~12 días de juego** → expansión **gradual** (no "máximo en 5 minutos") ✔. *(Reconciliado con Economía,
+que posee el ciclo de presupuesto; el "neto ~110 €/día → 4–5 días" anterior ignoraba el salario de ODAC.)*
 
 ## Edge Cases
 
@@ -394,8 +399,9 @@ relación con Tiempo: comparte la **unidad "minutos de juego"** (`minutos_por_di
 | **Escalado a Comisarías (#26)** *(futuro)* | Hard | nuevas definiciones `Escenario` (niveles superiores) |
 
 **Consistencia bidireccional:** estas relaciones quedan registradas en `design/gdd/systems-index.md`.
-Cuando se escriba el GDD de cada dependiente, deberá listar "depende de: Datos y Configuración" en su
-sección de Dependencies. *(Ninguno tiene GDD aún → la referencia inversa queda provisional.)*
+Los GDD dependientes del MVP ya escritos (Economía, Flujo, Demanda, Personal, Construcción, Documentación,
+ODAC, Paciencia, UI) listan "depende de: Datos y Configuración" en su sección de Dependencies. Los futuros
+(Comodidades #15, Ascensos #18, Escalado #26, Guardado #20) lo harán al redactarse.
 
 ## Tuning Knobs
 
@@ -415,7 +421,8 @@ sección de Dependencies. *(Ninguno tiene GDD aún → la referencia inversa que
 | `tope_construible` (por servicio) | Doc≤8·TIE≤2·ODAC≤4·Ent1 | ≥ 1, **sujeto a R5** | ↑ más capacidad máxima (presión más aliviable) / ↓ riesgo de violar R5 | Datos / Construcción |
 | `poblacion` (Escenario) | 90000 | > 0, **sujeto a R5** | ↑ más demanda (Demanda escala) / ↓ menos | Datos / Demanda |
 | `prioridad` (denuncia) | Normal / Prioritaria | enum | Prioritaria = se atiende antes | ODAC |
-| `requiere_cita` / `admite_cita` | false / según F2 | bool | true = amortigua demanda (válvula R5) | Documentación / ODAC |
+| `requiere_cita` (Doc) | false (MVP) | bool | true = cita amortigua la demanda de Documentación (válvula R5, sistema #14) | Documentación |
+| `admite_cita` (denuncia) | **false (todas)** | bool | denuncias **sin cita** (realista); reservado en el esquema por si #14 lo usara | ODAC |
 | `reconfigurable` (puesto) | ODAC=true, resto false | bool | true = puesto polivalente en caliente | ODAC / Datos |
 
 **Interacciones entre knobs (cuidado):**
@@ -433,8 +440,9 @@ sección de Dependencies. *(Ninguno tiene GDD aún → la referencia inversa que
 ## Visual/Audio Requirements
 
 El catálogo **no produce arte**, pero **declara** los campos visuales que otros consumen:
-- **`icono`** (clave/ruta) en cada definición: 3 trámites, 8 tipos de denuncia, 4 tipos de puesto, salas
-  (2 esperas + oficinas), 3 tipos de agente, y el escenario/nivel. Estilo según el **art bible** (2D
+- **`icono`** (clave/ruta) en cada definición: 3 trámites, 13 tipos de denuncia (+ la atención
+  `reclamacion`), 4 tipos de puesto, salas (2 esperas + oficinas), 3 tipos de agente, y el escenario/nivel.
+  Estilo según el **art bible** (2D
   limpio, serio, no caricatura).
 - Datos solo guarda la **referencia** al icono; la especificación de cada asset se genera aparte.
 - **Audio:** N/A directo (los datos no suenan). Los eventos que *usan* estos datos (atender, construir,

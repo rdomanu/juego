@@ -1,9 +1,9 @@
 # Feedback y Juice
 
-> **Status**: Designed
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / art-director / audio-director — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / art-director / audio-director / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" + Pilar 1 — "Realismo con alma"
 
 ## Overview
@@ -99,6 +99,12 @@ sobrio** — lo has logrado. Nada explota; solo **sabes**, con el cuerpo, que ho
 | hora punta · evento estacional (Demanda/Doc) | toast + aviso ambiental sutil | Media |
 | día ↔ noche (Tiempo) | transición de mood ambiental | Media |
 | objetivo cumplido · ascenso (Objetivo/#18) | remate dorado + acorde | Alta |
+
+> **Telegrafiar el origen (legibilidad del bucle Doc→ODAC):** cuando una `reclamacion` aparece en ODAC por el
+> bucle de Paciencia (PS13: alguien abandonó **Documentación** y va a formalizarla), su toast/aviso **indica el
+> origen** (p. ej. *"reclamación por espera en Documentación"*) — para que el jugador entienda **por qué** la
+> cola de ODAC crece, en vez de percibirlo como una saturación inexplicable. *(Cierra el recomendado de la
+> revisión de Paciencia #10.)*
 
 ### States and Transitions
 

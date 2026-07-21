@@ -1,9 +1,9 @@
 # Generación de Demanda
 
-> **Status**: In Design
-> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-19
-> **Last Verified**: 2026-07-19
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" + Pilar 4 — "Tu comisaría, tus decisiones"
 
 ## Overview
@@ -229,7 +229,7 @@ derivada, no un número fijo: con otra `poblacion` el mismo multiplicador da pro
 *La sensación de "noche muerta" la da sobre todo que **Documentación cierra** (Doc = 0 de noche), no que
 ODAC pare.*
 
-**Ejemplo (Doc, 45/día, lunes ×1.3):** hora **08–09** (pico) → `45 × 0.30 × 1.3 ≈ **17,6 llegadas**` en esa hora.
+**Ejemplo (Doc, 45/día, jornada de carga alta ×1.3):** hora **08–09** (pico) → `45 × 0.30 × 1.3 ≈ **17,6 llegadas**` en esa hora.
 Con 2 puestos (cap 8/h) → `ρ ≈ 2,2`: la cola crece en el pico y se drena después → **presión
 gestionable ampliando** (el momento del Player Fantasy).
 
@@ -242,9 +242,9 @@ gestionable ampliando** (el momento del Player Fantasy).
 | **Documentación** | `dni` **0.45** · `pasaporte` 0.35 · `tie` 0.20 (DNI y Pasaporte los más comunes; TIE menos) |
 | **ODAC** | `hurto_robo` 0.18 · `estafa` 0.15 · `perdida_sustraccion` 0.12 · `ciberestafa` 0.10 · `danos` 0.09 · `lesiones` 0.07 · `amenazas` 0.07 · `okupacion` 0.05 · `permiso_viaje` 0.04 · `robo_violencia` 0.04 · `viogen` **0.04** · `desaparecidos` 0.03 · `agresion_sexual` 0.02 *(4 Prioritarias raras = 0.13 · 9 Normales = 0.87)* |
 
-Sumas = 1.0 por servicio. Pesos **tuning**; respetan el catálogo de Datos (`prioridad`, `admite_cita`).
-Los **eventos estacionales** (DG11) inclinan temporalmente la mezcla: en vacaciones sube `pasaporte`
-(Documentación) y `permiso_viaje` (ODAC).
+Sumas = 1.0 por servicio. Pesos **tuning**; respetan el catálogo de Datos (`prioridad`). *(Las denuncias no
+usan cita —Datos F2—; la cita solo aplica a Documentación.)* Los **eventos estacionales** (DG11) inclinan
+temporalmente la mezcla: en vacaciones sube `pasaporte` (Documentación) y `permiso_viaje` (ODAC).
 
 ### F4 · Generación determinista por tick (el algoritmo)
 
@@ -362,9 +362,9 @@ sube `tasa_base` o `poblacion`, revalidar contra los topes — ver Tuning.)*
 | **Ascensos #18** *(futuro)* | Hard | *(futuro)* dispara el crecimiento de `tasa_base` al subir de escenario/rango (DG8) |
 | **UI / HUD #11** | Soft | *expone* el nivel de afluencia / aviso de hora punta *(opcional)* |
 
-> **Consistencia bidireccional:** **Flujo ✅** ya lista Demanda como dependencia (recibe las
-> Personas), y **Tiempo ✅ / Datos ✅ / Paciencia ✅** ya registran sus dependientes.
-> Documentación/ODAC añadirán la referencia inversa al escribirse *(provisional)*. Registrado en `systems-index.md`.
+> **Consistencia bidireccional:** **Flujo ✅** lista Demanda como dependencia (recibe las Personas), y
+> **Tiempo ✅ / Datos ✅ / Paciencia ✅ / Documentación ✅ / ODAC ✅** ya registran/reflejan la relación con
+> Demanda (todos escritos). Registrado en `systems-index.md`.
 
 ## Tuning Knobs
 
@@ -376,7 +376,7 @@ sube `tasa_base` o `poblacion`, revalidar contra los topes — ver Tuning.)*
 | `tasa_base_odac` (llegadas/1000 hab·día) | 0.5 | 0 – 2.0, **sujeto a R5** | ↑ más denuncias (más carga ODAC, sin ingreso) / ↓ menos | Demanda |
 | `perfil_hora[servicio]` (pesos por hora) | F2 (Doc front-loaded; ODAC plano+valle) | Σ = 1.0 por servicio | Concentra el pico (↑ pico apertura = más tensión) o lo aplana (manguera monótona) | Demanda |
 | `mult_nocturno_odac` | 0.5 | 0.2 – 1.0 | Reduce el peso horario de ODAC en 00:00–07:00. ↑ noche más viva (≈ día) / ↓ valle más profundo. **Escala con la población** (reutilizable en otros escenarios); ≈10 en Pozuelo es la salida derivada, no el input | Demanda |
-| `mult_dia_semana[dia]` | 1.0 (lunes ~1.3; sábado ~0.6) | 0.5 – 1.5 | ↑ ese día carga más (picos semanales) / ↓ más flojo | Demanda |
+| `mult_dia_semana[jornada]` | 1.0 | 0.5 – 1.5 | Variación de carga **entre jornadas** (con el calendario semanal cada jornada = 1 semana; la variación gruesa la llevan la estacionalidad DG13 y los eventos DG11). ↑ jornada más cargada / ↓ más floja | Demanda |
 | `mezcla[servicio]` = `P(tramite)` | F3 (DNI 0.45…; ODAC 13 tipos, Prioritarias 0.13) | Σ = 1.0 por servicio | Cambia la carga por tipo (↑ Prioritarias = más urgencias en ODAC; ↑ Pasaporte = trámites más largos) | Demanda |
 | `max_llegadas_por_tick` | 3 | 1 – 10 | ↑ ráfagas más bruscas (riesgo de avalancha) / ↓ llegadas más suavizadas | Demanda |
 | `factor_crecimiento_nivel` (DG8) | 1.0 (Nivel 1) | ≥ 1.0 | ↑ niveles superiores con más demanda (progresión) / — | Demanda / Ascensos |

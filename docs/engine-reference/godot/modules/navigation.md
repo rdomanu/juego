@@ -99,3 +99,18 @@ nav_agent.navigation_layers = 1 | 2  # Ground + Flying
 - Using `NavigationRegion2D.avoidance_layers` (removed in 4.3)
 - Forgetting to bake navigation mesh after modifying geometry
 - Not setting `navigation_layers` (defaults to all layers)
+
+## 2D Pathfinding — Comisario notes (verified 2026-07-22 via docs.godotengine.org/en/4.6)
+
+Para NPCs (ciudadanos/denunciantes) moviéndose por el edificio de la comisaría (Flujo #4):
+
+**Nodos clave (2D):**
+- **`NavigationServer2D`** — servidor 2D **dedicado desde 4.5** (ya no es un proxy del 3D → binario de export más pequeño para juegos 2D).
+- **`NavigationRegion2D`** + recurso **`NavigationPolygon`** — definen las **áreas caminables** (suelo del edificio, salas, pasillos). Varias regiones se unen automáticamente por proximidad.
+- **`NavigationAgent2D`** (hijo de un `CharacterBody2D`) — helper de pathfinding + avoidance (RVO2).
+
+**Flujo básico:** `NavigationRegion2D`+`NavigationPolygon` (bake en editor) → `CharacterBody2D` (la Persona) con `NavigationAgent2D` hijo → `nav_agent.target_position = destino` (puesto/sala) → cada `_physics_process`: si no `is_navigation_finished()`, mover hacia `get_next_path_position()`.
+
+**⚠️ Gotcha crítico:** el `NavigationServer` **sincroniza en el primer physics frame**. NO fijes `target_position` en `_ready()` — espera un frame (`await get_tree().physics_frame`) o el primer path saldrá vacío.
+
+**Rendimiento (muchos agentes):** la navegación **mesh-based escala bien** — una sala grande = un polígono, no muchas celdas. Para Comisario (docenas de NPCs a la vez — riesgo técnico del concepto, systems-index High-Risk: Flujo), hacer **spike de rendimiento antes de escalar el volumen**.

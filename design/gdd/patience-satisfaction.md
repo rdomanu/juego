@@ -1,9 +1,9 @@
 # Paciencia y Satisfacción
 
-> **Status**: Designed
-> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer / qa-lead — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer / qa-lead / economy-designer — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" + Pilar 4 — "Tu comisaría, tus decisiones" + Pilar 1 — "Realismo con alma"
 
 ## Overview
@@ -74,10 +74,10 @@ respira. *Nadie se ha ido. Esta vez.*
 **Puntuación de visita — el puente paciencia → satisfacción**
 - **PS6.** Cuando una persona **se va**, genera `puntuacion_visita` (0–100):
   - **Atendida:** base alta, **penalizada por lo que esperó** (relativo a su paciencia) y **modulada por el
-    🤝Trato** del agente (Personal `bonus_satisfaccion`).
+    🤝Trato** del agente (Personal `factor_trato`).
   - **Abandonada:** `puntuacion_visita = 0` (peor desenlace).
-  - **En ODAC:** la puntuación se **pondera por `peso_prioridad`** (reusa ODAC F1/F2): atender bien una
-    Prioritaria puntúa más; dejar marchar una Prioritaria hunde más.
+  - **En ODAC:** la puntuación se **pondera por `peso_prioridad`** (knob de ODAC F1, 1.0 / 2.5): atender bien
+    una Prioritaria puntúa más; dejar marchar una Prioritaria hunde más.
 
 **Satisfacción por servicio (agregado 0–100) + cierre diario**
 - **PS7.** Cada servicio (Documentación, ODAC) lleva una `satisfaccion_<servicio>` = **media de las
@@ -127,7 +127,7 @@ ingresos de la jornada siguiente)`. El ciclo se repite cada jornada (= 1 semana 
 | **Economía #3** | Lee `sat_cierre_doc` (jornada anterior) como `sat` de `retorno_dgp` (min 0.15 / max 0.45) | Economía posee la fórmula; **Paciencia posee `sat`** ✅ reconciliado (Economía E7/F1 ya lo cita) |
 | **ODAC #9** | ODAC aporta puntuaciones **ponderadas por `peso_prioridad`**; Paciencia le da la **escala 0–100** (`satisfaccion_odac`/reputación). **Bucle (PS13):** un abandono de Documentación puede **inyectar un trámite `reclamacion`** (30 min) en la cola de ODAC vía Flujo | **Paciencia posee la escala** y **genera** las reclamaciones; ODAC posee los pesos y las tramita |
 | **Objetivo de eficiencia (MVP) / Valoración #28** | Consumen el contador `reclamaciones` (PS12): cuantas menos, mejor evaluación / ascenso | Paciencia **produce** el contador; el objetivo/#28 lo consume |
-| **Personal #6** | El **🤝Trato** del agente modula `puntuacion_visita` (`bonus_satisfaccion`) | Personal posee el atributo |
+| **Personal #6** | El **🤝Trato** del agente modula `puntuacion_visita` (`factor_trato`) | Personal posee el atributo |
 | **Construcción #7 / Comodidades #15** | **Aforo** superado → +drenaje (hacinamiento); comodidades → −drenaje (#15) | Construcción posee el aforo; #15 las comodidades |
 | **Documentación #8** | Horario y última admisión → cuánta gente espera y cuánto | Documentación posee el horario |
 | **UI #11 / Feedback #12** | Leen ánimo por persona y `sat` para pintar | UI/Feedback pintan |
@@ -164,7 +164,7 @@ con hacinamiento ×1.5 → `100/(3.33×1.5) ≈ 20 min`.
 |----------|------|-------|-------------|
 | `puntuacion_base` | float | **80** (tuning) | Puntuación de una atención neutra sin espera |
 | `factor_espera` | float | 0.5–1.0 | Cuanta más paciencia gastó esperando, menos puntúa (`k_espera` default 0.5) |
-| `factor_trato` | float | 0.5–1.5 | El 🤝Trato del agente (Personal `bonus_satisfaccion`); Trato 3 = 1.0 |
+| `factor_trato` | float | 0.5–1.5 | El 🤝Trato del agente (Personal `factor_trato`); Trato 3 = 1.0 |
 
 **Salida (0–100):** atendida rápida + buen trato → `80×1.0×1.3=104 → 100`; espera media + trato normal →
 `80×0.75×1.0 = 60`; al límite + mal trato → `80×0.5×0.7 = 28`; **abandono → 0**.
@@ -230,6 +230,12 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
   siguen en cola **conservan su barra** (no se resetea) y contarán en la jornada nueva cuando se vayan.
 - **Si el aforo de la sala es 0 o no hay sala construida:** `mult_hacinamiento = 1.0` (desactivado, con aviso);
   la gente espera con **drenaje base**. *Un dato de aforo corrupto no debe romper el cálculo.*
+- **Si `tolerancia_base_min` llega a 0 o negativo** (dato corrupto): se **clampa al mínimo seguro (15)** con
+  aviso, evitando la división por cero en F1. *Igual patrón defensivo que el clamp de `escala_tiempo` (Tiempo)
+  y los rangos de Datos.*
+- **Si `sat_global` (F5) se calcula sin ninguna visita** (Σ visitas = 0, arranque de partida): muestra
+  `sat_inicial` (50) o el último valor conocido; es **solo HUD**, no afecta a ingresos. *Sin división por cero
+  en el marcador global.*
 
 ## Dependencies
 
@@ -240,7 +246,7 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
 | **Flujo de Personas y Colas #4** | Hard | Recibe eventos `coge_turno` (arranca barra) y `llamada_a_puesto` (congela); Flujo **ejecuta** el abandono (`persona_abandona`) cuando Paciencia marca 0 y **encola** la `reclamacion` (PS13) ✅ GDD |
 | **Tiempo #1** | Hard | El reloj **drena** la paciencia (min de juego); `nuevo_dia` **cierra** la media y `reclamaciones_jornada`; `nuevo_mes` **evalúa/resetea** `reclamaciones_mes`; en Pausa no drena ✅ GDD |
 | **Datos y Configuración #2** | Hard | *lee* `aforo_sala_espera` (40/10, hacinamiento) y el tipo `reclamacion` (30 min, Normal, sin tarifa) ✅ GDD (añadido a Datos F2, 2026-07-21) |
-| **Personal / Agentes #6** | Soft | *lee* el 🤝Trato (`bonus_satisfaccion`, `factor_trato` 0.5–1.5) para F2; sin él, trato neutro (1.0) ✅ GDD |
+| **Personal / Agentes #6** | Soft | *lee* el 🤝Trato (`factor_trato` 0.5–1.5, Personal F3) para F2; sin él, trato neutro (1.0) ✅ GDD |
 | **Construcción #7** | Soft | *lee* el aforo de la sala construida (hacinamiento); sin sala → drenaje base ✅ GDD |
 
 **Dependen de este sistema (downstream):**
@@ -256,7 +262,7 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
 
 **Consistencia bidireccional:** Flujo cita "abandono lo ejecutan Flujo+Paciencia" ✅; Economía ya cita `sat_cierre_doc`
 de Paciencia ✅; ODAC cita "la escala 0–100 la posee Paciencia" + la carga de `reclamacion` ✅; Datos añadió
-`tramite_reclamacion` ✅; Demanda añadió la nota ✅. *(Pendiente que Tiempo nombre a Paciencia — menor.)*
+`tramite_reclamacion` ✅; Demanda añadió la nota ✅; **Tiempo ya lista a Paciencia como dependiente ✅.**
 
 ## Tuning Knobs
 
@@ -277,7 +283,7 @@ de Paciencia ✅; ODAC cita "la escala 0–100 la posee Paciencia" + la carga de
 
 | Knob | Dónde vive | Efecto sobre Paciencia |
 |------|-----------|------------------------|
-| `factor_trato` / `bonus_satisfaccion` (0.5–1.5) | Personal #6 | Modula `puntuacion_visita` (F2) |
+| `factor_trato` (0.5–1.5) | Personal #6 (F3) | Modula `puntuacion_visita` (F2) |
 | `peso_prioridad` (1.0 / 2.5) | ODAC #9 | Pondera las visitas de ODAC en la media (F3) |
 | `aforo_sala_espera` (40 / 10) | Datos/Construcción | Umbral de hacinamiento (F1) |
 | `retorno_dgp_min/max` (0.15 / 0.45) | Datos/Economía | El mapeo `sat → dinero` (F4) |
@@ -291,6 +297,10 @@ de Paciencia ✅; ODAC cita "la escala 0–100 la posee Paciencia" + la carga de
 - **`prob_reclamacion` × capacidad de ODAC (~128/día)** definen si el bucle de reclamaciones llega a **saturar**
   ODAC.
 - **`sat_inicial` × `retorno_dgp`** definen el **arranque económico** (50 → 0.30).
+
+*Nota: `peso_reclamacion_grave` (3) y `peso_prioridad` (2.5) son **deliberadamente distintos** — pesan cosas
+diferentes (el **contador de eficiencia/reclamaciones** vs la **media de satisfacción de ODAC**) y se tunean
+por separado; no es un descuido.*
 
 **Restricciones:** `paciencia`, `sat`, `puntuacion_visita` ∈ [0,100]; `prob_reclamacion` ∈ [0,1]; `sat_inicial`
 default 50; el cierre es siempre por **jornada** (= `nuevo_dia`).
@@ -368,7 +378,7 @@ toquen esta UI deben citar `design/ux/[pantalla].md`, no el GDD.
 |---|----------|---------|--------------------|--------|
 | 1 | **Valores semilla** (`tolerancia_base_min 30`, `k_espera 0.5`, `puntuacion_base 80`, `k_hacinamiento 1.0`, `prob_reclamacion 0.4`, `peso_reclamacion_grave 3`, `sat_inicial 50`) — ¿dan una curva de presión divertida (ni muerta ni imposible)? | Balance / playtest | 1er playtest MVP | Abierta |
 | 2 | **Reconciliación Fase 5** — (a) Economía `retorno_dgp` usa `sat_cierre_doc` de la jornada anterior; (b) Datos +tipo `reclamacion` (ODAC, 30 min, Normal, sin tarifa); (c) ODAC nota carga variable + R5; (d) Demanda nota (carga de Paciencia, no del generador); (e) registro (`sat_inicial`, `prob_reclamacion`, `tramite_reclamacion`, referenced_by). | Consistencia (este proyecto) | — | ✅ Aplicada 2026-07-21 |
-| 3 | **¿El objetivo de eficiencia del MVP usa `reclamaciones`, `sat`, o ambos?** (y con qué umbrales de ascenso) | Objetivo/Ascensos #18 / #28 | Al diseñar el objetivo/valoración | Abierta |
+| 3 | **Objetivo / ascenso (decisión usuario 2026-07-22):** ascender a **Inspector** requiere **1 año de juego (48 jornadas) + valoración de jefes ≥ 75 % + curso de ascenso superado**, evaluado **solo en enero** (si no cumples, esperas al enero siguiente). Es **post-MVP** (#18 Ascensos + #28 Valoración + #29 Formación). **En el MVP:** la **valoración de jefes (#28)** es el **marcador visible** que alimentan `sat` + `reclamaciones` + reputación de ODAC → da consecuencia a ODAC ya en el MVP, aunque el ascenso efectivo llegue con #18. | Ascensos #18 / Valoración #28 / Formación #29 | Post-MVP (marcador ya en MVP) | ✅ Modelo decidido; sistemas post-MVP |
 | 4 | **¿Atender bien una `reclamacion` mitiga algo** (mini +sat, o "cierra" la hoja) o solo cuenta como visita normal? | Diseño (Paciencia/ODAC) | Playtest MVP | Abierta |
 | 5 | **`mult_horapunta`**: ¿se activa en MVP (la hora punta crispa más) o queda a 1.0 hasta tener datos? | Balance / playtest | 1er playtest MVP | Abierta |
 | 6 | **Paciencia por tipo de persona** (víctimas, mayores, urgencias) — MVP usa base común; ¿merece matiz por perfil más adelante? | Diseño (Paciencia) | Post-MVP | Diferida |

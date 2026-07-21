@@ -57,3 +57,13 @@ Windows default backend: D3D12 (was Vulkan pre-4.6)
 - Using manual viewport chains instead of Compositor for post-processing
 - Using `Texture2D` in shader uniform types (use `Texture` since 4.4)
 - Not using Shader Baker for projects with many shader variants
+
+## 2D Ambient / Mood — Comisario notes (verified 2026-07-22 via docs.godotengine.org/en/4.6)
+
+Para el **mood ambiental** de Comisario (mañana cálida / noche fría / fracaso rojizo — Feedback #12, art bible §2):
+
+- **`CanvasModulate`** — el nodo clave: **tinta TODA la escena 2D** con un color ambiente base (aplica a lo NO iluminado por luces 2D). Cambiar su propiedad **`color`** cambia el mood de toda la pantalla. Simple y **estable (sin cambios en 4.6)**.
+- **Transición de mood:** anima `CanvasModulate.color` con un **`Tween`** (`create_tween().tween_property(canvas_mod, "color", nuevo_color, dur)`) o `lerp` manual. **No hay sistema día/noche automático** — se scripta, disparado por el evento `cambio_dia_noche` de Tiempo #1.
+- **Luces 2D** (toques puntuales): `PointLight2D` (color/energy/texture/texture_scale) y `DirectionalLight2D` (color/energy/height). Ambos con **blend mode** (Add/Sub/Mix).
+
+**⚠️ Glow en 2D — DECISIÓN (resuelve Feedback #12 OpenQ2):** el glow real (WorldEnvironment) **NO está documentado/soportado de forma fiable para el canvas 2D en 4.6** (por eso el "glow rework 4.6" HIGH-risk **no aplica a Comisario**). → El mood usa **CanvasModulate + Light2D** (estable); el "dorado del ascenso" se hace con **animación de sprite** (Tween de escala/opacidad + un sprite de halo), NO con glow real. El glow real queda **descartado** para este proyecto 2D.

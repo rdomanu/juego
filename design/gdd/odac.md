@@ -1,9 +1,9 @@
 # ODAC / Denuncias
 
-> **Status**: Designed
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED tras reconciliar la reputación con Paciencia #10)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 1 — "Realismo con alma" + Pilar 4 — "Tu comisaría, tus decisiones"
 
 ## Overview
@@ -112,8 +112,10 @@ plus. *(El peso relativo lo define ODAC; la curva la posee Paciencia #10.)*
 (`ag_odac`, Personal) + la denuncia está en sus `atenciones_admitidas` (reconfiguración) (Flujo FL4).
 Abierto = siempre (24 h).
 
-**OD9 · Cita/derivación (MVP sin cita).** Todas las denuncias admiten cita (Datos, directriz del usuario),
-pero el MVP arranca **sin cita** (se acota por paciencia). La cita/derivación como válvula es **#14**.
+**OD9 · Sin cita (realista).** Las denuncias **no usan cita** — en la Policía Nacional se denuncia sin cita
+(Datos F2, decisión 2026-07-22): se atienden por **llegada + prioridad** (F7) y la demanda se acota por
+**paciencia/abandono**. La **cita previa #14** aplica solo a **Documentación**; la **atención especial /
+colarse** proviene de un **favor del comisario** → Presión e Influencia #16 (fuera del MVP).
 
 **OD10 · Pausa.** En Pausa el jugador puede **reconfigurar** puestos (gestión en pausa); no corre el reloj ni
 las atenciones.
@@ -147,7 +149,7 @@ ODAC **no lleva estado de instancias** (las denuncias/Personas son de Flujo). Lo
 
 | Sistema | Qué fluye | Dueño |
 |---|---|---|
-| **Datos** | *lee* catálogo de denuncias (13 tipos, `prioridad`, `reconfigurable`, `admite_cita`) | Datos ✅ GDD |
+| **Datos** | *lee* catálogo de denuncias (13 tipos, `prioridad`, `reconfigurable`) | Datos ✅ GDD |
 | **Flujo #4** | *configura* la reconfiguración (FL9) y confía la cola/orden por prioridad (F7); Flujo **ejecuta** | ODAC configura; Flujo ejecuta ✅ GDD |
 | **Generación de Demanda #5** | *recibe* los denunciantes (multiplicador nocturno, mezcla de 13 tipos, eventos estacionales) | Demanda genera ✅ GDD |
 | **Personal #6** | usa `ag_odac`; dotación por turno (24 h) | Personal posee la dotación ✅ GDD |
@@ -165,33 +167,30 @@ ODAC **no lleva estado de instancias** (las denuncias/Personas son de Flujo). Lo
 > satisfacción la posee Paciencia). Las clave son la **reputación** (peso de prioridad) y el **chequeo de
 > capacidad**. Números **semilla provisional**. Prefijo `F#`.
 
-### F1 · Aporte de reputación por denuncia atendida
+### F1 · Contribución de ODAC a la satisfacción (el peso de la prioridad)
 
-`reputacion_aporte = base_reputacion × peso_prioridad(tipo) × factor_trato`
+ODAC **no calcula** su reputación con una fórmula aparte: la **satisfacción de ODAC (0–100) la calcula
+Paciencia #10** (su F2/F3), igual que la de Documentación — cada denuncia genera una `puntuacion_visita`
+(que **penaliza la espera** y el trato; abandono = 0) y la media se **pondera por prioridad**. Lo que ODAC
+**posee y aporta** es el **peso relativo de la prioridad**:
 
-| Variable | Tipo | Rango | Descripción |
-|----------|------|-------|-------------|
-| `base_reputacion` | float | 1 (punto) | Reputación base por denuncia atendida (tuning) |
-| `peso_prioridad(tipo)` | float | Normal **1.0** · Prioritaria **~2.5** | Una VioGén bien atendida vale mucho más |
-| `factor_trato` | float | 0.5–1.5 | Modulado por el 🤝Trato del agente (Personal `bonus_satisfaccion`) |
-
-**Salida:** una **Normal** con trato medio → `1 × 1.0 × 1.0 = 1`; una **VioGén** con buen agente → `1 × 2.5 ×
-1.3 ≈ 3,3`. *(La escala real de satisfacción 0–100 la posee **Paciencia #10**; ODAC define el peso relativo
-de prioridad.)*
-
-### F2 · Penalización de reputación por abandono
-
-`reputacion_penalizacion = base_abandono × peso_prioridad(tipo)`
+`peso_prioridad(tipo) = Normal 1.0 · Prioritaria peso_prioridad_prioritaria (default 2.5)`
 
 | Variable | Tipo | Rango | Descripción |
 |----------|------|-------|-------------|
-| `base_abandono` | float | ~2 (puntos) | Penalización base por denunciante que se marcha |
-| `peso_prioridad(tipo)` | float | Normal 1.0 · Prioritaria ~2.5 | **Dejar tirada una VioGén duele mucho** |
+| `peso_prioridad(tipo)` | float | Normal **1.0** · Prioritaria **~2.5** (knob de ODAC) | Cuánto pesa esa denuncia en la media de satisfacción de ODAC (Paciencia F3) |
 
-**Salida:** un **daño** abandonado → `−2`; una **VioGén** abandonada → `−5`. *Priorizar mal (dejar marchar lo
-urgente) es el peor golpe de reputación — refuerza la decisión de reconfigurar.*
+**Efecto (vía Paciencia F2/F3):** una **VioGén** bien atendida cuenta **2.5×** en la media (atenderla bien la
+sube mucho; **dejarla abandonar cuenta como una visita de puntuación 0 con peso 2.5** → la hunde mucho). Una
+**Normal** cuenta 1×. *Así "priorizar lo urgente" pesa más, sin que ODAC necesite una segunda fórmula de
+reputación.*
 
-### F3 · Capacidad ODAC y chequeo R5 (referenciado)
+> **Reconciliación (2026-07-22):** se **retiraron** las fórmulas propias de ODAC `reputacion_aporte` /
+> `reputacion_penalizacion` y sus knobs `base_reputacion` / `base_abandono` — eran un **modelo paralelo** al
+> de Paciencia. Ahora hay **una sola escala 0–100** (la de Paciencia, que penaliza la espera); ODAC solo
+> aporta `peso_prioridad`. *(Decisión del usuario al revisar ODAC #9.)*
+
+### F2 · Capacidad ODAC y chequeo R5 (referenciado)
 
 `throughput_puesto_odac = minutos_operativos / duracion_efectiva_media` (**Flujo F2**)
 
@@ -249,7 +248,7 @@ Todas las upstream cerradas ✅.
 
 | Sistema | Tipo | Interfaz |
 |---------|------|----------|
-| **Datos** | Hard | *lee* catálogo de denuncias (13 tipos, `prioridad`, `reconfigurable`, `admite_cita`) ✅ GDD |
+| **Datos** | Hard | *lee* catálogo de denuncias (13 tipos, `prioridad`, `reconfigurable`) ✅ GDD |
 | **Flujo #4** | Hard | *configura* la reconfiguración (FL9); confía la cola/orden por prioridad (F7); Flujo **ejecuta** ✅ GDD |
 | **Personal #6** | Hard | usa `ag_odac`; dotación por turno (24 h) ✅ GDD |
 | **Construcción #7** | Hard | usa los **puestos ODAC** y la oficina ✅ GDD |
@@ -276,10 +275,11 @@ Todas las upstream cerradas ✅.
 
 | Knob | Default | Rango seguro | Si ↑ / Si ↓ | Owner |
 |------|---------|--------------|-------------|-------|
-| `peso_prioridad_prioritaria` (F1/F2) | 2.5 | 1.0 – 5.0 | ↑ atender/perder Prioritarias pesa mucho más en reputación (priorizar es crítico) / ↓ se aplana | ODAC |
-| `base_reputacion` (F1) | 1 | ≥ 0 | ↑ ODAC rinde más reputación por denuncia / ↓ menos | ODAC |
-| `base_abandono` (F2) | 2 | ≥ 0 | ↑ los abandonos duelen más (presión de no dejar tirado a nadie) / ↓ más indulgente | ODAC |
+| `peso_prioridad_prioritaria` (F1) | 2.5 | 1.0 – 5.0 | ↑ atender/perder Prioritarias pesa mucho más en la satisfacción de ODAC (priorizar es crítico) / ↓ se aplana | ODAC |
 | **modos de reconfiguración** (Polivalente / Prioritarias / Normales / subconjunto) | los 4 | — | Añadir presets = más granularidad de gestión | ODAC |
+
+*(La escala 0–100 y sus knobs —`puntuacion_base` 80, `k_espera`, abandono = 0— los posee **Paciencia #10**;
+ODAC ya no tiene `base_reputacion`/`base_abandono` propios tras la reconciliación de F1.)*
 
 ### Knobs referenciados (dueño externo — no se duplican)
 
@@ -298,12 +298,11 @@ Todas las upstream cerradas ✅.
   y pesan mucho, la reconfiguración es obligada.
 - **`mult_nocturno_odac` × dotación nocturna (Personal)** definen si la noche se cubre con 1 puesto o hace
   falta más.
-- **`base_abandono` × paciencia (#10)** definen cuánto castiga dejar a alguien tirado.
+- **`peso_prioridad` × abandono (Paciencia #10)** define cuánto castiga dejar tirada una Prioritaria (un abandono cuenta como visita de puntuación 0 con su peso — Paciencia F2/F3).
 - **`habilitar_aging_odac` (Flujo)** es la alternativa a la reconfiguración manual: si se activa, las
   Normales suben solas (menos necesidad de gestionar).
 
-**Restricciones:** `peso_prioridad ≥ 1.0`; `base_reputacion, base_abandono ≥ 0`; los pesos de mezcla suman
-1.0 (Demanda).
+**Restricciones:** `peso_prioridad ≥ 1.0`; los pesos de mezcla suman 1.0 (Demanda).
 
 ## Visual/Audio Requirements
 
@@ -339,10 +338,6 @@ daltónico), NO alarmista.*
 > urgencia). En Pre-Producción, ejecutar `/ux-design` para estos controles **antes** de escribir epics; las
 > stories citan `design/ux/[pantalla].md`.
 
-## UI Requirements
-
-[To be designed]
-
 ## Acceptance Criteria
 
 > Formato Given-When-Then. Tipo: `[Unit]` (lógica/fórmula pura) · `[Integration]` (interacción entre
@@ -363,8 +358,8 @@ daltónico), NO alarmista.*
 - **AC-OD08** `[Integration]` — GIVEN de noche **sin** puesto dotado THEN el goteo **espera/abandona** (FL4).
 
 **Reputación (OD6, OD7, F1, F2)**
-- **AC-OD09** `[Unit]` — GIVEN Normal atendida (trato medio) THEN reputación **+1**; VioGén con buen trato → **~+3,3** (peso 2.5).
-- **AC-OD10** `[Unit]` — GIVEN daño abandonado THEN **−2**; VioGén abandonada → **−5** (peso 2.5).
+- **AC-OD09** `[Integration]` — GIVEN una VioGén (Prioritaria) y una Normal, ambas bien atendidas WHEN Paciencia promedia la satisfacción de ODAC (F3) THEN la VioGén **pesa 2.5×** frente a la Normal (`peso_prioridad` de ODAC). *(La puntuación 0–100 la calcula Paciencia F2, penalizando la espera; ODAC aporta el peso.)*
+- **AC-OD10** `[Integration]` — GIVEN una VioGén **abandonada** (Prioritaria) WHEN Paciencia la registra THEN cuenta como visita de **puntuación 0 con peso 2.5** → hunde la satisfacción de ODAC mucho más que un abandono Normal (peso 1.0). *(Dejar tirada una VioGén es el peor golpe, vía el peso.)*
 - **AC-OD11** `[Integration]` — GIVEN una denuncia ODAC completada THEN el `saldo_eur` **NO** cambia (sin ingreso); **sí** genera reputación (Paciencia).
 
 **Capacidad/R5, cita, pausa, guardado (F3, OD9, OD10, Edge)**
@@ -378,10 +373,10 @@ daltónico), NO alarmista.*
 
 | # | Pregunta | Dominio | Cuándo se resuelve | Estado |
 |---|----------|---------|--------------------|--------|
-| 1 | **Valores semilla** (`peso_prioridad 2.5`, `base_reputacion`/`base_abandono`, `mult_nocturno_odac`) — ¿los números iniciales dan una curva de reputación legible? | Balance / playtest | 1er playtest MVP | Abierta |
+| 1 | **Valores semilla** (`peso_prioridad_prioritaria 2.5`, `mult_nocturno_odac`) — ¿los números iniciales dan una curva de satisfacción/reputación legible? *(La escala 0–100 y sus knobs los posee Paciencia #10 tras la reconciliación de F1.)* | Balance / playtest | 1er playtest MVP | Abierta |
 | 2 | **Reputación → retorno DGP / valoración #28** — ¿cómo convierte Paciencia #10 la reputación ODAC en el retorno mensual y en la valoración de jefes? Aquí solo se **produce** reputación; el consumo lo define #10/#28. | Paciencia #10 / Valoración #28 | Al diseñar #10 y #28 | Abierta |
 | 3 | **Reconciliación Fase 5** — (a) mezcla de Demanda F3 redistribuida a **13 tipos** (Normales 0.87 / Prioritarias 0.13); (b) "~10 nocturno" sustituido por `mult_nocturno_odac` (default 0.5, escalable) en Demanda/Tiempo + registro (Flujo no lo referenciaba); (c) duración media ponderada validada = **29,75 ≈ 30 min** → throughput ~32/puesto, 4 puestos ~128/día ≥ 36 (R5). | Consistencia (este proyecto) | — | ✅ Aplicada 2026-07-21 |
 | 4 | **Aging vs reconfiguración** — ¿basta la reconfiguración manual de puestos como válvula anti-inanición, o hace falta *aging* automático (subir prioridad de Normales que esperan demasiado)? | Diseño (ODAC / Paciencia #10) | Playtest MVP | Abierta |
 | 5 | **Detenidos / abogados #17** — reservada la operativa 24h para que #17 (V-Slice) añada detenciones, calabozo y asistencia letrada sobre esta base. ¿Comparten puesto o requieren puesto propio? | Detenidos #17 | Al diseñar #17 (post-MVP) | Diferida |
 | 6 | **Eventos de influencia #16** — "colar a un VIP" (sube valoración de jefes, baja paciencia de la sala) y "denuncia a domicilio" (deja el puesto sin dotación ~2 h). Capturados para #16; ¿se activan también en Documentación cuando exista el sistema de citas #14? | Presión e Influencia #16 | Al diseñar #16 | Diferida |
-| 7 | **Cita previa #14** — MVP sin cita (la demanda no se autolimita, AC-OD13). ¿Al activar #14 todas las denuncias pasan a cita (directriz usuario) y cómo afecta al goteo nocturno y a los picos? | Cita previa #14 | Al diseñar #14 | Diferida |
+| 7 | **Cita previa #14** — las denuncias **no usan cita** (decisión 2026-07-22, realista; AC-OD13). La cita previa #14 aplica solo a **Documentación**; la **atención especial / colarse** en ODAC proviene de un favor del comisario → #16, no de cita. | Cita previa #14 / Influencia #16 | Al diseñar #14/#16 | Diferida |

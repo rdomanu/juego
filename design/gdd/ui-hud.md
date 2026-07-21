@@ -1,9 +1,9 @@
 # UI / HUD de Gestión
 
-> **Status**: Designed
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / ux-designer / art-director — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / ux-designer / art-director / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 4 — "Tu comisaría, tus decisiones" + Pilar 2 — "La comisaría está viva" + Pilar 1 — "Realismo con alma"
 
 ## Overview
@@ -34,7 +34,7 @@ clic entro en cualquier rincón de ella."*
 El jugador debe sentirse **al mando** (Pilar 4). El HUD persistente le da el **pulso** de la comisaría sin
 apartar la vista (hora, dinero, satisfacción, la cola que crece), y una **barra de pantallas tipo tycoon** le
 deja **saltar entre las facetas de su mando** como quien abre las carpetas de su despacho: **Comisaría** (la
-planta: construir y colocar), **Empleados** (contratar, ver a su gente), **Valoraciones** (cómo lo está
+planta: construir y colocar), **Funcionarios** (contratar, ver a su gente), **Servicios** (horario de Documentación, nivel de demanda), **Valoraciones** (cómo lo está
 haciendo: satisfacción, reclamaciones, objetivo), **Despacho del Comisario** (dinero, la valoración de tus
 jefes, las peticiones especiales que te llegan). Cada pantalla es un "departamento" de tu rol, y moverse entre
 ellas es **fluido y sin fricción** — la interfaz no estorba, **desaparece** y deja ver el trabajo.

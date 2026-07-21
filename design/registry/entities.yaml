@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-21"
+last_updated: "2026-07-22"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -114,9 +114,9 @@ entities:
     prioridad: Normal
     tarifa_eur: 0
     puesto: puesto_odac
-    notes: "Hoja de reclamaciones. NO es una denuncia de ciudadano: la GENERA Paciencia #10 (PS13) cuando alguien abandona Documentacion (con prob_reclamacion 0.4) y acude a ODAC a formalizarla. Sin tarifa (obligacion). Carga autoinfligida sobre ODAC (Doc mal gestionada la contamina). PENDIENTE de anadir a Datos F2 (catalogo). Semilla tunable."
+    notes: "Hoja de reclamaciones. NO es una denuncia de ciudadano: la GENERA Paciencia #10 (PS13) cuando alguien abandona Documentacion (con prob_reclamacion 0.4) y acude a ODAC a formalizarla. Sin tarifa (obligacion). Carga autoinfligida sobre ODAC (Doc mal gestionada la contamina). YA en Datos F2 (Atencion especial, anadido 2026-07-21). Semilla tunable."
     added: 2026-07-21
-    revised: ""
+    revised: 2026-07-22
 
 # Example (remove when first real entry is added):
 #
@@ -825,6 +825,17 @@ constants:
     unit: probabilidad_0_1
     notes: "Paciencia #10 PS13. Fraccion de ciudadanos que, al ABANDONAR Documentacion, acuden a ODAC a formalizar la hoja de reclamaciones -> generan un tramite_reclamacion (30 min) en la cola de ODAC (bucle: Doc mal gestionada contamina ODAC). Sin recursion. Carga AUTOINFLIGIDA: no altera la demanda base de ODAC ni R5. Tuning: Paciencia."
     added: 2026-07-21
+    revised: ""
+  - name: peso_prioridad_prioritaria
+    status: active
+    source: design/gdd/odac.md
+    referenced_by:
+      - design/gdd/odac.md
+      - design/gdd/patience-satisfaction.md
+    value: 2.5
+    unit: multiplicador_peso
+    notes: "ODAC #9 F1. Peso relativo de una denuncia Prioritaria (VioGen/Desaparecidos/Agresion sexual/Robo con violencia) frente a Normal (1.0) en la MEDIA de satisfaccion de ODAC (la calcula Paciencia #10 F3). RECONCILIACION 2026-07-22 (decision usuario al revisar ODAC #9): ODAC ya NO calcula reputacion propia -> se RETIRARON las formulas reputacion_aporte/reputacion_penalizacion y los knobs base_reputacion/base_abandono (eran un modelo paralelo). Paciencia posee la escala 0-100 (que penaliza la espera); ODAC solo aporta este peso. Rango seguro 1.0-5.0. Tuning: ODAC."
+    added: 2026-07-22
     revised: ""
 
 # Example:

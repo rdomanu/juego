@@ -1,9 +1,9 @@
 # Documentación (DNI/Pasaporte/TIE)
 
-> **Status**: In Design
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 1 — "Realismo con alma" + Pilar 4 — "Tu comisaría, tus decisiones"
 
 ## Overview
@@ -85,8 +85,9 @@ y **manda eventos** (DO7). Es la voz institucional tras las reglas de horario.
 **DO3 · Horario con slider (base 08:00–14:30, ampliable a 20:00).** Horario base fijado por la División:
 **L–V 08:00–14:30** (390 min, jornada de mañana, **sin peonada**). El jugador **amplía con un slider hasta
 las 20:00** (rango autorizado por la División); las horas **más allá de 14:30 = peonada** (DO4). Opción de
-**jornada ininterrumpida**. Documentación fija el horario que **Flujo ejecuta** y **Demanda respeta**.
-Sábados/domingos cerrado (MVP).
+**jornada ininterrumpida**. Documentación fija el horario que **Flujo ejecuta** y **Demanda respeta**. *(Con el calendario semanal de
+Tiempo #1 —cada jornada = 1 semana— Documentación abre su ventana en **cada jornada**; no hay fin de semana
+dentro de la jornada.)*
 
 **DO4 · Peonada de horas extra (voluntaria → motiva, cansa).** Ampliar más allá de 14:30 cuesta **peonada**
 (`peonada_eur_hora` × horas extra × nº agentes). La cubren los **mismos** agentes o **refuerzos** generados
@@ -157,8 +158,8 @@ abasto.
 | **Cita previa #14** *(V-Slice)* | *(futuro)* activa `requiere_cita` | #14 *(diferido)* |
 | **UI / HUD #11** | slider de horario, peonada, avisos de la División, nivel de demanda | UI presenta |
 
-> **Reconciliación pendiente (se aplica en Fase 5):** la ventana base pasa a **08:00–14:30** en **Demanda**
-> (pico 08:00, ~390 min) y en **Flujo** (throughput Doc ~26/día en vez de 22). Valores semilla.
+> **Reconciliación (APLICADA 2026-07-21):** la ventana base **08:00–14:30** (pico 08:00, 390 min) ya está en
+> **Demanda** (F2) y en **Flujo** (throughput Doc 26/día); verificado en `/consistency-check` 6ª. Valores semilla.
 
 ## Formulas
 
@@ -231,8 +232,8 @@ después, **puerta cerrada**. **Margen 0** = admite hasta el cierre → riesgo d
   recomienda/habilita; la decisión sigue siendo del jugador (Pilar 4).*
 - **Si el jugador intenta pasar de las 20:00 sin un evento activo:** el slider se **limita a 20:00** (la
   División no lo autoriza). Solo los eventos permiten más (hasta 21:30). *El rango lo fija la División.*
-- **Si Documentación se deja cerrado un día** (0 horas / sábado): **permitido** — sin ingresos ese día.
-  *Cerrar es una decisión válida (fin de semana, o ahorro con demanda BAJA).*
+- **Si Documentación se deja cerrada una jornada** (0 horas de apertura): **permitido** — sin ingresos esa
+  jornada. *Cerrar es una decisión válida (p. ej. ahorro con demanda BAJA).*
 - **Si el servicio está abierto pero sin agentes de Doc dotados:** **no atiende** (Flujo FL4); las puertas
   abren pero la cola crece/abandona. *Señal de falta de personal, no un bug.*
 - **Si un trámite llega con `requiere_cita=true` en el MVP** (config futura sin #14): se **trata como sin
@@ -343,10 +344,6 @@ horarios/cita). Casi todas las relaciones son mutuas y **todas las upstream est�
 > En Pre-Producción, ejecutar `/ux-design` para estos controles **antes** de escribir epics; las stories
 > citan `design/ux/[pantalla].md`.
 
-## UI Requirements
-
-[To be designed]
-
 ## Acceptance Criteria
 
 > Formato Given-When-Then. Tipo: `[Unit]` (lógica/fórmula pura) · `[Integration]` (interacción entre
@@ -385,7 +382,7 @@ horarios/cita). Casi todas las relaciones son mutuas y **todas las upstream est�
 | 1 | **Valores semilla** (`margen 15`, `slider_max 20:00`, coste peonada, umbral de rentabilidad) | Balance / playtest | 1er playtest MVP | Abierta |
 | 2 | **Catálogo de eventos de la División** (crece con DG11): cuáles, frecuencia, cuánto amplían y qué trámite | Documentación + Demanda + playtest | 1er playtest / V-Slice | Abierta |
 | 3 | **Efecto de moral** (peonada motiva+cansa; última admisión tardía desmotiva): modelo pleno | Bienestar #13/#15 | GDD #13/#15 | Abierta |
-| 4 | **Reconciliación pendiente**: ventana base 08:00–14:30 (Demanda/Flujo) + **calendario semanal** (Tiempo #1: 4 semanas/mes, "Mes·Semana N") | Reconciliar (Fase 5) | Al cerrar #8 | Abierta |
+| 4 | **Reconciliación** — ventana base 08:00–14:30 (Demanda/Flujo) + **calendario semanal** (Tiempo #1). **APLICADA** (verificado en `/consistency-check` 6ª, 2026-07-21). | Reconciliar | — | ✅ Resuelta |
 | 5 | **¿Cuánto desmotiva** exactamente la última admisión tardía (margen 0)? — calibrar con Bienestar | Personal/Bienestar + playtest | 1er playtest | Abierta |
 | 6 | **Refuerzos para peonadas** (agentes nuevos vs los mismos): cómo se generan/eligen | Personal + Documentación | GDD Personal/Horarios | Abierta |
 | 7 | **Cita previa #14**: cómo activa `requiere_cita` y regula la demanda | Cita #14 (V-Slice) | GDD #14 | Abierta |

@@ -1,9 +1,9 @@
 # Flujo de Personas y Colas
 
-> **Status**: In Design
-> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-19
-> **Last Verified**: 2026-07-19
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes systems-designer / game-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" + Pilar 4 — "Tu comisaría, tus decisiones"
 
 ## Overview
@@ -33,7 +33,7 @@ que dependen** Documentación, ODAC, Paciencia y Economía.
 > persona→puesto y el *ciclo de atención* (incluido el evento `"trámite completado"`). **Lee** de *Datos*
 > (`duracion_min`, `tipo_puesto`, `atenciones_admitidas`), del *Tiempo* (`delta`, estado de pausa) y de
 > **Personal** los *modificadores del agente* que atiende (rendimiento → **duración efectiva**; trato →
-> **bonus de satisfacción** al cerrar), cuyo origen es **Formación y Cursos (#29)** *(2 ramas —producción y
+> **factor de trato** (satisfacción) al cerrar), cuyo origen es **Formación y Cursos (#29)** *(2 ramas —producción y
 > atención— de 3 niveles; sin GDD aún → provisional)*. **No posee**: *cuánta* gente llega ni cuándo (→
 > **Demanda #5**), la *curva de paciencia/abandono* (→ **Paciencia #10**), los *horarios* de apertura (→
 > Documentación/ODAC + Tiempo), ni la *progresión de formación* del personal (→ Personal #6 / Formación
@@ -181,7 +181,7 @@ abierto/cerrado.)*
 | **Documentación #8** | *ejecuta* apertura/cierre por horario y el flujo de DNI/Pasaporte/TIE | Documentación posee horarios y política de cita |
 | **ODAC / Denuncias #9** | *ejecuta* el flujo de denuncias, la **prioridad** y la **reconfiguración** de puestos | ODAC posee su operativa |
 | **Economía / Presupuesto #3** | *emite* `"trámite completado"` (trámite + agente) → Economía abona el retorno DGP | Flujo emite; Economía acredita ✅ (GDD) |
-| **Formación y Cursos #29** | *lee* (vía Personal) `modificador_produccion` (→ duración efectiva) y `bonus_satisfaccion` del agente | Formación posee los valores *(provisional)* |
+| **Formación y Cursos #29** | *lee* (vía Personal) `modificador_produccion` (→ duración efectiva) y `factor_trato` del agente | Formación posee los valores *(provisional)* |
 | **UI / HUD #11** | *expone* colas, número de turno, estado de puestos, y las Personas con su estado | UI presenta |
 | **Feedback y Juice #12** | *emite* eventos (llegada, llamada de turno, trámite completado, abandono) para sonido/animación | Flujo provee; Feedback reacciona |
 
@@ -224,8 +224,8 @@ lugar de `duracion_min`)*:
 - **Documentación** (ventana **08:00–14:30 = 390 min**, `dur ≈ 15` conservador): `390 / 15 =
   **26 trámites/día**` por puesto. *(DNI a 12 min rinde algo más; 15 es cota conservadora. Ventana base;
   ampliable con peonada — Documentación #8.)*
-- **ODAC** (operativo ~16 h = **960 min**, `dur ≈ 28`): `960 / 28 ≈ **34 denuncias/día**` por
-  puesto. *(Coincide con el chequeo R5 de Datos F8.)*
+- **ODAC** (operativo ~16 h = **960 min**, `dur ≈ 30` —media ponderada de las 13 denuncias, Demanda F3 =
+  29,75): `960 / 30 = **32 denuncias/día**` por puesto. *(Coincide con el chequeo R5 de Datos F8 y con F3 abajo.)*
 
 ### F3 · Capacidad de un servicio (trámites/día) — lado capacidad de R5
 
@@ -255,6 +255,10 @@ solo expone la capacidad que Datos consume.)*
 - `ρ < 1` → la cola es **estable**, la espera converge.
 - `ρ ≥ 1` → la cola **crece**; sin cita (FL7) la única válvula es la **paciencia/abandono**
   (#10), nunca un atasco irresoluble.
+- **`capacidad = 0`** (ningún puesto abierto y dotado): `ρ` es **indefinido (∞)** — nadie atiende, la cola
+  solo crece y se drena por abandono. *Es el edge "todos los puestos cerrados": no es una división por cero
+  real, sino la señal de "abre/dota un puesto" (Pilar 4). La UI lo muestra como "sin servicio", no como un
+  número.*
 
 **Ejemplo (la hora punta del Player Fantasy):** 1 ventanilla de Documentación despacha
 `60/15 = 4/h`; si llegan **8/h**, `ρ = 8/4 = 2` → la cola se estira. El jugador **abre una 2.ª
@@ -420,9 +424,10 @@ diseñado; *(provisional)* = sin GDD aún, contrato definido aquí.*
 > abandono*. Flujo **posee** el ciclo de la Persona y el evento `"trámite completado"`; los demás
 > **parametrizan** ese ciclo. Se resuelve limpiamente al escribir sus GDD.
 
-> **Consistencia bidireccional:** estas dependencias están registradas en `systems-index.md`. Los
-> dependientes ya diseñados (**Economía ✅**, **Tiempo ✅**, **Datos ✅**) ya listan la relación con
-> Flujo; el resto la añadirán al escribirse *(referencia inversa provisional)*.
+> **Consistencia bidireccional:** estas dependencias están registradas en `systems-index.md`. Todos los
+> **dependientes del MVP** (Economía, Paciencia, Documentación, ODAC, UI, Feedback) ya están escritos y
+> listan la relación con Flujo; los **upstream** (Tiempo, Datos, Demanda, Personal, Construcción) también.
+> Solo Guardado #20 (futuro) queda por añadirla al redactarse.
 
 ## Tuning Knobs
 

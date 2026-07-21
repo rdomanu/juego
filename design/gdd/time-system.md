@@ -1,9 +1,9 @@
 # Sistema de Tiempo (reloj, día/noche, turnos)
 
-> **Status**: Designed (pendiente de /design-review)
+> **Status**: Reviewed (/design-review 2026-07-19 APPROVED; **re-revisión 2026-07-22 tras calendario semanal: APPROVED**)
 > **Author**: manu.rdo + Claude (game-designer / systems-designer)
-> **Last Updated**: 2026-07-19
-> **Last Verified**: 2026-07-19
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" (sostiene el Pilar 4 — "Tus decisiones")
 
 ## Summary
@@ -364,9 +364,9 @@ diseño: el reloj es autónomo y testeable en aislamiento.
 | Guardado y Carga | depende del Tiempo | Hard | Serializa/restaura el estado del reloj |
 
 **Consistencia bidireccional:** estas dependencias están registradas en `design/gdd/systems-index.md`.
-Cuando se escriba el GDD de cada sistema dependiente, deberá listar "depende de: Sistema de Tiempo" en
-su propia sección de Dependencias. *(Ninguno tiene GDD aún → la referencia inversa queda pendiente y
-marcada como provisional.)*
+Los GDD dependientes del MVP ya escritos (Flujo, Demanda, Paciencia, Documentación, ODAC, Economía, UI)
+listan "depende de: Sistema de Tiempo" en su propia sección de Dependencias. Los aún no escritos
+(Horarios #13, Presión e Influencia #16, Guardado #20) lo harán al redactarse.
 
 ## Tuning Knobs
 
@@ -432,7 +432,8 @@ gamepad más adelante — ver preferencias técnicas.)*
 | Goteo nocturno de ODAC (`mult_nocturno_odac`, ≈10 en Pozuelo, 00:00–07:00) como razón para no saltar la noche | `demand-generation.md` ✅ | tasa de llegada nocturna | Data dependency |
 | Ventana 08:00–14:30 como ejemplo ilustrativo | `documentation.md` ✅ | horario de apertura | Rule dependency (ilustrativa) |
 
-*Nota: los GDDs destino aún no existen; se reconciliarán al escribirlos (lo verifica `/review-all-gdds`).*
+*Nota: `demand-generation.md` y `documentation.md` ya existen y son consistentes con estas referencias
+(verificado en `/consistency-check`); `/review-all-gdds` hará la verificación cruzada holística.*
 
 ## Acceptance Criteria
 
@@ -472,6 +473,7 @@ llega a un sistema oyente).
 - **AC-T20** `[Unit]` — GIVEN `1439.8` WHEN pasa a `0.3` (cruza 00:00) THEN se emite `nuevo_dia` una vez y avanza **1 semana** (Semana +1; al pasar de Semana 4 → mes +1, regla 7).
 - **AC-T21** `[Unit]` — GIVEN cruce de 00:00 en turno Noche THEN se emite `nuevo_dia` pero NO `cambio_de_turno` (sigue NOCHE).
 - **AC-T22** `[Unit]` — GIVEN la **Semana 4** de un mes a 23:59 WHEN cruza medianoche THEN se emiten `nuevo_dia` y `nuevo_mes`, el mes +1 y la Semana vuelve a **1**.
+- **AC-T22b** `[Unit]` — GIVEN el **mes 12 (Diciembre) · Semana 4** a 23:59 WHEN cruza medianoche THEN se emiten `nuevo_dia` y `nuevo_mes`, avanza el **año +1**, el mes vuelve a **1** y la Semana a **1** (48 jornadas = 1 año).
 
 **Edge cases**
 - **AC-T23** `[Unit]` — GIVEN `1379.0` (22:59, Tarde) WHEN un `delta_real` grande lleva el acumulador a `1441.0` (cruza 23:00 y 00:00 en el mismo frame) THEN se disparan en orden `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)` → `nuevo_dia`, una vez cada uno.
@@ -488,7 +490,7 @@ llega a un sistema oyente).
 - **AC-T32** `[Unit]` — GIVEN cualquier velocidad WHEN el jugador selecciona otra (incluida Pausa) THEN se emite `velocidad_cambiada` con el nuevo valor, una vez por acción.
 
 **Calidad transversal**
-- **AC-T33** `[Unit]` — GIVEN el reloj a 3× con `escala=12` (peor caso) WHEN se mide el `_process` del reloj durante 1000 frames THEN el tiempo medio del update es < 0,1 ms (< 0,6 % del presupuesto de 16,6 ms a 60 FPS).
+- **AC-T33** `[Unit]` — GIVEN el reloj a 3× con `escala=12` (peor caso) WHEN se mide el `_process` del reloj durante 1000 frames THEN el tiempo medio del update es < 0,1 ms (< 0,6 % del presupuesto de 16,6 ms a 60 FPS). *(Hardware de referencia a fijar en implementación — ver Open Questions.)*
 - **AC-T34** `[Unit]` — GIVEN un config con `escala_tiempo=6`, `inicio_mañana=360`, `inicio_tarde=840`, `inicio_noche=1320` WHEN se inicializa leyendo ese config (sin tocar código) THEN el reloj usa esos valores exactos; ningún límite de turno ni `escala_tiempo` está incrustado en el código.
 - **AC-T35** `[Unit]` — GIVEN la misma secuencia de deltas aplicada dos veces desde idéntico estado WHEN se ejecutan THEN `minutos_juego`, turno y señales son idénticos (sin dependencia de fecha/hora real del sistema ni semillas aleatorias).
 - **AC-T36** `[Integration]` — GIVEN Flujo, Demanda y Documentación activos WHEN cada uno consulta la hora THEN los tres devuelven el mismo `minutos_del_dia` del Sistema de Tiempo (ninguno mantiene su propio contador).
@@ -502,3 +504,4 @@ llega a un sistema oyente).
 | ¿Autopausa al perder foco: on u off por defecto? | UX | Implementación UI | Abierta |
 | ¿La partida nueva debería arrancar también en Pausa (como la carga) o mantener 1×? | Diseño | 1er playtest MVP | Abierta |
 | Confirmar `delta_max_por_frame` (0,5 s) en pruebas de rendimiento reales | Programación | Implementación | Abierta |
+| Hardware de referencia para el AC de rendimiento (AC-T33): ¿en qué máquina/target se mide el `< 0,1 ms`? | Programación | Implementación (spike de rendimiento) | Abierta |

@@ -1,9 +1,9 @@
 # Personal / Agentes
 
-> **Status**: In Design
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED tras reconciliar F3 —factor de trato— con Paciencia #10)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 2 — "La comisaría está viva" (agentes con nombre) + Pilar 4 — "Tu comisaría, tus decisiones"
 
 ## Overview
@@ -35,7 +35,7 @@ que convierte los puestos vacíos en un **servicio con gente que lo saca adelant
 > **atributos**, rango, asignación y estado), la *contratación/despido*, la *asignación a puestos*, las
 > *ausencias* y la figura del *Oficial* (cobertura + canalización). **Lee** de *Datos* (`TipoAgente`,
 > salario **base**, `puestos_operables`) y de *Economía* (gate de gasto, salarios). **Provee** a *Flujo*
-> el agente asignado y sus `modificador_produccion` / `bonus_satisfaccion`. **No posee**: el *ciclo de
+> el agente asignado y sus `modificador_produccion` / `factor_trato`. **No posee**: el *ciclo de
 > atención* (→ Flujo #4), los *valores de mejora* de los atributos (→ **Formación #29**, que Personal solo
 > aplica), los *horarios/turnos rotativos* (→ **Horarios #13**; el MVP los simplifica), ni la
 > *satisfacción* que consume el bonus de Trato (→ **Paciencia #10**). *(Turnos rotativos, vacaciones,
@@ -90,7 +90,7 @@ Oficial **atiende un puesto como un agente más** *y además* ejerce de **mando*
 
 **PA3 · Atributos del agente.** Cuatro comunes + uno de Oficial:
 - ⚡ **Rapidez** → `modificador_produccion` (Flujo F1): más rápido = menor duración efectiva.
-- 🤝 **Trato** → `bonus_satisfaccion` (Flujo lo emite al cerrar; lo usan Paciencia/Economía).
+- 🤝 **Trato** → `factor_trato` (Flujo lo emite al cerrar; lo usan Paciencia/Economía).
 - ❤️ **Salud** → **probabilidad de ausencia** (PA7): menos salud, falta más.
 - 🔥 **Motivación** → modula **ligeramente** Rapidez+Trato (MVP: modificador global pequeño; moral
   dinámica → futuro, PA10).
@@ -166,8 +166,8 @@ Flujo):
 |---|---|---|
 | **Datos y Configuración** | *lee* `TipoAgente` (salario **base**, `puestos_operables`, `tipo_horario`, `escala_rango`) | Datos posee los valores ✅ GDD |
 | **Economía #3** | *provee* el gate "¿puedo contratar?" (E4) y *paga* salarios al `nuevo_dia` (F3, base×prima) | Economía posee el dinero ✅ GDD |
-| **Flujo #4** | *provee* el agente asignado a cada puesto (**gate FL4**) y sus `modificador_produccion` / `bonus_satisfaccion` | Personal provee; Flujo consume ✅ GDD |
-| **Paciencia y Satisfacción #10** | *(indirecto)* el `bonus_satisfaccion` (Trato) sube la satisfacción al cerrar | Paciencia posee la curva *(provisional)* |
+| **Flujo #4** | *provee* el agente asignado a cada puesto (**gate FL4**) y sus `modificador_produccion` / `factor_trato` | Personal provee; Flujo consume ✅ GDD |
+| **Paciencia y Satisfacción #10** | *(indirecto)* el `factor_trato` (Trato) sube la satisfacción al cerrar | Paciencia posee la curva *(provisional)* |
 | **Formación y Cursos #29** | *sube* los atributos del agente (Personal aplica los valores) | Formación posee las mejoras *(provisional)* |
 | **Construcción #7** | los **puestos** a los que se asignan agentes | Construcción posee la colocación *(provisional)* |
 | **Documentación #8 / ODAC #9** | el agente **opera** sus puestos (horario del servicio) | ellos poseen su operativa *(provisional)* |
@@ -215,19 +215,25 @@ caro; nadie perfecto = raro y caro.)*
 > provisionalmente (`(0,1]`); Flujo F1 y el registro (`duracion_efectiva`) se actualizan a este rango.
 > *(Formación #29 baja aún más el modificador —mejora.)*
 
-### F3 · Bonus de satisfacción (Trato → satisfacción al cerrar)
+### F3 · Factor de trato (Trato → multiplicador de satisfacción al cerrar)
 
-`bonus_satisfaccion = k_trato × (Trato−3) × (1 + 0.1×(Motivación−3))`
+`factor_trato = clamp( 1 + k_trato × (Trato−3) × (1 + 0.1×(Motivación−3)) , 0.5 , 1.5 )`
 
 | Variable | Tipo | Rango | Descripción |
 |----------|------|-------|-------------|
 | `Trato` | int | 1–5 | Atención al ciudadano |
-| `k_trato` | float | 5 (puntos) | Escala del bonus (tuning) |
-| salida | float | ~−10…+10 | Puntos de satisfacción al cerrar (los usa Paciencia) |
+| `k_trato` | float | 0.25 | Escala del factor (tuning) |
+| `Motivación` | int | 1–5 | Modula ligeramente (MVP base) |
+| salida | float | **0.5–1.5** · Trato 3 = **1.0** | **Multiplicador** de `puntuacion_visita` (Paciencia F2) |
 
-**Salida:** Trato 5 → `+10`; Trato 3 → `0`; Trato 1 → `−10`. **Ejemplo:** un agente amable sube la
-satisfacción del trámite → mejor retorno DGP (Economía F1). *(La escala real de satisfacción 0–100 la posee
-**Paciencia #10**; aquí solo se define el aporte del Trato — provisional.)*
+**Salida:** Trato 5 → `×1.5`; Trato 3 → `×1.0` (neutro); Trato 1 → `×0.5`. **Ejemplo:** un agente amable
+**multiplica** la puntuación de la visita (Paciencia F2: `puntuacion = base × factor_espera × factor_trato`)
+→ más satisfacción → mejor retorno DGP (Economía F1).
+
+> **Reconciliación (2026-07-22):** antes F3 producía un valor **aditivo** (±10 puntos, Trato 3 = 0),
+> incompatible con Paciencia F2, que espera un **multiplicador `factor_trato`** (0.5–1.5, Trato 3 = 1.0).
+> Ahora Personal produce ese factor. La **escala 0–100** la posee **Paciencia #10**; Personal solo aporta el
+> multiplicador. *(Decisión del usuario al revisar Personal #6.)*
 
 ### F4 · Probabilidad de ausencia (Salud)
 
@@ -239,8 +245,9 @@ satisfacción del trámite → mejor retorno DGP (Economía F1). *(La escala rea
 | `base_ausencia` | float | 0.03 (3%) | Prob. base a Salud media (tuning) |
 | `k_salud` | float | 0.02 | Pendiente por punto de Salud |
 
-**Salida:** Salud 5 → `~1%`/día; Salud 3 → `3%`; Salud 1 → `~7%`/día. RNG **sembrado** (determinista).
-*(La fatiga futura subiría esta probabilidad — Bienestar #13/#15.)*
+**Salida:** Salud 5 → `~0–1%`/día (el clamp evita negativos); Salud 3 → `3%`; Salud 1 → `~7%`/día. RNG
+**sembrado** (determinista). *(Con `base_ausencia 0.03`/`k_salud 0.02`: Salud 1 = 7%, Salud 5 ≈ 0%; a afinar
+en playtest — Open Q1. La fatiga futura subiría esta probabilidad — Bienestar #13/#15.)*
 
 ### F5 · Generación de candidatos (mercado)
 
@@ -321,8 +328,8 @@ modificadores, ausencias, Mando) lo posee Personal.
 
 | Sistema | Tipo | Interfaz (qué recibe de Personal) |
 |---------|------|----------------------------------|
-| **Flujo de Personas y Colas #4** | Hard | *recibe* el agente asignado a cada puesto (**gate FL4**) y sus `modificador_produccion` (F2) / `bonus_satisfaccion` (F3) ✅ GDD |
-| **Paciencia y Satisfacción #10** | Soft | *recibe* (vía Flujo) el `bonus_satisfaccion` (Trato) que sube la satisfacción *(provisional)* |
+| **Flujo de Personas y Colas #4** | Hard | *recibe* el agente asignado a cada puesto (**gate FL4**) y sus `modificador_produccion` (F2) / `factor_trato` (F3) ✅ GDD |
+| **Paciencia y Satisfacción #10** | Soft | *recibe* (vía Flujo) el `factor_trato` (Trato) que sube la satisfacción *(provisional)* |
 | **Construcción y Distribución #7** | Hard | provee los **puestos** a los que Personal asigna agentes *(provisional)* |
 | **Documentación #8 / ODAC #9** | Hard | los agentes **operan** sus puestos (horario del servicio) *(provisional)* |
 | **Horarios y Peonadas #13** *(V-Slice)* | Soft | *(futuro)* peonadas (horas extra); turnos rotativos **descartados** *(diferido)* |
@@ -347,7 +354,8 @@ modificadores, ausencias, Mando) lo posee Personal.
 | `k_calidad` (prima de salario por atributos, F1) | 0.5 | 0 – 1.5 | ↑ los buenos cuestan mucho más (calidad cara) / ↓ la calidad casi no encarece | Personal |
 | `prima_rango_oficial` (F1) | 1.3 | 1.0 – 2.0 | ↑ el Oficial cuesta más (delegar es caro) / ↓ Oficial barato | Personal |
 | `k_rapidez` (Rapidez→duración, F2) | 0.1 | 0 – 0.15 | ↑ la Rapidez importa más (crack vs torpe se nota mucho) / ↓ aplana | Personal |
-| `k_trato` (Trato→satisfacción, F3) | 5 | 0 – 15 | ↑ el Trato pesa más en la satisfacción / ↓ menos | Personal |
+| `k_trato` (Trato→factor de satisfacción, F3) | 0.25 | 0 – 0.5 | ↑ el Trato pesa más (factor más extremo, hasta 0.5–1.5) / ↓ menos | Personal |
+| `k_motivacion` (Motivación→Rapidez/Trato, F2/F3) | 0.05 | 0 – 0.1 | ↑ la Motivación modula más el rendimiento / ↓ menos | Personal |
 | `base_ausencia` · `k_salud` (F4) | 0.03 · 0.02 | ≥ 0 | ↑ más bajas (más presión de cobertura) / ↓ plantilla más fiable | Personal |
 | `n_candidatos` · `refresco_mercado` (F5) | 3–5 · cada X días | ≥ 1 | ↑ más donde elegir (fichar fácil) / ↓ mercado escaso (fichar difícil) | Personal |
 | `sesgo_candidatos` (rareza de cracks, F5) | centrado | — | ↑ cracks más raros (encontrar al bueno cuesta) / ↓ candidatos buenos comunes | Personal |
@@ -414,10 +422,6 @@ respaldo daltónico (icono + texto, no solo color).*
 > plantilla, asignación, bandeja de incidencias). En Pre-Producción, ejecutar `/ux-design` para cada
 > pantalla **antes** de escribir epics; las stories de UI citan `design/ux/[pantalla].md`.
 
-## UI Requirements
-
-[To be designed]
-
 ## Acceptance Criteria
 
 > Formato Given-When-Then. Tipo: `[Unit]` (lógica/fórmula pura) · `[Integration]` (interacción entre
@@ -440,7 +444,7 @@ respaldo daltónico (icono + texto, no solo color).*
 - **AC-PE10** `[Integration]` — GIVEN un puesto operado por un agente rápido vs uno lento THEN la **duración efectiva** es menor con el rápido (Flujo usa F2).
 
 **Atributos → efectos (F3, F4)**
-- **AC-PE11** `[Unit]` — GIVEN Trato 5 THEN `bonus_satisfaccion = +10`; Trato 1 → −10 (F3).
+- **AC-PE11** `[Unit]` — GIVEN Trato 5 THEN `factor_trato = 1.5`; Trato 3 → **1.0** (neutro); Trato 1 → **0.5** (F3, multiplicador que usa Paciencia F2).
 - **AC-PE12** `[Unit]` — GIVEN Salud 5 THEN `prob_ausencia ≈ 1%`; Salud 1 → ~7% (F4).
 
 **Ausencias y Oficial (PA7–PA9, F6, F7)**

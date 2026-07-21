@@ -26,15 +26,15 @@ dependencia y prioridad, para escribir los GDDs en el orden correcto.
 | 1 | Sistema de Tiempo (reloj, día/noche, turnos) | Core | MVP | Reviewed | [time-system.md](time-system.md) | — |
 | 2 | Datos y Configuración *(inferred)* | Core | MVP | Reviewed | [data-config.md](data-config.md) | — |
 | 3 | Economía / Presupuesto | Economy | MVP | Reviewed | [economy-budget.md](economy-budget.md) | Datos, Tiempo |
-| 4 | Flujo de Personas y Colas | Gameplay | MVP | Designed | [flow-queues.md](flow-queues.md) | Tiempo, Datos |
-| 5 | Generación de Demanda *(inferred)* | Gameplay | MVP | Designed | [demand-generation.md](demand-generation.md) | Tiempo, Datos |
-| 6 | Personal / Agentes | Gameplay | MVP | Designed | [staff-agents.md](staff-agents.md) | Datos, Economía |
-| 7 | Construcción y Distribución | Gameplay | MVP | Designed | [construction-layout.md](construction-layout.md) | Datos, Economía |
-| 8 | Documentación (DNI/Pasaporte/TIE) | Gameplay | MVP | Designed | [documentation.md](documentation.md) | Flujo, Personal, Construcción, Economía |
-| 9 | ODAC / Denuncias | Gameplay | MVP | Designed | [odac.md](odac.md) | Flujo, Personal, Construcción |
-| 10 | Paciencia y Satisfacción | Gameplay | MVP | Designed | [patience-satisfaction.md](patience-satisfaction.md) | Flujo, Tiempo |
-| 11 | UI / HUD de Gestión *(inferred)* | UI | MVP | Designed | [ui-hud.md](ui-hud.md) | (sistemas de juego) |
-| 12 | Feedback y Juice *(inferred)* | UI | MVP | Designed | [feedback-juice.md](feedback-juice.md) | (sistemas de juego) |
+| 4 | Flujo de Personas y Colas | Gameplay | MVP | Reviewed | [flow-queues.md](flow-queues.md) | Tiempo, Datos |
+| 5 | Generación de Demanda *(inferred)* | Gameplay | MVP | Reviewed | [demand-generation.md](demand-generation.md) | Tiempo, Datos |
+| 6 | Personal / Agentes | Gameplay | MVP | Reviewed | [staff-agents.md](staff-agents.md) | Datos, Economía |
+| 7 | Construcción y Distribución | Gameplay | MVP | Reviewed | [construction-layout.md](construction-layout.md) | Datos, Economía |
+| 8 | Documentación (DNI/Pasaporte/TIE) | Gameplay | MVP | Reviewed | [documentation.md](documentation.md) | Flujo, Personal, Construcción, Economía |
+| 9 | ODAC / Denuncias | Gameplay | MVP | Reviewed | [odac.md](odac.md) | Flujo, Personal, Construcción |
+| 10 | Paciencia y Satisfacción | Gameplay | MVP | Reviewed | [patience-satisfaction.md](patience-satisfaction.md) | Flujo, Tiempo |
+| 11 | UI / HUD de Gestión *(inferred)* | UI | MVP | Reviewed | [ui-hud.md](ui-hud.md) | (sistemas de juego) |
+| 12 | Feedback y Juice *(inferred)* | UI | MVP | Reviewed | [feedback-juice.md](feedback-juice.md) | (sistemas de juego) |
 | 13 | Horarios y Peonadas | Gameplay | Vertical Slice | Not Started | — | Tiempo, Personal, Economía |
 | 14 | Cita previa vs. sin cita | Gameplay | Vertical Slice | Not Started | — | Documentación, Demanda |
 | 15 | Comodidades de sala de espera | Economy | Vertical Slice | Not Started | — | Construcción, Paciencia, Economía |
@@ -152,8 +152,8 @@ dependencia y prioridad, para escribir los GDDs en el orden correcto.
 |---------|--------|
 | Total de sistemas identificados | 29 |
 | GDDs empezados | 12 |
-| GDDs revisados | 3 |
-| GDDs aprobados | 0 |
+| GDDs revisados | 12 (todos los MVP) ✅ |
+| GDDs aprobados | 12 (veredicto APPROVED en /design-review) ✅ |
 | Sistemas MVP diseñados | 12 / 12 ✅ |
 | Sistemas Vertical Slice diseñados | 0 / 10 |
 
@@ -177,6 +177,22 @@ dependencia y prioridad, para escribir los GDDs en el orden correcto.
 > **Regla de assets (divisas)**: las divisas se representan con la **imagen real exacta** de cada
 > insignia, aplicando un **filtro adaptado al estilo del juego** — NUNCA dibujadas a mano ni
 > aproximadas. Formalizar en el art bible (sección 8, Estándares de assets).
+
+**Mecanismo de ascenso (decisión del usuario 2026-07-22)** *(sistema #18 Ascensos, con #28 Valoración y
+#29 Formación)* — el ascenso de rango **no ocurre en cualquier momento**:
+- **Ventana anual fija: solo en ENERO.** Se evalúa al inicio de cada año de juego (12 meses = 48 jornadas,
+  Tiempo #1). Si no cumples los requisitos ese enero, **esperas al enero siguiente** (otro año de juego).
+- **Requisitos para ascender a Inspector** (los tres a la vez):
+  1. **Antigüedad:** haber jugado al menos **1 año** (48 jornadas) en el rango actual.
+  2. **Valoración de jefes ≥ 75 %** (#28) — la reputación con la cúpula, alimentada por satisfacción +
+     reclamaciones + reputación de ODAC (hook ya en `economy-budget.md` E9, que la baja al pedir préstamos).
+  3. **Curso de ascenso a Inspector superado** (#29 Formación) — curso **selectivo de promoción interna**,
+     distinto de la formación por skill de los funcionarios (⚡🤝❤️🔥🎖️).
+- **Alcance:** el ascenso efectivo es **post-MVP** (requiere #18 + #28 + #29 y un año de juego). **En el MVP**,
+  la **valoración de jefes** existe como **marcador visible** (da consecuencia a ODAC y a la satisfacción),
+  pero el ascenso a Inspector se materializa con esos sistemas de la fase Vertical Slice.
+- **Realismo:** refleja la promoción interna real del CNP (convocatoria anual + curso selectivo en la
+  División de Formación). El "curso de ascenso" es distinto de la formación continua por competencias.
 
 **Brigadas** (esqueleto de la escalera de carrera): Seguridad Ciudadana (Zetas), Policía Judicial
 (de ella cuelga la ODAC), Información, Policía Científica, Extranjería y Fronteras. Documentación
@@ -218,13 +234,17 @@ influyentes (superiores, VIP, políticos, medios) piden **favores** con trade-of
   (favor vs. indignación de los que sí pidieron cita).
 **Regla de diseño (Pilar 5, crítica):** nunca una opción obviamente buena; **jamás premiar la corrupción** ni
 tomar partido político (anti-pilar). Alcance **Vertical Slice**; ganchos ya en ODAC/Documentación.
+**Nota (2026-07-22, decisión al re-revisar Datos #2):** en el MVP las **denuncias de ODAC no usan cita**
+(realista: se denuncia sin cita, por **llegada + prioridad**). La **atención especial / saltarse la cola**
+proviene de un **favor solicitado por el comisario** (este sistema #16), **NO** de un sistema de cita. La
+**cita previa (#14)** aplica solo a **Documentación** (DNI/Pasaporte/TIE, que sí la usan en la realidad).
 
 **Formación y Cursos** *(sistema #29, surgido al diseñar Flujo)* — progresión de los **funcionarios**: cada
 agente puede formarse en **cursos con niveles** pagando **dinero** (matrícula → Economía) y **tiempo** (el
 agente no atiende durante N días → coste de oportunidad). **Formación por skill específico** (alineada con los atributos de Personal #6, 2026-07-21): eliges **qué
 skill** formar —⚡Rapidez, 🤝Trato, ❤️Salud, 🔥Motivación, o 🎖️Mando (Oficiales)— y sube **solo esa**
 (formar Rapidez sube Rapidez, no todas). Niveles = la escala **1–5** → hasta ~4 mejoras por skill.
-- ⚡Rapidez → `modificador_produccion` (Flujo #4). 🤝Trato → `bonus_satisfaccion` (retorno DGP, Satisfacción
+- ⚡Rapidez → `modificador_produccion` (Flujo #4). 🤝Trato → `factor_trato` (retorno DGP, Satisfacción
   #10). ❤️Salud → menos ausencias. 🔥Motivación → rendimiento. 🎖️Mando → mejor cobertura del Oficial.
 - **Coste creciente + retorno decreciente** (regla del usuario): cada nivel cuesta más (€ matrícula →
   Economía + **días** sin atender = coste de oportunidad) y aporta **menos %** (4→5 « 1→2) → evita el

@@ -1,9 +1,9 @@
 # Economía / Presupuesto
 
-> **Status**: Reviewed (/design-review lean 2026-07-19)
+> **Status**: Reviewed (/design-review lean 2026-07-19; **re-revisión 2026-07-21 tras calendario semanal + contrato `sat`: APPROVED**)
 > **Author**: manu.rdo + Claude (hilo principal; lentes economy-designer / systems-designer / qa-lead — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-19
-> **Last Verified**: 2026-07-19
+> **Last Updated**: 2026-07-21
+> **Last Verified**: 2026-07-21
 > **Implements Pillar**: Pilar 4 — "Tu comisaría, tus decisiones" (presupuesto siempre justo) + Pilar 1 — "Realismo con alma" (tasas oficiales → DGP)
 >
 > **Nota de proceso**: `/design-review` (lean) del 2026-07-19: veredicto **NEEDS REVISION** (3 bloqueantes + 4 recomendados), **todos resueltos en la misma sesión**. Cambios clave: (1) recargo de deuda calculado sobre la deuda de **apertura** del día (arregla la contradicción F6↔AC-E09); (2) **modelo de préstamo cerrado** — coste híbrido (fija + % de ingresos) mientras el préstamo esté vivo, con **devolución** del principal para cancelarlo; (3) **rescate de insolvencia** con pausa + modal + ventana de gracia de 12 h. Log: `design/gdd/reviews/economy-budget-review-log.md`.
@@ -118,6 +118,13 @@ Tiempo #1: cada jornada = 1 semana; el **mes = 4 jornadas**, así el objetivo me
 jornadas.)* Economía **no define** el
 objetivo de ascenso (lo poseen Ascensos/Métricas); solo aporta el balance.
 
+> **Vocabulario temporal (con el calendario semanal de Tiempo #1):** en toda esta capa, **"día" = una
+> jornada = un ciclo de reloj de 24 h = el evento `nuevo_dia`**. **Todos los cobros por ciclo** (salarios
+> F3, peonada F4, recargo de deuda F5, penalización de préstamos F8) se aplican **una vez por jornada**, al
+> `nuevo_dia`. El calendario semanal **no cambia** esta cadencia: solo afecta a la **fecha mostrada**
+> ("Mes · Semana N") y a que el **cierre mensual** (`nuevo_mes`, balance F7) ocurra **cada 4 jornadas**. El
+> reloj interno de 24 h (horas, turnos, horario de Documentación) es el mismo.
+
 **E7 · Retorno DGP data-driven.** `retorno_DGP(sat)` usa `retorno_dgp_min/max` (semilla en Datos) y la
 **satisfacción** (0–100) de Paciencia y Satisfacción (#10). Economía **posee la fórmula**; Datos los
 params; Paciencia la satisfacción. `sat` = `sat_cierre_doc` (media cerrada de Documentación de la **jornada
@@ -227,10 +234,10 @@ Ascensos, Horarios.)*
 
 **Salida:** DNI 1,8–5,4 € · Pasaporte 4,5–13,5 € · TIE 2,7–8,1 €. **Ejemplo:** DNI a sat 50% = `12 × 0,30 = 3,6 €`.
 
-**F3 · Salarios diarios** (al `nuevo_dia`)
+**F3 · Salarios por jornada** (al `nuevo_dia`; "día" = jornada = ciclo de 24 h, ver E6)
 `gasto_salarios_dia = Σ salario_dia_efectivo de cada agente contratado`
 donde `salario_dia_efectivo` = salario base (Datos) × prima por atributos/rango (**Personal F1**).
-**Ejemplo (agentes estándar):** 2×`ag_doc`(base 60) + 1×`ag_odac`(base 70) = **190 €/día**; con mejores
+**Ejemplo (agentes estándar):** 2×`ag_doc`(base 60) + 1×`ag_odac`(base 70) = **190 €/jornada**; con mejores
 atributos o rango Oficial, más (Personal F1).
 
 **F4 · Peonada** (hora extra; `horas_extra` lo posee Horarios/Personal — provisional)
@@ -370,9 +377,9 @@ entras en rojo por la nómina, ese déficit **no** genera recargo hasta mañana 
 | **UI / HUD** | Hard | muestra `saldo_eur`, estado financiero, ingresos/gastos del día, botón de préstamo |
 | **Guardado y Carga** | Hard | serializa `saldo_eur`, `prestamos_usados`, estado de deuda |
 
-**Consistencia bidireccional:** cuando se escriba cada GDD dependiente, deberá listar "depende de: Economía".
-*(Ninguno tiene GDD aún → referencia inversa provisional. Además: `systems-index.md` debe añadir **Tiempo** a
-las dependencias de Economía — ajuste pendiente en el índice.)*
+**Consistencia bidireccional:** los GDD dependientes ya escritos (Personal, Construcción, Documentación,
+ODAC, UI/HUD) listan "depende de: Economía". Los aún no escritos (Ascensos, Horarios, Valoración de jefes,
+Guardado) lo harán al redactarse. `systems-index.md` ya lista **Datos, Tiempo** como dependencias de Economía.
 
 ## Tuning Knobs
 
@@ -455,6 +462,7 @@ Economía alimenta el HUD (la UI **nunca hardcodea** cifras, las lee):
 - **AC-E01** `[Unit]` — GIVEN `dni` (tarifa 12) y `sat=50` WHEN se completa el trámite THEN `saldo_eur += 3,6` (12×0.30) **al instante**.
 - **AC-E02** `[Unit]` — GIVEN `sat=0` THEN `retorno_DGP=0.15`; GIVEN `sat=100` THEN `0.45` (extremos de F1).
 - **AC-E03** `[Unit]` — GIVEN `sat=150` (fuera de rango) WHEN F1 THEN se clampa a 100 → retorno `0.45` (no supera el techo).
+- **AC-E03b** `[Integration]` — GIVEN una jornada en curso con `sat_cierre_doc=40` (media cerrada de la jornada anterior) y una satisfacción *actual* de Documentación que fluctúa (sube y baja) WHEN se completan varios trámites a lo largo de la jornada THEN **todos** aplican `retorno_DGP(40)` — el retorno es **constante toda la jornada** y solo cambia al pasar de día. *(Ingreso estable intra-jornada: usa la `sat` de la jornada anterior, no la actual — E7/F1.)*
 - **AC-E04** `[Integration]` — GIVEN un trámite **ODAC** completado THEN `saldo_eur` **NO** cambia (ODAC no genera ingreso).
 
 **Gastos (E3, F3, F4)**

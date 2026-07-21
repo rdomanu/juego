@@ -1,9 +1,9 @@
 # Construcción y Distribución
 
-> **Status**: In Design
-> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer — subagentes caídos por "1M context")
-> **Last Updated**: 2026-07-21
-> **Last Verified**: 2026-07-21
+> **Status**: Reviewed (/design-review 2026-07-22 APPROVED)
+> **Author**: manu.rdo + Claude (hilo principal; lentes game-designer / systems-designer / qa-lead — subagentes caídos por "1M context")
+> **Last Updated**: 2026-07-22
+> **Last Verified**: 2026-07-22
 > **Implements Pillar**: Pilar 4 — "Tu comisaría, tus decisiones" + Pilar 2 — "La comisaría está viva"
 
 ## Overview
@@ -294,9 +294,9 @@ ambigüedad.*
 | **Feedback #12** | Soft | *emite* eventos (construir, demoler, colocar) |
 | **Guardado y Carga** | Hard | *serializa/restaura* el **layout** (rejilla, salas, puestos, objetos) |
 
-> **Consistencia bidireccional:** **Datos ✅**, **Economía ✅**, **Flujo ✅** y **Personal ✅** ya registran
-> la relación con Construcción; el resto la añadirá al escribirse *(provisional)*. Registrado en
-> `systems-index.md`.
+> **Consistencia bidireccional:** **Datos ✅**, **Economía ✅**, **Flujo ✅**, **Personal ✅**, **Documentación ✅**,
+> **ODAC ✅**, **Paciencia ✅**, **UI ✅** y **Feedback ✅** ya registran/reflejan la relación con Construcción
+> (todos escritos). Solo Comodidades #15 y Guardado #20 (futuros) quedan. Registrado en `systems-index.md`.
 
 ## Tuning Knobs
 
@@ -370,10 +370,6 @@ destaca, respaldo daltónico (icono/texto además del color).*
 > previews, demolición). En Pre-Producción, ejecutar `/ux-design` para el modo construcción **antes** de
 > escribir epics; las stories citan `design/ux/[pantalla].md`.
 
-## UI Requirements
-
-[To be designed]
-
 ## Acceptance Criteria
 
 > Formato Given-When-Then. Tipo: `[Unit]` (lógica/fórmula pura) · `[Integration]` (interacción entre
@@ -415,7 +411,7 @@ destaca, respaldo daltónico (icono/texto además del color).*
 |---|----------|-------|-------|--------|
 | 1 | **Valores semilla** (`coste_por_celda 20`, `densidad_asientos 0.7`, `pct_reembolso 0.5`, `coste_asiento 25`) | Balance / playtest | 1er playtest MVP | Abierta |
 | 2 | **Tamaño del edificio de Pozuelo** (celdas): dimensionar para R5 (caber `puestos_utiles` + esperas + entrada) | Datos + Construcción | 1er playtest | Abierta |
-| 3 | **Reconciliación con Datos**: `tope_construible` → referencia de dimensionado (no cupo); `aforo_espera` 40/10 → referencia (aforo real por asientos) — **pendiente de aplicar en Datos** | Datos (reconciliar) | Al cerrar #7 | Abierta |
+| 3 | **Reconciliación con Datos** — `tope_construible` → referencia de dimensionado (no cupo); `aforo_espera` 40/10 → referencia (aforo real por asientos). **APLICADA** en Datos F7/F4 (verificado en `/consistency-check` 5ª, 2026-07-21). | Datos | — | ✅ Resuelta |
 | 4 | **Catálogo de objetos** (`TipoObjeto`) y su detalle (calidad/deterioro/limpieza) | Datos + Comodidades #15 | GDD #15 | Abierta |
 | 5 | **¿Construcción instantánea o con obra/tiempo?** MVP instantáneo; validar si la obra aporta o estorba | Diseño / playtest | 1er playtest | Abierta |
 | 6 | **Edificios de forma difícil / distinta por comisaría** (reto espacial Theme Hospital) — capturado en #26 | Escalado #26 | GDD #26 | Abierta |
