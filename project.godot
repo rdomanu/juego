@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 EventBus="*res://src/foundation/event_bus/event_bus.gd"
 RNGService="*res://src/foundation/rng_service/rng_service.gd"
 Datos="*res://src/foundation/datos/datos.gd"
+Tiempo="*res://src/foundation/tiempo/tiempo.gd"
 
 [rendering]
 
