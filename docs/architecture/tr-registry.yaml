@@ -23,34 +23,432 @@
 #   NNN = three-digit zero-padded sequence per system, starting at 001
 #
 # STATUS VALUES: active | deprecated | superseded-by: TR-[system]-NNN
-
-version: 1
-last_updated: ""
-
-requirements: []
-
-# --- EXAMPLE ENTRIES (remove when first real entries are added) ---
 #
-# - id: TR-combat-001
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Player takes damage from enemies based on attack power minus defence"
-#   created: 2026-03-10
-#   revised: ""
-#   status: active
-#
-# - id: TR-combat-002
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Combo window timing is 0.4 seconds between hits"
-#   created: 2026-03-10
-#   revised: "2026-04-01"
-#   status: active
-#
-# - id: TR-combat-003
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Old damage formula using raw stats"
-#   created: 2026-03-10
-#   revised: ""
-#   status: superseded-by: TR-combat-001
+# SOURCE: Technical Requirements Baseline (docs/architecture/architecture.md).
+# First populated by /architecture-review 2026-07-22 (verdict PASS). 56 requirements.
+# NOTE: `bus` and `save` are Foundation infrastructure with no GDD (technical
+# modules added by the architecture); their gdd field points at architecture.md.
+
+version: 2
+last_updated: "2026-07-22"
+
+requirements:
+  # ─── Foundation — Tiempo (#1) ───────────────────────────────────────────────
+  - id: TR-time-001
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Reloj acumula tiempo real (delta), no frames -> mismo resultado a cualquier FPS"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-002
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Velocidades {Pausa,1x,2x,3x}; Pausa congela la simulacion pero permite gestion"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-003
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Deteccion de cruce de umbral (no ==) -> cada evento se emite 1 vez"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-004
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Orden determinista al cruzar varios umbrales (turno -> dia/noche -> nuevo_dia)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-005
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Clamp de delta por frame (anti-salto tras alt-tab/lag)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-006
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Emite senales globales (cambio_de_turno, cambio_dia_noche, nuevo_dia, nuevo_mes...)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-007
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Fuente unica de tiempo (nadie mas mantiene reloj)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-008
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Serializar reloj/fecha; al cargar arranca en Pausa, sin eventos retroactivos"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-time-009
+    system: time
+    gdd: design/gdd/time-system.md
+    requirement: "Update < 0,1 ms (AC-T33)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Foundation — Datos (#2) ────────────────────────────────────────────────
+  - id: TR-data-001
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Catalogo data-driven (TramiteDoc, DenunciaODAC, TipoPuesto/Sala/Agente, Escenario) desde fuente externa"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-data-002
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Definicion (read-only) != Instancia (la poseen otros, referencian por id)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-data-003
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Validacion en carga: integridad referencial, ids unicos, clamp de rangos, invariante R5"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-data-004
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Lookup de definicion por id en runtime"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-data-005
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Formato del catalogo .tres vs JSON (Open Q#8) -> decision de arquitectura (resuelta por ADR-0003)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-data-006
+    system: data
+    gdd: design/gdd/data-config.md
+    requirement: "Tolerancia a catalogo cambiante entre versiones de save (id huerfano -> migra/descarta + log)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Foundation — Infraestructura (bus, sin GDD) ────────────────────────────
+  - id: TR-bus-001
+    system: bus
+    gdd: docs/architecture/architecture.md
+    requirement: "Bus de eventos global (autoload + signals) para comunicacion cross-system desacoplada"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-bus-002
+    system: bus
+    gdd: docs/architecture/architecture.md
+    requirement: "Orden de handlers determinista cuando varios sistemas escuchan el mismo evento (nuevo_dia/nuevo_mes)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Foundation — Infraestructura (save, sin GDD) ───────────────────────────
+  - id: TR-save-001
+    system: save
+    gdd: docs/architecture/architecture.md
+    requirement: "Guardado JSON/ConfigFile en user:// (NO custom Resources); patron save()/load_state() por sistema"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-save-002
+    system: save
+    gdd: docs/architecture/architecture.md
+    requirement: "Serializar estado del RNG + semilla (determinismo al cargar)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-save-003
+    system: save
+    gdd: docs/architecture/architecture.md
+    requirement: "Vector2i (celdas del layout) -> descomponer a [x,y] (limitacion JSON)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Core — Economia (#3) ───────────────────────────────────────────────────
+  - id: TR-economy-001
+    system: economy
+    gdd: design/gdd/economy-budget.md
+    requirement: "saldo_eur mutable; ingreso instantaneo al oir tramite_completado"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-economy-002
+    system: economy
+    gdd: design/gdd/economy-budget.md
+    requirement: "Cobros al nuevo_dia en orden determinista (recargo -> gastos -> reset)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-economy-003
+    system: economy
+    gdd: design/gdd/economy-budget.md
+    requirement: "Estado financiero derivado + rescate con pausa/modal/ventana de gracia (timer de juego)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-economy-004
+    system: economy
+    gdd: design/gdd/economy-budget.md
+    requirement: "Gates '¿puedo construir/contratar?' expuestos a Construccion/Personal"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Core — Flujo (#4) ──────────────────────────────────────────────────────
+  - id: TR-flow-001
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Instancia Persona con maquina de estados (7 estados)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-flow-002
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Colas por servicio (FIFO + prioridad ODAC); seleccion/desempate determinista"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-flow-003
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Emparejamiento automatico puesto -> persona; ciclo de atencion avanza con delta"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-flow-004
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Emite tramite_completado y abandono"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-flow-005
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Muchos NPCs navegando a la vez -> NavigationAgent2D + spike de rendimiento (QQ-02)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-flow-006
+    system: flow
+    gdd: design/gdd/flow-queues.md
+    requirement: "Serializar colas/puestos/personas (estado, turno, posicion, tiempo restante)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Core — Demanda (#5) ────────────────────────────────────────────────────
+  - id: TR-demand-001
+    system: demand
+    gdd: design/gdd/demand-generation.md
+    requirement: "Genera Personas -> persona_generada a Flujo; acumulador alimentado por delta"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-demand-002
+    system: demand
+    gdd: design/gdd/demand-generation.md
+    requirement: "RNG sembrado determinista (mezcla ponderada, normalizacion defensiva)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-demand-003
+    system: demand
+    gdd: design/gdd/demand-generation.md
+    requirement: "Senal derivada BAJA/MEDIA/ALTA expuesta a UI/Documentacion"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Core — Personal (#6) ───────────────────────────────────────────────────
+  - id: TR-staff-001
+    system: staff
+    gdd: design/gdd/staff-agents.md
+    requirement: "Instancias Agente (atributos, rango, asignacion); mercado con RNG sembrado"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-staff-002
+    system: staff
+    gdd: design/gdd/staff-agents.md
+    requirement: "Provee modificador_produccion/factor_trato y gate FL4 a Flujo"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-staff-003
+    system: staff
+    gdd: design/gdd/staff-agents.md
+    requirement: "Ausencias evaluadas al nuevo_dia (RNG determinista)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Core — Construccion (#7) ───────────────────────────────────────────────
+  - id: TR-construction-001
+    system: construction
+    gdd: design/gdd/construction-layout.md
+    requirement: "Rejilla 2D = TileMapLayer (TileMap deprecado)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-construction-002
+    system: construction
+    gdd: design/gdd/construction-layout.md
+    requirement: "Raton <-> celda (local_to_map/map_to_local) para preview fantasma + validacion"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-construction-003
+    system: construction
+    gdd: design/gdd/construction-layout.md
+    requirement: "Puestos/objetos = escenas (PackedScene) instanciadas (instantiate()), no tiles"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-construction-004
+    system: construction
+    gdd: design/gdd/construction-layout.md
+    requirement: "Provee existencia/posicion/aforo a Flujo/Personal; serializa layout"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Feature — Documentacion (#8) ───────────────────────────────────────────
+  - id: TR-doc-001
+    system: doc
+    gdd: design/gdd/documentation.md
+    requirement: "Configura horario/ultima admision que Flujo ejecuta y Demanda respeta"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-doc-002
+    system: doc
+    gdd: design/gdd/documentation.md
+    requirement: "Eventos de la Division (estacionales) que amplian horario"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Feature — ODAC (#9) ────────────────────────────────────────────────────
+  - id: TR-odac-001
+    system: odac
+    gdd: design/gdd/odac.md
+    requirement: "Configura prioridad (Flujo F7) + reconfiguracion en caliente de puestos (4 modos)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-odac-002
+    system: odac
+    gdd: design/gdd/odac.md
+    requirement: "Aporta peso_prioridad a Paciencia; recibe carga de reclamacion"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Feature — Paciencia (#10) ──────────────────────────────────────────────
+  - id: TR-patience-001
+    system: patience
+    gdd: design/gdd/patience-satisfaction.md
+    requirement: "Barra de paciencia por persona; drena con delta; Pausa congela; hacinamiento acelera"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-patience-002
+    system: patience
+    gdd: design/gdd/patience-satisfaction.md
+    requirement: "Escucha eventos de Flujo; ordena abandono (persona_abandona) al llegar a 0"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-patience-003
+    system: patience
+    gdd: design/gdd/patience-satisfaction.md
+    requirement: "Cierre de satisfaccion al nuevo_dia; Economia usa sat_cierre anterior (ingreso estable intra-jornada)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-patience-004
+    system: patience
+    gdd: design/gdd/patience-satisfaction.md
+    requirement: "Genera reclamacion en ODAC (prob, RNG); sin recursion; empate llamada-vs-abandono -> gana llamada"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Presentation — UI/HUD (#11) ────────────────────────────────────────────
+  - id: TR-ui-001
+    system: ui
+    gdd: design/gdd/ui-hud.md
+    requirement: "Capa pura de presentacion: lee estado/eventos, no muta; emite ordenes al dueno (que valida)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-ui-002
+    system: ui
+    gdd: design/gdd/ui-hud.md
+    requirement: "HUD persistente (Control+CanvasLayer); data-driven; registro de pantallas desbloqueable por rango"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-ui-003
+    system: ui
+    gdd: design/gdd/ui-hud.md
+    requirement: "Camara Camera2D pan/zoom; modos Construccion/Asignacion (arrastrar)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-ui-004
+    system: ui
+    gdd: design/gdd/ui-hud.md
+    requirement: "Raton-first, sin hover-only (dual-focus 4.6); accesibilidad (color+icono+texto; escala_ui)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-ui-005
+    system: ui
+    gdd: design/gdd/ui-hud.md
+    requirement: "No guarda estado de juego; si preferencias de UI"
+    created: 2026-07-22
+    revised: ""
+    status: active
+
+  # ─── Presentation — Feedback y Juice (#12) ──────────────────────────────────
+  - id: TR-feedback-001
+    system: feedback
+    gdd: design/gdd/feedback-juice.md
+    requirement: "Escucha el bus de eventos (read-only); vocabulario evento -> respuesta data-driven"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-feedback-002
+    system: feedback
+    gdd: design/gdd/feedback-juice.md
+    requirement: "Numeros flotantes/emotes/pulses (Tween/AnimationPlayer); mood = CanvasModulate+Light2D (glow 2D descartado)"
+    created: 2026-07-22
+    revised: ""
+    status: active
+  - id: TR-feedback-003
+    system: feedback
+    gdd: design/gdd/feedback-juice.md
+    requirement: "Juice budget (pool con limite); degradacion elegante < 60 FPS; efectos en tiempo real (2x/3x)"
+    created: 2026-07-22
+    revised: ""
+    status: active

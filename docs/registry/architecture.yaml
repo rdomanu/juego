@@ -30,7 +30,7 @@
 #   Superseded entries:     Grep pattern="status: superseded"
 
 version: 1
-last_updated: ""
+last_updated: "2026-07-22"
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -71,7 +71,62 @@ state_ownership: []
 #
 # pattern options: signal | direct_call | event_bus | shared_resource | rpc | none
 
-interfaces: []
+interfaces:
+  - contract: comunicacion_cross_system
+    status: active
+    pattern: event_bus
+    producer: cualquier-sistema
+    consumers:
+      - cualquier-sistema-distante
+    adr: docs/architecture/adr-0001-bus-de-eventos.md
+    signal_signature: "EventBus signals: tramite_completado(tramite_id: StringName, agente), abandono(persona), cambio_de_turno(turno: int), cambio_dia_noche(es_de_noche: bool), persona_generada(persona), saldo_cambiado(nuevo_saldo: int), reclamacion_generada(origen: StringName), nuevo_dia, nuevo_mes"
+    notes: "Comunicacion entre sistemas distantes via autoload EventBus (signal.emit / .connect(Callable)). Las relaciones cercanas (puesto<->agente) usan senal directa, NO el bus."
+    referenced_by:
+      - docs/architecture/adr-0001-bus-de-eventos.md
+    added: 2026-07-22
+    revised: ""
+  - contract: eventos_ordenados
+    status: active
+    pattern: event_bus
+    producer: time-system
+    consumers:
+      - patience-satisfaction   # nuevo_dia prioridad 10
+      - economy-budget          # nuevo_dia prioridad 20 / nuevo_mes prioridad 10
+      - staff-agents            # nuevo_dia prioridad 30
+      - demand-generation       # nuevo_dia prioridad 40 / nuevo_mes prioridad 30
+    adr: docs/architecture/adr-0001-bus-de-eventos.md
+    signal_signature: "EventBus.registrar_ordenado(evento: StringName, prioridad: int, cb: Callable); EventBus.disparar_ordenado(evento: StringName)"
+    notes: "nuevo_dia: Paciencia(10)->Economia(20)->Personal(30)->Demanda(40). nuevo_mes: Economia(10)->Paciencia(20)->Demanda(30). El bus invoca por prioridad ascendente; NO conoce los sistemas."
+    referenced_by:
+      - docs/architecture/adr-0001-bus-de-eventos.md
+    added: 2026-07-22
+    revised: ""
+  - contract: persistencia_por_sistema
+    status: active
+    pattern: direct_call
+    producer: save-manager
+    consumers:
+      - cualquier-sistema-con-estado-mutable
+    adr: docs/architecture/adr-0002-guardado-serializacion.md
+    signal_signature: "Cada sistema persistente implementa save() -> Dictionary y load_state(d: Dictionary), y se marca con el grupo de nodos 'Persist'. SaveManager.guardar()/cargar() recorre get_nodes_in_group('Persist')."
+    notes: "El SaveManager (Foundation) NO llama a los sistemas por nombre: itera el grupo generico 'Persist' (respeta forbidden_patterns.foundation_llama_a_sistemas_por_nombre). Vector2i -> {x,y}. Cargar arranca en Pausa, sin eventos retroactivos."
+    referenced_by:
+      - docs/architecture/adr-0002-guardado-serializacion.md
+    added: 2026-07-22
+    revised: ""
+  - contract: acceso_catalogo
+    status: active
+    pattern: direct_call
+    producer: data-config
+    consumers:
+      - cualquier-sistema-que-lea-definiciones
+    adr: docs/architecture/adr-0003-formato-catalogo.md
+    signal_signature: "Datos.obtener(tipo: StringName, id: StringName) -> Resource (read-only); Datos.obtener_todos(tipo) -> Array; Datos.validar() -> Array[String]"
+    notes: "Las definiciones del catalogo se resuelven por id y son READ-ONLY (plantillas compartidas). Las definiciones se referencian entre si por id (StringName), NO por Resource anidado. Las instancias de partida son objetos aparte (Datos R1)."
+    referenced_by:
+      - docs/architecture/adr-0003-formato-catalogo.md
+    added: 2026-07-22
+    revised: ""
 
 # Example:
 #
@@ -131,7 +186,57 @@ performance_budgets: []
 # Register an API decision when the choice is non-obvious and other ADRs might
 # make a different choice for the same purpose without knowing this was decided.
 
-api_decisions: []
+api_decisions:
+  - purpose: bucle_de_simulacion
+    status: active
+    api: "_physics_process (paso fijo, 60 Hz)"
+    not: "_process para la logica de juego"
+    adr: docs/architecture/adr-0001-bus-de-eventos.md
+    reason: "El paso fijo de _physics_process da delta estable -> determinismo (misma partida = mismo resultado) y es lo que NavigationAgent2D necesita. El dibujo (UI/Feedback/camara) va en _process (tiempo real). Verificado en doc oficial Godot 4.6."
+    referenced_by:
+      - docs/architecture/adr-0001-bus-de-eventos.md
+    added: 2026-07-22
+    revised: ""
+  - purpose: guardado_partida
+    status: active
+    api: "JSON + FileAccess en user:// (escribir en temp y renombrar)"
+    not: "custom Resources (.tres) / ResourceSaver para el save de partida"
+    adr: docs/architecture/adr-0002-guardado-serializacion.md
+    reason: "JSON son datos (no ejecuta codigo) -> seguro frente a saves manipulados; legible/depurable; un solo formato. Se serializa tambien el estado del RNGService (determinismo). Los .tres SI valen para el catalogo estatico del desarrollador (ADR-0003), no para el save del jugador."
+    referenced_by:
+      - docs/architecture/adr-0002-guardado-serializacion.md
+    added: 2026-07-22
+    revised: ""
+  - purpose: formato_catalogo
+    status: active
+    api: "Custom Resources (.tres) tipados (class_name + @export), cargados con load()/preload()"
+    not: "JSON para el catalogo del desarrollador (JSON es solo para el save de partida, ADR-0002)"
+    adr: docs/architecture/adr-0003-formato-catalogo.md
+    reason: "El catalogo (contenido estatico del desarrollador en res://) se edita en el Inspector, no se parsea, es tipado y es la practica recomendada de Godot 4. Seguridad de .tres NO aplica (no editable por el jugador). Distinto del save (JSON)."
+    referenced_by:
+      - docs/architecture/adr-0003-formato-catalogo.md
+    added: 2026-07-22
+    revised: ""
+  - purpose: rejilla_construccion
+    status: active
+    api: "TileMapLayer (una capa por funcion: suelo, paredes/salas); local_to_map/map_to_local/set_cell/get_cell_source_id"
+    not: "TileMap (deprecado desde 4.3)"
+    adr: docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    reason: "TileMap esta deprecado. Los puestos/objetos son PackedScene (nodos con logica) posicionados con map_to_local, NO tiles del mapa."
+    referenced_by:
+      - docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    added: 2026-07-22
+    revised: ""
+  - purpose: navegacion_npcs
+    status: active
+    api: "NavigationServer2D (dedicado 4.5) + NavigationRegion2D/NavigationPolygon + NavigationAgent2D (mesh-based) en _physics_process"
+    not: "movimiento directo sin pathfinding; TileMap-grid AStarGrid2D queda como plan B de rendimiento (QQ-02)"
+    adr: docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    reason: "Navegacion por zonas, natural para salas abiertas y escala bien. El avoidance de NavigationAgent2D es EXPERIMENTAL en 4.6 -> desactivado/minimo (el solapamiento visual leve da igual: el movimiento es cosmetico, Flujo FL5). Re-bake de la NavigationPolygon solo al cambiar el layout."
+    referenced_by:
+      - docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    added: 2026-07-22
+    revised: ""
 
 # Example:
 #
@@ -157,7 +262,43 @@ api_decisions: []
 # Register a pattern when an ADR explicitly bans it AND other ADRs might
 # unknowingly use it (i.e., it's a tempting but wrong approach for this project).
 
-forbidden_patterns: []
+forbidden_patterns:
+  - pattern: foundation_llama_a_sistemas_por_nombre
+    status: active
+    description: "La capa Foundation (EventBus, SaveManager, RNG, Tiempo, Datos) nunca debe llamar a sistemas Core/Feature/Presentation por su nombre. El EventBus solo retransmite (signals) o invoca callables que los propios sistemas registran (registrar_ordenado)."
+    why: "Acoplar Foundation hacia arriba viola las capas estrictas (principio 4) y anula el desacople que justifica tener un bus. El orden determinista se logra con registro por prioridad, no con llamadas hardcodeadas."
+    adr: docs/architecture/adr-0001-bus-de-eventos.md
+    added: 2026-07-22
+  - pattern: bus_para_todo_signal_spaghetti
+    status: active
+    description: "No usar el EventBus para toda comunicacion. Es solo para eventos cross-system entre nodos distantes; las relaciones cercanas (un puesto y su agente) usan senal directa nodo->nodo."
+    why: "Abusar del bus lo vuelve dificil de depurar (hay que buscar quien escucha cada evento en todo el codigo). Confirmado como caution por la comunidad Godot."
+    adr: docs/architecture/adr-0001-bus-de-eventos.md
+    added: 2026-07-22
+  - pattern: custom_resource_como_save_de_partida
+    status: active
+    description: "El save de partida (estado mutable del jugador) nunca debe guardarse como custom Resource (.tres/.res/.tscn) ni cargarse con load()/ResourceLoader. Usar JSON+FileAccess en user:// (ADR-0002)."
+    why: "Cargar un Resource ejecuta su _init -> un save manipulado puede ejecutar codigo arbitrario (borrar archivos del usuario). Verificado 2026-07-22. Ademas, issue de ResourceSaver en 4.6 con subrecursos anidados. Los .tres SI valen para el catalogo estatico del desarrollador (ADR-0003)."
+    adr: docs/architecture/adr-0002-guardado-serializacion.md
+    added: 2026-07-22
+  - pattern: mutar_o_anidar_definiciones_del_catalogo
+    status: active
+    description: "Un sistema NUNCA muta lo que devuelve Datos.obtener (la definicion es una plantilla read-only compartida): las instancias de partida son objetos aparte. Y las definiciones se referencian entre si por id (StringName), NO anidando Resources unos dentro de otros."
+    why: "Mutar una plantilla compartida corrompe a todos los que la leen (Datos R1). Anidar Resources dispara el problema de duplicate_deep (4.5) y rompe la validacion de integridad referencial (Datos R3). Referenciar por id permite validar y tolerar catalogos que evolucionan."
+    adr: docs/architecture/adr-0003-formato-catalogo.md
+    added: 2026-07-22
+  - pattern: logica_depende_de_posicion_del_sprite
+    status: active
+    description: "La logica de balance (colas, seleccion de persona, tiempo de espera, abandono) NUNCA lee la posicion/movimiento del sprite de un NPC para decidir. El movimiento (navegacion 2D) es una capa COSMETICA; el tiempo de desplazamiento se contabiliza en la logica (Flujo FL5), no se mide del sprite."
+    why: "El movimiento usa NavigationAgent2D con avoidance experimental (posiblemente no determinista). Si la logica dependiera de la posicion del sprite, se romperia el determinismo del juego ('misma partida = mismo resultado'). Separar logica de presentacion protege el determinismo y permite degradar el movimiento sin afectar las reglas."
+    adr: docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    added: 2026-07-22
+  - pattern: gotchas_navegacion_2d
+    status: active
+    description: "(1) NO fijar NavigationAgent2D.target_position en _ready(): el NavigationServer se sincroniza en el 1er physics frame -> fijarlo tras 'await get_tree().physics_frame' o el primer path sale vacio. (2) NO re-bake la NavigationPolygon por frame: solo al cambiar el layout (construir/demoler)."
+    why: "Son gotchas verificados de Godot 4.x. Ignorarlos causa NPCs que no se mueven (path vacio) o caidas de rendimiento (re-bake constante)."
+    adr: docs/architecture/adr-0004-rejilla-navegacion-2d.md
+    added: 2026-07-22
 
 # Example:
 #

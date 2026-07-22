@@ -1,6 +1,37 @@
 # Estado de sesión — activo
 
-*Última actualización: 2026-07-21*
+*Última actualización: 2026-07-22*
+
+## Fase 4bis — ARQUITECTURA FIRMADA + REVISADA (2026-07-22, sesión nueva)
+🎉 **`/architecture-review` HECHO — Verdict PASS.** Cobertura 100% (56/56 TR-IDs), 0 conflictos cross-ADR,
+motor 4.6 consistente, 0 banderas de revisión de GDD. **2 correcciones menores aplicadas** (ADR-0002 `Depends On`
++= ADR-0003; corregida ref inexistente `TR-patience-008`→`003/004` en architecture.md). **LOS 4 ADRs quedan
+`Accepted`** (orden del grafo: 0001/0003 → 0002/0004). Artefactos: `architecture-review-2026-07-22.md`,
+`traceability-index.md`, `tr-registry.yaml` (poblado con los 56 IDs, v2). Nota para el manifest: `instantiate()`
+(no `instance()`); gotchas de navegación 2D (target tras 1er physics frame; re-bake solo al cambiar layout).
+**Pre-gate checklist:** ❌ tests/ · ❌ CI · ❌ ux/interaction-patterns.md · ❌ accessibility-requirements.md.
+**✅ `/create-control-manifest` HECHO** (2026-07-22): `docs/architecture/control-manifest.md` (Manifest Version
+2026-07-22; capas Foundation/Core/Feature/Presentation + Global; cada regla trazada a su ADR/fuente;
+TD-MANIFEST omitido por LEAN).
+**✅ `/test-setup` HECHO** (2026-07-22): `tests/` (unit/integration/smoke/evidence) + `tests/README.md` +
+`tests/gdunit4_runner.gd` + `tests/smoke/critical-paths.md` (adaptado a Comisario) + `.github/workflows/tests.yml`
+(gdUnit4-action, Godot 4.6). **Andamiaje en reposo** hasta inicializar Godot + instalar GdUnit4.
+**✅ Gate note resuelto:** creado `tests/unit/example/example_sanity_test.gd` (plantilla + patrón de
+determinismo RNG; incluye ejemplo comentado de test real de `retorno_dgp`).
+**PRÓXIMO (orden hasta gate pre-production):** (1) `/ux-design` (interaction-patterns +
+accessibility-requirements) → (2) `/gate-check pre-production` → Pre-Production → `/vertical-slice`
+(1er build jugable — **AVISAR al usuario**; ahí corre el spike QQ-02).
+**Nota:** el proyecto Godot aún NO está inicializado (no hay `project.godot`); se creará en el vertical slice
+(o antes si conviene para correr los tests de verdad).
+
+## Session Extract — /architecture-review 2026-07-22
+- Verdict: PASS
+- Requirements: 56 total — 56 covered, 0 partial, 0 gaps
+- New TR-IDs registered: 56 (tr-registry.yaml v2)
+- GDD revision flags: None
+- Top ADR gaps: None
+- ADRs: 0001/0002/0003/0004 → Accepted
+- Report: docs/architecture/architecture-review-2026-07-22.md
 
 ## Tarea actual
 🎉 **HITO: DISEÑO MVP COMPLETO — 12/12 sistemas diseñados.** Todos los GDD del MVP escritos y consistentes
@@ -45,6 +76,11 @@ la revisión, si el usuario quiere adelantar la prueba jugable. Existe el **prot
   - ✅ **FORMACIÓN EN GODOT 4.6** (2026-07-22, vía web oficial; biblioteca de referencia actualizada): verificados los dominios 2D de Comisario y volcados en `docs/engine-reference/godot/`. **Hallazgo: la mayoría de HIGH-risk de 4.6 son de 3D (Jolt/IK/glow 3D) → NO afectan a este 2D.** Módulos NUEVOS: `tilemap-2d.md`, `save-load.md`, `patterns.md`; enriquecidos `navigation.md` + `rendering.md`; `VERSION.md` Last Docs Verified→2026-07-22.
   - **Decisiones técnicas ya desbloqueadas por la formación:** (a) **glow real DESCARTADO en 2D** → mood con CanvasModulate+Light2D, dorado del ascenso con animación de sprite (resuelve Feedback #12 OpenQ2 — ya NO necesita ADR); (b) **save de partida = JSON/ConfigFile en `user://`, NO custom Resources** (seguridad + issue conocido de ResourceSaver 4.6); el **catálogo** de Datos = `.tres`; (c) **rejilla = `TileMapLayer`** (`TileMap` deprecado); (d) **pathfinding NPCs = NavigationServer2D/NavigationAgent2D** (gotcha: fijar target tras el 1er physics frame); (e) **bus de eventos = autoload + signals**, con orden de handlers determinista vía dispatcher (ADR).
   - ⏳ **Pendiente de la arquitectura:** Technical Requirements Baseline (extraer TRs de los 12 GDD) → mapa de capas → module ownership → data flow → API boundaries → ADR audit → escribir `docs/architecture/architecture.md` → lista de ADRs a crear.
+  - 🔄 **RITMO ELEGIDO (2026-07-22): 3 BLOQUES** con aprobación por bloque. **✅ BLOQUE 1 (Estructura)** en `architecture.md` v0.1: TR Baseline (~70 TRs, 6 decisiones transversales), mapa de capas (Foundation+▸EventBus/▸SaveManager/▸RNGService / Core / Feature / Presentation), propiedad de módulos (14 módulos). **✅ BLOQUE 2 (Comportamiento) ESCRITO:** Data Flow (bucle de simulación, bus+orden handlers, save/load, orden init) + API Boundaries (EventBus/RNGService/SaveManager/Tiempo/Datos/gates Economía/Flujo). **2 decisiones capturadas: D1** (simulación en `_physics_process`, paso fijo → determinismo + NavigationAgent2D) y **D2** (dispatcher explícito para eventos ordenados nuevo_dia/nuevo_mes). **✅ BLOQUE 3 (Cierre) ESCRITO:** ADR audit (0 previos → 4 nuevos) + trazabilidad 100% (0 gaps) + 5 principios + 4 Open Questions (QQ-01..04) + **sign-off TD: APPROVED WITH CONDITIONS**.
+- 🎉🎉 **`/create-architecture` COMPLETO — `docs/architecture/architecture.md` v1.0** (TD APPROVED WITH CONDITIONS; LP omitido por LEAN). **Fase 4 de la Ruta A cerrada.**
+- **4 ADRs a crear (Foundation primero):** **ADR-0001 Bus de eventos+tick+orden [D1/D2] — ✅ ESCRITO 2026-07-22 (Proposed, `adr-0001-bus-de-eventos.md`)**; decisión de orden = **registro con prioridad en el bus** (bus no conoce los sistemas); verificado con doc oficial Godot (`_physics_process` delta fijo + event bus = práctica recomendada). · **ADR-0002 Guardado/serialización+RNG — ✅ ESCRITO 2026-07-22 (Proposed, `adr-0002-guardado-serializacion.md`)**: JSON en `user://`, patrón `save()`/`load_state()` vía grupo `Persist` (respeta la regla "Foundation no llama por nombre"), serializa el RNG; guardar plano = JSON con `Vector2i`→`{x,y}`; riesgo de seguridad de `.tres` verificado con web (ejecución de código). · **ADR-0003 Formato del catálogo — ✅ ESCRITO 2026-07-22 (Proposed, `adr-0003-formato-catalogo.md`)**: catálogo en `.tres` Resources tipados (editor visual, sin parsear, práctica recomendada verificada con web); referencias por `id` (NO Resources anidados → evita `duplicate_deep` 4.5); read-only (instancias aparte); resuelve QQ-01 / Datos OpenQ#8. · **ADR-0004 Rejilla+navegación 2D — ✅ ESCRITO 2026-07-22 (Proposed, `adr-0004-rejilla-navegacion-2d.md`)**: cuadrícula=`TileMapLayer`; caminar=`NavigationServer2D`+`NavigationAgent2D` (mesh; **avoidance experimental en 4.6 → OFF/mínimo**; gotcha: fijar target tras 1er physics frame); puestos=`PackedScene` (no tiles); **movimiento COSMÉTICO separado de la lógica determinista (Flujo FL5)** → protege el determinismo; QQ-02 (spike de rendimiento nav 2D) queda para el vertical slice; plan B = AStarGrid2D. **🎉🎉 LOS 4 ADRs previstos ESCRITOS (todos Proposed).** **Verificados con web oficial Godot** (physics_process, event bus, seguridad .tres, Custom Resources, TileMapLayer, NavigationAgent2D avoidance experimental). Libro de normas (`docs/registry/architecture.yaml`) poblado. **Nota: usuario principiante — todos los ADRs explicados en llano con analogías + verificación web.**
+- **PENDIENTE PARA GATE pre-production:** (1) marcar los 4 ADRs `Accepted` (ahora Proposed); (2) `/architecture-review` en **SESIÓN NUEVA** (no en esta — imparcialidad); (3) `/create-control-manifest`; (4) `/test-setup`; (5) `/ux-design`. Luego `/gate-check pre-production` → Pre-Production → `/vertical-slice` (1er build jugable — **AVISAR al usuario**; ahí corre el spike QQ-02). **Condición del sign-off:** escribir+aceptar 0001/0002/0003 antes de codificar gameplay; spike de rendimiento nav 2D (QQ-02) en el vertical slice. **Nota usuario 2026-07-22: es PRINCIPIANTE en lo técnico → explicar cada ADR en lenguaje llano con analogías y verificar dudas técnicas con WebSearch; él decide a nivel "¿tiene sentido para el juego?", el código lo lleva Claude.**
+- **PRÓXIMO (orden):** `/architecture-decision` de los 4 ADRs (Foundation primero) → `/architecture-review` (bootstrapea la matriz de trazabilidad + TR registry) → `/create-control-manifest` → `/test-setup` → `/ux-design` → `/gate-check pre-production` → Pre-Production → `/vertical-slice` (1er build jugable — **AVISAR al usuario**).
   - **ADRs previstos:** (1) bus de eventos [+orden handlers], (2) guardado/serialización, (3) formato de datos del catálogo (`.tres` vs JSON — Datos OpenQ8), (4) rejilla/TileMapLayer + navegación 2D. *(Glow ya resuelto sin ADR.)*
 - → Fase 5: implementación Godot = 1er build jugable (**AVISAR al usuario**).
 **Orden restante (Bloque B):** ✅ COMPLETO (9/9). **Fase 1 entera: 12/12 GDD APPROVED.**
