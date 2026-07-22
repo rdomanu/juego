@@ -60,9 +60,19 @@ actualizados. 002/003 dependen de 001; ninguna bloqueada.
 rng_service.gd` (autoload `RNGService`, 2º tras EventBus, registrado en `project.godot`; `sembrar`/
 `randi_rango`/`randf`). Test `tests/unit/rng_service/rng_service_sembrado_test.gd` **4/4 PASS**. **Suite total
 del proyecto: 14/14** (event_bus 8, rng 4, sanity 2), exit 0. SIN commitear todavía.
-**PRÓXIMO INMEDIATO:** commit de RNGService story 001 → luego story 002 (elegir_ponderado) + story 003
-(serialización) → datos → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
-Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+**✅ RNGService Story 001 COMMITEADA** (commit `fb693fe`, pusheada).
+**✅ RNGService Story 002 IMPLEMENTADA + TEST EN VERDE (2026-07-22):** `elegir_ponderado` (proporcional a
+pesos, normalización defensiva, edge -1). Test `rng_service_ponderada_test.gd` **5/5 PASS**. **Suite total:
+19/19**, exit 0. SIN commitear todavía.
+**🐛 BUG CAPTURADO POR EL TEST (lección importante, registrada):** dentro de `elegir_ponderado`, `randf()`
+sin cualificar resolvía a la **función GLOBAL de Godot** (`@GlobalScope.randf()`, RNG global sin sembrar)
+en vez del método sembrado del autoload → rompía el determinismo (a≠b). Arreglado con `self.randf()`.
+**Footgun general: nombrar métodos del autoload igual que utilidades globales (`randf`/`randi`) → cualificar
+SIEMPRE las llamadas internas con `self.`** (aplicar en futuros servicios). Diagnosticado con un script
+standalone (`tests/verify_event_bus_tmp_diag.gd`, gitignored).
+**PRÓXIMO INMEDIATO:** commit de la story 002 → luego story 003 (serialización del RNG, `save`/`load_state`)
+→ datos → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI
+(ahí AVISAR + lanzar ventana).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

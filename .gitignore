@@ -49,9 +49,9 @@ export_presets.cfg
 /addons/gdUnit4/
 # Salida de tests de GdUnit4 (auto-generada; la CI la sube como artifact).
 /reports/
-# Script de verificacion temporal de la Story 001 (leftover; el test permanente es el GdUnit4).
-# Comodin para cubrir tambien su .uid generado por Godot.
-/tests/verify_event_bus_tmp.gd*
+# Scripts de verificacion/diagnostico temporales (leftovers; los tests permanentes son los GdUnit4).
+# Comodin amplio para cubrir *.gd, *.gd.uid y variantes (_diag, etc.).
+/tests/verify_event_bus_tmp*
 
 # === Engine: Unity ===
 [Ll]ibrary/

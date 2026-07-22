@@ -113,7 +113,14 @@ estadística, que serían flaky): usar pesos degenerados + determinismo.*
 - Logic: `tests/unit/rng_service/rng_service_ponderada_test.gd` — debe existir y pasar (degenerados +
   peso 0 + normalización + determinismo + edge -1).
 
-**Status**: [ ] Not yet created
+**Status**: [x] **Creado y PASA** — `tests/unit/rng_service/rng_service_ponderada_test.gd`, 5/5 test cases,
+0 fallos, GdUnit4 headless (2026-07-22). Suite total del proyecto: 19/19, exit 0.
+
+**Implementación:** `elegir_ponderado` añadido a `rng_service.gd`.
+**🐛 Bug capturado por el test (determinismo):** dentro de la función, `randf()` sin cualificar resolvía a la
+**función GLOBAL** de Godot (`@GlobalScope.randf()`, RNG sin sembrar) en vez del método sembrado → a≠b.
+Arreglado con `self.randf()`. Lección: un método del autoload con el mismo nombre que una utilidad global
+(`randf`/`randi`) es un footgun; cualificar las llamadas internas. Falta el cierre formal con `/story-done`.
 
 ---
 

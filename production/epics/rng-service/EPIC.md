@@ -46,7 +46,7 @@ Personal y Paciencia (Core/Feature) no pueden ser deterministas sin él.
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
 | 001 | [RNGService autoload + envoltorios sembrados](story-001-autoload-sembrado.md) | Logic | Implementada · test 4/4 ✅ (pend. /story-done) | ADR-0002 |
-| 002 | [Elección ponderada (`elegir_ponderado`)](story-002-eleccion-ponderada.md) | Logic | Ready | ADR-0002 |
+| 002 | [Elección ponderada (`elegir_ponderado`)](story-002-eleccion-ponderada.md) | Logic | Implementada · test 5/5 ✅ (pend. /story-done) | ADR-0002 |
 | 003 | [Serialización del RNG (`save`/`load_state`)](story-003-serializacion-rng.md) | Integration | Ready | ADR-0002 |
 
 **Orden:** 002 y 003 dependen de 001. Empezar por 001 (sembrado), luego 002 (ponderada) y 003 (serialización).
