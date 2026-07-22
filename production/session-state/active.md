@@ -2,6 +2,30 @@
 
 *Última actualización: 2026-07-22*
 
+## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
+`/gate-check pre-production→production` → **Veredicto CONCERNS → usuario decide AVANZAR con condiciones.**
+El núcleo del gate está superado: **diversión validada** (slice PROCEED, jugado sin guía) + **riesgo técnico nº1
+despejado** (150 NPCs → ~145 FPS) + cimientos firmes (12/12 GDD, 4 ADR `Accepted`, arquitectura, control-manifest,
+tests+CI, consistencia sin conflictos abiertos). Panel de directores (lentes manuales, LEAN): **CD READY · TD READY ·
+PR CONCERNS · AD CONCERNS.** Chain-of-Verification: 5 preguntas, veredicto sin cambios.
+**Etapa avanzada a `Production`** (`production/stage.txt`). Informe:
+`production/gate-checks/gate-2026-07-22-pre-production-to-production.md`.
+**⚠️ 4 CONDICIONES registradas (resolver a su debido tiempo; NINGUNA bloquea el código de cimientos):**
+(1) **Backlog** — `/create-epics` (foundation+core) → `/create-stories [epic]` → `/sprint-plan` *(inmediato)*;
+(2) **Art bible 5–9 + sign-off AD-ART-BIBLE** — antes de la 1ª historia de arte/assets;
+(3) **UX de pantallas clave** (`design/ux/hud.md` + menú principal + pausa) + `/ux-review` — antes de las historias de UI;
+(4) **Inventario de entidades** (`design/assets/entity-inventory.md`, `/asset-spec`) — antes de producir arte (recomendado).
+**✅ `/create-epics` Foundation + Core HECHO** (2026-07-22): **10 epics MVP** escritos en `production/epics/`
++ `production/epics/index.md`. **Foundation (5):** tiempo, datos, event-bus, save-manager, rng-service
+(2 con GDD + 3 infra). **Core (5):** economia, flujo, demanda, personal, construccion. Uno por módulo de
+arquitectura. Trazabilidad 100% (~37 TR, 0 huérfanos). Usuario eligió infra separada (no fundir). PR-EPIC
+omitido (LEAN). Nota: Flujo = módulo más delicado (nav 2D + rendimiento) pero MITIGADO por spike QQ-02.
+**Faltan capas Feature (Doc/ODAC/Paciencia) + Presentation (UI/Feedback)** → `/create-epics layer: feature`
+/`presentation` cuando se aproximen.
+**PRÓXIMO INMEDIATO:** `/create-stories [epic]` (trocear epics en tareas; orden sugerido en el índice:
+EventBus+RNGService → Datos → Tiempo → SaveManager → Core). Luego `/sprint-plan`.
+Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
+
 ## 🚀 EN CURSO — VERTICAL SLICE (1er build jugable) — Phase 4: Implement (2026-07-22)
 **Concepto:** `comisaria-vertical-slice` · **Modo:** LEAN · **Skill:** `/vertical-slice` en curso.
 **Pregunta de validación (falsable):** ¿un jugador desde cero siente que *gestionar el flujo de ciudadanos por una
