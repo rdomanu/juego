@@ -18,9 +18,40 @@ TD-MANIFEST omitido por LEAN).
 (gdUnit4-action, Godot 4.6). **Andamiaje en reposo** hasta inicializar Godot + instalar GdUnit4.
 **✅ Gate note resuelto:** creado `tests/unit/example/example_sanity_test.gd` (plantilla + patrón de
 determinismo RNG; incluye ejemplo comentado de test real de `retorno_dgp`).
-**PRÓXIMO (orden hasta gate pre-production):** (1) `/ux-design` (interaction-patterns +
-accessibility-requirements) → (2) `/gate-check pre-production` → Pre-Production → `/vertical-slice`
-(1er build jugable — **AVISAR al usuario**; ahí corre el spike QQ-02).
+**🔄 EN CURSO — `/ux-design`:** ✅ `design/accessibility-requirements.md` escrito (2026-07-22).
+**Decisión usuario:** MVP solo-jugador sin necesidades de accesibilidad → **baseline de legibilidad de
+fábrica DENTRO** (no-color con icono/forma/texto; todo por clic, sin hover-only; atajos Espacio/1/2/3;
+audio no imprescindible) · **DIFERIDO post-MVP** (sin cerrar la puerta): panel de opciones configurable
+(escala_ui/reducir_movimiento), remapeo de teclas, paletas daltónicas, lector de pantalla. **Resuelve
+ui-hud OQ7.** PENDIENTE: `design/ux/interaction-patterns.md`.
+**Nota (2026-07-22):** al usuario le preocupaba cuándo se responden las Open Questions → se le explicó el
+sistema (ya resueltas / ahora Pre-Prod / **1er playtest** [la mayoría de jugabilidad] / post-MVP); NO quiso
+guardarlo como documento (viven en cada GDD). Reiteró: **usar Sonnet 5, nunca 4.6** cuando toque Sonnet.
+**✅ `design/ux/interaction-patterns.md` escrito** (12 patrones: paneo/zoom, dibujar sala por arrastre,
+preview fantasma, colocar puesto/objeto, seleccionar/asignar agente, modos sobre la vista, HUD+5 tabs,
+reconfig ODAC, control de velocidad, toasts, indicadores con respaldo, hover-detalle). Cross-ref OK.
+**🎉 LOS 2 DOCUMENTOS QUE PIDE LA PUERTA ESTÁN HECHOS** (accessibility-requirements + interaction-patterns).
+**✅ `/ux-review` HECHO** (2026-07-22): `interaction-patterns.md` → **APPROVED** (0 bloqueantes; 3 advisories
+menores → se completan al diseñar `hud.md`/pantallas). ALINEADO con GDD; CUMPLE accesibilidad; CONSISTENTE.
+**`/ux-design` + `/ux-review` COMPLETOS.**
+
+## 🎉🎉 HITO — GATE Technical Setup → Pre-Production: **PASS** (2026-07-22)
+`/gate-check pre-production` → **PASS, 0 bloqueantes.** 13/13 artefactos requeridos; quality checks OK;
+sin ciclos de ADR; **4/4 directores READY** (lentes manuales, LEAN). Chain-of-Verification: verdict sin cambios.
+**Etapa avanzada a `Pre-Production`** (`production/stage.txt`). Informe:
+`production/gate-checks/gate-2026-07-22-technical-setup-to-pre-production.md`.
+**2 observaciones menores (no bloquean):** (1) índice de trazabilidad **renombrado** a
+`docs/architecture/requirements-traceability.md` (nombre canónico) — hecho; (2) `hud.md` diferido al slice.
+**Condiciones abiertas para Pre-Producción:** spike de rendimiento nav 2D **QQ-02** (en el vertical slice);
+completar art bible 5–9 + sign-off AD-ART-BIBLE antes del gate de Producción.
+
+## 🚀 PRÓXIMO (fase Pre-Producción) — el 1er BUILD JUGABLE
+**`/vertical-slice`** = primer build jugable (crear `project.godot`, instalar GdUnit4, primer código Godot,
+correr el spike QQ-02). **HACERLO ANTES de epics/stories** (validar diversión primero). Luego: playtest →
+`/playtest-report` (≥1 sesión para el gate Pre-Prod→Producción) → `/ux-design hud` → art bible 5–9 + sign-off
+→ `/create-epics` (foundation, core) → `/create-stories` → `/sprint-plan new`.
+**Recordatorio fijo:** subagentes caídos → todo en hilo principal (Opus 4.8); usar **Sonnet 5** si vuelven;
+usuario principiante (explicar en llano + verificar dudas técnicas con web); protocolo colaborativo.
 **Nota:** el proyecto Godot aún NO está inicializado (no hay `project.godot`); se creará en el vertical slice
 (o antes si conviene para correr los tests de verdad).
 
