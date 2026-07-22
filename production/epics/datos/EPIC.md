@@ -4,7 +4,7 @@
 > **GDD**: design/gdd/data-config.md
 > **Architecture Module**: Datos #2
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories datos`
+> **Stories**: 4 created — see table below
 
 ## Overview
 
@@ -40,6 +40,18 @@ leve es `duplicate_deep()` en 4.5 si se anidan Resources (evitado por diseño: r
 
 **Untraced Requirements**: None (6/6 cubiertos).
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [Esquema — clases Resource](story-001-esquema-clases-resource.md) | Logic | Ready | ADR-0003 |
+| 002 | [Datos autoload — carga + lookup](story-002-autoload-carga-lookup.md) | Integration | Ready | ADR-0003 |
+| 003 | [Validación en carga](story-003-validacion-en-carga.md) | Logic | Ready | ADR-0003 |
+| 004 | [Catálogo MVP de Pozuelo](story-004-catalogo-mvp-pozuelo.md) | Config/Data | Ready | ADR-0003 |
+
+**Orden:** 001 → 002 → 003 → 004. El contenido `.tres` (004) se genera con un script-herramienta
+(`tools/build_catalogo.gd`) para evitar escribir `.tres` a mano en headless.
+
 ## Definition of Done
 
 This epic is complete when:
@@ -50,4 +62,5 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/create-stories datos` to break this epic into implementable stories.
+Stories creadas (4). Ejecutar `/story-readiness production/epics/datos/story-001-esquema-clases-resource.md`
+y luego `/dev-story` para implementar (empezar por la 001).

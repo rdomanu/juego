@@ -77,9 +77,19 @@ JSON (float pierde precisión > 2^53). Test `rng_service_serializacion_test.gd` 
 vía JSON). SIN commitear todavía.
 **🎉 EPIC RNGService COMPLETO** en código+test (3/3 stories: 001 sembrado, 002 ponderada, 003 serialización).
 **Suite total: 23/23**, exit 0. **2 de 5 módulos Foundation completos** (EventBus + RNGService).
-**PRÓXIMO INMEDIATO:** commit de la story 003 → `/create-stories datos` (o tiempo / save-manager) → Core →
-`/sprint-plan`. `/story-done` de las stories implementadas pendiente (cierre formal). Todo INVISIBLE hasta
-Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+**✅ RNGService Story 003 COMMITEADA** (commit `c75472c`). Epic RNGService completo en GitHub.
+**✅ `/create-stories datos` HECHO** (2026-07-22): 4 historias en `production/epics/datos/` (001 esquema
+[Logic]; 002 autoload carga+lookup [Integration]; 003 validación [Logic]; 004 catálogo Pozuelo [Config/Data]).
+ADR-0003; casos de test escritos por el hilo principal. EPIC+índice actualizados. Orden 001→002→003→004.
+**⚠️ Reto de implementación anotado (story 004):** crear los `.tres` a mano es frágil (uids/ext_resource) →
+**generar el catálogo con un script-herramienta `tools/build_catalogo.gd`** (`extends SceneTree` +
+`ResourceSaver.save`) ejecutado en headless. Dev tooling en `tools/`, no runtime.
+**PRÓXIMO INMEDIATO (recomendado en sesión fresca):** implementar Datos (empezar story-001 esquema:
+7 clases Resource en `src/foundation/datos/esquema/`) → 002 → 003 → 004 (script-herramienta) → tiempo →
+save-manager → Core → `/sprint-plan`. `/story-done` de las 5 stories ya implementadas (EventBus+RNGService)
+pendiente. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+Estado de código: 23/23 tests verdes; 2 módulos Foundation completos (EventBus, RNGService); Datos = stories
+listas, sin implementar.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
