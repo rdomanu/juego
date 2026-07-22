@@ -4,7 +4,7 @@
 > **GDD**: design/gdd/time-system.md
 > **Architecture Module**: Tiempo #1
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories tiempo`
+> **Stories**: 9 created — see table below
 
 ## Overview
 
@@ -43,6 +43,22 @@ SaveManager).
 
 **Untraced Requirements**: None (9/9 cubiertos).
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [Reloj base: acumulador `minutos_juego` + clamp anti-salto](story-001-reloj-base.md) | Logic | Ready | ADR-0001 |
+| 002 | [Escala configurable data-driven + clamp [3,12]](story-002-escala-configurable.md) | Logic | Ready | ADR-0001, ADR-0002 |
+| 003 | [Conversiones hora↔minutos + turno + `es_de_noche`](story-003-conversiones-turnos.md) | Logic | Ready | ADR-0001 |
+| 004 | [Cruce de umbrales → señales de turno y día/noche](story-004-cruce-umbrales-senales.md) | Logic | Ready | ADR-0001 |
+| 005 | [Medianoche → calendario semanal + `nuevo_dia`/`nuevo_mes`](story-005-calendario-semanal.md) | Logic | Ready | ADR-0001 |
+| 006 | [Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`](story-006-maquina-velocidad.md) | Logic | Ready | ADR-0001 |
+| 007 | [Integración `_physics_process`: tick + determinismo + presupuesto](story-007-integracion-physics.md) | Integration | Ready | ADR-0001 |
+| 008 | [`save()`/`load_state()` + grupo Persist + "cargar sitúa"](story-008-serializacion-reloj.md) | Logic | Ready | ADR-0002, ADR-0001 |
+| 009 | [(EXTRA) Esqueleto visible: `Main.tscn` + TileMapLayer + HUD reloj](story-009-esqueleto-visible.md) | Visual/UI | Ready | ADR-0001 |
+
+**Orden**: 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 (la 009 **abre la primera ventana al usuario**). El grafo de dependencias es lineal salvo ramas menores (003 puede solaparse con 002; 006 depende de 002; 007 requiere 004+006). Seguir el orden numérico es seguro.
+
 ## Definition of Done
 
 This epic is complete when:
@@ -53,4 +69,5 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/create-stories tiempo` to break this epic into implementable stories.
+Run `/story-readiness production/epics/tiempo/story-001-reloj-base.md` para validar la 001, y luego
+`/dev-story production/epics/tiempo/story-001-reloj-base.md` para empezar a implementarla.
