@@ -7,6 +7,6 @@ script = ExtResource("1_jqsaw")
 id = &"puesto_odac"
 nombre = "Puesto ODAC"
 servicio = "ODAC"
-atenciones_admitidas = Array[StringName]([&"viogen", &"lesiones", &"estafa", &"hurto_robo", &"amenazas", &"danos", &"perdida_sustraccion", &"permiso_viaje", &"desaparecidos", &"agresion_sexual", &"robo_violencia", &"okupacion", &"ciberestafa"])
+atenciones_admitidas = Array[StringName]([&"viogen", &"lesiones", &"estafa", &"hurto_robo", &"amenazas", &"danos", &"perdida_sustraccion", &"permiso_viaje", &"desaparecidos", &"agresion_sexual", &"robo_violencia", &"okupacion", &"ciberestafa", &"reclamacion"])
 reconfigurable = true
 coste_construccion_eur = 600

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DenunciaODAC" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/denuncia_odac.gd" id="1_fdhnt"]
+
+[resource]
+script = ExtResource("1_fdhnt")
+prioridad = "Normal"
+id = &"reclamacion"
+nombre = "Hoja de reclamaciones"
+servicio = "ODAC"
+duracion_min = 30
+tipo_puesto = &"puesto_odac"

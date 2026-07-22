@@ -46,12 +46,14 @@ func test_obtener_id_inexistente_devuelve_null_sin_romper() -> void:
 	assert_object(faltante).is_null()
 
 
-# AC-3 (obtener_todos): el catálogo MVP tiene exactamente las 13 denuncias de F2 (sin `reclamacion`).
-func test_obtener_todos_denuncias_hay_trece() -> void:
+# AC-3 (obtener_todos): el catálogo MVP tiene 14 DenunciaODAC = 13 ciudadanas de F2 + 1 interna
+# `reclamacion` (Hoja de reclamaciones, modelada como 14ª DenunciaODAC — decisión usuario 2026-07-22;
+# la genera Paciencia PS13, no la demanda ciudadana).
+func test_obtener_todos_denuncias_hay_catorce() -> void:
 	# Act
 	var denuncias: Array = Datos.obtener_todos(&"DenunciaODAC")
 	# Assert
-	assert_int(denuncias.size()).is_equal(13)
+	assert_int(denuncias.size()).is_equal(14)
 
 
 # AC-4 (AC-D03, fuente única): dos llamadas al mismo id devuelven LA MISMA instancia (referencia única).

@@ -26,19 +26,25 @@ const EscenarioScript := preload("res://src/foundation/datos/esquema/escenario.g
 
 const RUTA_CATALOGO := "res://datos/"
 
-## Los `id` de las 13 denuncias de ODAC (F2), en orden. Se usa TANTO para generar las `DenunciaODAC`
+## Los `id` de las 14 atenciones de ODAC (F2), en orden. Se usa TANTO para generar las `DenunciaODAC`
 ## como para poblar `puesto_odac.atenciones_admitidas` (F3: "todas las denuncias") desde LA MISMA lista,
-## de modo que puesto y catálogo NO puedan divergir. (`reclamacion` NO se incluye — decisión pendiente
-## Story 004; el catálogo MVP tiene exactamente 13 denuncias.)
+## de modo que puesto y catálogo NO puedan divergir.
+##
+## Son 13 denuncias CIUDADANAS + 1 atención INTERNA `reclamacion` (14ª — decisión usuario 2026-07-22):
+## `reclamacion` (Hoja de reclamaciones, F2 "Atención especial") se modela como una DenunciaODAC más para
+## que ocupe el mismo `puesto_odac` y comparta cola/duración, PERO su ORIGEN es interno: la GENERA Paciencia
+## (PS13, cuando un ciudadano abandona Documentación), NO el generador de Demanda ciudadana. Por eso NO entra
+## en la tabla de mezcla de Demanda; aquí solo existe como DEFINICIÓN de atención despachable en ODAC.
 const IDS_DENUNCIAS: Array[StringName] = [
 	&"viogen", &"lesiones", &"estafa", &"hurto_robo", &"amenazas", &"danos",
 	&"perdida_sustraccion", &"permiso_viaje", &"desaparecidos", &"agresion_sexual",
 	&"robo_violencia", &"okupacion", &"ciberestafa",
+	&"reclamacion",  # 14ª: atención interna (la genera Paciencia PS13, no la demanda ciudadana).
 ]
 
-## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 13 denuncias + 4 puestos
-## + 4 salas + 3 agentes + 1 costes + 1 escenario = 29.
-const TOTAL_ESPERADO := 29
+## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
+## + 4 salas + 3 agentes + 1 costes + 1 escenario = 30.
+const TOTAL_ESPERADO := 30
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -49,7 +55,7 @@ func _init() -> void:
 	print("build_catalogo: generando el catálogo MVP de Pozuelo en '%s'..." % RUTA_CATALOGO)
 	_asegurar_carpetas()
 	_generar_tramites()      # F1 — 3 TramiteDoc
-	_generar_denuncias()     # F2 — 13 DenunciaODAC
+	_generar_denuncias()     # F2 — 14 DenunciaODAC (13 ciudadanas + 1 interna `reclamacion`)
 	_generar_puestos()       # F3 — 4 TipoPuesto
 	_generar_salas()         # F4 — 4 TipoSala
 	_generar_agentes()       # F5 — 3 TipoAgente
@@ -78,8 +84,14 @@ func _generar_tramites() -> void:
 	_guardar(_tramite(&"tie", "TIE", 15, 18, &"puesto_tie"), "tramites")
 
 
-## F2 · Denuncias de ODAC (las 13). servicio="ODAC", tipo_puesto=puesto_odac, admite_cita=false (F2:
-## las denuncias NO usan cita). Duración/prioridad de la tabla F2.
+## F2 · Atenciones de ODAC (14). servicio="ODAC", tipo_puesto=puesto_odac, admite_cita=false (F2: las
+## denuncias NO usan cita). Duración/prioridad de la tabla F2.
+##
+## Son 13 denuncias CIUDADANAS + 1 atención INTERNA `reclamacion` (14ª, decisión usuario 2026-07-22): la
+## "Hoja de reclamaciones" (F2 "Atención especial") se modela como una DenunciaODAC más (mismo `puesto_odac`,
+## misma cola). Su ORIGEN es interno: la GENERA Paciencia (PS13) cuando un ciudadano abandona Documentación,
+## NO el generador de Demanda ciudadana. Aquí solo existe como DEFINICIÓN de atención (no entra en la tabla de
+## mezcla de Demanda). `duracion_min=30`, `prioridad="Normal"` (F2), sin tarifa (las denuncias no cobran).
 func _generar_denuncias() -> void:
 	_guardar(_denuncia(&"viogen", "Violencia de género (VioGén)", 60, "Prioritaria"), "denuncias")
 	_guardar(_denuncia(&"lesiones", "Lesiones", 30, "Normal"), "denuncias")
@@ -94,10 +106,14 @@ func _generar_denuncias() -> void:
 	_guardar(_denuncia(&"robo_violencia", "Robo con violencia / atraco", 35, "Prioritaria"), "denuncias")
 	_guardar(_denuncia(&"okupacion", "Okupación de vivienda", 30, "Normal"), "denuncias")
 	_guardar(_denuncia(&"ciberestafa", "Ciberestafa / delito informático", 35, "Normal"), "denuncias")
+	# 14ª — atención interna (origen: Paciencia PS13, no la demanda ciudadana). Ver comentario de la función.
+	_guardar(_denuncia(&"reclamacion", "Hoja de reclamaciones", 30, "Normal"), "denuncias")
 
 
 ## F3 · Tipos de Puesto. superficie=1, plazas_agente=1 (defaults del esquema, coinciden con F3).
-## `puesto_odac.atenciones_admitidas` = TODAS las denuncias (IDS_DENUNCIAS, misma lista que F2 → no diverge).
+## `puesto_odac.atenciones_admitidas` = TODAS las atenciones de ODAC (IDS_DENUNCIAS, misma lista fuente que
+## F2 → no diverge). Incluye la 14ª `reclamacion`: `puesto_odac` DEBE admitirla para que la valide `Datos`
+## (integridad referencial) y para que Paciencia (PS13) pueda encolarla en ODAC.
 func _generar_puestos() -> void:
 	_guardar(_puesto(
 		&"puesto_doc_general", "Ventanilla Documentación", "Documentacion",
