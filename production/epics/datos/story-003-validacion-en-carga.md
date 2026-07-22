@@ -1,12 +1,12 @@
 # Story 003: Validación en carga del catálogo
 
 > **Epic**: Datos y Configuración
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -31,18 +31,18 @@ R5 → *warning*). **Modo desarrollo = fallo ruidoso; modo jugador = degradació
 
 *De GDD R3/R5, Edge Cases y AC-D06–D13 / D20a–d:*
 
-- [ ] `validar() -> Array[String]` devuelve `[]` si el catálogo está OK, o una lista de mensajes
+- [x] `validar() -> Array[String]` devuelve `[]` si el catálogo está OK, o una lista de mensajes
       (errores/warnings) describiendo cada problema.
-- [ ] **Integridad referencial (AC-D06/D20a)**: una referencia por `id` colgante en `atenciones_admitidas`,
+- [x] **Integridad referencial (AC-D06/D20a)**: una referencia por `id` colgante en `atenciones_admitidas`,
       `puestos_admitidos` o `puestos_operables` se **reporta** señalando el `id` inexistente.
-- [ ] **Ids únicos (AC-D07/D20b)**: un `id` duplicado dentro de un tipo se **reporta**.
-- [ ] **Clamp de rangos (AC-D09/D10/D11/D20c)**: `duracion_min ≤ 0` → clampa a **1**; `€`/`aforo`/`coste`
+- [x] **Ids únicos (AC-D07/D20b)**: un `id` duplicado dentro de un tipo se **reporta**.
+- [x] **Clamp de rangos (AC-D09/D10/D11/D20c)**: `duracion_min ≤ 0` → clampa a **1**; `€`/`aforo`/`coste`
       negativos → **0**; `retorno_dgp` fuera de `[0,1]` → clampa a `[0,1]`; siempre con **aviso**.
-- [ ] **Invariante R5 (AC-D12/D13/D20d)**: dada una **estimación de demanda máxima `D`** (entrada), se avisa
+- [x] **Invariante R5 (AC-D12/D13/D20d)**: dada una **estimación de demanda máxima `D`** (entrada), se avisa
       **sii** `capacidad_max_ODAC(Escenario) < D`; es un **WARNING de diseño** que **no aborta** la carga.
-- [ ] **Servicio inoperable (AC-D20d)**: un `servicio_activo` del Escenario sin ningún `TipoPuesto` que lo
+- [x] **Servicio inoperable (AC-D20d)**: un `servicio_activo` del Escenario sin ningún `TipoPuesto` que lo
       atienda emite **WARNING**.
-- [ ] **Modo dev vs jugador**: en desarrollo un error de integridad **falla ruidoso** (aborta); en modo
+- [x] **Modo dev vs jugador**: en desarrollo un error de integridad **falla ruidoso** (aborta); en modo
       jugador **degrada con log** (descarta la referencia inválida, gana el primer `id` duplicado, etc.).
 
 ---
@@ -83,9 +83,23 @@ R5 → *warning*). **Modo desarrollo = fallo ruidoso; modo jugador = degradació
 **Story Type**: Logic
 **Required evidence**: `tests/unit/datos/datos_validacion_test.gd` — debe existir y pasar.
 
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y PASA (datos_validacion_test.gd 9/9; suite del proyecto 47/47, 2026-07-22)
 
 ## Dependencies
 
 - Depends on: **Story 001** (clases) + **Story 002** (índice por id).
 - Unlocks: Story 004 (el catálogo real debe validar limpio) y la confianza en todo el catálogo.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) con arquitectura aprobada por el orquestador;
+code review independiente (Opus): APROBADO CON OBSERVACIONES, 0 bloqueantes. Suite 47/47, exit 0
+(re-verificada en el hilo principal); el catálogo real valida limpio. Commit 143b2ca.
+Las 2 observaciones de más valor del review se resolvieron ANTES del cierre: test de la rama
+`modo_desarrollo=true` (reporta sin degradar) y test del caso negativo de R5 (capacidad suficiente → no
+avisa). Backlog menor anotado (no bloqueante):
+- El clamp cubre exactamente los campos del AC; `plazas_agente`/`superficie` sin clamp (dentro de spec).
+- R5 usa media SIMPLE de duraciones (aproximación documentada; la fórmula ponderada la posee Demanda).
+- La capacidad R5 se calcula una vez y se comparte entre escenarios (MVP = 1 escenario; deuda conocida).
+- Los clamps mutan el catálogo también en modo dev (por diseño, documentado como única mutación en carga).
+- Asserts `_contiene` por subcadena (aceptable con fixtures aislados).

@@ -114,14 +114,22 @@ obtener()/obtener_todos() read-only (null+push_warning si falta). **Catálogo RE
 atención aparte? los tests esperan 13). Test integración **6/6**; **suite 38/38, exit 0** (re-verificada
 independiente en hilo principal). AC-D02 cumplido por construcción (valores solo en .tres). Acepta
 `.tres.remap` (export).
-**PRÓXIMO INMEDIATO:** Datos story-003 EN IMPLEMENTACIÓN (validación en carga: `validar()` — refs
-colgantes, ids únicos con detección en `_indexar` [gana el 1º], clamp de rangos, R5 con `demanda_max_odac`
-como parámetro [default 0 = no evalúa], servicio activo sin puesto; modo dev ruidoso [push_error] vs
-jugador degradación+log; tests con fixtures sin tocar disco). Luego: 004 (cierre: reclamacion + smoke
-validación limpia) → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
+**✅ Datos Story 003 IMPLEMENTADA + CERRADA + COMMITEADA (2026-07-22, commit 143b2ca):** `validar()` en
+datos.gd — integridad referencial (nombra id colgante; dev no oculta / jugador descarta), duplicados en
+`_indexar` (gana el 1º), clamps con aviso, R5 WARNING sin abortar (solo con `demanda_max_odac>0`;
+MINUTOS_OPERATIVOS=960, media simple de denuncias), servicio activo sin puesto. Única mutación del
+catálogo = clamps/descartes EN CARGA (documentado). Test 9/9 (incl. rama dev y R5 negativo, añadidos tras
+el review). **Code review independiente (Opus): APROBADO, 0 bloqueantes** (backlog menor anotado en el
+cierre de la story). **Suite 47/47, exit 0.** Catálogo real valida limpio.
+**📌 DECISIÓN DE DISEÑO (usuario, 2026-07-22): `reclamacion` = 14ª DenunciaODAC** (Normal, sin tarifa,
+puesto_odac la admite; la demanda ciudadana NO la genera — la generará Paciencia PS13). Los AC/tests del
+"13" pasan a "13 ciudadanas + 1 interna = 14". Opciones B (ficha base aparte) y C (diferir) descartadas.
+**PRÓXIMO INMEDIATO:** Datos story-004 EN IMPLEMENTACIÓN (cierre del catálogo: añadir `reclamacion` al
+build_catalogo + regenerar .tres + puesto_odac admite 14 + actualizar test del 13→14 + smoke test
+integración `datos_catalogo_pozuelo_test.gd`: validar()==[] + spot-checks). Al cerrarla: EPIC DATOS
+COMPLETO (3/5 Foundation) → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
 Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
-Estado de código: 38/38 tests verdes; EventBus+RNGService CERRADOS; Datos 2/4 (esquema+carga hechos,
-catálogo real en el repo).
+Estado de código: 47/47 tests verdes; EventBus+RNGService CERRADOS; Datos 3/4.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
