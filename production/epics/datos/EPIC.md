@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: design/gdd/data-config.md
 > **Architecture Module**: Datos #2
-> **Status**: In Progress (3/4)
+> **Status**: Complete (2026-07-22)
 > **Stories**: 4 created — see table below
 
 ## Overview
@@ -47,7 +47,7 @@ leve es `duplicate_deep()` en 4.5 si se anidan Resources (evitado por diseño: r
 | 001 | [Esquema — clases Resource](story-001-esquema-clases-resource.md) | Logic | **Complete** (2026-07-22) | ADR-0003 |
 | 002 | [Datos autoload — carga + lookup](story-002-autoload-carga-lookup.md) | Integration | **Complete** (2026-07-22) | ADR-0003 |
 | 003 | [Validación en carga](story-003-validacion-en-carga.md) | Logic | **Complete** (2026-07-22) | ADR-0003 |
-| 004 | [Catálogo MVP de Pozuelo](story-004-catalogo-mvp-pozuelo.md) | Config/Data | Ready | ADR-0003 |
+| 004 | [Catálogo MVP de Pozuelo](story-004-catalogo-mvp-pozuelo.md) | Config/Data | **Complete** (2026-07-22) | ADR-0003 |
 
 **Orden:** 001 → 002 → 003 → 004. El contenido `.tres` (004) se genera con un script-herramienta
 (`tools/build_catalogo.gd`) para evitar escribir `.tres` a mano en headless.
@@ -62,4 +62,4 @@ This epic is complete when:
 
 ## Next Step
 
-Stories 001–003 Complete (suite 47/47; catálogo real valida limpio). Última: **Story 004** — en implementación. Decisión del usuario (2026-07-22): la atención interna 'reclamacion' se modela como la 14ª DenunciaODAC (Normal, sin tarifa; la demanda ciudadana no la genera — la generará Paciencia); los AC/tests del "13" pasan a 13 ciudadanas + 1 interna = 14.
+EPIC COMPLETO (2026-07-22): 4/4 stories cerradas, suite 53/53, catálogo real de 30 .tres validando limpio. Siguiente trabajo del proyecto: epic tiempo (/create-stories) y, al terminarlo, el "esqueleto visible" (escena principal mínima: rejilla + reloj — decisión del usuario 2026-07-22).

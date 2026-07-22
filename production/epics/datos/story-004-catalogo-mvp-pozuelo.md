@@ -1,12 +1,12 @@
 # Story 004: Catálogo MVP — Oficina de Denuncias de Pozuelo
 
 > **Epic**: Datos y Configuración
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Config/Data
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -33,20 +33,20 @@ frágil** (formato con `uid`/`ext_resource`); se generarán con un **script-herr
 
 *De GDD F1–F7 + AC-D01/D16/D18/D20:*
 
-- [ ] **Trámites (F1)**: `dni`(12min,12€), `pasaporte`(15,30), `tie`(15,18), `requiere_cita=false`.
-- [ ] **Denuncias (F2)**: las **13** `DenunciaODAC` con sus `duracion_min`/`prioridad`, `admite_cita=false`
+- [x] **Trámites (F1)**: `dni`(12min,12€), `pasaporte`(15,30), `tie`(15,18), `requiere_cita=false`.
+- [x] **Denuncias (F2)**: las **13** `DenunciaODAC` con sus `duracion_min`/`prioridad`, `admite_cita=false`
       (4 Prioritarias: viogen, desaparecidos, agresion_sexual, robo_violencia; 9 Normales). *(La atención
       interna `reclamacion` la posee/gener­a Paciencia — no es demanda ciudadana; incluirla como definición
       de atención según F2.)*
-- [ ] **Puestos (F3)**: `puesto_doc_general`, `puesto_tie`, `puesto_odac`(reconfigurable=true), `puesto_seguridad`,
+- [x] **Puestos (F3)**: `puesto_doc_general`, `puesto_tie`, `puesto_odac`(reconfigurable=true), `puesto_seguridad`,
       con `atenciones_admitidas`, `coste_eur` y `reconfigurable` correctos.
-- [ ] **Salas (F4)**: `sala_espera_doc`(aforo 40), `sala_espera_odac`(aforo 10), `sala_documentacion`,
+- [x] **Salas (F4)**: `sala_espera_doc`(aforo 40), `sala_espera_odac`(aforo 10), `sala_documentacion`,
       `sala_odac`.
-- [ ] **Agentes (F5)**: `ag_doc`(60€), `ag_odac`(70€), `ag_seguridad`(65€) con `puestos_operables`.
-- [ ] **Costes (F6)**: `peonada_eur_hora=15`, `retorno_dgp_min=0.15`, `retorno_dgp_max=0.45`.
-- [ ] **Escenario Pozuelo (F7, AC-D16)**: `poblacion=90000`, `nivel="Nivel 1 — Comisaría Local"`,
+- [x] **Agentes (F5)**: `ag_doc`(60€), `ag_odac`(70€), `ag_seguridad`(65€) con `puestos_operables`.
+- [x] **Costes (F6)**: `peonada_eur_hora=15`, `retorno_dgp_min=0.15`, `retorno_dgp_max=0.45`.
+- [x] **Escenario Pozuelo (F7, AC-D16)**: `poblacion=90000`, `nivel="Nivel 1 — Comisaría Local"`,
       `servicios_activos=[Documentacion, ODAC]`, topes Doc≤8 / TIE≤2 / ODAC≤4 / Entrada 1.
-- [ ] **El catálogo completo valida limpio (AC-D20a–d)**: `Datos.validar()` (Story 003) devuelve **`[]`**
+- [x] **El catálogo completo valida limpio (AC-D20a–d)**: `Datos.validar()` (Story 003) devuelve **`[]`**
       (0 refs colgantes, 0 ids duplicados, 0 valores fuera de rango, R5 pasa, todo servicio con puesto).
 
 ---
@@ -87,9 +87,21 @@ frágil** (formato con `uid`/`ext_resource`); se generarán con un **script-herr
 `tests/integration/datos/datos_catalogo_pozuelo_test.gd` que carga el catálogo real y asevera
 `validar()==[]` + los valores spot-check.
 
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y PASA (datos_catalogo_pozuelo_test.gd 6/6 + datos_carga_lookup_test.gd actualizado; suite del proyecto 53/53, 2026-07-22)
 
 ## Dependencies
 
 - Depends on: **Story 001** (clases) para instanciar; **Story 003** (validar) para el AC de "valida limpio".
 - Unlocks: que Economía/Flujo/Demanda/Personal/Construcción/Doc/ODAC tengan datos reales que leer.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) + verificación del hilo principal (suite
+53/53, exit 0). Commit c6d46e0. **ENMIENDA DE AC aprobada por el usuario (2026-07-22):** la atención
+interna `reclamacion` se modela como la **14ª DenunciaODAC** (30 min, Normal, sin tarifa, la admite
+`puesto_odac`); su origen es interno (la genera Paciencia PS13) y NO entra en la mezcla de Demanda
+ciudadana. En consecuencia, donde los AC decían "13 denuncias" se lee "13 ciudadanas + 1 interna = 14
+DenunciaODAC en el catálogo" (test de recuento actualizado 13→14). Catálogo final: **30 .tres** generados
+exclusivamente por `tools/build_catalogo.gd`; el smoke verifica `Datos.validar() == []` sobre el catálogo
+real + spot-checks de F1/F2/F4/F7. Nota: `validar()` corre con `demanda_max_odac=0` (R5 se evaluará con la
+D real cuando exista Demanda).

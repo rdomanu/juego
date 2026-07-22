@@ -124,12 +124,20 @@ cierre de la story). **Suite 47/47, exit 0.** Catálogo real valida limpio.
 **📌 DECISIÓN DE DISEÑO (usuario, 2026-07-22): `reclamacion` = 14ª DenunciaODAC** (Normal, sin tarifa,
 puesto_odac la admite; la demanda ciudadana NO la genera — la generará Paciencia PS13). Los AC/tests del
 "13" pasan a "13 ciudadanas + 1 interna = 14". Opciones B (ficha base aparte) y C (diferir) descartadas.
-**PRÓXIMO INMEDIATO:** Datos story-004 EN IMPLEMENTACIÓN (cierre del catálogo: añadir `reclamacion` al
-build_catalogo + regenerar .tres + puesto_odac admite 14 + actualizar test del 13→14 + smoke test
-integración `datos_catalogo_pozuelo_test.gd`: validar()==[] + spot-checks). Al cerrarla: EPIC DATOS
-COMPLETO (3/5 Foundation) → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
-Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
-Estado de código: 47/47 tests verdes; EventBus+RNGService CERRADOS; Datos 3/4.
+**🎉🎉 EPIC DATOS COMPLETO (2026-07-22, 4/4 stories; commits 1ec959c/86b8ce8/143b2ca/c6d46e0):**
+Story 004 cerrada — `reclamacion` añadida como 14ª DenunciaODAC (ENMIENDA de AC aprobada: "13" → 13
+ciudadanas + 1 interna), catálogo regenerado a **30 .tres**, smoke `datos_catalogo_pozuelo_test.gd`
+(validar()==[] + spot-checks F1/F2/F4/F7). **Suite 53/53, exit 0.** **3 de 5 módulos Foundation
+COMPLETOS Y CERRADOS: EventBus, RNGService, Datos.**
+**📌 DECISIÓN usuario (2026-07-22): "ESQUELETO VISIBLE" tras el módulo Tiempo** — al terminar Tiempo,
+crear la escena principal mínima (Main.tscn: suelo TileMapLayer + HUD del reloj) y ABRIRLE LA VENTANA
+al usuario (primera visual del juego de producción; no jugable aún). Es la escena que Construcción
+necesitará igualmente.
+**PRÓXIMO INMEDIATO:** epic tiempo — `/create-stories tiempo` (propuesta de historias desde GDD
+time-system.md + ADR-0001/0002; TR-time-*) → aprobar con el usuario → implementar (flujo híbrido:
+especialista Opus implementa, Fable 5 coordina/verifica, QA read-only en paralelo) → ESQUELETO VISIBLE
+(avisar + lanzar ventana) → save-manager → Core → `/sprint-plan`.
+Estado de código: 53/53 tests verdes; Foundation 3/5 (faltan Tiempo y SaveManager).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
