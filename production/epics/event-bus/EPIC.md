@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: — (módulo de infraestructura sin GDD; derivado de `docs/architecture/architecture.md` §3.2 y ADR-0001)
 > **Architecture Module**: ▸EventBus
-> **Status**: Ready
+> **Status**: Complete
 > **Stories**: 2 created — see table below
 
 ## Overview
@@ -43,8 +43,8 @@ construcción es de los primeros de Foundation (junto con RNGService).
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [EventBus autoload + señales de aviso](story-001-autoload-senales-aviso.md) | Integration | Implementada · test 3/3 ✅ (pend. /story-done) | ADR-0001 |
-| 002 | [Dispatcher de eventos ordenados por prioridad](story-002-dispatcher-orden-prioridad.md) | Logic | Implementada · test 5/5 ✅ (pend. /story-done) | ADR-0001 |
+| 001 | [EventBus autoload + señales de aviso](story-001-autoload-senales-aviso.md) | Integration | Complete | ADR-0001 |
+| 002 | [Dispatcher de eventos ordenados por prioridad](story-002-dispatcher-orden-prioridad.md) | Logic | Complete | ADR-0001 |
 
 **Estado:** epic COMPLETO en código+test (2026-07-22). Suite EventBus 10/10 PASS (GdUnit4 headless).
 Pendiente el cierre formal con `/story-done` de ambas.
@@ -61,5 +61,5 @@ This epic is complete when:
 
 ## Next Step
 
-Stories creadas (2). Ejecutar `/story-readiness production/epics/event-bus/story-001-autoload-senales-aviso.md`
-y luego `/dev-story` para implementar (empezar por la 001).
+Epic **completo y cerrado** (2026-07-22): las 2 stories implementadas, verificadas y cerradas formalmente.
+El siguiente trabajo del proyecto continúa en el **epic Datos**.

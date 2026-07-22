@@ -1,12 +1,12 @@
 # Story 002: Elección ponderada (`elegir_ponderado`)
 
 > **Epic**: RNGService
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -32,12 +32,12 @@ elección ponderada que Demanda usa para decidir el tipo de cada visita.
 
 *Derivados del contrato de arquitectura (`elegir_ponderado`) y de TR-demand-002 (normalización defensiva):*
 
-- [ ] `elegir_ponderado(pesos: Array[float]) -> int` devuelve un **índice válido** en [0, `pesos.size()`-1].
-- [ ] La probabilidad de cada índice es **proporcional a su peso** (usa la **suma real** de los pesos →
+- [x] `elegir_ponderado(pesos: Array[float]) -> int` devuelve un **índice válido** en [0, `pesos.size()`-1].
+- [x] La probabilidad de cada índice es **proporcional a su peso** (usa la **suma real** de los pesos →
       **normalización defensiva**: no exige que sumen 1).
-- [ ] Un índice con **peso 0 nunca se elige**.
-- [ ] **Determinista**: misma semilla + mismos pesos → misma secuencia de elecciones (usa el RNG sembrado).
-- [ ] **Edge definido**: lista vacía o suma de pesos ≤ 0 → devuelve **-1** (sin elección válida) con
+- [x] Un índice con **peso 0 nunca se elige**.
+- [x] **Determinista**: misma semilla + mismos pesos → misma secuencia de elecciones (usa el RNG sembrado).
+- [x] **Edge definido**: lista vacía o suma de pesos ≤ 0 → devuelve **-1** (sin elección válida) con
       `push_warning`; pesos negativos se tratan como 0 (defensivo).
 
 ---
@@ -128,3 +128,10 @@ Arreglado con `self.randf()`. Lección: un método del autoload con el mismo nom
 
 - Depends on: **Story 001** (usa `randf()` y el generador sembrado).
 - Unlocks: la mezcla ponderada de **Demanda** (13 tipos) y el mercado de **Personal**.
+
+## Cierre (2026-07-22)
+
+Cierre formal aprobado por el usuario. Verificación QA read-only (subagente Opus, 2026-07-22): todos los
+AC CUMPLIDOS con evidencia archivo:línea; mapeo 1:1 QA Test Case → función de test; 0 desviaciones de ADR
+y control-manifest (Foundation). Suite del proyecto 32/32 en verde (re-verificada de forma independiente
+en el hilo principal). Informe completo en la sesión (no persistido).

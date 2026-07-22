@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: — (módulo de infraestructura sin GDD; deriva del principio de **determinismo global** y ADR-0002)
 > **Architecture Module**: ▸RNGService
-> **Status**: Ready
+> **Status**: Complete
 > **Stories**: 3 created — see table below
 
 ## Overview
@@ -45,9 +45,9 @@ Personal y Paciencia (Core/Feature) no pueden ser deterministas sin él.
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [RNGService autoload + envoltorios sembrados](story-001-autoload-sembrado.md) | Logic | Implementada · test 4/4 ✅ (pend. /story-done) | ADR-0002 |
-| 002 | [Elección ponderada (`elegir_ponderado`)](story-002-eleccion-ponderada.md) | Logic | Implementada · test 5/5 ✅ (pend. /story-done) | ADR-0002 |
-| 003 | [Serialización del RNG (`save`/`load_state`)](story-003-serializacion-rng.md) | Integration | Implementada · test 4/4 ✅ (pend. /story-done) | ADR-0002 |
+| 001 | [RNGService autoload + envoltorios sembrados](story-001-autoload-sembrado.md) | Logic | Complete | ADR-0002 |
+| 002 | [Elección ponderada (`elegir_ponderado`)](story-002-eleccion-ponderada.md) | Logic | Complete | ADR-0002 |
+| 003 | [Serialización del RNG (`save`/`load_state`)](story-003-serializacion-rng.md) | Integration | Complete | ADR-0002 |
 
 **Estado:** epic COMPLETO en código+test (2026-07-22). 13 tests del RNGService (4+5+4) verdes; suite total del
 proyecto 23/23. Pendiente el cierre formal con `/story-done` de las 3.
@@ -65,5 +65,5 @@ This epic is complete when:
 
 ## Next Step
 
-Stories creadas (3). Ejecutar `/story-readiness production/epics/rng-service/story-001-autoload-sembrado.md`
-y luego `/dev-story` para implementar (empezar por la 001).
+Epic **completo y cerrado** (2026-07-22): las 3 stories implementadas, verificadas y cerradas formalmente.
+El siguiente trabajo del proyecto continúa en el **epic Datos**.

@@ -1,12 +1,12 @@
 # Story 003: Serialización del RNG (`save`/`load_state`)
 
 > **Epic**: RNGService
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -35,15 +35,15 @@ JSON. La escritura a disco y el JSON los hace **SaveManager** (otro epic); aquí
 
 *Derivados de ADR-0002 (Decision punto 4, Validation Criteria "Determinismo") y del contrato `save/load_state`:*
 
-- [ ] `save() -> Dictionary` devuelve `{"semilla": String, "estado": String}`. Semilla y estado son
+- [x] `save() -> Dictionary` devuelve `{"semilla": String, "estado": String}`. Semilla y estado son
       **int64**; se guardan como **texto** para sobrevivir un round-trip por JSON **sin perder precisión**
       (JSON parsea los números como float/double, que no representa exacto los enteros > 2^53 — y el estado
       del PCG suele serlo).
-- [ ] `load_state(d: Dictionary) -> void` restaura semilla y estado del generador (parsea el texto a int).
-- [ ] **Round-trip determinista**: tras `load_state(guardado)`, la **secuencia futura** de números es idéntica
+- [x] `load_state(d: Dictionary) -> void` restaura semilla y estado del generador (parsea el texto a int).
+- [x] **Round-trip determinista**: tras `load_state(guardado)`, la **secuencia futura** de números es idéntica
       a la que habría salido en el punto de guardado (misma continuación).
-- [ ] El nodo `RNGService` pertenece al grupo `Persist` (se marca en `_ready`).
-- [ ] Tipado estático.
+- [x] El nodo `RNGService` pertenece al grupo `Persist` (se marca en `_ready`).
+- [x] Tipado estático.
 
 ---
 
@@ -124,3 +124,10 @@ test AC-3 (round-trip vía JSON). Falta el cierre formal con `/story-done`.
 
 - Depends on: **Story 001** (el generador sembrado).
 - Unlocks: que **SaveManager** pueda persistir el azar → determinismo al cargar en Demanda/Personal/Paciencia.
+
+## Cierre (2026-07-22)
+
+Cierre formal aprobado por el usuario. Verificación QA read-only (subagente Opus, 2026-07-22): todos los
+AC CUMPLIDOS con evidencia archivo:línea; mapeo 1:1 QA Test Case → función de test; 0 desviaciones de ADR
+y control-manifest (Foundation). Suite del proyecto 32/32 en verde (re-verificada de forma independiente
+en el hilo principal). Informe completo en la sesión (no persistido).

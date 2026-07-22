@@ -1,12 +1,12 @@
 # Story 002: Dispatcher de eventos ordenados por prioridad
 
 > **Epic**: EventBus
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -39,18 +39,18 @@ dispatcher explícito (no basta un `connect`).
 
 *Derivados de ADR-0001 (Decision punto 2, Validation Criteria, Risks):*
 
-- [ ] `registrar_ordenado(evento: StringName, prioridad: int, cb: Callable) -> void` guarda el callable
+- [x] `registrar_ordenado(evento: StringName, prioridad: int, cb: Callable) -> void` guarda el callable
       asociado a ese evento con su prioridad.
-- [ ] `disparar_ordenado(evento: StringName) -> void` invoca los callables registrados para ese evento en
+- [x] `disparar_ordenado(evento: StringName) -> void` invoca los callables registrados para ese evento en
       **orden de prioridad ascendente** (menor prioridad primero).
-- [ ] **Desempate determinista**: dos callables con la misma prioridad se invocan en **orden de registro**
+- [x] **Desempate determinista**: dos callables con la misma prioridad se invocan en **orden de registro**
       (estable dentro de una partida).
-- [ ] Tras invocar los callables ordenados, se **emite la señal de notificación** correspondiente
+- [x] Tras invocar los callables ordenados, se **emite la señal de notificación** correspondiente
       (`nuevo_dia`/`nuevo_mes`) para los oyentes no críticos (UI, Feedback).
-- [ ] El bus **no llama a ningún sistema por nombre**: solo recorre su lista de callables.
-- [ ] **Determinismo**: el mismo conjunto de registros + el mismo disparo producen **siempre** el mismo
+- [x] El bus **no llama a ningún sistema por nombre**: solo recorre su lista de callables.
+- [x] **Determinismo**: el mismo conjunto de registros + el mismo disparo producen **siempre** el mismo
       orden de invocación (independiente del reloj real o de los FPS).
-- [ ] Casos límite gestionados: disparar un evento sin callables registrados no falla; lista tipada
+- [x] Casos límite gestionados: disparar un evento sin callables registrados no falla; lista tipada
       estáticamente.
 
 ---
@@ -157,3 +157,10 @@ estable, guarda `cb.is_valid()`). Falta el cierre formal con `/story-done`.
 - Depends on: **Story 001** (el autoload `EventBus` debe existir).
 - Unlocks: el `nuevo_dia`/`nuevo_mes` ordenado que consumen Tiempo (dispara), Paciencia, Economía, Personal
   y Demanda (registran su prioridad).
+
+## Cierre (2026-07-22)
+
+Cierre formal aprobado por el usuario. Verificación QA read-only (subagente Opus, 2026-07-22): todos los
+AC CUMPLIDOS con evidencia archivo:línea; mapeo 1:1 QA Test Case → función de test; 0 desviaciones de ADR
+y control-manifest (Foundation). Suite del proyecto 32/32 en verde (re-verificada de forma independiente
+en el hilo principal). Informe completo en la sesión (no persistido).

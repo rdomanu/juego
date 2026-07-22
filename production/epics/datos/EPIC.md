@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: design/gdd/data-config.md
 > **Architecture Module**: Datos #2
-> **Status**: Ready
+> **Status**: In Progress (1/4)
 > **Stories**: 4 created — see table below
 
 ## Overview
@@ -44,7 +44,7 @@ leve es `duplicate_deep()` en 4.5 si se anidan Resources (evitado por diseño: r
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [Esquema — clases Resource](story-001-esquema-clases-resource.md) | Logic | Ready | ADR-0003 |
+| 001 | [Esquema — clases Resource](story-001-esquema-clases-resource.md) | Logic | **Complete** (2026-07-22) | ADR-0003 |
 | 002 | [Datos autoload — carga + lookup](story-002-autoload-carga-lookup.md) | Integration | Ready | ADR-0003 |
 | 003 | [Validación en carga](story-003-validacion-en-carga.md) | Logic | Ready | ADR-0003 |
 | 004 | [Catálogo MVP de Pozuelo](story-004-catalogo-mvp-pozuelo.md) | Config/Data | Ready | ADR-0003 |
@@ -62,5 +62,7 @@ This epic is complete when:
 
 ## Next Step
 
-Stories creadas (4). Ejecutar `/story-readiness production/epics/datos/story-001-esquema-clases-resource.md`
-y luego `/dev-story` para implementar (empezar por la 001).
+Story 001 (esquema) **Complete** (2026-07-22; test 9/9, suite 32/32). Siguiente: **Story 002**
+(autoload `Datos` — carga + lookup). Nota: los AC de la 002 exigen valores reales del catálogo
+(dni 12/12, 13 denuncias) → su implementación necesita generar el catálogo con el script-herramienta
+`tools/build_catalogo.gd` (mecanismo de la Story 004).

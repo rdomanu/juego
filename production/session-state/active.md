@@ -84,12 +84,36 @@ ADR-0003; casos de test escritos por el hilo principal. EPIC+índice actualizado
 **⚠️ Reto de implementación anotado (story 004):** crear los `.tres` a mano es frágil (uids/ext_resource) →
 **generar el catálogo con un script-herramienta `tools/build_catalogo.gd`** (`extends SceneTree` +
 `ResourceSaver.save`) ejecutado en headless. Dev tooling en `tools/`, no runtime.
-**PRÓXIMO INMEDIATO (recomendado en sesión fresca):** implementar Datos (empezar story-001 esquema:
-7 clases Resource en `src/foundation/datos/esquema/`) → 002 → 003 → 004 (script-herramienta) → tiempo →
-save-manager → Core → `/sprint-plan`. `/story-done` de las 5 stories ya implementadas (EventBus+RNGService)
-pendiente. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
-Estado de código: 23/23 tests verdes; 2 módulos Foundation completos (EventBus, RNGService); Datos = stories
-listas, sin implementar.
+**✅ SUBAGENTES FUNCIONAN DE NUEVO (2026-07-22, sesión Fable 5):** probado con agente trivial — el error
+"Usage credits required for 1M context" ya NO ocurre. **Modo de trabajo aprobado por el usuario: HÍBRIDO** —
+historias en serie (dependen unas de otras); dentro de cada una, especialista (Opus 4.8) implementa y
+Fable 5 (hilo principal) supervisa, revisa el código y re-ejecuta los tests; verificaciones QA read-only
+en paralelo. Cuando toque tier Sonnet → Sonnet 5 (nunca 4.6); ante la duda del alias, usar Opus.
+**✅ Datos Story 001 IMPLEMENTADA + CERRADA (2026-07-22, vía godot-gdscript-specialist Opus + revisión del
+hilo principal):** 8 clases en `src/foundation/datos/esquema/` (atencion, tramite_doc, denuncia_odac,
+tipo_puesto, tipo_sala, tipo_agente, costes, escenario) — solo `class_name`+`@export` tipados, refs por id
+(`Array[StringName]`), cero lógica. Test `tests/unit/datos/datos_esquema_test.gd` **9/9 PASS**. **Suite
+total: 32/32, exit 0** (re-verificada de forma independiente en el hilo principal). Revisión: corregido doc
+comment `retorno_dgp_min/max` ("euros"→fracción [0,1]).
+**🆕 GOTCHA NUEVO (aplicar en el futuro):** en headless "en frío", `extends Atencion` (por `class_name`) en
+una clase hija preload-ada FALLA ("Could not resolve script") → heredar por **ruta literal**
+(`extends "res://src/.../atencion.gd"`). Aplicado en tramite_doc.gd/denuncia_odac.gd, documentado en código.
+**Decisiones impl. 001:** `Costes` lleva `id` extra (indexado uniforme en Story 002);
+`Escenario.tope_construible` = `Dictionary[StringName, int]` tipado (OK 4.6); `.gd.uid` no se materializan
+en headless (tampoco los previos; se generarán al abrir el editor — no bloquea).
+**✅ CIERRE FORMAL de 6 stories (2026-07-22, aprobado por usuario):** EventBus 001/002 + RNGService
+001/002/003 (verificación QA por 2 agentes read-only Opus: TODOS los AC CUMPLIDOS con evidencia
+archivo:línea, 0 desviaciones ADR/manifest) + Datos 001. Stories→Complete; EPICs event-bus y
+rng-service→**Complete**; índice actualizado (Datos = In Progress 1/4). Sugerencia QA no bloqueante a
+backlog: 2 asserts extra de edge cases en `event_bus_signals_test` (desconexión de oyente; emisión repetida).
+**PRÓXIMO INMEDIATO:** Datos story-002 (autoload `Datos`, 3º en project.godot: carga + indexa + obtener/
+obtener_todos). ⚠️ Sus AC exigen valores REALES (dni 12/12, 13 denuncias) → la implementación incluye
+`tools/build_catalogo.gd` (script-herramienta, mecanismo de la Story 004) para generar el catálogo `.tres`
+real; la 004 quedará casi lista y se cierra tras la validación (003). Luego: 003 → 004 → tiempo →
+save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar
+ventana).
+Estado de código: 32/32 tests verdes; 2 módulos Foundation completos y CERRADOS (EventBus, RNGService);
+Datos 1/4 (esquema hecho).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

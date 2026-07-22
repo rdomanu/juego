@@ -1,12 +1,12 @@
 # Story 001: EventBus autoload + señales de aviso cross-system
 
 > **Epic**: EventBus
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -38,9 +38,9 @@ señal moderna: `signal.connect(callable)`, **nunca** `connect("sig", obj, "meto
 
 *Derivados de ADR-0001 (Decision, Key Interfaces) y del contrato EventBus de `architecture.md` §API Boundaries:*
 
-- [ ] Existe `event_bus.gd` (`extends Node`) registrado como autoload **"EventBus"**, y es el **primero** en
+- [x] Existe `event_bus.gd` (`extends Node`) registrado como autoload **"EventBus"**, y es el **primero** en
       el orden de autoloads.
-- [ ] Declara la lista central de **señales de aviso** documentada, con sus firmas tipadas:
+- [x] Declara la lista central de **señales de aviso** documentada, con sus firmas tipadas:
   - `tramite_completado(tramite_id: StringName, agente)`
   - `abandono(persona)`
   - `persona_generada(persona)`
@@ -49,10 +49,10 @@ señal moderna: `signal.connect(callable)`, **nunca** `connect("sig", obj, "meto
   - `saldo_cambiado(nuevo_saldo: int)`
   - `reclamacion_generada(origen: StringName)`
   - `nuevo_dia`, `nuevo_mes` (señales de notificación; su disparo ordenado es la Story 002)
-- [ ] Un oyente conectado con `.connect(Callable)` recibe la señal al emitirla, con los argumentos correctos.
-- [ ] **Invariante**: el script del bus no contiene lógica de juego ni referencias a sistemas concretos
+- [x] Un oyente conectado con `.connect(Callable)` recibe la señal al emitirla, con los argumentos correctos.
+- [x] **Invariante**: el script del bus no contiene lógica de juego ni referencias a sistemas concretos
       (Economía, Flujo…); solo declara señales y (Story 002) el dispatcher.
-- [ ] Tipado estático en toda firma de señal.
+- [x] Tipado estático en toda firma de señal.
 
 ---
 
@@ -143,3 +143,11 @@ contra estos casos.*
 
 - Depends on: None (es el primer ladrillo de todo el proyecto).
 - Unlocks: Story 002 (dispatcher ordenado); y, de hecho, casi todos los epics (usan estas señales).
+
+## Cierre (2026-07-22)
+
+Cierre formal aprobado por el usuario. Verificación QA read-only (subagente Opus, 2026-07-22): todos los
+AC CUMPLIDOS con evidencia archivo:línea; mapeo 1:1 QA Test Case → función de test; 0 desviaciones de ADR
+y control-manifest (Foundation). Suite del proyecto 32/32 en verde (re-verificada de forma independiente
+en el hilo principal). Informe completo en la sesión (no persistido).
+Sugerencia QA a backlog (no bloqueante): añadir asserts para "desconectar oyente → ya no recibe" y "emisión repetida en el mismo frame".

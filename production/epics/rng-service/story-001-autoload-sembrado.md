@@ -1,12 +1,12 @@
 # Story 001: RNGService autoload + envoltorios sembrados
 
 > **Epic**: RNGService
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -36,14 +36,14 @@ post-cutoff. Verificado en `modules/save-load.md`/`patterns.md`.
 
 *Derivados de ADR-0002 (Decision punto 4, Validation Criteria) y del contrato RNGService de `architecture.md`:*
 
-- [ ] Existe `rng_service.gd` (`extends Node`) registrado como autoload **"RNGService"**, el **segundo** en el
+- [x] Existe `rng_service.gd` (`extends Node`) registrado como autoload **"RNGService"**, el **segundo** en el
       orden de autoloads (tras EventBus).
-- [ ] `sembrar(semilla: int) -> void` fija la semilla del generador.
-- [ ] `randi_rango(desde: int, hasta: int) -> int` devuelve un entero en el rango **[desde, hasta] inclusive**.
-- [ ] `randf() -> float` devuelve un flotante en **[0.0, 1.0)**.
-- [ ] **Determinismo**: dos `RNGService` con la misma semilla producen la **misma secuencia** de resultados
+- [x] `sembrar(semilla: int) -> void` fija la semilla del generador.
+- [x] `randi_rango(desde: int, hasta: int) -> int` devuelve un entero en el rango **[desde, hasta] inclusive**.
+- [x] `randf() -> float` devuelve un flotante en **[0.0, 1.0)**.
+- [x] **Determinismo**: dos `RNGService` con la misma semilla producen la **misma secuencia** de resultados
       ante la misma secuencia de llamadas.
-- [ ] Tipado estático en toda firma.
+- [x] Tipado estático en toda firma.
 
 ---
 
@@ -119,3 +119,10 @@ registrado en `project.godot`). Falta el cierre formal con `/story-done`.
 
 - Depends on: None (Foundation; se construye junto con EventBus, antes que Core).
 - Unlocks: Story 002 (ponderada) y Story 003 (serialización); y el determinismo de Demanda/Personal/Paciencia.
+
+## Cierre (2026-07-22)
+
+Cierre formal aprobado por el usuario. Verificación QA read-only (subagente Opus, 2026-07-22): todos los
+AC CUMPLIDOS con evidencia archivo:línea; mapeo 1:1 QA Test Case → función de test; 0 desviaciones de ADR
+y control-manifest (Foundation). Suite del proyecto 32/32 en verde (re-verificada de forma independiente
+en el hilo principal). Informe completo en la sesión (no persistido).

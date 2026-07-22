@@ -1,12 +1,12 @@
 # Story 001: Esquema — clases Resource del catálogo
 
 > **Epic**: Datos y Configuración
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -36,22 +36,22 @@ falta en headless "en frío").
 
 *De GDD R2 (tabla de tipos) + ADR-0003 (Key Interfaces):*
 
-- [ ] `Atencion extends Resource` (`class_name Atencion`) con `@export`: `id: StringName`, `nombre: String`,
+- [x] `Atencion extends Resource` (`class_name Atencion`) con `@export`: `id: StringName`, `nombre: String`,
       `servicio` (`@export_enum("Documentacion","ODAC")`), `duracion_min: int`, `tipo_puesto: StringName`,
       `icono: Texture2D`.
-- [ ] `TramiteDoc extends Atencion` con `tarifa_eur: int`, `requiere_cita: bool`.
-- [ ] `DenunciaODAC extends Atencion` con `prioridad` (`@export_enum("Normal","Prioritaria")`),
+- [x] `TramiteDoc extends Atencion` con `tarifa_eur: int`, `requiere_cita: bool`.
+- [x] `DenunciaODAC extends Atencion` con `prioridad` (`@export_enum("Normal","Prioritaria")`),
       `admite_cita: bool` (sin `tarifa_eur`).
-- [ ] `TipoPuesto`: `id, nombre, servicio, atenciones_admitidas: Array[StringName], reconfigurable: bool,
+- [x] `TipoPuesto`: `id, nombre, servicio, atenciones_admitidas: Array[StringName], reconfigurable: bool,
       coste_construccion_eur: int, plazas_agente: int, superficie: int, icono`.
-- [ ] `TipoSala`: `id, nombre, tipo/servicio, puestos_admitidos: Array[StringName], aforo_espera: int,
+- [x] `TipoSala`: `id, nombre, tipo/servicio, puestos_admitidos: Array[StringName], aforo_espera: int,
       coste_construccion_eur: int, superficie: int, icono`.
-- [ ] `TipoAgente`: `id, puesto_organico, unidad, escala_rango, salario_dia_eur: int, tipo_horario,
+- [x] `TipoAgente`: `id, puesto_organico, unidad, escala_rango, salario_dia_eur: int, tipo_horario,
       puestos_operables: Array[StringName]`.
-- [ ] `Costes`: `peonada_eur_hora: float`, `retorno_dgp_min: float`, `retorno_dgp_max: float`.
-- [ ] `Escenario`: `id, nombre, nivel, poblacion: int, tope_construible (Dictionary por servicio),
+- [x] `Costes`: `peonada_eur_hora: float`, `retorno_dgp_min: float`, `retorno_dgp_max: float`.
+- [x] `Escenario`: `id, nombre, nivel, poblacion: int, tope_construible (Dictionary por servicio),
       rango_requerido, servicios_activos: Array[StringName]`.
-- [ ] Todas las referencias cruzadas son `Array[StringName]` (ids), **no** `Array[Resource]`.
+- [x] Todas las referencias cruzadas son `Array[StringName]` (ids), **no** `Array[Resource]`.
 
 ---
 
@@ -86,9 +86,22 @@ falta en headless "en frío").
 **Story Type**: Logic
 **Required evidence**: `tests/unit/datos/datos_esquema_test.gd` — debe existir y pasar.
 
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y PASA (`datos_esquema_test.gd` 9/9; suite del proyecto 32/32, 2026-07-22)
 
 ## Dependencies
 
 - Depends on: None.
 - Unlocks: Story 002 (carga/lookup), 003 (validación), 004 (contenido) — todas usan estas clases.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente `godot-gdscript-specialist` (Opus) + revisión y re-ejecución independiente de la
+suite en el hilo principal (32/32 en verde). Decisiones registradas:
+- **Gotcha nuevo**: en headless "en frío", `extends Atencion` (por `class_name`) en una clase hija
+  preload-ada falla ("Could not resolve script") → las 2 hijas heredan por **ruta literal**
+  (`extends "res://src/foundation/datos/esquema/atencion.gd"`). Documentado en el código.
+- `Costes` añade `id` (no pedido por el GDD) para indexado uniforme por `id` en Story 002.
+- `Escenario.tope_construible` usa `Dictionary[StringName, int]` tipado (estable en 4.6).
+- Revisión del hilo principal: corregido doc comment de `retorno_dgp_min/max` ("euros" → fracción [0,1]).
+- Los `.gd.uid` no se materializan en el flujo headless (igual que los scripts previos); se generarán al
+  abrir el editor. No bloquea.
