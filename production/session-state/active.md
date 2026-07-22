@@ -51,9 +51,18 @@ actualizados. 002 depende de 001; ninguna bloqueada (ADR-0001 Accepted).
 `is_valid()`. Test `tests/unit/event_bus/event_bus_orden_test.gd` **5/5 PASS**. **Suite EventBus completa:
 10/10** (001: 3, 002: 5, sanity: 2), exit 0. **🎉 EPIC EVENT-BUS COMPLETO en código+test** (falta cierre
 formal `/story-done` de ambas + commit de la 002).
-**PRÓXIMO INMEDIATO:** commit de la Story 002 → luego `/story-done` de 001+002 (cierre formal) o directo al
-**siguiente epic Foundation: `/create-stories rng-service`** → datos → tiempo → save-manager → Core →
-`/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+**✅ Story 002 COMMITEADA** (commit `4e06e00`, pusheada). Epic EventBus completo y guardado en GitHub.
+**✅ `/create-stories rng-service` HECHO** (2026-07-22): 3 historias en `production/epics/rng-service/`
+(story-001 autoload+sembrado [Logic]; story-002 elección ponderada [Logic]; story-003 serialización del RNG
+[Integration, TR-save-002]). ADR-0002; casos de test escritos por el hilo principal. EPIC+índice
+actualizados. 002/003 dependen de 001; ninguna bloqueada.
+**✅ RNGService Story 001 IMPLEMENTADA + TEST EN VERDE (2026-07-22):** `src/foundation/rng_service/
+rng_service.gd` (autoload `RNGService`, 2º tras EventBus, registrado en `project.godot`; `sembrar`/
+`randi_rango`/`randf`). Test `tests/unit/rng_service/rng_service_sembrado_test.gd` **4/4 PASS**. **Suite total
+del proyecto: 14/14** (event_bus 8, rng 4, sanity 2), exit 0. SIN commitear todavía.
+**PRÓXIMO INMEDIATO:** commit de RNGService story 001 → luego story 002 (elegir_ponderado) + story 003
+(serialización) → datos → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
+Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

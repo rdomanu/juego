@@ -4,7 +4,7 @@
 > **GDD**: — (módulo de infraestructura sin GDD; deriva del principio de **determinismo global** y ADR-0002)
 > **Architecture Module**: ▸RNGService
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories rng-service`
+> **Stories**: 3 created — see table below
 
 ## Overview
 
@@ -41,6 +41,16 @@ además del principio transversal de **determinismo global**.
 **Nota de dependencia:** junto con EventBus, es de los primeros módulos a construir en Foundation — Demanda,
 Personal y Paciencia (Core/Feature) no pueden ser deterministas sin él.
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [RNGService autoload + envoltorios sembrados](story-001-autoload-sembrado.md) | Logic | Implementada · test 4/4 ✅ (pend. /story-done) | ADR-0002 |
+| 002 | [Elección ponderada (`elegir_ponderado`)](story-002-eleccion-ponderada.md) | Logic | Ready | ADR-0002 |
+| 003 | [Serialización del RNG (`save`/`load_state`)](story-003-serializacion-rng.md) | Integration | Ready | ADR-0002 |
+
+**Orden:** 002 y 003 dependen de 001. Empezar por 001 (sembrado), luego 002 (ponderada) y 003 (serialización).
+
 ## Definition of Done
 
 This epic is complete when:
@@ -54,4 +64,5 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/create-stories rng-service` to break this epic into implementable stories.
+Stories creadas (3). Ejecutar `/story-readiness production/epics/rng-service/story-001-autoload-sembrado.md`
+y luego `/dev-story` para implementar (empezar por la 001).
