@@ -44,3 +44,47 @@ signal nuevo_dia
 
 ## Empieza un nuevo mes. Idem: para oyentes no criticos; el orden critico va por dispatcher.
 signal nuevo_mes
+
+
+# ── Dispatcher de eventos ordenados (Story 002 · TR-bus-002 · ADR-0001) ──────────────────
+## Algunos eventos exigen que sus oyentes corran en un ORDEN FIJO (p. ej. al `nuevo_dia`:
+## Paciencia cierra `sat` (10) -> Economia cobra (20) -> Personal ausencias (30) -> Demanda
+## reset (40)). Godot NO garantiza el orden entre `connect` sueltos de autoloads distintos, asi
+## que se usa un registro con prioridad: cada sistema llama `registrar_ordenado(...)` y el disparo
+## invoca los callables por prioridad ascendente. El bus NO conoce los sistemas (solo callables) →
+## respeta las capas estrictas (Foundation no depende de Core/Feature).
+
+## Por evento (StringName) -> Array de entradas {prioridad:int, orden:int, cb:Callable}.
+var _ordenados: Dictionary = {}
+## Contador global de registro: fuerza un desempate ESTABLE y determinista entre prioridades iguales.
+var _contador_registro: int = 0
+
+
+## Registra un `callable` para que corra al disparar `evento`, en orden de `prioridad` ascendente.
+## Prioridades espaciadas (10/20/30/40) para dejar hueco a inserciones futuras sin renumerar.
+func registrar_ordenado(evento: StringName, prioridad: int, cb: Callable) -> void:
+	if not _ordenados.has(evento):
+		_ordenados[evento] = []
+	_ordenados[evento].append({"prioridad": prioridad, "orden": _contador_registro, "cb": cb})
+	_contador_registro += 1
+
+
+## Invoca, en orden de prioridad ascendente (desempate por orden de registro), todos los callables
+## registrados para `evento`; luego emite la senal de notificacion homonima para los oyentes NO
+## criticos (UI/Feedback). Determinista: misma configuracion -> mismo orden, siempre.
+func disparar_ordenado(evento: StringName) -> void:
+	if _ordenados.has(evento):
+		var lista: Array = (_ordenados[evento] as Array).duplicate()
+		lista.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			if a["prioridad"] == b["prioridad"]:
+				return a["orden"] < b["orden"]   # desempate estable por orden de registro
+			return a["prioridad"] < b["prioridad"])  # prioridad ascendente
+		for entrada in lista:
+			var cb: Callable = entrada["cb"]
+			if cb.is_valid():
+				cb.call()
+	# Tras el orden critico, notificar a los oyentes no criticos (orden entre ellos indiferente):
+	if evento == &"nuevo_dia":
+		nuevo_dia.emit()
+	elif evento == &"nuevo_mes":
+		nuevo_mes.emit()

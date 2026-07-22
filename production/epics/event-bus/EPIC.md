@@ -43,10 +43,11 @@ construcción es de los primeros de Foundation (junto con RNGService).
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [EventBus autoload + señales de aviso](story-001-autoload-senales-aviso.md) | Integration | Ready | ADR-0001 |
-| 002 | [Dispatcher de eventos ordenados por prioridad](story-002-dispatcher-orden-prioridad.md) | Logic | Ready | ADR-0001 |
+| 001 | [EventBus autoload + señales de aviso](story-001-autoload-senales-aviso.md) | Integration | Implementada · test 3/3 ✅ (pend. /story-done) | ADR-0001 |
+| 002 | [Dispatcher de eventos ordenados por prioridad](story-002-dispatcher-orden-prioridad.md) | Logic | Implementada · test 5/5 ✅ (pend. /story-done) | ADR-0001 |
 
-**Orden:** 002 depende de 001. Empezar por 001 (autoload + señales), luego 002 (dispatcher).
+**Estado:** epic COMPLETO en código+test (2026-07-22). Suite EventBus 10/10 PASS (GdUnit4 headless).
+Pendiente el cierre formal con `/story-done` de ambas.
 
 ## Definition of Done
 

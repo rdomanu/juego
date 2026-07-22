@@ -45,9 +45,15 @@ actualizados. 002 depende de 001; ninguna bloqueada (ADR-0001 Accepted).
   custom vía `--script` no aplica.
 - **Aprendizaje GDScript (registrado):** las lambdas capturan locales **por valor** → para contar en un
   test usar un `Array` (por referencia), no un `int`.
-**PRÓXIMO INMEDIATO:** `/story-done` de la 001 (cierre formal) o directo a **Story 002** (dispatcher
-ordenado, misma `event_bus.gd`), luego el resto de Foundation (rng-service → datos → tiempo → save-manager)
-→ Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+**✅ Story 002 (event-bus) IMPLEMENTADA + TEST EN VERDE (2026-07-22):** dispatcher de eventos ordenados
+(`registrar_ordenado`/`disparar_ordenado`) añadido a `event_bus.gd` — orden por prioridad ascendente
+(10/20/30/40), desempate estable por orden de registro, notificación tras el orden crítico, guarda
+`is_valid()`. Test `tests/unit/event_bus/event_bus_orden_test.gd` **5/5 PASS**. **Suite EventBus completa:
+10/10** (001: 3, 002: 5, sanity: 2), exit 0. **🎉 EPIC EVENT-BUS COMPLETO en código+test** (falta cierre
+formal `/story-done` de ambas + commit de la 002).
+**PRÓXIMO INMEDIATO:** commit de la Story 002 → luego `/story-done` de 001+002 (cierre formal) o directo al
+**siguiente epic Foundation: `/create-stories rng-service`** → datos → tiempo → save-manager → Core →
+`/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

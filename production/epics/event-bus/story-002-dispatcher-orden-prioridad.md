@@ -143,7 +143,12 @@ contra estos casos con callables espía (los sistemas reales aún no existen).*
 - Logic: `tests/unit/event_bus/event_bus_orden_test.gd` — debe existir y pasar (orden ascendente,
   desempate estable, notificación posterior, determinismo). Test determinista: sin `randi()` ni tiempo real.
 
-**Status**: [ ] Not yet created
+**Status**: [x] **Creado y PASA** — `tests/unit/event_bus/event_bus_orden_test.gd`, 5/5 test cases, 0 fallos,
+GdUnit4 headless con Godot 4.6.stable (2026-07-22). Suite EventBus completa: 8/8 (001+002) + 2 sanity = 10/10.
+
+**Implementación:** dispatcher añadido a `src/foundation/event_bus/event_bus.gd`
+(`registrar_ordenado`/`disparar_ordenado`, `_ordenados`/`_contador_registro`, `sort_custom` con desempate
+estable, guarda `cb.is_valid()`). Falta el cierre formal con `/story-done`.
 
 ---
 
