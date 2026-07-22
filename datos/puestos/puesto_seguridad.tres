@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="TipoPuesto" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_puesto.gd" id="1_rqm8s"]
+
+[resource]
+script = ExtResource("1_rqm8s")
+id = &"puesto_seguridad"
+nombre = "Entrada / Seguridad"
+servicio = "Seguridad"
+coste_construccion_eur = 400

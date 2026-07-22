@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TipoPuesto" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_puesto.gd" id="1_jqsaw"]
+
+[resource]
+script = ExtResource("1_jqsaw")
+id = &"puesto_odac"
+nombre = "Puesto ODAC"
+servicio = "ODAC"
+atenciones_admitidas = Array[StringName]([&"viogen", &"lesiones", &"estafa", &"hurto_robo", &"amenazas", &"danos", &"perdida_sustraccion", &"permiso_viaje", &"desaparecidos", &"agresion_sexual", &"robo_violencia", &"okupacion", &"ciberestafa"])
+reconfigurable = true
+coste_construccion_eur = 600

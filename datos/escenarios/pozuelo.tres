@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Escenario" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/escenario.gd" id="1_cpvtb"]
+
+[resource]
+script = ExtResource("1_cpvtb")
+id = &"pozuelo"
+nombre = "Oficina de Denuncias de Pozuelo"
+nivel = "Nivel 1 — Comisaría Local"
+poblacion = 90000
+tope_construible = Dictionary[StringName, int]({
+&"puesto_doc_general": 8,
+&"puesto_odac": 4,
+&"puesto_seguridad": 1,
+&"puesto_tie": 2
+})
+rango_requerido = "Subinspector"
+servicios_activos = Array[StringName]([&"Documentacion", &"ODAC"])

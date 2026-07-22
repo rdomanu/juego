@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Costes" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/costes.gd" id="1_06iog"]
+
+[resource]
+script = ExtResource("1_06iog")
+id = &"costes_global"
+peonada_eur_hora = 15.0
+retorno_dgp_min = 0.15
+retorno_dgp_max = 0.45

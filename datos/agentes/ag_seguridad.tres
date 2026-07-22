@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TipoAgente" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_agente.gd" id="1_jbkdb"]
+
+[resource]
+script = ExtResource("1_jbkdb")
+id = &"ag_seguridad"
+puesto_organico = "Agente de Seguridad (Entrada)"
+unidad = "Seguridad Ciudadana"
+escala_rango = "Básica"
+salario_dia_eur = 65
+tipo_horario = "turnos"
+puestos_operables = Array[StringName]([&"puesto_seguridad"])

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DenunciaODAC" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/denuncia_odac.gd" id="1_ed6dx"]
+
+[resource]
+script = ExtResource("1_ed6dx")
+prioridad = "Prioritaria"
+id = &"desaparecidos"
+nombre = "Desaparecidos"
+servicio = "ODAC"
+duracion_min = 60
+tipo_puesto = &"puesto_odac"

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TipoAgente" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_agente.gd" id="1_glcil"]
+
+[resource]
+script = ExtResource("1_glcil")
+id = &"ag_odac"
+puesto_organico = "Instructor de ODAC"
+unidad = "Policía Judicial"
+escala_rango = "Básica/Subinspección"
+salario_dia_eur = 70
+tipo_horario = "turnos"
+puestos_operables = Array[StringName]([&"puesto_odac"])

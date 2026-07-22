@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="TipoPuesto" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_puesto.gd" id="1_s2d5g"]
+
+[resource]
+script = ExtResource("1_s2d5g")
+id = &"puesto_doc_general"
+nombre = "Ventanilla Documentación"
+servicio = "Documentacion"
+atenciones_admitidas = Array[StringName]([&"dni", &"pasaporte"])
+coste_construccion_eur = 500

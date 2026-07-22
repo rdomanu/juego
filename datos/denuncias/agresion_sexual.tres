@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DenunciaODAC" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/denuncia_odac.gd" id="1_o3k33"]
+
+[resource]
+script = ExtResource("1_o3k33")
+prioridad = "Prioritaria"
+id = &"agresion_sexual"
+nombre = "Agresión sexual"
+servicio = "ODAC"
+duracion_min = 60
+tipo_puesto = &"puesto_odac"

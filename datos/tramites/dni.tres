@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TramiteDoc" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tramite_doc.gd" id="1_awvs5"]
+
+[resource]
+script = ExtResource("1_awvs5")
+tarifa_eur = 12
+id = &"dni"
+nombre = "DNI"
+servicio = "Documentacion"
+duracion_min = 12
+tipo_puesto = &"puesto_doc_general"

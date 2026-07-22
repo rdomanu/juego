@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TipoAgente" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_agente.gd" id="1_lp3f3"]
+
+[resource]
+script = ExtResource("1_lp3f3")
+id = &"ag_doc"
+puesto_organico = "Funcionario de Documentación"
+unidad = "Secretaría"
+escala_rango = "Básica"
+salario_dia_eur = 60
+tipo_horario = "complementario"
+puestos_operables = Array[StringName]([&"puesto_doc_general", &"puesto_tie"])

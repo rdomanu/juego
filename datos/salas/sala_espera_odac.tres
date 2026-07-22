@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TipoSala" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_sala.gd" id="1_bgbxf"]
+
+[resource]
+script = ExtResource("1_bgbxf")
+id = &"sala_espera_odac"
+nombre = "Sala de Espera — ODAC"
+tipo = "espera"
+servicio = "ODAC"
+aforo_espera = 10
+coste_construccion_eur = 200

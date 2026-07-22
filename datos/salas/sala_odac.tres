@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="TipoSala" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_sala.gd" id="1_l7qnx"]
+
+[resource]
+script = ExtResource("1_l7qnx")
+id = &"sala_odac"
+nombre = "Oficina de ODAC"
+tipo = "oficina"
+servicio = "ODAC"
+puestos_admitidos = Array[StringName]([&"puesto_odac"])
