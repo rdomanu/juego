@@ -70,9 +70,16 @@ en vez del método sembrado del autoload → rompía el determinismo (a≠b). Ar
 **Footgun general: nombrar métodos del autoload igual que utilidades globales (`randf`/`randi`) → cualificar
 SIEMPRE las llamadas internas con `self.`** (aplicar en futuros servicios). Diagnosticado con un script
 standalone (`tests/verify_event_bus_tmp_diag.gd`, gitignored).
-**PRÓXIMO INMEDIATO:** commit de la story 002 → luego story 003 (serialización del RNG, `save`/`load_state`)
-→ datos → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI
-(ahí AVISAR + lanzar ventana).
+**✅ RNGService Story 002 COMMITEADA** (commit `0d280f2`).
+**✅ RNGService Story 003 IMPLEMENTADA + TEST EN VERDE (2026-07-22):** `save()`/`load_state()` + grupo
+`Persist`. **Decisión: semilla/estado como String** (no int) para preservar el int64 en el round-trip por
+JSON (float pierde precisión > 2^53). Test `rng_service_serializacion_test.gd` **4/4 PASS** (incl. round-trip
+vía JSON). SIN commitear todavía.
+**🎉 EPIC RNGService COMPLETO** en código+test (3/3 stories: 001 sembrado, 002 ponderada, 003 serialización).
+**Suite total: 23/23**, exit 0. **2 de 5 módulos Foundation completos** (EventBus + RNGService).
+**PRÓXIMO INMEDIATO:** commit de la story 003 → `/create-stories datos` (o tiempo / save-manager) → Core →
+`/sprint-plan`. `/story-done` de las stories implementadas pendiente (cierre formal). Todo INVISIBLE hasta
+Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

@@ -35,8 +35,11 @@ JSON. La escritura a disco y el JSON los hace **SaveManager** (otro epic); aquí
 
 *Derivados de ADR-0002 (Decision punto 4, Validation Criteria "Determinismo") y del contrato `save/load_state`:*
 
-- [ ] `save() -> Dictionary` devuelve `{"semilla": int, "estado": int}` (solo datos serializables).
-- [ ] `load_state(d: Dictionary) -> void` restaura semilla y estado del generador.
+- [ ] `save() -> Dictionary` devuelve `{"semilla": String, "estado": String}`. Semilla y estado son
+      **int64**; se guardan como **texto** para sobrevivir un round-trip por JSON **sin perder precisión**
+      (JSON parsea los números como float/double, que no representa exacto los enteros > 2^53 — y el estado
+      del PCG suele serlo).
+- [ ] `load_state(d: Dictionary) -> void` restaura semilla y estado del generador (parsea el texto a int).
 - [ ] **Round-trip determinista**: tras `load_state(guardado)`, la **secuencia futura** de números es idéntica
       a la que habría salido en el punto de guardado (misma continuación).
 - [ ] El nodo `RNGService` pertenece al grupo `Persist` (se marca en `_ready`).
@@ -53,16 +56,18 @@ func _ready() -> void:
     add_to_group("Persist")
 
 func save() -> Dictionary:
-    return {"semilla": _rng.seed, "estado": _rng.state}
+    # int64 -> String para no perder precisión en el round-trip por JSON (ver AC).
+    return {"semilla": str(_rng.seed), "estado": str(_rng.state)}
 
 func load_state(d: Dictionary) -> void:
-    _rng.seed = int(d.get("semilla", 0))
-    _rng.state = int(d.get("estado", 0))
+    _rng.seed = int(str(d.get("semilla", "0")))
+    _rng.state = int(str(d.get("estado", "0")))
 ```
 
 - `RandomNumberGenerator.state` captura la **posición interna** del generador; restaurarlo hace que la
   siguiente llamada devuelva exactamente lo que habría devuelto sin guardar.
-- `int(d.get(..., 0))` es defensivo: JSON parsea números como `float`; se convierten a `int` al cargar.
+- `str(...)`/`int(str(...))` preserva el int64 exacto a través de JSON; `int(str(d.get(..., "0")))` es
+  defensivo ante claves ausentes o valores ya numéricos.
 - La orquestación (recorrer `Persist`, `JSON.stringify`, `FileAccess`, `user://`) es del **epic SaveManager**;
   esta story solo cumple el contrato `save()`/`load_state()` del RNG.
 
@@ -87,7 +92,7 @@ Determinista.*
 - **AC-2 (formato de `save`)**:
   - Given: `sembrar(2024)`.
   - When: `var g = save()`.
-  - Then: `g` tiene las claves `"semilla"` y `"estado"`, ambas `int`; `g["semilla"] == 2024`.
+  - Then: `g` tiene las claves `"semilla"` y `"estado"`, ambas **String**; `g["semilla"] == "2024"`.
 - **AC-3 (serializable a JSON)**:
   - Given: `var g = save()`.
   - When: `JSON.stringify(g)` → `JSON.parse_string(...)` → `load_state(parseado)`.
@@ -105,7 +110,13 @@ Determinista.*
 - Integration: `tests/integration/rng_service/rng_service_serializacion_test.gd` — debe existir y pasar
   (round-trip directo + round-trip vía JSON + grupo Persist).
 
-**Status**: [ ] Not yet created
+**Status**: [x] **Creado y PASA** — `tests/integration/rng_service/rng_service_serializacion_test.gd`,
+4/4 test cases, 0 fallos, GdUnit4 headless (2026-07-22). Suite total del proyecto: 23/23, exit 0.
+
+**Implementación:** `save()`/`load_state()` + `_ready()` (grupo `Persist`) en `rng_service.gd`. **Decisión:**
+semilla/estado se guardan como **String** (no int) para preservar el int64 exacto en el round-trip por JSON
+(JSON parsea números como float → pierde precisión > 2^53; el estado del PCG suele serlo). Verificado con el
+test AC-3 (round-trip vía JSON). Falta el cierre formal con `/story-done`.
 
 ---
 

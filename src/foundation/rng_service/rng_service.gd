@@ -14,6 +14,11 @@ extends Node
 var _rng := RandomNumberGenerator.new()
 
 
+## Se marca en el grupo "Persist" para que SaveManager (otro epic) recorra su estado sin llamarlo por nombre.
+func _ready() -> void:
+	add_to_group("Persist")
+
+
 ## Fija la semilla del generador (reinicia la secuencia de forma reproducible).
 func sembrar(semilla: int) -> void:
 	_rng.seed = semilla
@@ -54,3 +59,17 @@ func elegir_ponderado(pesos: Array[float]) -> int:
 		if r < acumulado:
 			return i
 	return pesos.size() - 1   # salvaguarda por redondeo de coma flotante (inalcanzable: r < total)
+
+
+# ── Serialización (Story 003 · TR-save-002 · ADR-0002) ───────────────────────────────────
+## Devuelve el estado serializable del RNG. Semilla y estado son int64; se guardan como TEXTO para no
+## perder precisión en el round-trip por JSON (JSON parsea números como float → falla con enteros > 2^53).
+func save() -> Dictionary:
+	return {"semilla": str(_rng.seed), "estado": str(_rng.state)}
+
+
+## Restaura semilla y estado desde un `Dictionary` (p. ej. cargado de JSON) → la secuencia futura continúa
+## exactamente donde estaba al guardar ("cargar sitúa, no reproduce"). Defensivo ante claves ausentes.
+func load_state(d: Dictionary) -> void:
+	_rng.seed = int(str(d.get("semilla", "0")))
+	_rng.state = int(str(d.get("estado", "0")))
