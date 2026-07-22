@@ -106,14 +106,22 @@ en headless (tampoco los previos; se generarán al abrir el editor — no bloque
 archivo:línea, 0 desviaciones ADR/manifest) + Datos 001. Stories→Complete; EPICs event-bus y
 rng-service→**Complete**; índice actualizado (Datos = In Progress 1/4). Sugerencia QA no bloqueante a
 backlog: 2 asserts extra de edge cases en `event_bus_signals_test` (desconexión de oyente; emisión repetida).
-**PRÓXIMO INMEDIATO:** Datos story-002 (autoload `Datos`, 3º en project.godot: carga + indexa + obtener/
-obtener_todos). ⚠️ Sus AC exigen valores REALES (dni 12/12, 13 denuncias) → la implementación incluye
-`tools/build_catalogo.gd` (script-herramienta, mecanismo de la Story 004) para generar el catálogo `.tres`
-real; la 004 quedará casi lista y se cierra tras la validación (003). Luego: 003 → 004 → tiempo →
-save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar
-ventana).
-Estado de código: 32/32 tests verdes; 2 módulos Foundation completos y CERRADOS (EventBus, RNGService);
-Datos 1/4 (esquema hecho).
+**✅ Datos Story 002 IMPLEMENTADA + CERRADA + COMMITEADA (2026-07-22, commit 86b8ce8; especialista Opus +
+supervisión por muestreo del hilo principal):** autoload `Datos` (3º en project.godot) — carga res://datos/
+con DirAccess+load, indexa {tipo->{id->Resource}} (hijas ANTES que la base, preload por ruta),
+obtener()/obtener_todos() read-only (null+push_warning si falta). **Catálogo REAL generado: 29 .tres**
+(tools/build_catalogo.gd, valores F1–F7; SIN `reclamacion` — modelado pendiente en la 004: ¿14ª denuncia o
+atención aparte? los tests esperan 13). Test integración **6/6**; **suite 38/38, exit 0** (re-verificada
+independiente en hilo principal). AC-D02 cumplido por construcción (valores solo en .tres). Acepta
+`.tres.remap` (export).
+**PRÓXIMO INMEDIATO:** Datos story-003 EN IMPLEMENTACIÓN (validación en carga: `validar()` — refs
+colgantes, ids únicos con detección en `_indexar` [gana el 1º], clamp de rangos, R5 con `demanda_max_odac`
+como parámetro [default 0 = no evalúa], servicio activo sin puesto; modo dev ruidoso [push_error] vs
+jugador degradación+log; tests con fixtures sin tocar disco). Luego: 004 (cierre: reclamacion + smoke
+validación limpia) → tiempo → save-manager → Core → `/sprint-plan`. Todo INVISIBLE hasta
+Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+Estado de código: 38/38 tests verdes; EventBus+RNGService CERRADOS; Datos 2/4 (esquema+carga hechos,
+catálogo real en el repo).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

@@ -1,12 +1,12 @@
 # Story 002: Datos autoload — carga + lookup por `id`
 
 > **Epic**: Datos y Configuración
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -34,16 +34,16 @@ sistemas nunca la mutan; crean sus instancias aparte, R1).
 
 *De GDD R0/R1, F1 y AC-D01/D02/D03:*
 
-- [ ] Autoload `Datos` (`extends Node`) registrado como **3º** (tras `RNGService`).
-- [ ] Al `_ready`, carga todos los `.tres` de `res://datos/<carpetas>` y los **indexa por `id`** en
+- [x] Autoload `Datos` (`extends Node`) registrado como **3º** (tras `RNGService`).
+- [x] Al `_ready`, carga todos los `.tres` de `res://datos/<carpetas>` y los **indexa por `id`** en
       diccionarios por tipo (TramiteDoc, DenunciaODAC, TipoPuesto, TipoSala, TipoAgente, Costes, Escenario).
-- [ ] `obtener(tipo: StringName, id: StringName) -> Resource` devuelve la definición; si no existe, devuelve
+- [x] `obtener(tipo: StringName, id: StringName) -> Resource` devuelve la definición; si no existe, devuelve
       una **definición nula segura** (o `null`) **con log**, sin romper.
-- [ ] `obtener_todos(tipo: StringName) -> Array` devuelve todas las definiciones de ese tipo.
-- [ ] **AC-D01**: cargado el catálogo, `dni`=(12 min, 12 €), `pasaporte`=(15, 30), `tie`=(15, 18).
-- [ ] **AC-D02**: editar `tarifa_eur` de `dni` en el `.tres` (sin tocar código) → al recargar, `obtener`
+- [x] `obtener_todos(tipo: StringName) -> Array` devuelve todas las definiciones de ese tipo.
+- [x] **AC-D01**: cargado el catálogo, `dni`=(12 min, 12 €), `pasaporte`=(15, 30), `tie`=(15, 18).
+- [x] **AC-D02**: editar `tarifa_eur` de `dni` en el `.tres` (sin tocar código) → al recargar, `obtener`
       devuelve el nuevo valor.
-- [ ] **AC-D03**: varios sistemas que resuelven `dni` por `id` obtienen **los mismos valores** (fuente única).
+- [x] **AC-D03**: varios sistemas que resuelven `dni` por `id` obtienen **los mismos valores** (fuente única).
 
 ---
 
@@ -81,9 +81,24 @@ sistemas nunca la mutan; crean sus instancias aparte, R1).
 **Story Type**: Integration
 **Required evidence**: `tests/integration/datos/datos_carga_lookup_test.gd` — debe existir y pasar.
 
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y PASA (datos_carga_lookup_test.gd 6/6; suite del proyecto 38/38, 2026-07-22)
 
 ## Dependencies
 
 - Depends on: **Story 001** (clases) + un catálogo en disco (Story 004 o fixture).
 - Unlocks: que todos los sistemas resuelvan definiciones por `id`.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) + revisión por muestreo y re-ejecución
+independiente de la suite en el hilo principal (38/38, exit 0; test de la story 6/6). Commit 86b8ce8.
+Decisiones:
+- El catálogo REAL de Pozuelo (29 .tres) se generó YA en esta story vía `tools/build_catalogo.gd`
+  (aprobado por el usuario): los AC exigían valores reales (dni 12/12, 13 denuncias) y un fixture los
+  duplicaría. La Story 004 queda casi hecha (contenido generado); se cierra tras la validación (003).
+- `reclamacion` (atención interna, GDD F2) NO incluida: su modelado (¿14ª DenunciaODAC o atención aparte?)
+  se decide en la Story 004 (los tests esperan 13).
+- AC-D02 ("editar el .tres sin tocar código → nuevo valor") cumplido POR CONSTRUCCIÓN: los valores viven
+  solo en `datos/*.tres` (el runtime no contiene ninguno) y el test prueba que se leen del disco. El smoke
+  de la Story 004 lo re-verifica.
+- Robustez: se aceptan `.tres.remap` (builds exportadas); la detección de ids duplicados es de la Story 003.
