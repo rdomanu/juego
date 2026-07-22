@@ -45,6 +45,14 @@ export_presets.cfg
 # Uncomment if using Godot:
 # *.import
 
+# GdUnit4: lo instala la CI (gdUnit4-action). En local se instala aparte; NO commitear el addon.
+/addons/gdUnit4/
+# Salida de tests de GdUnit4 (auto-generada; la CI la sube como artifact).
+/reports/
+# Script de verificacion temporal de la Story 001 (leftover; el test permanente es el GdUnit4).
+# Comodin para cubrir tambien su .uid generado por Godot.
+/tests/verify_event_bus_tmp.gd*
+
 # === Engine: Unity ===
 [Ll]ibrary/
 [Tt]emp/

@@ -4,7 +4,7 @@
 > **GDD**: — (módulo de infraestructura sin GDD; derivado de `docs/architecture/architecture.md` §3.2 y ADR-0001)
 > **Architecture Module**: ▸EventBus
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories event-bus`
+> **Stories**: 2 created — see table below
 
 ## Overview
 
@@ -39,6 +39,15 @@ no tiene GDD porque no es una mecánica de juego, sino la tubería que el resto 
 **Nota de dependencia:** este módulo es la base que **todos** los demás usan para comunicarse; su orden de
 construcción es de los primeros de Foundation (junto con RNGService).
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [EventBus autoload + señales de aviso](story-001-autoload-senales-aviso.md) | Integration | Ready | ADR-0001 |
+| 002 | [Dispatcher de eventos ordenados por prioridad](story-002-dispatcher-orden-prioridad.md) | Logic | Ready | ADR-0001 |
+
+**Orden:** 002 depende de 001. Empezar por 001 (autoload + señales), luego 002 (dispatcher).
+
 ## Definition of Done
 
 This epic is complete when:
@@ -51,4 +60,5 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/create-stories event-bus` to break this epic into implementable stories.
+Stories creadas (2). Ejecutar `/story-readiness production/epics/event-bus/story-001-autoload-senales-aviso.md`
+y luego `/dev-story` para implementar (empezar por la 001).

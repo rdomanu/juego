@@ -1,0 +1,23 @@
+; PRODUCCION — Comisario
+; Proyecto Godot de PRODUCCION. La raiz del repo = raiz del proyecto (res:// = repo root).
+; Codigo de juego en src/ (por capas), tests en tests/. Escrito DESDE CERO — NO migra del
+; prototipo (prototypes/comisaria-vertical-slice/ es solo referencia de diseno).
+; Formato verificado para Godot 4.6 (config_version=5, features "GL Compatibility").
+; En Godot se abre con IMPORT (no "New Project": 4.6 bloquea crear proyecto en carpeta no vacia).
+
+config_version=5
+
+[application]
+
+config/name="Comisario"
+config/description="Tycoon de gestion de una comisaria del CNP (Godot 4.6, 2D top-down)."
+config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+
+EventBus="*res://src/foundation/event_bus/event_bus.gd"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

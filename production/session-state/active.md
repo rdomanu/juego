@@ -22,8 +22,34 @@ arquitectura. Trazabilidad 100% (~37 TR, 0 huérfanos). Usuario eligió infra se
 omitido (LEAN). Nota: Flujo = módulo más delicado (nav 2D + rendimiento) pero MITIGADO por spike QQ-02.
 **Faltan capas Feature (Doc/ODAC/Paciencia) + Presentation (UI/Feedback)** → `/create-epics layer: feature`
 /`presentation` cuando se aproximen.
-**PRÓXIMO INMEDIATO:** `/create-stories [epic]` (trocear epics en tareas; orden sugerido en el índice:
-EventBus+RNGService → Datos → Tiempo → SaveManager → Core). Luego `/sprint-plan`.
+**✅ `/create-stories event-bus` HECHO** (2026-07-22): 2 historias en `production/epics/event-bus/`
+(story-001 autoload+señales de aviso [Integration, TR-bus-001]; story-002 dispatcher ordenado por prioridad
+[Logic, TR-bus-002]). Cada una con ADR-0001, reglas del manifiesto, criterios de aceptación y **casos de
+test escritos por el hilo principal** (QA Lead omitido LEAN; sin qa-plan previo). EPIC.md + índice
+actualizados. 002 depende de 001; ninguna bloqueada (ADR-0001 Accepted).
+**🎉 PRIMER CÓDIGO DE PRODUCCIÓN — Story 001 (event-bus) IMPLEMENTADA + TEST EN VERDE (2026-07-22):**
+- **`project.godot` de Producción creado** en la RAÍZ del repo (res://=raíz; renderer Compatibility;
+  autoload `EventBus` el primero; `config_version=5`). Escrito DESDE CERO (el del prototipo NO se toca).
+- **`src/foundation/event_bus/event_bus.gd`** — Story 001 (TR-bus-001): autoload + 9 señales de aviso
+  tipadas y documentadas; cero lógica de juego. Verificado headless (`VERIFY-EVENTBUS: PASS`).
+- **GdUnit4 INSTALADO por Claude (línea de comandos)** en `addons/gdUnit4/` (repo oficial
+  `godot-gdunit-labs/gdUnit4`, compat. 4.6). **Gitignored** (`/addons/gdUnit4/`, `/reports/`): lo instala la
+  CI (gdUnit4-action) y en local aparte. `.godot/` generado (import OK).
+- **Test permanente `tests/integration/event_bus/event_bus_signals_test.gd` → 3/3 PASS** (GdUnit4 headless).
+  **Comando canónico verificado:** `godot --headless --path . -s -d --remote-debug tcp://127.0.0.1:6007
+  res://addons/gdUnit4/bin/GdUnitCmdTool.gd -a res://tests/integration --ignoreHeadlessMode` (0=OK/100=fallos/
+  101=warn/103=abort; `--ignoreHeadlessMode` obligatorio; puerto 0 NO vale en 4.6).
+- **⚠️ Follow-up menor (no bloquea):** `tests/gdunit4_runner.gd` (ruta `addons/gdunit4/GdUnitRunner.gd`
+  inexistente) y la action de CI (`MikeSchulze/gdUnit4-action` → repo movido a `godot-gdunit-labs`) hay que
+  alinearlos al comando real de arriba. La CLI de GdUnit4 (`GdUnitCmdTool.gd`) es un MainLoop → el runner
+  custom vía `--script` no aplica.
+- **Aprendizaje GDScript (registrado):** las lambdas capturan locales **por valor** → para contar en un
+  test usar un `Array` (por referencia), no un `int`.
+**PRÓXIMO INMEDIATO:** `/story-done` de la 001 (cierre formal) o directo a **Story 002** (dispatcher
+ordenado, misma `event_bus.gd`), luego el resto de Foundation (rng-service → datos → tiempo → save-manager)
+→ Core → `/sprint-plan`. Todo INVISIBLE hasta Core/Construcción-Flujo-UI (ahí AVISAR + lanzar ventana).
+Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
+`C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
 
 ## 🚀 EN CURSO — VERTICAL SLICE (1er build jugable) — Phase 4: Implement (2026-07-22)
