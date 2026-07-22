@@ -2,6 +2,136 @@
 
 *Última actualización: 2026-07-22*
 
+## 🚀 EN CURSO — VERTICAL SLICE (1er build jugable) — Phase 4: Implement (2026-07-22)
+**Concepto:** `comisaria-vertical-slice` · **Modo:** LEAN · **Skill:** `/vertical-slice` en curso.
+**Pregunta de validación (falsable):** ¿un jugador desde cero siente que *gestionar el flujo de ciudadanos por una
+Oficina de Denuncias siendo subinspector* es entretenido ~3–5 min, sin guía — y podemos construir ese bucle a ritmo
+razonable? (fun + feasibility).
+**Ciclo demostrado:** [Inicio] presupuesto + oficina casi vacía → [Reto] colocas puestos, asignas 2–3 agentes,
+gestionas cola (DNI + 1 denuncia) por un día/noche sin que exploten esperas ni dinero → [Resolución] objetivo de
+eficiencia cumplido → **"¡Ascenso!"**.
+**Alcance (rebanada mínima, recorta alcance NO calidad):** Tiempo(reloj+Pausa/1/2/3×+1 día-noche) · Demanda(tasa+RNG
+sembrado) · Flujo(turno→cola→puesto→delta→resuelto/abandono) · Datos(DNI + 1 denuncia) · Construcción(1–2 puestos +
+sala espera con presupuesto, rejilla real) · Personal(2–3 agentes asignables) · Economía(presupuesto+cobro+salario) ·
+Paciencia(barra→abandono, sat básica) · Objetivo→Ascenso · UI/HUD básico. **FUERA:** 13 tipos, construcción libre
+completa, reclamaciones, mercado/Oficial/ausencias, préstamos, eventos estacionales, juice pulido.
+**Spike QQ-02 (riesgo técnico nº1):** docenas de NPCs con NavigationServer2D/NavigationAgent2D a **≥60 FPS**; plan B
+AStarGrid2D. Nav = arquitectura real (ADR-0004) para que el spike sea representativo.
+**Arte:** placeholder (formas/colores), cero arte real.
+**Decisión de ubicación (REVISADA con usuario 2026-07-22):** proyecto Godot **AISLADO dentro de
+`prototypes/comisaria-vertical-slice/`** (`project.godot` ahí; `res://` = esa carpeta). Motivo: el usuario pidió
+carpeta propia hecha por Claude → evita el bloqueo de Godot 4.6 a "New Project en carpeta no vacía" (usa **Import**) y
+es coherente con throwaway. La **raíz del repo se reserva para el proyecto de PRODUCCIÓN** (con su andamiaje
+`res://tests/`); producción se escribe en `src/` desde cero (nunca importa de prototypes/). Renderer del slice =
+**Compatibility** (`gl_compatibility`; 2D puro + arranque seguro Windows; technical-preferences lo autoriza).
+**Plan por escalones (verificación con el usuario tras cada uno):**
+- ✅ **Escalón 0 — El proyecto respira:** 7 archivos creados en `prototypes/comisaria-vertical-slice/`
+  (project.godot + autoloads EventBus/RNGService/Tiempo + main.tscn/main.gd con HUD del reloj por código +
+  Pausa/1×/2×/3× + atajos Espacio/1/2/3 + fondo que cambia con día/noche). **VALIDADO EN HEADLESS por Claude**
+  (Godot 4.6.stable, 0 errores/warnings, 3 autoloads cargan) **+ VERIFICADO POR EL USUARIO 2026-07-22**
+  (ve el reloj correr, botones/atajos OK, fondo día/noche). **COMPLETO. ← Siguiente: Escalón 1.**
+  Nota de flujo: Claude puede lanzar el juego con ventana él mismo (`Godot_v4.6-stable_win64_console.exe --path ...`
+  en background) y validar en headless (`--headless --quit-after N`) — el usuario solo mira/juega.
+- ✅ **Escalón 1 — Un ciudadano, un puesto:** CONSTRUIDO + validado headless (0 errores). Archivos nuevos:
+  `personas/persona.gd` (CharacterBody2D + NavigationAgent2D, avoidance OFF, gotcha 1er physics frame, estados
+  A_PUESTO→ATENDIENDO→A_SALIDA, atención con `Tiempo.delta_juego`), `mundo/mundo.gd` (NavigationRegion2D +
+  NavigationPolygon bakeado con `NavigationServer2D.bake_from_source_geometry_data` + traversable/obstruction
+  outline = muro a rodear; genera 1 ciudadano a la vez), autoload `economia/economia.gd` (Core: saldo 3000 +
+  TARIFA_DNI 12€ al oír `tramite_completado`). **BUG del Escalón 0 corregido:** los botones robaban Espacio →
+  `focus_mode = FOCUS_NONE`. Capas reordenadas: Fondo(layer -1) < Mundo < HUD. **VERIFICADO POR EL USUARIO
+  2026-07-22** (rodea el muro ✅, sube presupuesto ✅, Espacio OK ✅). **🎉 Navegación 2D = riesgo técnico nº1,
+  VALIDADA con 1 NPC** (el spike de VOLUMEN sigue pendiente → Escalón 5, QQ-02). **COMPLETO. ← Siguiente: Escalón 2.**
+  **Aprendizajes técnicos (para todo el slice):** (1) `class_name` NO se resuelve en headless "en frío" (sin
+  abrir editor) → usar `preload("res://...").new()`; (2) `PackedVector2Array` con `Vector2(...)` NO puede ser
+  `const` → usar `var`; (3) validar SIEMPRE en headless (`--quit-after N`) antes de lanzar ventana.
+- ✅ **Escalón 2 — Cola + demanda:** CONSTRUIDO + validado headless (0 errores, 900 frames). Nuevo:
+  `demanda/demanda.gd` (nodo: ritmo INTERVALO_DIA 10min / NOCHE 40min + `RNGService.elegir_ponderado`
+  DNI 0.6 / denuncia 0.4). `persona.gd` reescrita: estados A_ESPERA→ESPERANDO→LLAMADA→ATENDIENDO→SALIENDO,
+  `tipo` (dni/denuncia), color por tipo (azul/naranja), acumula `_espera_min`, señal `empezo_atencion`.
+  `mundo.gd` reescrita: hace de Flujo (cola FIFO `_cola`, sala de espera con 12 asientos, 1 puesto
+  `_en_atencion`, métrica espera media/última/atendidos). `economia.gd`: TARIFA por tipo (dni 12€, denuncia 0€).
+  `main.gd`: HUD con En cola / Espera media / Atendidos. **← Pendiente verificación visual del usuario**
+  (¿llegan y hacen cola?, ¿atiende de uno en uno?, ¿métricas se mueven?, ¿de noche baja afluencia?).
+  Nota diseño: 1 puesto no da abasto → la cola crece → motiva el Escalón 3 (construir puestos + agentes).
+  **FIX 2026-07-22 (2 bugs reportados por el usuario, misma raíz):** las Personas (CharacterBody2D) se empujaban
+  por colisión física y salían del área navegable; una en estado LLAMADA empujada fuera quedaba atascada y
+  BLOQUEABA el puesto → la cola crecía sin fin. Solución: `collision_layer=0`/`collision_mask=0` (sin empujones;
+  solaparse es cosmético, coherente con ADR-0004 avoidance off) + salvavidas `TELEPORT_UMBRAL_MIN=300` min-juego
+  (snap al destino si un trayecto se atasca, en LLAMADA y SALIENDO). Re-validado headless (0 errores). El borde
+  del "cuadrado" es solo decorativo (draw_rect); el límite real es el navmesh.
+  **MEJORA 2026-07-22 (feedback usuario):** (a) espera = COLA EN FILA ordenada que avanza (adiós amontonamiento;
+  `_pos_fila` serpenteante + `_reordenar_cola` + `persona.ir_a_espera`); (b) colisión personas↔personas OFF pero
+  personas↔entorno ON (`collision_layer=2`/`collision_mask=1`, listo para paredes/objetos físicos del Escalón 3);
+  (c) el puesto se libera AL TERMINAR el trámite (señal `libera_puesto`), no al salir del edificio → el siguiente
+  entra mientras el anterior sale; (d) cola en **ZIGZAG continuo** (`_pos_fila` invierte columnas en filas impares
+  → recorrido en S, nadie cruza a nadie). Re-validado headless (0 errores). **✅ VERIFICADO POR EL USUARIO
+  2026-07-22** (fila zigzag OK, puesto libera al terminar OK, sin amontonamiento ni cruces). Decisión: fila
+  zigzag en vez de asientos → OK para el slice; producción reconciliará con aforo/comodidad. **COMPLETO.**
+- 🔄 **Escalón 3 — Construir + agentes + presupuesto** (AMPLIADO por feedback del usuario; troceado en 4 entregas).
+  **Decisión de alcance (usuario 2026-07-22):** sistema de espera COMPLETO = asientos (te sientas si hay hueco) →
+  al llenarse, cola con **BARANDILLAS CONSTRUIBLES POR EL JUGADOR** (clic-clic traza el recorrido; capacidad =
+  longitud/separación) → si se llena, esperar FUERA de la comisaría. (El usuario eligió la opción grande a pesar
+  del aviso de scope; es un sistema tipo Planet Coaster.) Entregas:
+  - (A) Construir puestos: `puesto.gd` (entidad), varios puestos, colocación con ratón (fantasma + snap rejilla 40 +
+    validación + gate Economía `puede_pagar`/`cobrar`, COSTE 500), reparto de cola entre puestos libres.
+    CONSTRUIDO + validado headless (0 errores). `puesto.gd` (Node2D, atiende 1 a la vez, `esta_disponible`,
+    `asignar_persona`, `liberar`, `atiende_a`). Construcción vía `_unhandled_input` (clic izq coloca / der sale),
+    fantasma en `_process` con `_snap`/`_colocacion_valida`. **FIX 2026-07-22 (bug reportado por usuario):** el
+    ColorRect de fondo (full-rect) tenía `mouse_filter=STOP` → se tragaba los clics y no colocaba nada →
+    `mouse_filter=IGNORE`. + rejilla visible en modo construir (`_dibujar_rejilla`) + puesto inicial alineado a la
+    rejilla (960,240) + umbral de solape 84→74. **MEJORA 2026-07-22 (feedback usuario):** puesto con ORIENTACIÓN
+    (rotar con tecla R en construir; lado FUNCIONARIO = marca azul detrás [ahí irá el agente en D] + lado
+    CIUDADANO = frente donde se atiende; `dir_frente`/`pos_atencion` según orientación; la mesa cambia dims al
+    rotar; fantasma dibuja la orientación). **← Pendiente re-verificación usuario.**
+  - (B) Asientos: CONSTRUIDO + validado headless. **Modelo corregido (feedback usuario: los sentados NO se
+    levantan a cambiar de silla):** `_cola` = orden FIFO de atención; asiento FIJO por persona (`_asiento_de` +
+    `_asientos_libres`); `_fila` = desborde de pie (zigzag). Al atender → `_sacar_de_espera`: si libera asiento,
+    el 1º de `_fila` se sienta ahí (trasvase) + `_reordenar_fila` (SOLO los de pie se mueven). 12 asientos.
+    **+ HUD movido ABAJO-IZQUIERDA y compactado** (tapaba la sala de espera; `set_anchors_and_offsets_preset`
+    BOTTOM_LEFT). **← Pendiente verificación usuario.**
+  - (C) Barandillas construibles: CONSTRUIDO + validado headless. `_postes` (polilínea), modo BARANDILLA
+    (clic=poste, Z=deshacer, empieza por la cabeza=poste 0 naranja); `_pos_espera_pie` sigue el recorrido
+    (`_pos_en_recorrido` interpola; `capacidad_cola` = longitud/SEP_COLA); desborde `_pos_fuera` (apila en la
+    entrada); fallback zigzag si <2 postes. **+ modo DEMOLER (feedback usuario, no estaba previsto):** clic borra
+    puesto (reembolso 250€ = 50%, GDD F4) o poste; resalta en rojo el objetivo bajo el cursor. HUD reescrito:
+    3 botones (Construir puesto / Trazar cola / Borrar) + "De pie: X/cap". **← Pendiente verificación usuario.**
+  - (D) Agentes: CONSTRUIDO + validado headless. `agente.gd` (Node2D, z_index 1, color, aro de selección).
+    3 agentes; puesto requiere `agente != null` para atender (gris=cerrado / amarillo=abierto); modo AGENTE
+    (clic agente → clic puesto = asignar; clic fuera = a disponibles; se colocan en `pos_funcionario` = lado azul);
+    salario 60€/agente asignado al `nuevo_dia` (EventBus). Puesto inicial arranca con agente 0; demoler un puesto
+    libera su agente. HUD: botón "Agentes" + "Agentes: A/T". **← Pendiente verificación usuario. Cierra Escalón 3.**
+  Refactor hecho: `persona.configurar` sin `pos_puesto`; `persona.llamar_al_puesto(pos)` recibe la posición del puesto.
+- 🔄 **Escalón 4 — Día/noche + objetivo → ascenso:** CONSTRUIDO + validado headless. (a) Demanda nocturna: de
+  noche SOLO denuncias (DNI/Documentación cierra; ODAC 24h) + menos afluencia (intervalo 40 vs 10). (b) Objetivo:
+  RANGOS (Subinspector→Inspector→Inspector Jefe→Comisario); al alcanzar `_objetivo` atendidos (paso 25) →
+  `EventBus.ascenso` → overlay central "¡ASCENSO!" + pausa + botón "Seguir jugando" (sube al siguiente rango).
+  HUD: "Rango · Objetivo X/Y". **← Pendiente verificación usuario.**
+  **PENDIENTE tras verificar:** (1) barandillas como OBSTÁCULO de navegación — los que van/vuelven del puesto
+  las rodean (petición usuario; requiere re-bake del navmesh con las barandillas como obstrucción + offset de la
+  cola); (2) Escalón 5 = spike de rendimiento QQ-02; (3) REPORT.md con verdict.
+- ✅ **Escalón 5 — Spike de rendimiento QQ-02: PASA HOLGADO.** Modo estrés (botón "Test rendimiento" / auto en
+  headless) genera hasta N NPCs + muestra FPS. **Medido por Claude en headless: 80 NPCs → ~145 fps; 150 NPCs →
+  ~145 fps** (simulación pura, sin render/vsync; presupuesto 60 fps = 16,6 ms → sim usa ~7 ms). La navegación mesh
+  (NavigationServer2D/NavigationAgent2D) NO es cuello de botella; **riesgo técnico nº1 MITIGADO; plan B AStarGrid2D
+  NO necesario.** `_estres`/`TOPE_ESTRES`/`_npcs_vivos`/print FPS.
+- 🎉 **PROTOTIPO COMPLETO (Escalones 0–5).** Bucle validado por el usuario a lo largo de la sesión + spike PASA.
+  **Decisión usuario 2026-07-22:** prototipo terminado → ir a Producción (aclarado prototipo≠juego; 2 salas Doc/ODAC,
+  paredes, arte… son de Producción vía GDD, NO del slice).
+  **✅ REPORT.md escrito (verdict PROCEED)** en `prototypes/comisaria-vertical-slice/REPORT.md` + registrado en
+  `prototypes/index.md`. CD-PLAYTEST omitido (modo LEAN). **`/vertical-slice` COMPLETO.**
+  **PRÓXIMO (Producción):** `/gate-check` (Pre-Production→Production; el REPORT es la evidencia de playtest) →
+  `/create-epics` (foundation, core) → `/create-stories [epic]` → `/sprint-plan`. Producción reimplementa en
+  `src/` DESDE CERO (nunca importa de `prototypes/`). **Diferido a Producción (backlog del slice):** 2 salas
+  Doc/ODAC con salas de espera · paredes/salas con colisión · barandillas como OBSTÁCULO de navegación (re-bake) ·
+  arte real · 13 tipos · reclamaciones · dilemas de influencia · ascenso completo. **Nada del prototipo se migra:
+  es solo referencia de diseño.**
+  **⚠️ Nota commit:** en toda la sesión NO se ha hecho `git commit` — prototipo + REPORT + updates de estado sin
+  guardar en git (hito pendiente de commit).
+**Pasos MANUALES del usuario (principiante):** ya tiene Godot 4.6 instalado ✅ · PENDIENTE: crear/importar el proyecto
+en Godot (genera `project.godot`), instalar GdUnit4 (AssetLib, más tarde), pulsar Play (F5).
+**Recordatorios:** subagentes caídos → hilo principal (Opus 4.8); explicar en llano + verificar dudas técnicas con web;
+protocolo colaborativo (pedir permiso antes de escribir); seguir el control-manifest al programar.
+
 ## Fase 4bis — ARQUITECTURA FIRMADA + REVISADA (2026-07-22, sesión nueva)
 🎉 **`/architecture-review` HECHO — Verdict PASS.** Cobertura 100% (56/56 TR-IDs), 0 conflictos cross-ADR,
 motor 4.6 consistente, 0 banderas de revisión de GDD. **2 correcciones menores aplicadas** (ADR-0002 `Depends On`

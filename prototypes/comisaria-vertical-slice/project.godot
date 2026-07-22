@@ -1,0 +1,26 @@
+; VERTICAL SLICE - NOT FOR PRODUCTION
+; Comisario — vertical slice (prototipo de usar y tirar). Proyecto Godot aislado.
+; Validation Question: ¿es divertido y construible el bucle core de la Oficina de Denuncias?
+;
+; Formato verificado para Godot 4.6 (config_version=5, features "GL Compatibility").
+
+config_version=5
+
+[application]
+
+config/name="Comisario — Vertical Slice"
+config/description="Prototipo throwaway del bucle core. NO es codigo de produccion."
+run/main_scene="res://main/main.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+
+EventBus="*res://autoload/event_bus.gd"
+RNGService="*res://autoload/rng_service.gd"
+Tiempo="*res://autoload/tiempo.gd"
+Economia="*res://economia/economia.gd"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
