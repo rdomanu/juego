@@ -66,9 +66,42 @@ var inicio_noche: int = 1380
 ## Jornadas por mes de calendario. Se LEE del config; su uso es H5. Default 4 (GDD Core Rules 7).
 var jornadas_por_mes: int = 4
 
+# ── Calendario semanal (Story 005 — GDD Core Rules 7) ────────────────────────────────────────
+## Cada jornada de 24 h (cruce de 00:00) ES una SEMANA del calendario. 4 semanas = 1 mes, 48 jornadas = 1
+## año. Getters para UI/HUD y sistemas que gestionan ciclos (Economía, Demanda). Empiezan en 1 (partida
+## nueva); la sincronización al CARGAR (fijarlos sin re-disparar) es H8.
+## Mes de campaña [1, 12]. Avanza al completar la 4ª semana (`nuevo_mes`).
+var mes: int = 1
+## Semana del mes en curso [1, jornadas_por_mes]. Avanza en cada cruce de medianoche; vuelve a 1 al pasar
+## la última semana del mes (mostrada como "Mes · Semana N", GDD Core Rules 7.2).
+var semana: int = 1
+## Año de campaña [1, ...]. Avanza al completar Diciembre (mes 12 · última semana).
+var anio: int = 1
+
+# ── Estado de detección de cruces (Story 004 — anti-jitter) ──────────────────────────────────
+## Turno derivado la ÚLTIMA vez que se procesaron los cruces. Se compara contra el turno nuevo: solo se
+## emite `cambio_de_turno` cuando el valor DERIVADO cambia (nunca por `==` contra un instante) → robusto a
+## float y a saltos grandes (GDD Edge Case: 1 emisión por cruce). NO es un reloj paralelo: es la guarda
+## anti-duplicado. Se inicializa desde `minutos_juego` en `_ready`/`sincronizar_umbrales`.
+var _turno_anterior: int = Turno.NOCHE
+## `es_de_noche` derivado la última vez que se procesaron los cruces (misma guarda que `_turno_anterior`).
+var _era_de_noche_anterior: bool = true
+
+## El EventBus al que se emiten los cruces. En runtime se auto-resuelve al autoload `EventBus` en `_ready`.
+## Se tipa como `Node` (el bus no tiene `class_name`) y se INYECTA en los tests vía `usar_bus()` → los unit
+## tests corren contra un bus propio (aislamiento; nunca contaminan el autoload real). Puede ser `null` si el
+## objeto se usa sin árbol y sin inyección: en ese caso `_procesar_cruces` no emite (fallback seguro).
+var _bus: Node = null
+
 
 func _ready() -> void:
 	_cargar_config()
+	# Auto-resolver el EventBus (autoload, el 1º → ya vivo aquí). Los autoloads NO son `Engine` singletons:
+	# se acceden por ruta absoluta `/root/EventBus`. Inyectable en tests con `usar_bus()` (aislamiento).
+	if _bus == null:
+		_bus = get_node_or_null("/root/EventBus")
+	# Sincronizar las guardas anti-jitter con la hora inicial → el 1er cruce real no dispara evento espurio.
+	sincronizar_umbrales()
 
 
 ## Avanza el reloj acumulando el `delta` REAL entregado por el motor (función pura y determinista).
@@ -83,6 +116,62 @@ func avanzar(delta_real: float) -> void:
 	var delta_clampado: float = min(delta_real, delta_max_por_frame)
 	minutos_juego += escala_tiempo * multiplicador_velocidad * delta_clampado
 	minutos_juego = fposmod(minutos_juego, MINUTOS_POR_DIA)
+
+
+# ── Detección de cruces de umbral (Story 004 · 005 — GDD States/Transitions B + Edge Cases) ──
+
+## Inyecta el EventBus al que se emiten los cruces (dependency injection → testeable sin el autoload real).
+##
+## Los unit tests pasan su PROPIO `EventBusScript.new()` para aislarse; el runtime usa el autoload
+## (auto-resuelto en `_ready`). Idempotente y sin efectos: solo reasigna la referencia.
+func usar_bus(bus: Node) -> void:
+	_bus = bus
+
+
+## Sincroniza las guardas anti-jitter (`_turno_anterior`, `_era_de_noche_anterior`) con la hora ACTUAL.
+##
+## Tras esto, `_procesar_cruces` no disparará un cruce espurio hasta que el turno/día-noche DERIVADO cambie
+## de verdad. Se llama en `_ready` (arranque) y lo usará H8 al CARGAR (fijar la hora sin re-emitir eventos).
+func sincronizar_umbrales() -> void:
+	_turno_anterior = turno_de(minutos_juego)
+	_era_de_noche_anterior = es_de_noche(minutos_juego)
+
+
+## Detecta los cruces de umbral entre `minutos_antes` y `minutos_juego` (ya avanzado) y emite sus eventos
+## en el ORDEN determinista del GDD: turno → día/noche → nuevo_dia (→ nuevo_mes).
+##
+## Regla de oro (GDD Edge Cases): NO se compara `hora == X`; se compara el VALOR DERIVADO anterior vs. el
+## nuevo (turno/`es_de_noche`), equivalente a "cruzó el umbral" y robusto a float y a saltos grandes → 1
+## emisión por cruce, sin duplicados por jitter (la guarda `_turno_anterior`/`_era_de_noche_anterior` lo
+## garantiza). Un mismo frame puede cambiar ambos y además cruzar medianoche (delta grande, AC-T23).
+##
+## - `cambio_de_turno` / `cambio_dia_noche` son señales de AVISO → `.emit()` directo (orden entre oyentes
+##   indiferente; NUNCA por el dispatcher — ADR-0001, Story 004).
+## - `nuevo_dia` / `nuevo_mes` son eventos ORDENADOS → SIEMPRE `EventBus.disparar_ordenado(...)`, nunca
+##   `.emit()` directo (respeta el orden crítico Paciencia→Economía→…; Story 005). El dispatcher ya emite
+##   la señal de notificación homónima al final para los oyentes no críticos.
+##
+## `minutos_antes` es el acumulador ANTES de `avanzar()`; si el nuevo valor DECRECIÓ (`minutos_juego <
+## minutos_antes`) el acumulador envolvió por módulo 1440 = cruzó medianoche (GDD Core Rules 7). Sin bus
+## inyectado (`_bus == null`) no emite nada (fallback seguro), pero el calendario SÍ avanza igual.
+func _procesar_cruces(minutos_antes: float) -> void:
+	# (1) Cambio de turno (aviso). El turno DERIVADO cambió respecto a la última vez → 1 emisión por cruce.
+	var turno_nuevo: int = turno_de(minutos_juego)
+	if turno_nuevo != _turno_anterior:
+		_turno_anterior = turno_nuevo
+		if _bus != null:
+			_bus.cambio_de_turno.emit(turno_nuevo)
+
+	# (2) Cambio día/noche (aviso), DESPUÉS del turno (orden del GDD: turno → día/noche).
+	var noche_nueva: bool = es_de_noche(minutos_juego)
+	if noche_nueva != _era_de_noche_anterior:
+		_era_de_noche_anterior = noche_nueva
+		if _bus != null:
+			_bus.cambio_dia_noche.emit(noche_nueva)
+
+	# (3) Medianoche (evento ordenado), DESPUÉS de turno y día/noche. El acumulador decreció = envolvió 00:00.
+	if minutos_juego < minutos_antes:
+		_avanzar_calendario()
 
 
 ## Aplica un `ConfigTiempo` al reloj (inyección de dependencia → testeable sin tocar disco).
@@ -157,6 +246,34 @@ func turno_de(min_dia: float) -> int:
 ## 419→true, 420→false.)
 func es_de_noche(min_dia: float) -> bool:
 	return turno_de(min_dia) == Turno.NOCHE
+
+
+# ── Avance del calendario (privado — Story 005 · GDD Core Rules 7) ───────────────────────────
+
+## Avanza el calendario un paso (una jornada = una semana) y dispara `nuevo_dia` (y `nuevo_mes` si toca)
+## SIEMPRE por el dispatcher del bus. Se invoca desde `_procesar_cruces` al detectar el cruce de 00:00.
+##
+## Semana += 1; al superar `jornadas_por_mes` (default 4): Semana→1, Mes += 1 y hay `nuevo_mes`; al superar
+## el mes 12 (Diciembre): Mes→1, Año += 1 (48 jornadas = 1 año). Medianoche dispara `nuevo_dia` PERO NO
+## `cambio_de_turno` (00:00 sigue en Noche → el turno derivado no cambia; eso lo garantiza el paso (1) de
+## `_procesar_cruces`). `nuevo_mes` se dispara DESPUÉS de `nuevo_dia`, en la misma jornada.
+func _avanzar_calendario() -> void:
+	semana += 1
+	var hay_nuevo_mes: bool = false
+	if semana > jornadas_por_mes:
+		semana = 1
+		mes += 1
+		hay_nuevo_mes = true
+		if mes > 12:
+			mes = 1
+			anio += 1
+
+	# SIEMPRE por el dispatcher (NUNCA `.emit()` directo): respeta el orden crítico de los handlers ordenados
+	# (Paciencia→Economía→Personal→Demanda) y emite la señal de notificación homónima al final.
+	if _bus != null:
+		_bus.disparar_ordenado(&"nuevo_dia")
+		if hay_nuevo_mes:
+			_bus.disparar_ordenado(&"nuevo_mes")
 
 
 # ── Carga del config (privado) ───────────────────────────────────────────────────────────────
