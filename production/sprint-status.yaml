@@ -24,19 +24,73 @@ stories:
     name: "Crear stories del epic Economía"
     file: "production/epics/economia/EPIC.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Fable (hilo principal)"
     estimate_days: 0.2
     blocker: ""
+    completed: "2026-07-23"
+  - id: "eco-001"
+    name: "Economía: núcleo + config + saldo + gates"
+    file: "production/epics/economia/story-001-nucleo-saldo-gates.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: ""
     completed: ""
-  - id: "C1-2"
-    name: "Implementar epic Economía (stories por crear)"
-    file: "production/epics/economia/EPIC.md"
+  - id: "eco-002"
+    name: "Economía: ingresos retorno DGP"
+    file: "production/epics/economia/story-002-ingresos-retorno-dgp.md"
     priority: must-have
     status: backlog
     owner: ""
-    estimate_days: 0.8
-    blocker: "C1-1 + QA plan"
+    estimate_days: 0.1
+    blocker: "eco-001"
+    completed: ""
+  - id: "eco-003"
+    name: "Economía: cierre diario ordenado"
+    file: "production/epics/economia/story-003-cierre-diario.md"
+    priority: must-have
+    status: backlog
+    owner: ""
+    estimate_days: 0.15
+    blocker: "eco-002"
+    completed: ""
+  - id: "eco-004"
+    name: "Economía: préstamos del Comisario"
+    file: "production/epics/economia/story-004-prestamos-comisario.md"
+    priority: must-have
+    status: backlog
+    owner: ""
+    estimate_days: 0.15
+    blocker: "eco-003"
+    completed: ""
+  - id: "eco-005"
+    name: "Economía: estados + insolvencia"
+    file: "production/epics/economia/story-005-estados-insolvencia.md"
+    priority: must-have
+    status: backlog
+    owner: ""
+    estimate_days: 0.15
+    blocker: "eco-004"
+    completed: ""
+  - id: "eco-006"
+    name: "Economía: balance mensual + save"
+    file: "production/epics/economia/story-006-balance-mensual-save.md"
+    priority: must-have
+    status: backlog
+    owner: ""
+    estimate_days: 0.1
+    blocker: "eco-005"
+    completed: ""
+  - id: "eco-007"
+    name: "Economía: saldo en HUD (visible + sign-off)"
+    file: "production/epics/economia/story-007-saldo-en-hud.md"
+    priority: must-have
+    status: backlog
+    owner: ""
+    estimate_days: 0.1
+    blocker: "eco-006"
     completed: ""
   - id: "C1-3"
     name: "Cierre formal epic Economía"
