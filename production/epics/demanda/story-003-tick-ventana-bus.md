@@ -1,7 +1,7 @@
 # Story 003: En el tick del reloj — ventana, pausa y entrega al bus
 
 > **Epic**: Generación de Demanda
-> **Status**: Implemented — 6/6 tests en verde (pendiente `/story-done`)
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3-4 h)

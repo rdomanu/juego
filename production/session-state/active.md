@@ -234,6 +234,26 @@ inserción del config = estable/determinista; `acumulador_de()` read-only). Test
 proporciones 2100 draws ±0.05, DM17 [2,1,1] end-to-end, ficha válida, tope global, delta 0).
 **Lección tipado:** un literal Dictionary SIN tipo no se asigna a una propiedad `Dictionary[K,V]` vía
 referencia `Resource` → declarar el literal tipado primero. **Suite: 197/197, exit 0.**
+**🎉🎉🎉 EPIC DEMANDA COMPLETO (2026-07-24, 7/7 + sign-off) — SEGUNDO MÓDULO CORE TERMINADO:**
+commit a1df0fc (stories 001-003) + cierre final. Stories 004-007 en hilo principal:
+- **004 nivel BAJA/MEDIA/ALTA**: enmienda del bus `nivel_demanda_cambiado(nivel)` aplicada;
+  clasificar_nivel puro (bordes: <bajo BAJA, ≥alto ALTA); señal solo al cambiar; getter pull. 6/6.
+- **005 estacionalidad+eventos**: mult_estacional[mes] solo Doc (nuevo_mes prio 30, espías 29/31);
+  eventos por calendario (vacaciones jun/dic, 3 jornadas, mult_peso pasaporte×2/permiso_viaje×3);
+  pesos efectivos recalculados solo al activar/expirar (cero alloc en tick). 7/7.
+- **006 persistencia**: save 6 claves / load defensivo sin señales; round-trip JSON real; test
+  determinismo guardar-a-mitad → secuencia futura idéntica. **2 HALLAZGOS APLICADOS:** (a) mult
+  estacional se deriva del mes TAMBIÉN en _ready (coherencia arranque/carga — la partida EMPIEZA en
+  enero ×0.6 = nivel BAJA, ~27/día); (b) **SaveManager.guardar_partida → full_precision=true** (los
+  floats perdían decimales en JSON.stringify → rompía el determinismo exacto de ADR-0002). 5/5.
+- **007 HUD (VISIBLE, FIRMADO 2026-07-24 opción A)**: Demanda instanciada en Main (name "Demanda";
+  Flujo/Paciencia deberán instanciarse DESPUÉS — orden del tick); HUD: "Llegadas hoy: N" +
+  "Demanda Doc: NIVEL" (verde/ámbar/rojo + texto). Evidencia demanda-hud-2026-07-23.md + PNG.
+  **Aprendizaje de demo:** el reloj arranca a las 00:00 → 1ª sesión el usuario solo vio el goteo
+  nocturno (1 persona — correcto pero mala demo); guion bueno = 3× hasta las 07:55 y ver la apertura.
+  **Expectativa del usuario registrada:** quiere VER gente entrar → eso es FLUJO (rechazó el +1
+  flotante provisional). Idea apuntada: hora de arranque ~07:55 (tuning Tiempo futuro).
+**Suite final: 220/220, exit 0.** Sprint: C1-4 + dem-001..007 = done. Epic + índice → Complete.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

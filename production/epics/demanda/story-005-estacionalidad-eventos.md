@@ -1,12 +1,12 @@
 # Story 005: Estacionalidad anual y eventos de demanda
 
 > **Epic**: Generación de Demanda
-> **Status**: Ready
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -73,8 +73,8 @@
 ## Test Evidence
 
 **Story Type**: Logic
-**Required evidence**: `tests/unit/demanda/demanda_estacional_test.gd` — debe existir y pasar (BLOCKING). *(AC-DM14 usa el bus real para `nuevo_mes` → si el archivo acaba necesitando árbol de escena completo, puede vivir en `tests/integration/demanda/` — decidirlo al implementar.)*
-**Status**: [ ] Not yet created
+**Required evidence**: `tests/unit/demanda/demanda_estacional_test.gd` — debe existir y pasar (BLOCKING). *(Quedó en unit: solo el test de orden prio-30 usa el dispatcher del bus, sin árbol completo.)*
+**Status**: [x] Creado y en verde (7 tests; Demanda 42/42 — 2026-07-23)
 
 ---
 

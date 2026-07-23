@@ -3,8 +3,8 @@
 > **Layer**: Core
 > **GDD**: design/gdd/demand-generation.md
 > **Architecture Module**: Demanda #5
-> **Status**: Ready
-> **Stories**: 7 (creadas 2026-07-23 — ver tabla)
+> **Status**: **Complete** (2026-07-24 — 7/7 stories, sign-off del usuario en el hito visible)
+> **Stories**: 7 (creadas 2026-07-23; implementadas 2026-07-23/24 — ver tabla)
 
 ## Overview
 
@@ -53,13 +53,13 @@ This epic is complete when:
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [Núcleo, config y volumen base (F1+F2)](story-001-nucleo-config-volumen.md) | Logic | Ready | ADR-0003, ADR-0001 |
-| 002 | [Generador determinista por tick (acumulador + mezcla)](story-002-generador-determinista.md) | Logic | Ready | ADR-0002, ADR-0001 |
-| 003 | [En el tick del reloj — ventana, pausa y entrega al bus](story-003-tick-ventana-bus.md) | Integration | Ready | ADR-0001, ADR-0002 |
-| 004 | [Nivel de demanda BAJA/MEDIA/ALTA](story-004-nivel-demanda.md) | Logic | Ready | ADR-0001 |
-| 005 | [Estacionalidad anual y eventos de demanda](story-005-estacionalidad-eventos.md) | Logic | Ready | ADR-0001, ADR-0002 |
-| 006 | [Persistencia — el grifo sobrevive al guardado](story-006-persistencia.md) | Integration | Ready | ADR-0002 |
-| 007 | [Demanda en el mundo — la comisaría respira (HITO VISIBLE)](story-007-demanda-en-el-mundo.md) | UI | Ready | ADR-0001 |
+| 001 | [Núcleo, config y volumen base (F1+F2)](story-001-nucleo-config-volumen.md) | Logic | Complete | ADR-0003, ADR-0001 |
+| 002 | [Generador determinista por tick (acumulador + mezcla)](story-002-generador-determinista.md) | Logic | Complete | ADR-0002, ADR-0001 |
+| 003 | [En el tick del reloj — ventana, pausa y entrega al bus](story-003-tick-ventana-bus.md) | Integration | Complete | ADR-0001, ADR-0002 |
+| 004 | [Nivel de demanda BAJA/MEDIA/ALTA](story-004-nivel-demanda.md) | Logic | Complete | ADR-0001 |
+| 005 | [Estacionalidad anual y eventos de demanda](story-005-estacionalidad-eventos.md) | Logic | Complete | ADR-0001, ADR-0002 |
+| 006 | [Persistencia — el grifo sobrevive al guardado](story-006-persistencia.md) | Integration | Complete | ADR-0002 |
+| 007 | [Demanda en el mundo — la comisaría respira (HITO VISIBLE)](story-007-demanda-en-el-mundo.md) | UI | Complete | ADR-0001 |
 
 Cobertura: **19/19 AC del GDD** + AC-DM20 nuevo (proporcionalidad de `poblacion`, pedido del usuario
 2026-07-23). Orden estrictamente secuencial (cada una depende de la anterior). Enmienda del bus prevista
@@ -68,4 +68,7 @@ nocturno vs ≈5 derivado) — propagar al tocar el GDD.
 
 ## Next Step
 
-Run `/story-readiness production/epics/demanda/story-001-nucleo-config-volumen.md` → `/dev-story` para empezar.
+**Epic COMPLETO.** Evidencia del hito: `production/qa/evidence/demanda-hud-2026-07-23.md` (+PNG, sign-off
+2026-07-24). Suite 220/220, exit 0. Hallazgos aplicados fuera del epic: señal `nivel_demanda_cambiado`
+en el bus (enmienda documentada) y `full_precision=true` en `SaveManager.guardar_partida` (determinismo
+del round-trip de floats). Siguiente: C1-5 `/create-stories personal`.

@@ -30,6 +30,8 @@ const NOMBRES_VELOCIDAD: Array[String] = ["⏸ Pausa", "1×", "2×", "3×"]
 
 ## Economía (Story 007 del epic economia): el primer sistema Core instanciado en el mundo (§3.4).
 const EconomiaScript := preload("res://src/core/economia/economia.gd")
+## Demanda (Story 007 del epic demanda): el grifo de la comisaría — genera las llegadas.
+const DemandaScript := preload("res://src/core/demanda/demanda.gd")
 ## Plantilla inicial PROVISIONAL (dotación estándar del GDD: 2 ag_doc + 1 ag_odac = 190 €/jornada).
 ## HOOK de Personal: su epic la sustituirá por la dotación real contratada.
 var PLANTILLA_INICIAL: Array[StringName] = [&"ag_doc", &"ag_doc", &"ag_odac"]
@@ -38,6 +40,11 @@ const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
 const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
 
+## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
+const COLORES_NIVEL: Dictionary[StringName, Color] = {
+	&"BAJA": Color(0.55, 0.9, 0.55), &"MEDIA": Color(1.0, 0.8, 0.35), &"ALTA": Color(0.95, 0.4, 0.4),
+}
+
 var _lbl_hora: Label
 var _lbl_fecha: Label
 var _lbl_turno: Label
@@ -45,6 +52,9 @@ var _botones: Array[Button] = []
 var _economia: Node
 var _lbl_saldo: Label
 var _lbl_estado_fin: Label
+var _demanda: Node
+var _lbl_llegadas: Label
+var _lbl_nivel: Label
 
 
 func _ready() -> void:
@@ -96,6 +106,12 @@ func _instanciar_mundo() -> void:
 	_economia.fijar_plantilla(PLANTILLA_INICIAL)
 	# La ventana de gracia de insolvencia corre en MINUTOS DE JUEGO → la empuja el tick del reloj.
 	Tiempo.suscribir_tick(_economia.avanzar_gracia)
+	# Demanda (story demanda-007): su _ready se suscribe al tick, carga config + escenario (Pozuelo) y
+	# entra a Persist. ORDEN ADR-0001: cuando existan Flujo/Paciencia deben instanciarse DESPUÉS de
+	# Demanda (el tick se empuja en orden de suscripción: Tiempo → Demanda → Flujo → Paciencia).
+	_demanda = DemandaScript.new()
+	_demanda.name = "Demanda"
+	add_child(_demanda)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
@@ -172,6 +188,15 @@ func _crear_hud() -> void:
 	_lbl_estado_fin.add_theme_font_size_override("font_size", 12)
 	caja.add_child(_lbl_estado_fin)
 
+	# Bloque de demanda (story demanda-007): llegadas del día + nivel BAJA/MEDIA/ALTA, SOLO lectura.
+	caja.add_child(HSeparator.new())
+	_lbl_llegadas = Label.new()
+	_lbl_llegadas.add_theme_font_size_override("font_size", 16)
+	caja.add_child(_lbl_llegadas)
+	_lbl_nivel = Label.new()
+	_lbl_nivel.add_theme_font_size_override("font_size", 12)
+	caja.add_child(_lbl_nivel)
+
 	var nota := Label.new()
 	nota.text = "Esqueleto visible — no jugable (HUD provisional) · Espacio pausa · 1/2/3 velocidad"
 	nota.add_theme_font_size_override("font_size", 11)
@@ -201,6 +226,12 @@ func _refrescar_etiquetas() -> void:
 		_lbl_saldo.modulate = COLOR_HOLGADO
 		_lbl_estado_fin.text = "Estado: holgado"
 		_lbl_estado_fin.modulate = COLOR_HOLGADO
+	if _demanda == null or _lbl_llegadas == null:
+		return
+	_lbl_llegadas.text = "Llegadas hoy: %d" % _demanda.llegadas_hoy
+	var nivel: StringName = _demanda.nivel_demanda()
+	_lbl_nivel.text = "Demanda Doc: %s" % nivel
+	_lbl_nivel.modulate = COLORES_NIVEL.get(nivel, Color.WHITE)
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.
@@ -219,5 +250,5 @@ func _programar_captura_evidencia() -> void:
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
 		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
 		var img: Image = get_viewport().get_texture().get_image()
-		img.save_png("res://production/qa/evidence/economia-saldo-hud-2026-07-23.png")
+		img.save_png("res://production/qa/evidence/demanda-hud-2026-07-23.png")
 	)

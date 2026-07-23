@@ -62,7 +62,10 @@ func _recolectar_de(nodos: Array) -> Dictionary:
 ## Flujo: stringify(_recolectar) → escribir al `.tmp` (comprobando el bool de store_string, 4.4+) → cerrar →
 ## renombrar `.tmp`→final. El archivo FINAL solo se toca en el rename, y solo tras un `.tmp` escrito con éxito.
 func guardar_partida(ruta := "user://savegame.save") -> bool:
-	var texto: String = JSON.stringify(_recolectar())
+	# full_precision=true (4º arg): sin él, los floats pierden decimales en el round-trip y un acumulador
+	# restaurado "casi igual" puede cruzar un umbral en otro tick → rompería el determinismo exacto de
+	# "cargar + continuar = misma partida" (ADR-0002). Hallazgo del epic Demanda, story 006 (2026-07-23).
+	var texto: String = JSON.stringify(_recolectar(), "", true, true)
 	var ruta_tmp: String = ruta + ".tmp"
 
 	# 1) Abrir el temporal. `FileAccess.open` devuelve null ante ruta inválida/no escribible (no excepción).

@@ -1,12 +1,12 @@
 # Story 004: Nivel de demanda BAJA / MEDIA / ALTA
 
 > **Epic**: Generación de Demanda
-> **Status**: Ready
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -82,7 +82,7 @@ Revisar que los tests existentes del bus no fijen el número de señales (si lo 
 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/demanda/demanda_nivel_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde (6 tests — 2026-07-23). Enmienda del bus aplicada (`nivel_demanda_cambiado`).
 
 ---
 

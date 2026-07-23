@@ -17,7 +17,7 @@ goal: "Economía y Demanda funcionando sobre los cimientos: presupuesto visible 
 start: "2026-07-23"
 end: "2026-07-30"
 generated: "2026-07-23"
-updated: "2026-07-23"
+updated: "2026-07-24"
 
 stories:
   - id: "C1-1"
@@ -102,14 +102,77 @@ stories:
     blocker: "C1-2"
     completed: "2026-07-23"
   - id: "C1-4"
-    name: "Crear + implementar epic Demanda"
+    name: "Crear + implementar epic Demanda (7/7 + sign-off del hito visible)"
     file: "production/epics/demanda/EPIC.md"
     priority: should-have
-    status: backlog
-    owner: ""
+    status: done
+    owner: "Fable (hilo principal)"
     estimate_days: 1.0
     blocker: "C1-3"
-    completed: ""
+    completed: "2026-07-24"
+  - id: "dem-001"
+    name: "Demanda: núcleo + config + volumen F1/F2"
+    file: "production/epics/demanda/story-001-nucleo-config-volumen.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: ""
+    completed: "2026-07-23"
+  - id: "dem-002"
+    name: "Demanda: generador determinista (acumulador + mezcla)"
+    file: "production/epics/demanda/story-002-generador-determinista.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: "dem-001"
+    completed: "2026-07-23"
+  - id: "dem-003"
+    name: "Demanda: tick + ventana + pausa + bus"
+    file: "production/epics/demanda/story-003-tick-ventana-bus.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: "dem-002"
+    completed: "2026-07-23"
+  - id: "dem-004"
+    name: "Demanda: nivel BAJA/MEDIA/ALTA (+ señal del bus)"
+    file: "production/epics/demanda/story-004-nivel-demanda.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.1
+    blocker: "dem-003"
+    completed: "2026-07-23"
+  - id: "dem-005"
+    name: "Demanda: estacionalidad + eventos"
+    file: "production/epics/demanda/story-005-estacionalidad-eventos.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: "dem-004"
+    completed: "2026-07-23"
+  - id: "dem-006"
+    name: "Demanda: persistencia (save/load + Persist)"
+    file: "production/epics/demanda/story-006-persistencia.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: "dem-005"
+    completed: "2026-07-23"
+  - id: "dem-007"
+    name: "Demanda: HUD llegadas + nivel (visible + sign-off)"
+    file: "production/epics/demanda/story-007-demanda-en-el-mundo.md"
+    priority: should-have
+    status: done
+    owner: ""
+    estimate_days: 0.15
+    blocker: "dem-006"
+    completed: "2026-07-24"
   - id: "C1-5"
     name: "Crear stories del epic Personal (para Sprint 2)"
     file: "production/epics/personal/EPIC.md"

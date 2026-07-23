@@ -9,6 +9,10 @@ class_name Demanda extends Node
 ## orden Tiempo→Demanda→Flujo→Paciencia), emisión de `persona_generada` al bus, reset del acumulador
 ## Doc al cruzar el cierre (DG6) y reset del contador diario al `nuevo_dia` (prioridad 40). La Pausa
 ## congela por construcción: Tiempo no empuja el tick con multiplicador 0 (DG9).
+## Story 004: el NIVEL de demanda BAJA/MEDIA/ALTA (DG12) — señal `nivel_demanda_cambiado` solo al
+## cambiar de tramo. Story 005: ESTACIONALIDAD (DG13, `nuevo_mes` prio 30) y EVENTOS multi-día (DG11).
+## Story 006: PERSISTENCIA — `save()`/`load_state()` + grupo `Persist` (ADR-0002); el RNG lo serializa
+## RNGService en su propia entrada; el mult estacional se RE-DERIVA del mes al cargar (fuente única).
 ##
 ## La `poblacion` viene SIEMPRE del `Escenario` del catálogo (Datos) — nunca hardcodeada: cada comisaría
 ## tiene la suya y el mismo código escala (AC-DM20, petición del usuario 2026-07-23). Los tests inyectan
@@ -27,6 +31,11 @@ const SERVICIO_DOC := &"Documentacion"
 const SERVICIO_ODAC := &"ODAC"
 ## Escenario por defecto del MVP (Nivel 1). El mundo puede fijar otro con `fijar_escenario()`.
 const ESCENARIO_DEFAULT := &"pozuelo"
+
+## Tramos del nivel de demanda de Documentación (DG12, story 004): la brújula futura de la peonada.
+const NIVEL_BAJA := &"BAJA"
+const NIVEL_MEDIA := &"MEDIA"
+const NIVEL_ALTA := &"ALTA"
 
 ## Constantes de diseño (no tuning): minutos por hora y fin de la franja de valle nocturno de ODAC
 ## (00:00–07:00, GDD F2/DG3 — la franja es fija; el KNOB es `mult_nocturno_odac`).
@@ -73,6 +82,25 @@ var llegadas_hoy: int = 0
 ## nunca `==` — robusto a floats y a saltos grandes).
 var _min_dia_anterior: float = 0.0
 
+# ── Nivel de demanda BAJA/MEDIA/ALTA (Story 004 · TR-demand-003 · GDD DG12) ──────────────────
+## Tramo vigente (guarda anti-duplicado, patrón Economía `_estado_anterior`: la señal se emite SOLO
+## al CAMBIAR de tramo). `&""` = aún sin calcular (el getter deriva sin efectos laterales).
+var _nivel: StringName = &""
+
+# ── Estacionalidad y eventos (Story 005 · TR-demand-001 · GDD DG13/DG11) ─────────────────────
+## Multiplicador estacional del mes en curso (DG13), aplicado SOLO a Documentación. DERIVADO del mes
+## de Tiempo (no se serializa: al cargar se recalcula del reloj — fuente única).
+var _mult_estacional_vigente: float = 1.0
+## Evento de demanda activo (DG11): `&""` = ninguno. Un solo evento a la vez en el MVP (si otro
+## coincide, gana el activo y se avisa). SÍ se serializa (junto a sus jornadas restantes — story 006).
+var _evento_activo: StringName = &""
+var _evento_jornadas_restantes: int = 0
+## Pesos de mezcla EFECTIVOS (base × `mult_peso` del evento activo, si lo hay) — los que consume
+## `_elegir_tramite`. Se reconstruyen al aplicar config y al activar/expirar un evento (nunca por
+## tick: cero asignaciones en el camino caliente).
+var _pesos_efectivos_doc: Array[float] = []
+var _pesos_efectivos_odac: Array[float] = []
+
 # ── Estado del generador (Story 002 · TR-demand-001/002 · GDD F3/F4, DG1/DG4/DG5) ────────────
 ## Acumuladores de fracciones de llegada pendientes, por servicio (F4). El residuo se CONSERVA entre
 ## ticks: no se pierde demanda por redondeo, y el goteo nocturno de ODAC sale espaciado por diseño.
@@ -98,10 +126,19 @@ func _ready() -> void:
 	# En runtime real, la población sale del catálogo. Los tests (sin árbol → sin _ready) inyectan.
 	if _poblacion == 0:
 		fijar_escenario(ESCENARIO_DEFAULT)
+	# El mult estacional se deriva del mes TAMBIÉN en el arranque (DG13 es un calendario, no un evento:
+	# empezar en enero ES temporada baja). Misma derivación que hace load_state — coherencia save/arranque.
+	if _tiempo != null:
+		_fijar_mult_estacional(_tiempo.mes)
+	_recalcular_nivel()
 	# Reset diario por el DISPATCHER (orden crítico ADR-0001, `nuevo_dia`: Paciencia 10 → Economía 20 →
 	# Personal 30 → **Demanda 40**). Solo en runtime real (árbol); los tests llaman el método directo.
 	if _bus != null and _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 40, _al_nuevo_dia)
+		# Perfil estacional al `nuevo_mes` (orden ADR-0001: Economía 10 → Paciencia 20 → Demanda 30).
+		_bus.registrar_ordenado(&"nuevo_mes", 30, _al_nuevo_mes)
+	# Contrato de persistencia (ADR-0002): el SaveManager recoge por el grupo, clave = node.name.
+	add_to_group("Persist")
 
 
 # ── Cableado (Story 003 — inyección testeable, patrón Economía) ──────────────────────────────
@@ -151,10 +188,48 @@ func _detectar_cierre_doc(min_dia: float) -> void:
 
 
 ## Handler del evento ordenado `nuevo_dia` (prioridad 40, el ÚLTIMO tras Paciencia/Economía/Personal):
-## resetea el contador diario del HUD. (La story 004 recalculará aquí el nivel; la 005 descontará la
-## duración de los eventos estacionales.)
+## resetea el contador diario del HUD y reevalúa el nivel de demanda (DG12). (La story 005 descontará
+## aquí la duración de los eventos estacionales.)
 func _al_nuevo_dia() -> void:
 	llegadas_hoy = 0
+	# Decremento del evento de demanda activo (DG11, story 005): expira al agotar sus jornadas.
+	if _evento_activo != &"":
+		_evento_jornadas_restantes -= 1
+		if _evento_jornadas_restantes <= 0:
+			_desactivar_evento()
+	_recalcular_nivel()
+
+
+# ── DG12 · Nivel de demanda BAJA/MEDIA/ALTA (Story 004) ──────────────────────────────────────
+
+## Clasifica un volumen diario de Documentación en su tramo (función PURA; umbrales del config,
+## Open Q9). Regla de bordes fijada: `< bajo` → BAJA · `≥ alto` → ALTA · resto → MEDIA.
+func clasificar_nivel(volumen_dia: float) -> StringName:
+	if volumen_dia < umbral_nivel_bajo:
+		return NIVEL_BAJA
+	if volumen_dia >= umbral_nivel_alto:
+		return NIVEL_ALTA
+	return NIVEL_MEDIA
+
+
+## El tramo vigente (lectura pull para UI/tests, sin efectos laterales). Si aún no se recalculó
+## nunca, deriva del volumen actual sin fijar estado ni emitir.
+func nivel_demanda() -> StringName:
+	if _nivel == &"":
+		return clasificar_nivel(demanda_dia(SERVICIO_DOC))
+	return _nivel
+
+
+## Reevalúa el tramo a partir del volumen diario EFECTIVO de Documentación y emite
+## `nivel_demanda_cambiado` por el bus SOLO si cambió (guarda anti-duplicado). Lo llaman el arranque,
+## el `nuevo_dia` (prio 40) y —desde la story 005— el cambio estacional del `nuevo_mes`.
+func _recalcular_nivel() -> void:
+	var nuevo: StringName = clasificar_nivel(demanda_dia(SERVICIO_DOC))
+	if nuevo == _nivel:
+		return
+	_nivel = nuevo
+	if _bus != null:
+		_bus.nivel_demanda_cambiado.emit(_nivel)
 
 
 # ── Población (F1 — la posee el Escenario del catálogo) ──────────────────────────────────────
@@ -185,11 +260,12 @@ func poblacion() -> int:
 
 # ── F1 · Volumen diario por servicio ─────────────────────────────────────────────────────────
 
-## Tasa efectiva del servicio (llegadas por 1.000 hab/día): base × crecimiento por nivel (DG8).
-## (La story 005 añadirá aquí el multiplicador estacional DG13 sobre Documentación.)
+## Tasa efectiva del servicio (llegadas por 1.000 hab/día): base × crecimiento por nivel (DG8)
+## × multiplicador estacional del mes (DG13 — SOLO Documentación; verano/Navidad suben, invierno baja).
 func tasa_efectiva(servicio: StringName) -> float:
 	var base: float = tasa_base_doc if servicio == SERVICIO_DOC else tasa_base_odac
-	return base * factor_crecimiento_nivel
+	var estacional: float = _mult_estacional_vigente if servicio == SERVICIO_DOC else 1.0
+	return base * factor_crecimiento_nivel * estacional
 
 
 ## F1: llegadas totales esperadas del servicio en un día = `poblacion × tasa_efectiva / 1000`.
@@ -289,11 +365,12 @@ func _drenar(servicio: StringName, fichas: Array[RefCounted], min_dia: float) ->
 		_acumulador[servicio] -= 1.0
 
 
-## F3: elige el trámite de la visita con la mezcla ponderada del servicio, vía RNGService SEMBRADO
-## (la normalización defensiva de pesos que no suman 1 la hace `elegir_ponderado` — AC-DM17).
+## F3: elige el trámite de la visita con la mezcla ponderada EFECTIVA del servicio (base × evento
+## activo, story 005), vía RNGService SEMBRADO (la normalización defensiva de pesos que no suman 1
+## la hace `elegir_ponderado` — AC-DM17; por eso los `mult_peso` no exigen renormalizar a mano).
 func _elegir_tramite(servicio: StringName) -> StringName:
 	var ids: Array[StringName] = _mezcla_ids_doc if servicio == SERVICIO_DOC else _mezcla_ids_odac
-	var pesos: Array[float] = _mezcla_pesos_doc if servicio == SERVICIO_DOC else _mezcla_pesos_odac
+	var pesos: Array[float] = _pesos_efectivos_doc if servicio == SERVICIO_DOC else _pesos_efectivos_odac
 	var indice: int = RNGService.elegir_ponderado(pesos)
 	if indice < 0:
 		return &""
@@ -316,7 +393,7 @@ func _avisar_si_no_drena(servicio: StringName) -> void:
 
 
 ## Reconstruye las cachés de mezcla (arrays paralelos id/peso) desde los Dictionary del config,
-## en su orden de inserción (estable → determinista).
+## en su orden de inserción (estable → determinista), y los pesos efectivos derivados.
 func _reconstruir_mezclas() -> void:
 	_mezcla_ids_doc.clear()
 	_mezcla_pesos_doc.clear()
@@ -328,6 +405,129 @@ func _reconstruir_mezclas() -> void:
 	for id_denuncia: StringName in mezcla_odac:
 		_mezcla_ids_odac.append(id_denuncia)
 		_mezcla_pesos_odac.append(mezcla_odac[id_denuncia])
+	_reconstruir_pesos_efectivos()
+
+
+# ── DG13/DG11 · Estacionalidad y eventos de demanda (Story 005) ──────────────────────────────
+
+## Handler del evento ordenado `nuevo_mes` (prioridad 30, tras Economía 10 y Paciencia 20): fija el
+## multiplicador estacional del mes (DG13), dispara los eventos cuyo `meses_inicio` incluye el mes
+## (DG11 — activación DETERMINISTA por calendario, sin azar) y reevalúa el nivel (DG12).
+func _al_nuevo_mes() -> void:
+	if _tiempo == null:
+		return
+	_fijar_mult_estacional(_tiempo.mes)
+	_activar_eventos_del_mes(_tiempo.mes)
+	_recalcular_nivel()
+
+
+## Fija el multiplicador estacional para `mes` (1-12; meses sin entrada en config → 1.0).
+func _fijar_mult_estacional(mes: int) -> void:
+	_mult_estacional_vigente = mult_estacional.get(mes, 1.0)
+
+
+## Multiplicador estacional vigente (read-only para UI/tests).
+func mult_estacional_vigente() -> float:
+	return _mult_estacional_vigente
+
+
+## Evento de demanda activo (`&""` si ninguno) y sus jornadas restantes (read-only).
+func evento_activo() -> StringName:
+	return _evento_activo
+
+
+func evento_jornadas_restantes() -> int:
+	return _evento_jornadas_restantes
+
+
+## Activa el primer evento del config cuyo `meses_inicio` incluye `mes`. Un solo evento a la vez
+## (MVP): si ya hay uno activo, se mantiene y se avisa (simplificación explícita de la story).
+func _activar_eventos_del_mes(mes: int) -> void:
+	for evento: Dictionary in eventos:
+		var meses: Array = evento.get("meses_inicio", [])
+		if not (mes in meses):
+			continue
+		var id_evento: StringName = evento.get("id", &"")
+		if _evento_activo != &"":
+			push_warning(
+				"Demanda: evento '%s' coincide con '%s' ya activo -> se mantiene el activo"
+				% [id_evento, _evento_activo]
+			)
+			continue
+		_evento_activo = id_evento
+		_evento_jornadas_restantes = maxi(int(evento.get("duracion_jornadas", 1)), 1)
+		_reconstruir_pesos_efectivos()
+
+
+## Expira el evento activo (llamado por el decremento diario) y devuelve la mezcla al perfil regular.
+func _desactivar_evento() -> void:
+	_evento_activo = &""
+	_evento_jornadas_restantes = 0
+	_reconstruir_pesos_efectivos()
+
+
+## Recalcula los pesos efectivos = base × `mult_peso` del evento activo (si lo hay). Un `tramite_id`
+## del evento que no exista en la mezcla se ignora con aviso (no rompe la elección — edge de la story).
+func _reconstruir_pesos_efectivos() -> void:
+	_pesos_efectivos_doc = _mezcla_pesos_doc.duplicate()
+	_pesos_efectivos_odac = _mezcla_pesos_odac.duplicate()
+	if _evento_activo == &"":
+		return
+	var evento: Dictionary = _buscar_evento(_evento_activo)
+	var mult_peso: Dictionary = evento.get("mult_peso", {})
+	for id_tramite: StringName in mult_peso:
+		var indice_doc: int = _mezcla_ids_doc.find(id_tramite)
+		var indice_odac: int = _mezcla_ids_odac.find(id_tramite)
+		if indice_doc >= 0:
+			_pesos_efectivos_doc[indice_doc] *= float(mult_peso[id_tramite])
+		elif indice_odac >= 0:
+			_pesos_efectivos_odac[indice_odac] *= float(mult_peso[id_tramite])
+		else:
+			push_warning(
+				"Demanda: el evento '%s' multiplica '%s', que no esta en ninguna mezcla -> ignorado"
+				% [_evento_activo, id_tramite]
+			)
+
+
+## Busca la definición de un evento por id en el config (Dictionary vacío si no existe).
+func _buscar_evento(id_evento: StringName) -> Dictionary:
+	for evento: Dictionary in eventos:
+		if evento.get("id", &"") == id_evento:
+			return evento
+	return {}
+
+
+# ── Persistencia (Story 006 · TR-demand-002 · ADR-0002) ──────────────────────────────────────
+
+## Estado serializable de Demanda (contrato `Persist`). SOLO estado mutable no derivable: el RNG lo
+## serializa RNGService (su propia entrada del save — NUNCA duplicarlo aquí), el mult estacional se
+## re-deriva del mes de Tiempo al cargar, y la config/catálogo/escenario los posee el arranque.
+func save() -> Dictionary:
+	return {
+		"acumulador_doc": _acumulador[SERVICIO_DOC],
+		"acumulador_odac": _acumulador[SERVICIO_ODAC],
+		"llegadas_hoy": llegadas_hoy,
+		"nivel": String(_nivel),
+		"evento_activo": String(_evento_activo),
+		"evento_jornadas_restantes": _evento_jornadas_restantes,
+	}
+
+
+## Restaura el estado desde un Dictionary (p. ej. parseado de JSON). Defensivo ante claves ausentes
+## (saves viejos → defaults sanos). SIN señales ni generación retroactiva ("cargar sitúa, no
+## reproduce" — ADR-0002): el nivel se restaura en silencio y la guarda del cierre se sitúa en la
+## hora cargada para no detectar un cruce espurio en el primer tick.
+func load_state(d: Dictionary) -> void:
+	_acumulador[SERVICIO_DOC] = float(d.get("acumulador_doc", 0.0))
+	_acumulador[SERVICIO_ODAC] = float(d.get("acumulador_odac", 0.0))
+	llegadas_hoy = int(d.get("llegadas_hoy", 0))
+	_nivel = StringName(String(d.get("nivel", "")))
+	_evento_activo = StringName(String(d.get("evento_activo", "")))
+	_evento_jornadas_restantes = int(d.get("evento_jornadas_restantes", 0))
+	if _tiempo != null:
+		_fijar_mult_estacional(_tiempo.mes)
+		_min_dia_anterior = fposmod(_tiempo.minutos_juego, MINUTOS_POR_DIA)
+	_reconstruir_pesos_efectivos()
 
 
 # ── Config (patrón Economía: aplicar con clamp defensivo + carga con fallback) ───────────────
@@ -361,6 +561,13 @@ func aplicar_config(config: Resource) -> void:
 	mezcla_odac = config.mezcla_odac.duplicate()
 	umbral_nivel_bajo = _clamp_knob(config.umbral_nivel_bajo, "umbral_nivel_bajo")
 	umbral_nivel_alto = _clamp_knob(config.umbral_nivel_alto, "umbral_nivel_alto")
+	if umbral_nivel_alto <= umbral_nivel_bajo:
+		push_warning(
+			"Demanda: umbrales de nivel incoherentes (bajo %f >= alto %f) -> defaults 40/60"
+			% [umbral_nivel_bajo, umbral_nivel_alto]
+		)
+		umbral_nivel_bajo = 40.0
+		umbral_nivel_alto = 60.0
 	mult_estacional = config.mult_estacional.duplicate()
 	eventos = config.eventos.duplicate(true)
 	_avisar_si_no_suma_1(perfil_hora_doc, "perfil_hora_doc")

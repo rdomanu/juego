@@ -1,7 +1,7 @@
 # Story 007: Demanda en el mundo — la comisaría respira 🎉 (HITO VISIBLE)
 
 > **Epic**: Generación de Demanda
-> **Status**: Ready
+> **Status**: Complete — HITO VISIBLE firmado por el usuario (2026-07-24, opción A)
 > **Layer**: Core (instanciación) + Presentation (HUD del esqueleto)
 > **Type**: UI
 > **Estimate**: S-M (~2-3 h)
@@ -32,7 +32,7 @@
 
 - [ ] Demanda instanciada en `Main` (mundo de producción), cableada: `usar_bus(EventBus)`, `usar_tiempo(Tiempo)`, config cargada de `datos/config/demanda.tres`, grupo `Persist` activo.
 - [ ] El HUD del esqueleto muestra **"Llegadas hoy: N"** — sube al ritmo de la mañana (pico 08:00–09:00), se frena tras el cierre de Documentación (14:30) y de madrugada solo avanza con el goteo de ODAC.
-- [ ] El HUD muestra el **nivel de demanda** con texto + color (BAJA verde / MEDIA ámbar / ALTA rojo — respaldo daltónico: el texto siempre presente). Con las semillas MVP arranca en **MEDIA**.
+- [x] El HUD muestra el **nivel de demanda** con texto + color (BAJA verde / MEDIA ámbar / ALTA rojo — respaldo daltónico: el texto siempre presente). *(Corrección al implementar: con DG13 derivado en el arranque, la partida empieza en Mes 1 = enero ×0.6 → arranca en **BAJA**, no MEDIA. Aceptado en el sign-off.)*
 - [ ] El contador se **resetea a 0** en el `nuevo_dia` (medianoche) — coherente con el reset de la 003.
 - [ ] Suite completa en verde tras la integración (sin regresiones en Tiempo/Economía/SaveManager).
 
@@ -63,7 +63,7 @@
 
 - **Manual 1 — llegadas visibles**: Setup: lanzar ventana, reanudar, 3×. Verify: "Llegadas hoy" sube durante la mañana (varias por hora de juego). Pass: el contador crece sin errores en consola.
 - **Manual 2 — la persiana**: Setup: dejar correr hasta pasadas las 14:30. Verify: el ritmo cae bruscamente (solo goteo ODAC); de madrugada casi parado. Pass: el cambio de ritmo es apreciable a simple vista.
-- **Manual 3 — nivel**: Setup: arranque semillas MVP. Verify: indicador "Demanda: MEDIA" en ámbar, texto legible. Pass: texto + color correctos; sin solaparse con reloj/saldo.
+- **Manual 3 — nivel**: Setup: arranque semillas MVP. Verify: indicador "Demanda Doc: BAJA" en verde (enero ×0.6), texto legible. Pass: texto + color correctos; sin solaparse con reloj/saldo.
 - **Manual 4 — medianoche**: Setup: cruzar las 00:00. Verify: contador vuelve a 0 (y la nómina de Economía sigue apareciendo — sin regresión). Pass: ambos HUD conviven.
 - **Automatizado (humo)**: suite completa `-a res://tests/unit -a res://tests/integration` → Exit code 0.
 
@@ -73,7 +73,7 @@
 
 **Story Type**: UI (ADVISORY) — requiere **sign-off del usuario**.
 **Required evidence**: `production/qa/evidence/demanda-hud-[fecha].md` + captura PNG + sign-off explícito del usuario en conversación.
-**Status**: [ ] Not yet created
+**Status**: [x] `demanda-hud-2026-07-23.md` + PNG — **FIRMADO por el usuario 2026-07-24 (opción A)**. Suite 220/220, exit 0.
 
 ---
 

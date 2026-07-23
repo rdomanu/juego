@@ -1,12 +1,12 @@
 # Story 006: Persistencia — el grifo sobrevive al guardado
 
 > **Epic**: Generación de Demanda
-> **Status**: Ready
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -72,7 +72,11 @@
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/demanda/demanda_persistencia_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde (5 tests; suite total 220/220, exit 0 — 2026-07-23). Round-trip por JSON
+real (el de disco lo cubre la suite del SaveManager — patrón Economía). **2 hallazgos aplicados:**
+(1) el mult estacional se deriva del mes TAMBIÉN en el arranque (coherencia arranque/carga — DG13 es
+calendario); (2) `SaveManager.guardar_partida` ahora usa `full_precision=true` en JSON.stringify (sin
+él, los floats perdían decimales en el round-trip → adiós determinismo exacto de ADR-0002).
 
 ---
 

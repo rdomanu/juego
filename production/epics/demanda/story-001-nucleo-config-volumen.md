@@ -1,7 +1,7 @@
 # Story 001: Núcleo, config y volumen base (F1 + F2)
 
 > **Epic**: Generación de Demanda
-> **Status**: Implemented — 17/17 tests en verde (pendiente `/story-done`)
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3 h)

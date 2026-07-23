@@ -1,7 +1,7 @@
 # Story 002: Generador determinista por tick (acumulador + mezcla)
 
 > **Epic**: Generación de Demanda
-> **Status**: Implemented — 7/7 tests en verde (pendiente `/story-done`)
+> **Status**: Complete (cierre del epic con sign-off, 2026-07-24)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)

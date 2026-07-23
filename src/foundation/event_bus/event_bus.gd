@@ -64,6 +64,12 @@ signal game_over(motivo: StringName)
 ## Oyentes: ODAC (recibe la carga), Feedback.
 signal reclamacion_generada(origen: StringName)
 
+## El nivel derivado de demanda de Documentacion cambio de tramo (DG12): nivel es &"BAJA", &"MEDIA"
+## o &"ALTA" — la brujula futura de la peonada. Se emite SOLO al cambiar de tramo. Emisor: Demanda.
+## Oyentes: UI (indicador siempre visible), Documentacion/Horarios (futuro).
+## (Ampliacion 2026-07-23, epic demanda story 004.)
+signal nivel_demanda_cambiado(nivel: StringName)
+
 # ── Senales de notificacion (se emiten TRAS el orden critico → dispatcher de la Story 002) ──────
 ## Empieza un nuevo dia. Para oyentes NO criticos (UI refresca, Feedback). El orden critico
 ## (Paciencia cierra sat -> Economia cobra -> Personal ausencias -> Demanda reset) va por
