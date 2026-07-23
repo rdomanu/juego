@@ -83,6 +83,14 @@ var partida_terminada: bool = false
 ## para pausar/reanudar en el rescate (Core → Foundation permitido). Puede ser null en tests.
 var _tiempo: Node = null
 
+# ── Ciclo mensual (Story 006 · TR-economy-002 · GDD E6, F7) ─────────────────────────────────
+## Acumuladores del mes en curso: ingresos operativos (retorno DGP) y gastos (todo lo del cierre diario,
+## recargo y penalizaciones incluidos). Los préstamos (inyección/devolución) son FINANCIACIÓN, no cuentan.
+var ingresos_mes: float = 0.0
+var gastos_mes: float = 0.0
+## Último balance mensual cerrado (F7): `ingresos_mes − gastos_mes`. Lo consumirá Ascensos (futuro).
+var balance_mes: float = 0.0
+
 
 func _ready() -> void:
 	if _bus == null:
@@ -91,10 +99,14 @@ func _ready() -> void:
 		_tiempo = get_node_or_null("/root/Tiempo")
 	_conectar_bus()
 	_cargar_config()
-	# El cobro diario va por el DISPATCHER (orden crítico Paciencia 10 → Economía 20 — ADR-0001).
-	# Solo en runtime real (árbol); los tests llaman `_al_nuevo_dia()` directo (patrón del proyecto).
+	# Cobro diario y cierre mensual van por el DISPATCHER (orden crítico ADR-0001: nuevo_dia →
+	# Paciencia 10 · Economía 20; nuevo_mes → Economía 10 · Paciencia 20 · Demanda 30).
+	# Solo en runtime real (árbol); los tests llaman los métodos directos (patrón del proyecto).
 	if _bus != null and _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 20, _al_nuevo_dia)
+		_bus.registrar_ordenado(&"nuevo_mes", 10, _al_nuevo_mes)
+	# Contrato de persistencia (ADR-0002): el SaveManager recoge por el grupo, clave = node.name.
+	add_to_group("Persist")
 
 
 ## Inyecta el EventBus (dependency injection → testeable sin el autoload real) y engancha los handlers.
@@ -157,6 +169,7 @@ func _al_tramite_completado(tramite_id: StringName, _agente) -> void:
 		return
 	var ingreso: float = float(_tarifas_por_id[tramite_id]) * retorno_dgp(sat_cierre_doc)
 	ingreso_doc_dia += ingreso
+	ingresos_mes += ingreso
 	abonar(ingreso)
 
 
@@ -199,13 +212,16 @@ func registrar_horas_extra(horas: float) -> void:
 func _al_nuevo_dia() -> void:
 	_asegurar_cache_catalogo()
 	# (1) Recargo de deuda (F5) — solo si la APERTURA ya era negativa.
+	var recargo: float = 0.0
 	if saldo_eur < 0.0:
-		saldo_eur -= absf(saldo_eur) * interes_deuda_diario
+		recargo = absf(saldo_eur) * interes_deuda_diario
+		saldo_eur -= recargo
 	# (2) Gastos del día (F3 + F4 + F8) — obligatorios, sin gate.
 	var gastos: float = _gasto_salarios_dia() \
 		+ _peonada_eur_hora * _horas_extra_dia \
 		+ _penalizacion_prestamos_dia()
 	saldo_eur -= gastos
+	gastos_mes += recargo + gastos
 	# (3) Reinicio de acumuladores.
 	ingreso_doc_dia = 0.0
 	_horas_extra_dia = 0.0
@@ -223,6 +239,53 @@ func _gasto_salarios_dia() -> float:
 			continue
 		total += agente.salario_dia_eur
 	return total
+
+
+# ── Ciclo mensual y persistencia (Story 006 — E6/F7 · ADR-0002) ─────────────────────────────
+
+## Cierre del mes (`nuevo_mes`, prioridad 10): fija el balance F7 y reinicia los acumuladores.
+## El balance lo consumirá Ascensos (objetivo de eficiencia — fuera del MVP; aquí solo el número).
+func _al_nuevo_mes() -> void:
+	balance_mes = ingresos_mes - gastos_mes
+	ingresos_mes = 0.0
+	gastos_mes = 0.0
+
+
+## Contrato ADR-0002: SOLO estado no derivado (el estado financiero se deriva del saldo; la plantilla la
+## posee Personal —futuro— y la re-fija el arranque). Tipos JSON-safe (floats/ints/bool).
+func save() -> Dictionary:
+	return {
+		"saldo_eur": saldo_eur,
+		"prestamos_usados": prestamos_usados,
+		"prestamos_vivos": prestamos_vivos,
+		"ingreso_doc_dia": ingreso_doc_dia,
+		"ingresos_mes": ingresos_mes,
+		"gastos_mes": gastos_mes,
+		"balance_mes": balance_mes,
+		"en_gracia": en_gracia,
+		"gracia_restante_min": gracia_restante_min,
+		"sat_cierre_doc": sat_cierre_doc,
+		"horas_extra_dia": _horas_extra_dia,
+	}
+
+
+## "Cargar sitúa, no reproduce": restaura tal cual, SIN señales ni cobros retroactivos. Clave ausente →
+## conserva el valor actual (tolerancia, patrón SaveManager). Sincroniza la guarda de transiciones para
+## que el primer movimiento tras cargar no re-emita la entrada en deuda.
+func load_state(d: Dictionary) -> void:
+	saldo_eur = d.get("saldo_eur", saldo_eur)
+	prestamos_usados = d.get("prestamos_usados", prestamos_usados)
+	prestamos_vivos = d.get("prestamos_vivos", prestamos_vivos)
+	ingreso_doc_dia = d.get("ingreso_doc_dia", ingreso_doc_dia)
+	ingresos_mes = d.get("ingresos_mes", ingresos_mes)
+	gastos_mes = d.get("gastos_mes", gastos_mes)
+	balance_mes = d.get("balance_mes", balance_mes)
+	en_gracia = d.get("en_gracia", en_gracia)
+	gracia_restante_min = d.get("gracia_restante_min", gracia_restante_min)
+	sat_cierre_doc = d.get("sat_cierre_doc", sat_cierre_doc)
+	_horas_extra_dia = d.get("horas_extra_dia", _horas_extra_dia)
+	_esperando_decision = false
+	_estado_anterior = estado()
 
 
 # ── Préstamos del Comisario (Story 004 — E9/F8) ─────────────────────────────────────────────
