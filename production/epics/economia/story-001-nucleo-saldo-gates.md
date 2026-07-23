@@ -1,12 +1,12 @@
 # Story 001: Núcleo de Economía — nodo, config data-driven, saldo y gates
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -33,20 +33,20 @@ se instancian en la escena principal, NO son autoloads — los autoloads son sol
 
 ## Acceptance Criteria
 
-- [ ] **AC-1**: existe `src/core/economia/economia.gd` (`class_name Economia extends Node`) con
+- [x] **AC-1**: existe `src/core/economia/economia.gd` (`class_name Economia extends Node`) con
       `saldo_eur: float` que arranca en `caja_inicial_eur` del config (AC-E17: editar el `.tres` a 5000 sin
       tocar código → nueva partida arranca con 5000).
-- [ ] **AC-2**: existe `ConfigEconomia` (`src/core/economia/config_economia.gd`, Resource) con los 9 knobs
+- [x] **AC-2**: existe `ConfigEconomia` (`src/core/economia/config_economia.gd`, Resource) con los 9 knobs
       del GDD (`caja_inicial_eur` 3000 · `interes_deuda_diario` 0.02 · `deuda_max_eur` 1000 ·
       `importe_prestamo_eur` 1500 · `penalizacion_fija_prestamo` 30 · `pct_ingreso_prestamo` 0.20 ·
       `num_prestamos_max` 3 · `ventana_gracia_insolvencia_horas` 12 · `umbral_holgura_ui` 500) y su `.tres`
       en `datos/config/economia.tres` **generado por herramienta** (`tools/build_config_economia.gd`).
       Clamp defensivo con aviso (todos ≥ 0; `num_prestamos_max` entero ≥ 0) — patrón ConfigTiempo.
-- [ ] **AC-3 (gate, AC-E07)**: `puede_pagar(coste)` false si `saldo < coste`; `cobrar(500)` con saldo 400 →
+- [x] **AC-3 (gate, AC-E07)**: `puede_pagar(coste)` false si `saldo < coste`; `cobrar(500)` con saldo 400 →
       **rechazado**, saldo sigue 400, devuelve false.
-- [ ] **AC-4 (gate, AC-E08)**: `cobrar(500)` con saldo 600 → true, saldo 100.
-- [ ] **AC-5**: `abonar(x)` suma; `cobrar`/`abonar` emiten **`saldo_cambiado(saldo)`** por el bus inyectado.
-- [ ] **AC-6 (enmienda del bus)**: la señal `saldo_cambiado` del EventBus pasa de `int` a **`float`** (el
+- [x] **AC-4 (gate, AC-E08)**: `cobrar(500)` con saldo 600 → true, saldo 100.
+- [x] **AC-5**: `abonar(x)` suma; `cobrar`/`abonar` emiten **`saldo_cambiado(saldo)`** por el bus inyectado.
+- [x] **AC-6 (enmienda del bus)**: la señal `saldo_cambiado` del EventBus pasa de `int` a **`float`** (el
       dinero tiene decimales — GDD F2: DNI a sat 50 = 3,6 €). Se actualiza el test del bus que usaba 3000.
 
 ---
@@ -80,7 +80,7 @@ se instancian en la escena principal, NO son autoloads — los autoloads son sol
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_nucleo_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_nucleo_test.gd 6/6; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -91,3 +91,9 @@ se instancian en la escena principal, NO son autoloads — los autoloads son sol
 
 Preload por ruta en tests; lambdas→Arrays; tipado estático; el `.tres` SOLO por herramienta; clamps con
 aviso (patrón Datos/Tiempo).
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

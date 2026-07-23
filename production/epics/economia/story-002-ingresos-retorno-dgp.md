@@ -1,12 +1,12 @@
 # Story 002: Ingresos — retorno DGP e ingreso instantáneo por trámite
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,14 +31,14 @@ posee la satisfacción (aquí **provisional**: `sat_cierre_doc` fija en 50 = `sa
 
 *Valores exactos del GDD:*
 
-- [ ] **AC-E01**: `dni` (tarifa 12) con `sat=50` → `saldo += 3,6` (12 × 0.30) al instante, y
+- [x] **AC-E01**: `dni` (tarifa 12) con `sat=50` → `saldo += 3,6` (12 × 0.30) al instante, y
       `ingreso_doc_dia += 3,6`.
-- [ ] **AC-E02**: `retorno_dgp(0) == 0.15`; `retorno_dgp(100) == 0.45` (params del catálogo `costes_global`).
-- [ ] **AC-E03**: `sat=150` → clamp a 100 → retorno 0.45 (nunca fuera de [min, max]).
-- [ ] **AC-E03b**: el retorno usa `sat_cierre_doc` (fija toda la jornada): cambiarla a mitad de jornada con
+- [x] **AC-E02**: `retorno_dgp(0) == 0.15`; `retorno_dgp(100) == 0.45` (params del catálogo `costes_global`).
+- [x] **AC-E03**: `sat=150` → clamp a 100 → retorno 0.45 (nunca fuera de [min, max]).
+- [x] **AC-E03b**: el retorno usa `sat_cierre_doc` (fija toda la jornada): cambiarla a mitad de jornada con
       `fijar_sat_cierre()` NO afecta a los ingresos ya acreditados, y hasta que se llame, TODOS los trámites
       aplican el mismo retorno.
-- [ ] **AC-E04**: un `tramite_completado` con id de **DenunciaODAC** (p. ej. `lesiones`) → el saldo **NO**
+- [x] **AC-E04**: un `tramite_completado` con id de **DenunciaODAC** (p. ej. `lesiones`) → el saldo **NO**
       cambia (ODAC no genera ingreso) y **sin warnings espurios** del catálogo.
 
 ---
@@ -75,7 +75,7 @@ manualmente; catálogo real (los valores 12/0.15/0.45 son los del `.tres`).*
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_ingresos_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_ingresos_test.gd 5/5; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -85,3 +85,9 @@ manualmente; catálogo real (los valores 12/0.15/0.45 son los del `.tres`).*
 ## Notas de gotchas del proyecto
 
 Preload por ruta; floats con `is_equal_approx`; el bus espía es instancia propia (aislamiento).
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

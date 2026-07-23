@@ -1,12 +1,12 @@
 # Story 004: Préstamos del Comisario — strikes, penalización híbrida y devolución
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,16 +31,16 @@ over; NUNCA baja) y **`prestamos_vivos`** (los que pesan a diario). Penalizació
 
 *Valores exactos del GDD:*
 
-- [ ] **AC-E11**: `pedir_prestamo()` con `usados=0` → `saldo += 1500`, `usados=1`, `vivos=1`, se emite
+- [x] **AC-E11**: `pedir_prestamo()` con `usados=0` → `saldo += 1500`, `usados=1`, `vivos=1`, se emite
       `prestamo_pedido` y queda el hook "−valoración de jefes" (comentario/TODO al sistema futuro #16).
-- [ ] **AC (límite)**: con `usados == num_prestamos_max` → `pedir_prestamo()` se **rechaza** (false).
-- [ ] **AC-E12**: `vivos=2`, `ingreso_doc_dia=230` → penalización al cierre `= 2×(30+0.20×230) = 152`.
-- [ ] **AC-E12b**: `vivos=1`, `ingreso_doc_dia=0` → penalización `= 30` (solo la fija; la mordida auto-escala).
-- [ ] **AC-E14f**: `usados=2, vivos=2, saldo=1600` → `saldar_prestamo()` → `saldo=100`, `vivos=1`,
+- [x] **AC (límite)**: con `usados == num_prestamos_max` → `pedir_prestamo()` se **rechaza** (false).
+- [x] **AC-E12**: `vivos=2`, `ingreso_doc_dia=230` → penalización al cierre `= 2×(30+0.20×230) = 152`.
+- [x] **AC-E12b**: `vivos=1`, `ingreso_doc_dia=0` → penalización `= 30` (solo la fija; la mordida auto-escala).
+- [x] **AC-E14f**: `usados=2, vivos=2, saldo=1600` → `saldar_prestamo()` → `saldo=100`, `vivos=1`,
       `usados=2` (el strike NO se recupera).
-- [ ] **AC-E14g**: saldado un préstamo → el siguiente cierre ya NO aplica su penalización.
-- [ ] **AC-E14h**: `saldo=1400 (<1500)` o `vivos=0` → `saldar_prestamo()` se **rechaza**, saldo intacto.
-- [ ] **AC (preventivo)**: pedir en positivo se permite y gasta strike igualmente (Edge Case del GDD).
+- [x] **AC-E14g**: saldado un préstamo → el siguiente cierre ya NO aplica su penalización.
+- [x] **AC-E14h**: `saldo=1400 (<1500)` o `vivos=0` → `saldar_prestamo()` se **rechaza**, saldo intacto.
+- [x] **AC (preventivo)**: pedir en positivo se permite y gasta strike igualmente (Edge Case del GDD).
 
 ---
 
@@ -74,7 +74,7 @@ over; NUNCA baja) y **`prestamos_vivos`** (los que pesan a diario). Penalizació
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_prestamos_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_prestamos_test.gd 7/7; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -84,3 +84,9 @@ over; NUNCA baja) y **`prestamos_vivos`** (los que pesan a diario). Penalizació
 ## Notas de gotchas del proyecto
 
 Preload por ruta; floats con tolerancia; el bus espía propio verifica `prestamo_pedido` sin tocar el autoload.
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

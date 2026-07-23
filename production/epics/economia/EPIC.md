@@ -3,20 +3,20 @@
 > **Layer**: Core
 > **GDD**: design/gdd/economy-budget.md
 > **Architecture Module**: Economía #3
-> **Status**: Ready
+> **Status**: Complete (2026-07-23)
 > **Stories**: 7 created — see table below
 
 ## Stories
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [Núcleo: nodo + config + saldo + gates](story-001-nucleo-saldo-gates.md) | Logic | Ready | ADR-0001/0002 |
-| 002 | [Ingresos: retorno DGP + trámite completado](story-002-ingresos-retorno-dgp.md) | Logic | Ready | ADR-0001 |
-| 003 | [Cierre diario: recargo→gastos→reset (prio 20)](story-003-cierre-diario.md) | Logic | Ready | ADR-0001 |
-| 004 | [Préstamos del Comisario](story-004-prestamos-comisario.md) | Logic | Ready | ADR-0001 |
-| 005 | [Estados + insolvencia (gracia, game over)](story-005-estados-insolvencia.md) | Logic | Ready | ADR-0001 |
-| 006 | [Balance mensual + save/load](story-006-balance-mensual-save.md) | Logic | Ready | ADR-0001/0002 |
-| 007 | [💶 Saldo en el HUD (visible + sign-off)](story-007-saldo-en-hud.md) | Visual/UI | Ready | ADR-0001 |
+| 001 | [Núcleo: nodo + config + saldo + gates](story-001-nucleo-saldo-gates.md) | Logic | **Complete** (2026-07-23) | ADR-0001/0002 |
+| 002 | [Ingresos: retorno DGP + trámite completado](story-002-ingresos-retorno-dgp.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 003 | [Cierre diario: recargo→gastos→reset (prio 20)](story-003-cierre-diario.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 004 | [Préstamos del Comisario](story-004-prestamos-comisario.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 005 | [Estados + insolvencia (gracia, game over)](story-005-estados-insolvencia.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 006 | [Balance mensual + save/load](story-006-balance-mensual-save.md) | Logic | **Complete** (2026-07-23) | ADR-0001/0002 |
+| 007 | [💶 Saldo en el HUD (visible + sign-off)](story-007-saldo-en-hud.md) | Visual/UI | **Complete** (2026-07-23, sign-off usuario) | ADR-0001 |
 
 **Orden**: 001 → … → 007 (la 007 abre la ventana al usuario con el saldo vivo). Decisiones fijadas
 (2026-07-23): Economía = **nodo del mundo** (no autoload, arquitectura §3.4); config `ConfigEconomia`
@@ -69,5 +69,5 @@ This epic is complete when:
 
 ## Next Step
 
-Stories creadas (7, aprobadas por el usuario 2026-07-23 — tarea C1-1 del Sprint 1 ✅). Siguiente:
-`/qa-plan sprint` (decidido) y `/dev-story` de la 001 (tarea C1-2).
+**EPIC COMPLETO (2026-07-23): 7/7 stories cerradas, suite 173/173, sign-off del usuario en la 007 (saldo vivo en el HUD). PRIMER MODULO CORE TERMINADO.** Siguiente del sprint:
+epic Demanda (tarea C1-4) en sesion nueva.

@@ -1,12 +1,12 @@
 # Story 007: 💶 El saldo en el HUD del esqueleto — Economía se hace visible
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core (presentación provisional)
 > **Type**: Visual/UI
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -76,7 +76,7 @@ cubierta por 001-006.*
 **Story Type**: Visual/UI (ADVISORY — captura + sign-off del usuario)
 **Required evidence**: `production/qa/evidence/economia-saldo-hud-[fecha].md` + PNG. Sign-off del usuario.
 
-**Status**: not yet created
+**Status**: [x] Evidencia FIRMADA: production/qa/evidence/economia-saldo-hud-2026-07-23.md + PNG. Sign-off usuario 2026-07-23.
 
 ## Dependencies
 
@@ -87,3 +87,9 @@ cubierta por 001-006.*
 
 Botones ya existentes con `focus_mode NONE` (no tocar); el HUD lee en `_process`/señales; validar headless
 antes de abrir la ventana al usuario.
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

@@ -1,12 +1,12 @@
 # Story 003: Cierre de cuentas diario — recargo → gastos → reset (prioridad 20)
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -33,15 +33,15 @@ APERTURA → (2) gastos del día → (3) reinicio de acumuladores**.
 
 *Valores exactos del GDD:*
 
-- [ ] **AC-E05**: plantilla `[ag_doc, ag_doc, ag_odac]` (60+60+70 del catálogo) → al cierre `saldo −= 190`.
-- [ ] **AC-E06**: 3 h extra registradas con `peonada_eur_hora=15` (catálogo) → `gasto_peonada = 45`.
-- [ ] **AC-E09**: saldo apertura +50, nómina 190 → cierre deja `saldo = −140` **sin recargo ese día** (la
+- [x] **AC-E05**: plantilla `[ag_doc, ag_doc, ag_odac]` (60+60+70 del catálogo) → al cierre `saldo −= 190`.
+- [x] **AC-E06**: 3 h extra registradas con `peonada_eur_hora=15` (catálogo) → `gasto_peonada = 45`.
+- [x] **AC-E09**: saldo apertura +50, nómina 190 → cierre deja `saldo = −140` **sin recargo ese día** (la
       apertura era positiva) y el gasto voluntario queda bloqueado (gate false).
-- [ ] **AC-E10**: apertura −500, sin obligaciones, interés 0.02 → recargo 10 → `saldo = −510`.
-- [ ] **AC-E10b**: dos cierres consecutivos desde −500 sin obligaciones → −510 → **−520,20** (compuesto).
-- [ ] **AC-E10c**: apertura +20, nómina 190 → recargo 0 → `saldo = −170`; el recargo de esos −170 es del día
+- [x] **AC-E10**: apertura −500, sin obligaciones, interés 0.02 → recargo 10 → `saldo = −510`.
+- [x] **AC-E10b**: dos cierres consecutivos desde −500 sin obligaciones → −510 → **−520,20** (compuesto).
+- [x] **AC-E10c**: apertura +20, nómina 190 → recargo 0 → `saldo = −170`; el recargo de esos −170 es del día
       siguiente (orden F6: recargo ANTES de gastos).
-- [ ] **AC (reset)**: tras el cierre, `ingreso_doc_dia = 0` y las horas extra acumuladas se reinician.
+- [x] **AC (reset)**: tras el cierre, `ingreso_doc_dia = 0` y las horas extra acumuladas se reinician.
 
 ---
 
@@ -76,7 +76,7 @@ APERTURA → (2) gastos del día → (3) reinicio de acumuladores**.
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_cierre_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_cierre_test.gd 7/7; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -87,3 +87,9 @@ APERTURA → (2) gastos del día → (3) reinicio de acumuladores**.
 
 Floats con `is_equal_approx` (−520,20 exige tolerancia); preload por ruta; el orden interno del cierre es
 un solo método secuencial (no señales internas) para blindar el determinismo.
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

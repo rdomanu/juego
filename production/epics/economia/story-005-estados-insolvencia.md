@@ -1,12 +1,12 @@
 # Story 005: Estados financieros e insolvencia — rojos, suelo, gracia y game over
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -35,19 +35,19 @@ el delta de juego que reciba; verificar la firma real del hook al implementar.
 
 ## Acceptance Criteria
 
-- [ ] **AC (estados)**: `estado()` deriva POSITIVO (`saldo ≥ 0`) / ROJOS (`−1000 < saldo < 0`) /
+- [x] **AC (estados)**: `estado()` deriva POSITIVO (`saldo ≥ 0`) / ROJOS (`−1000 < saldo < 0`) /
       INSOLVENCIA (`saldo ≤ −1000`); al entrar/salir de rojos se emiten `entro_en_deuda`/`salio_de_deuda`
       una vez por transición.
-- [ ] **AC-E14**: cruzar el suelo con `usados < 3` → el juego se **pausa** y se emite `insolvencia`
+- [x] **AC-E14**: cruzar el suelo con `usados < 3` → el juego se **pausa** y se emite `insolvencia`
       (la UI futura mostrará el modal); NO game over.
-- [ ] **AC-E14a**: `aceptar_rescate()` → préstamo inyectado (+1500, +strike, +vivo) y sale del suelo.
-- [ ] **AC-E14b**: `rechazar_rescate()` → emite `gracia_iniciada` y arranca la ventana (720 min de juego);
+- [x] **AC-E14a**: `aceptar_rescate()` → préstamo inyectado (+1500, +strike, +vivo) y sale del suelo.
+- [x] **AC-E14b**: `rechazar_rescate()` → emite `gracia_iniciada` y arranca la ventana (720 min de juego);
       si expira sin salir del suelo → préstamo **automático** con aviso.
-- [ ] **AC-E14c**: si durante la gracia el saldo sube por encima de −1000 → rescate **cancelado** (no gasta
+- [x] **AC-E14c**: si durante la gracia el saldo sube por encima de −1000 → rescate **cancelado** (no gasta
       préstamo), vuelve a ROJOS.
-- [ ] **AC-E13**: cruzar el suelo con `usados = 3` → **`game_over`** (sin modal ni gracia).
-- [ ] **AC-E14d**: `num_prestamos_max = 0` → primer cruce del suelo = game over inmediato.
-- [ ] **AC-E14e**: 3 préstamos preventivos gastados en positivo → el cruce posterior del suelo = game over.
+- [x] **AC-E13**: cruzar el suelo con `usados = 3` → **`game_over`** (sin modal ni gracia).
+- [x] **AC-E14d**: `num_prestamos_max = 0` → primer cruce del suelo = game over inmediato.
+- [x] **AC-E14e**: 3 préstamos preventivos gastados en positivo → el cruce posterior del suelo = game over.
 
 ---
 
@@ -82,7 +82,7 @@ inyectando deltas de juego.*
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_insolvencia_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_insolvencia_test.gd 8/8; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -93,3 +93,9 @@ inyectando deltas de juego.*
 
 NUNCA reloj real (la gracia es tiempo de juego inyectable); espías con Arrays; preload por ruta; una
 emisión por transición (guarda de estado anterior, patrón de los cruces de Tiempo).
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

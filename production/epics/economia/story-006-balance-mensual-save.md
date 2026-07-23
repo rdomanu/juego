@@ -1,12 +1,12 @@
 # Story 006: Balance mensual + serialización (`save()`/`load_state()` + Persist)
 
 > **Epic**: Economía / Presupuesto
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija `/dev-story` al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,15 +30,15 @@ AC-E16/E18/E19)
 
 ## Acceptance Criteria
 
-- [ ] **AC-E16**: `ingresos_mes=3000`, `gastos_mes=2600` → al `nuevo_mes`, `balance_mes = +400` y los
+- [x] **AC-E16**: `ingresos_mes=3000`, `gastos_mes=2600` → al `nuevo_mes`, `balance_mes = +400` y los
       acumuladores del mes se reinician.
-- [ ] **AC (acumuladores)**: cada ingreso suma a `ingresos_mes`; cada cierre diario suma sus gastos a
+- [x] **AC (acumuladores)**: cada ingreso suma a `ingresos_mes`; cada cierre diario suma sus gastos a
       `gastos_mes` (recargo y penalizaciones incluidos — son gastos).
-- [ ] **AC-E18**: `load_state({saldo −300, usados 2, vivos 1, ...})` → se restauran tal cual, **0 señales**
+- [x] **AC-E18**: `load_state({saldo −300, usados 2, vivos 1, ...})` → se restauran tal cual, **0 señales**
       del bus durante la carga y sin cobros retroactivos.
-- [ ] **AC-E19**: la misma secuencia de movimientos aplicada dos veces desde el mismo estado → saldo final
+- [x] **AC-E19**: la misma secuencia de movimientos aplicada dos veces desde el mismo estado → saldo final
       **idéntico** (determinismo end-to-end del módulo).
-- [ ] **AC (Persist)**: el nodo pertenece al grupo `"Persist"` tras `_ready` y su `save()` devuelve SOLO
+- [x] **AC (Persist)**: el nodo pertenece al grupo `"Persist"` tras `_ready` y su `save()` devuelve SOLO
       estado no derivado: `saldo_eur`, `prestamos_usados`, `prestamos_vivos`, `ingreso_doc_dia`,
       `ingresos_mes`, `gastos_mes`, `en_gracia`, `gracia_restante_min`, `sat_cierre_doc` *(provisional
       hasta Paciencia)*, `horas_extra_dia`.
@@ -72,7 +72,7 @@ AC-E16/E18/E19)
 **Story Type**: Logic
 **Required evidence**: `tests/unit/economia/economia_ciclo_save_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (economia_ciclo_save_test.gd 5/5; suite 173/173, 2026-07-23)
 
 ## Dependencies
 
@@ -83,3 +83,9 @@ AC-E16/E18/E19)
 
 Ints pequeños sin truco String (< 2^53); floats OK en JSON; espías a 0 emisiones durante load (patrón
 SaveManager story 005).
+
+## Cierre (2026-07-23)
+
+Implementada en HILO PRINCIPAL (Fable; subagentes caidos por creditos 1M) + suite verificada tras cada
+story. Commits d877995/3e61512/cf0fe45/bb50da3/1aa1217/137a6e3/088d6f2. Epic completo con suite 173/173
+exit 0 y sign-off del usuario en la 007 (saldo vivo en el HUD, nomina -190 a medianoche).

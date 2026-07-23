@@ -191,13 +191,24 @@ inyectable fijar_plantilla; registrar_horas_extra; modal rescate = señales + ac
 **✅ eco-001 IMPLEMENTADA (commit d877995):** src/core/economia/economia.gd (nodo, gates E4, usar_bus) +
 config_economia.gd + tools/build_config_economia.gd → datos/config/economia.tres + enmienda del bus
 aplicada (señal float + test alineado). Tests 6/6. **Suite 141/141, exit 0.**
-**PRÓXIMO INMEDIATO:** eco-002 (ingresos retorno DGP: fórmula F1 con Costes del catálogo, sat provisional
-50, handler tramite_completado con cache de ids de TramiteDoc para no disparar warnings con denuncias) →
-eco-003 (cierre diario prio 20: recargo apertura→gastos→reset) → eco-004 (préstamos) → eco-005
-(insolvencia/gracia/game over) → eco-006 (balance mes prio 10 + save) → **eco-007 SALDO EN HUD (VISIBLE:
-plantilla provisional [ag_doc,ag_doc,ag_odac] → nómina −190 €/medianoche a la vista; AVISAR + ABRIR
-VENTANA + sign-off)**. Cierres formales de las stories eco-* en batch al completar el epic.
-Estado de código: 141/141 tests verdes; Foundation 5/5; Sprint 1: eco-001 done, eco-002 ready.
+**🎉🎉🎉 EPIC ECONOMÍA COMPLETO (2026-07-23, 7/7 + sign-off) — PRIMER MÓDULO CORE TERMINADO:** las 7
+stories implementadas EN HILO PRINCIPAL en un día (commits d877995 → 088d6f2): núcleo+config+gates ·
+ingresos DGP (cache de tarifas anti-warnings; sat provisional 50) · cierre diario determinista (recargo
+apertura→gastos→reset, prio 20) · préstamos (strikes históricos + penalización híbrida) · insolvencia
+(estados derivados, pausa REAL del reloj, gracia 720 min de juego cableada al tick, rescate auto, game
+over) · balance mensual (prio 10) + save/load Persist (11 claves) · **SALDO EN HUD con sign-off del
+usuario** (3000 € verde/ámbar/rojo + texto; nómina −190 €/medianoche a la vista; evidencia
+economia-saldo-hud-2026-07-23.md + PNG). **Suite 173/173, exit 0.** Bus ampliado documentado:
+saldo_cambiado float + prestamo_pedido, entro/salio_de_deuda, insolvencia, gracia_iniciada, game_over.
+Sprint 1: C1-1/C1-2/C1-3 + eco-001..007 = done en sprint-status.yaml.
+**PRÓXIMO INMEDIATO (SESIÓN NUEVA — decidido por contexto al 75%):** tarea **C1-4 = epic DEMANDA**
+(Should Have del Sprint 1): `/create-stories demanda` (propuesta desde demand-generation.md: tasas de
+llegada calibradas a R5, mezcla ponderada de los 14 tipos vía RNGService.elegir_ponderado, régimen
+día/noche con mult_nocturno_odac, perfil semanal; emitirá tramite_solicitado/persona_generada — verificar
+señales del bus) → aprobar → implementar. Demanda hará que el saldo SUBA en el HUD (ingresos visibles).
+Luego C1-5 stories de Personal. Si los subagentes siguen caídos ("Usage credits 1M") → hilo principal;
+el usuario puede reactivarlos con /usage-credits.
+Estado de código: 173/173 tests verdes; Foundation 5/5; Core 1/5 (Economía); Sprint 1 dentro de plazo.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
