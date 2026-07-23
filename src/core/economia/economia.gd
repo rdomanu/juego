@@ -31,16 +31,44 @@ var umbral_holgura_ui: float = 500.0
 ## El EventBus al que se emiten los avisos (inyectable; auto-resuelto en _ready). Puede ser null en tests.
 var _bus: Node = null
 
+# ── Ingresos (Story 002 · TR-economy-001 · GDD E2/E7, F1/F2) ────────────────────────────────
+## Satisfacción de cierre de Documentación de la JORNADA ANTERIOR (0-100), la que alimenta el retorno
+## DGP (E7: fija toda la jornada → ingreso estable intra-jornada). PROVISIONAL: arranca en 50
+## (= `sat_inicial`, Paciencia #10); cuando exista Paciencia la fijará vía `fijar_sat_cierre()` al
+## `nuevo_dia` (prioridad 10, ANTES del cierre de Economía a 20 — ADR-0001).
+var sat_cierre_doc: float = 50.0
+## Ingresos de Documentación acreditados HOY (F6). Los reinicia el cierre diario (story 003) y los
+## muerde la penalización de préstamos (F8, story 004).
+var ingreso_doc_dia: float = 0.0
+
+## Cachés del catálogo (se llenan una vez, lazy): params del retorno DGP y tarifas por id de TramiteDoc.
+## El dict de tarifas permite distinguir Doc vs ODAC en O(1) SIN llamar `Datos.obtener` con ids de
+## denuncia (que haría push_warning por cada denuncia atendida — ruido espurio).
+var _retorno_min: float = 0.15
+var _retorno_max: float = 0.45
+var _tarifas_por_id: Dictionary = {}
+var _cache_catalogo_listo: bool = false
+
 
 func _ready() -> void:
 	if _bus == null:
 		_bus = get_node_or_null("/root/EventBus")
+	_conectar_bus()
 	_cargar_config()
 
 
-## Inyecta el EventBus (dependency injection → testeable sin el autoload real). Solo reasigna.
+## Inyecta el EventBus (dependency injection → testeable sin el autoload real) y engancha los handlers.
 func usar_bus(bus: Node) -> void:
+	if _bus != null and _bus.tramite_completado.is_connected(_al_tramite_completado):
+		_bus.tramite_completado.disconnect(_al_tramite_completado)
 	_bus = bus
+	_conectar_bus()
+
+
+## Conecta los handlers de escucha al bus actual (idempotente; sin bus no hace nada).
+func _conectar_bus() -> void:
+	if _bus != null and not _bus.tramite_completado.is_connected(_al_tramite_completado):
+		_bus.tramite_completado.connect(_al_tramite_completado)
 
 
 # ── Gates de gasto voluntario (E4 — la API que usan Construcción/Personal) ──────────────────
@@ -64,6 +92,47 @@ func cobrar(coste: float) -> bool:
 func abonar(cantidad: float) -> void:
 	saldo_eur += cantidad
 	_emitir_saldo()
+
+
+# ── Ingresos: retorno DGP e ingreso instantáneo (Story 002 — F1/F2) ─────────────────────────
+
+## La fórmula del retorno DGP (F1, propiedad de Economía; params del catálogo `costes_global`):
+## `retorno = min + (max − min) × clamp(sat, 0, 100) / 100`. Salida siempre en [min, max] (0.15–0.45).
+func retorno_dgp(sat: float) -> float:
+	_asegurar_cache_catalogo()
+	return _retorno_min + (_retorno_max - _retorno_min) * clampf(sat, 0.0, 100.0) / 100.0
+
+
+## Fija la `sat` de cierre que aplicará el retorno a partir de ahora (la llama Paciencia al nuevo_dia).
+func fijar_sat_cierre(sat: float) -> void:
+	sat_cierre_doc = sat
+
+
+## Ingreso INSTANTÁNEO al oír `tramite_completado` (E2, F2): solo los trámites de Documentación
+## generan euros (`ingreso = tarifa × retorno_DGP(sat_cierre_doc)`); una DenunciaODAC no está en el
+## caché de tarifas → no ingresa (AC-E04) y no dispara warnings del catálogo.
+func _al_tramite_completado(tramite_id: StringName, _agente) -> void:
+	_asegurar_cache_catalogo()
+	if not _tarifas_por_id.has(tramite_id):
+		return
+	var ingreso: float = float(_tarifas_por_id[tramite_id]) * retorno_dgp(sat_cierre_doc)
+	ingreso_doc_dia += ingreso
+	abonar(ingreso)
+
+
+## Llena los cachés del catálogo una vez (lazy — el nodo puede usarse sin árbol en tests).
+func _asegurar_cache_catalogo() -> void:
+	if _cache_catalogo_listo:
+		return
+	_cache_catalogo_listo = true
+	var costes: Resource = Datos.obtener(&"Costes", &"costes_global")
+	if costes != null:
+		_retorno_min = costes.retorno_dgp_min
+		_retorno_max = costes.retorno_dgp_max
+	else:
+		push_warning("Economia: sin 'costes_global' en el catalogo -> retorno DGP con defaults")
+	for tramite: Resource in Datos.obtener_todos(&"TramiteDoc"):
+		_tarifas_por_id[tramite.id] = tramite.tarifa_eur
 
 
 # ── Config (E8 — data-driven, patrón ConfigTiempo) ──────────────────────────────────────────
