@@ -33,15 +33,15 @@ func test_senales_tipadas_entregan_los_valores_correctos() -> void:
 	var saldos: Array = []
 	_bus.cambio_de_turno.connect(func(t: int): turnos.append(t))
 	_bus.cambio_dia_noche.connect(func(n: bool): noches.append(n))
-	_bus.saldo_cambiado.connect(func(s: int): saldos.append(s))
+	_bus.saldo_cambiado.connect(func(s: float): saldos.append(s))
 	# Act
 	_bus.cambio_de_turno.emit(1)
 	_bus.cambio_dia_noche.emit(true)
-	_bus.saldo_cambiado.emit(3000)
+	_bus.saldo_cambiado.emit(3000.0)
 	# Assert
 	assert_array(turnos).contains_exactly([1])
 	assert_array(noches).contains_exactly([true])
-	assert_array(saldos).contains_exactly([3000])
+	assert_array(saldos).contains_exactly([3000.0])
 
 
 # AC-1 (edge): dos oyentes reciben; emitir sin oyentes no falla.

@@ -35,7 +35,8 @@ signal cambio_dia_noche(es_de_noche: bool)
 signal velocidad_cambiada(indice: int)
 
 ## El saldo de la comisaria ha cambiado. Emisor: Economia. Oyentes: UI, Feedback.
-signal saldo_cambiado(nuevo_saldo: int)
+## (Enmienda 2026-07-23, epic economia story 001: int -> float — el dinero tiene decimales, GDD F2.)
+signal saldo_cambiado(nuevo_saldo: float)
 
 ## Se ha generado una reclamacion (p. ej. por un abandono en Documentacion). Emisor: Paciencia.
 ## Oyentes: ODAC (recibe la carga), Feedback.
