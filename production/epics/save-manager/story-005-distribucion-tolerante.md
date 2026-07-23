@@ -1,12 +1,12 @@
 # Story 005: Distribución tolerante — sub-dicts vía `load_state`
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -28,10 +28,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-DT01**: GIVEN un dict con entradas para `"RNGService"` y `"Tiempo"` y ambos nodos en el grupo WHEN se distribuye THEN a cada nodo se le llama `load_state(subdict)` con SU sub-dict correspondiente.
-- [ ] **AC-DT02**: GIVEN un dict que **NO** trae la clave de un nodo del grupo (p. ej. falta `"Tiempo"`) WHEN se distribuye THEN ese nodo mantiene sus defaults + `push_warning`, y **los demás nodos cargan igual** (el save no se invalida).
-- [ ] **AC-DT03**: GIVEN un nodo en el grupo sin método `load_state` (error de integración) WHEN se distribuye THEN se ignora ese nodo (defensivo, `has_method`) sin crashear ni afectar a los demás.
-- [ ] **AC-DT04**: GIVEN una distribución completa WHEN termina THEN el **EventBus recibe CERO emisiones** provocadas por el manager (el manager no re-dispara nada; los sistemas garantizan "situar, no reproducir" en su propio `load_state`).
+- [x] **AC-DT01**: GIVEN un dict con entradas para `"RNGService"` y `"Tiempo"` y ambos nodos en el grupo WHEN se distribuye THEN a cada nodo se le llama `load_state(subdict)` con SU sub-dict correspondiente.
+- [x] **AC-DT02**: GIVEN un dict que **NO** trae la clave de un nodo del grupo (p. ej. falta `"Tiempo"`) WHEN se distribuye THEN ese nodo mantiene sus defaults + `push_warning`, y **los demás nodos cargan igual** (el save no se invalida).
+- [x] **AC-DT03**: GIVEN un nodo en el grupo sin método `load_state` (error de integración) WHEN se distribuye THEN se ignora ese nodo (defensivo, `has_method`) sin crashear ni afectar a los demás.
+- [x] **AC-DT04**: GIVEN una distribución completa WHEN termina THEN el **EventBus recibe CERO emisiones** provocadas por el manager (el manager no re-dispara nada; los sistemas garantizan "situar, no reproducir" en su propio `load_state`).
 
 ---
 
@@ -82,7 +82,7 @@
 **Story Type**: Logic (distribución pura; el round-trip real es la Story 006)
 **Required evidence**: `tests/unit/save_manager/save_manager_distribucion_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (save_manager_distribucion_test.gd 5/5; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -96,3 +96,8 @@
 - **Lambdas capturan por valor → Arrays**: el `load_state` de un espía que guarda lo recibido en un `Array`/var del espía funciona porque el lambda captura la referencia mutable; para valores escalares, capturar en un objeto/dict del espía.
 - **Espía del EventBus**: conectar en setup, contar, DESCONECTAR en teardown (no contaminar el autoload real; patrón de los tests de `tiempo`).
 - **Preload por ruta en headless**: `preload("res://src/foundation/save_manager/save_manager.gd")`.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente Opus + verificacion independiente del hilo principal (suite 135/135, exit 0).
+Commit c7e8ddb.

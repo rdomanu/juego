@@ -1,12 +1,12 @@
 # Story 002: Recolección — grupo `Persist` → dict raíz con `version`
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -28,10 +28,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-RC01**: GIVEN una lista de nodos `Persist` WHEN `_recolectar_de(nodos)` THEN el dict resultante incluye la clave `"version"` con valor `1`.
-- [ ] **AC-RC02**: GIVEN 2 nodos con `name` = `"RNGService"` y `"Tiempo"`, cada uno con su `save()` WHEN `_recolectar_de([rng, tiempo])` THEN el dict tiene una entrada por nodo con clave = `node.name` y valor = lo que devuelve su `save()`.
-- [ ] **AC-RC03**: GIVEN una lista **vacía** WHEN `_recolectar_de([])` THEN el dict es exactamente `{"version": 1}` (no peta, no añade entradas espurias).
-- [ ] **AC-RC04**: GIVEN el dict recolectado WHEN se pasa por `JSON.stringify(...)` THEN NO lanza ni produce error (todas las entradas son JSON-serializables porque cada `save()` devuelve solo tipos serializables).
+- [x] **AC-RC01**: GIVEN una lista de nodos `Persist` WHEN `_recolectar_de(nodos)` THEN el dict resultante incluye la clave `"version"` con valor `1`.
+- [x] **AC-RC02**: GIVEN 2 nodos con `name` = `"RNGService"` y `"Tiempo"`, cada uno con su `save()` WHEN `_recolectar_de([rng, tiempo])` THEN el dict tiene una entrada por nodo con clave = `node.name` y valor = lo que devuelve su `save()`.
+- [x] **AC-RC03**: GIVEN una lista **vacía** WHEN `_recolectar_de([])` THEN el dict es exactamente `{"version": 1}` (no peta, no añade entradas espurias).
+- [x] **AC-RC04**: GIVEN el dict recolectado WHEN se pasa por `JSON.stringify(...)` THEN NO lanza ni produce error (todas las entradas son JSON-serializables porque cada `save()` devuelve solo tipos serializables).
 
 ---
 
@@ -83,7 +83,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/save_manager/save_manager_recoleccion_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (save_manager_recoleccion_test.gd 5/5; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -96,3 +96,9 @@
 - **Preload por ruta en headless**: `preload("res://src/foundation/save_manager/save_manager.gd")` en el test (class_name en frío / autoload sin registrar).
 - **`Node.name`**: al crear los espías, fijar `name` ANTES de leerlo; Godot puede renombrar nodos duplicados en el árbol (con `@`), pero como el método interno recibe la lista sin añadirlos al árbol, `name` queda tal cual se fijó.
 - **Lambdas capturan por valor → Arrays**: si algún test usa un lambda para el `save()` del espía y acumula en un `Array`, recordar que el lambda captura la referencia del `Array` (mutable) pero valores por copia (patrón ya visto en los tests del proyecto).
+
+## Cierre (2026-07-23)
+
+Implementada via subagente godot-gdscript-specialist (Opus) + verificacion independiente del hilo
+principal (suite 135/135, exit 0). Commit 821d33a. Hallazgo Windows (003): rename_absolute NO sobrescribe
+-> borrar destino solo con .tmp valido listo; rutas globalizadas con ProjectSettings.globalize_path.

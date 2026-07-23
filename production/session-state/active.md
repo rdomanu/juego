@@ -163,12 +163,25 @@ botones Pausa-1×-2×-3× con focus_mode NONE, atajos Espacio/1/2/3, resaltado v
 captura de evidencia automática a los 2 s (solo dev). Headless limpio. **VENTANA ABIERTA AL USUARIO →
 SIGN-OFF ✅ (2026-07-23)**; evidencia `production/qa/evidence/tiempo-esqueleto-2026-07-23.md` + PNG.
 **4 de 5 módulos Foundation COMPLETOS Y CERRADOS: EventBus, RNGService, Datos, Tiempo.**
-**PRÓXIMO INMEDIATO:** epic **save-manager** (último Foundation; ADR-0002: JSON en user://, recorre grupo
-Persist [RNGService y Tiempo ya lo implementan], escritura temp+rename, version en el save, "cargar sitúa"
-— Tiempo.load_state ya fuerza Pausa) → `/create-stories save-manager` (propuesta → aprobar → implementar
-flujo híbrido) → al cerrar: FOUNDATION 5/5 → Core (Economía → Demanda → Personal → Construcción → Flujo)
-→ `/sprint-plan`. La ventana del juego puede relanzarse cuando el usuario quiera (main scene registrada).
-Estado de código: 107/107 tests verdes; Foundation 4/5 (falta SaveManager).
+**🎉🎉🎉 EPIC SAVE-MANAGER COMPLETO (2026-07-23, 7/7) → FOUNDATION 5/5 COMPLETA:** troceo aprobado y 7
+stories escritas (commit 22c9541; decisiones: API sin slots `guardar_partida`/`cargar_partida(ruta)` con
+ADR-0002 alineado; clave por sistema = `node.name` del grupo Persist; version desconocida → rechazar).
+Implementación en 3 bloques (commits 821d33a / c7e8ddb / [006-007]): SerialUtil estático
+(vec2i↔{x,y}, int() por floats de JSON) · recolección `_recolectar_de` con nodos-espía · escritura segura
+temp+rename (HALLAZGO Windows: `rename_absolute` NO sobrescribe → borrar destino solo con .tmp válido;
+rutas con `ProjectSettings.globalize_path` — DirAccess no traga user:// a pelo) · lectura + `_migrar`
+(v1 identidad; mayor → rechaza) · distribución tolerante (clave ausente → defaults+warning, 0 eventos) ·
+round-trip END-TO-END por disco real (RNG determinista a través del JSON; reloj idéntico + Pausa) ·
+autoload 5º registrado + smoke standalone `tests/smoke_save_manager.gd` (SMOKE_OK guardar/cargar true) +
+smoke doc `production/qa/smoke-2026-07-23.md`. **Suite 135/135, exit 0.**
+**🏗️ HITO: LOS 5 MÓDULOS FOUNDATION COMPLETOS Y CERRADOS (EventBus, RNGService, Datos, Tiempo,
+SaveManager) + esqueleto visible firmado.** El "ERROR Parse JSON ... got 'esto'" de la salida de la suite
+es un caso de test intencionado (save corrupto → fallo controlado).
+**PRÓXIMO INMEDIATO: capa CORE** (orden de construcción del índice: Economía → Demanda → Personal →
+Construcción → Flujo al final por ser el integrador) — `/create-stories economia` (propuesta → aprobar →
+flujo híbrido) y valorar `/sprint-plan` ahora que Foundation está cerrada. Cada epic Core añade cosas
+VISIBLES/jugables al esqueleto (avisar al usuario en los hitos visuales; relanzar ventana).
+Estado de código: 135/135 tests verdes; Foundation 5/5 COMPLETA; Core 0/5.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

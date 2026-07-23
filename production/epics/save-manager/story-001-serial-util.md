@@ -1,12 +1,12 @@
 # Story 001: Helper de tipos JSON-safe (`Vector2i`↔`{x,y}`)
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -28,10 +28,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-SU01**: GIVEN `Vector2i(3, 7)` WHEN `SerialUtil.vec2i_a_dict(v)` THEN devuelve exactamente `{"x": 3, "y": 7}`.
-- [ ] **AC-SU02**: GIVEN `{"x": 3, "y": 7}` WHEN `SerialUtil.dict_a_vec2i(d)` THEN devuelve exactamente `Vector2i(3, 7)`.
-- [ ] **AC-SU03**: GIVEN un `Vector2i(-4, 12)` WHEN `dict_a_vec2i(JSON.parse_string(JSON.stringify(vec2i_a_dict(v))))` THEN el resultado es **idéntico** al original (round-trip a través de JSON real, incluso con los enteros llegando como `float`).
-- [ ] **AC-SU04**: GIVEN un dict incompleto (falta `x` o `y`, o dict vacío `{}`) WHEN `dict_a_vec2i(d)` THEN devuelve `Vector2i.ZERO` y emite `push_warning` (defensivo — no peta ante un save manipulado/parcial).
+- [x] **AC-SU01**: GIVEN `Vector2i(3, 7)` WHEN `SerialUtil.vec2i_a_dict(v)` THEN devuelve exactamente `{"x": 3, "y": 7}`.
+- [x] **AC-SU02**: GIVEN `{"x": 3, "y": 7}` WHEN `SerialUtil.dict_a_vec2i(d)` THEN devuelve exactamente `Vector2i(3, 7)`.
+- [x] **AC-SU03**: GIVEN un `Vector2i(-4, 12)` WHEN `dict_a_vec2i(JSON.parse_string(JSON.stringify(vec2i_a_dict(v))))` THEN el resultado es **idéntico** al original (round-trip a través de JSON real, incluso con los enteros llegando como `float`).
+- [x] **AC-SU04**: GIVEN un dict incompleto (falta `x` o `y`, o dict vacío `{}`) WHEN `dict_a_vec2i(d)` THEN devuelve `Vector2i.ZERO` y emite `push_warning` (defensivo — no peta ante un save manipulado/parcial).
 
 ---
 
@@ -75,7 +75,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/save_manager/serial_util_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (serial_util_test.gd 4/4; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -87,3 +87,9 @@
 - **`JSON.parse_string` → `float`**: los enteros vuelven como `float` tras el round-trip por JSON → castear con `int(...)` al reconstruir el `Vector2i` (AC-SU03 lo prueba de forma explícita). Esta es la razón real de que exista este helper y no se guarde el `Vector2i` "a pelo".
 - **Preload por ruta en headless**: en el test, si el runner corre en frío, `preload("res://src/foundation/save_manager/serial_util.gd")` en lugar de depender de que el `class_name SerialUtil` esté registrado globalmente (mismo gotcha del `class_name` en frío visto en `tiempo.gd`/`datos`).
 - **Sin I/O**: este helper NUNCA toca disco — mantenerlo puro lo hace testeable sin `user://` ni teardown de archivos.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente godot-gdscript-specialist (Opus) + verificacion independiente del hilo
+principal (suite 135/135, exit 0). Commit 821d33a. Hallazgo Windows (003): rename_absolute NO sobrescribe
+-> borrar destino solo con .tmp valido listo; rutas globalizadas con ProjectSettings.globalize_path.

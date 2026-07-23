@@ -1,12 +1,12 @@
 # Story 007: Registro autoload 5º + smoke
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,10 +31,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-SM01**: GIVEN `project.godot` WHEN se lee la sección `[autoload]` THEN `SaveManager` está registrado como `*res://src/foundation/save_manager/save_manager.gd` y aparece DESPUÉS de `Tiempo` (5º autoload; orden `EventBus → RNGService → Datos → Tiempo → SaveManager`).
-- [ ] **AC-SM02**: GIVEN el juego arrancado en headless WHEN se inicializan los autoloads THEN NO hay errores en la salida (los 5 autoloads cargan; el `_ready` de SaveManager no peta).
-- [ ] **AC-SM03**: GIVEN el juego arrancado WHEN se hace UN `guardar_partida()` seguido de UN `cargar_partida()` THEN ambos devuelven `true` sin errores (smoke de punta a punta con el singleton real).
-- [ ] **AC-SM04**: GIVEN la suite completa de tests WHEN corre en CI headless THEN pasa con exit 0 (ningún test roto por el nuevo autoload).
+- [x] **AC-SM01**: GIVEN `project.godot` WHEN se lee la sección `[autoload]` THEN `SaveManager` está registrado como `*res://src/foundation/save_manager/save_manager.gd` y aparece DESPUÉS de `Tiempo` (5º autoload; orden `EventBus → RNGService → Datos → Tiempo → SaveManager`).
+- [x] **AC-SM02**: GIVEN el juego arrancado en headless WHEN se inicializan los autoloads THEN NO hay errores en la salida (los 5 autoloads cargan; el `_ready` de SaveManager no peta).
+- [x] **AC-SM03**: GIVEN el juego arrancado WHEN se hace UN `guardar_partida()` seguido de UN `cargar_partida()` THEN ambos devuelven `true` sin errores (smoke de punta a punta con el singleton real).
+- [x] **AC-SM04**: GIVEN la suite completa de tests WHEN corre en CI headless THEN pasa con exit 0 (ningún test roto por el nuevo autoload).
 
 ---
 
@@ -78,7 +78,7 @@
 **Story Type**: Integration (arranque real + smoke)
 **Required evidence**: `production/qa/smoke-2026-07-23.md` (arranque + guardar/cargar OK) + suite completa verde (exit 0). ADVISORY para el smoke doc; la suite verde es BLOCKING.
 
-**Status**: not yet created
+**Status**: [x] PASA — smoke doc production/qa/smoke-2026-07-23.md (SMOKE_OK guardar/cargar true; suite 135/135 exit 0)
 
 ## Dependencies
 
@@ -92,3 +92,9 @@
 - **`godot --headless` para el smoke**: ruta del ejecutable de Godot según el flujo del proyecto; validar el arranque sin ventana + la suite con exit 0. Lanzar la ventana real solo si se quiere confirmación visual (no necesaria para este smoke técnico).
 - **El manager NO auto-carga al arrancar**: `_ready` no debe llamar a `cargar_partida` (evita cargar un save sin que el jugador lo pida y antes de que el flujo de arranque lo decida).
 - **`user://` para el smoke**: el guardar/cargar del smoke usa `user://` (nunca `res://`); limpiar el archivo de smoke si se quiere dejar `user://` limpio.
+
+## Cierre (2026-07-23)
+
+Autoload registrado 5o por subagente Opus (agotado el turno a mitad); smoke REMATADO en hilo principal:
+tests/smoke_save_manager.gd (SceneTree standalone) -> SMOKE_GUARDAR true, SMOKE_CARGAR true, exit 0, sin
+residuos en user://. Smoke doc: production/qa/smoke-2026-07-23.md. Suite 135/135 exit 0.

@@ -1,12 +1,12 @@
 # Story 003: Escritura segura en `user://` (temp+rename, bool de `store_*`)
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,10 +31,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-ES01**: GIVEN un estado recolectable WHEN `guardar_partida()` (ruta por defecto `user://savegame.save`) THEN devuelve `true` y crea el archivo con JSON válido que contiene la clave `"version"`.
-- [ ] **AC-ES02**: GIVEN un guardado exitoso WHEN termina THEN **NO** existe el archivo temporal (`ruta + ".tmp"`) — el rename lo consumió.
-- [ ] **AC-ES03**: GIVEN que `FileAccess.open` del temporal falla (ruta inválida/no escribible) WHEN `guardar_partida(ruta_mala)` THEN devuelve `false`, emite `push_error`, y **NO** crashea ni deja un `.tmp` colgando.
-- [ ] **AC-ES04**: GIVEN un save previo válido en la ruta destino WHEN un guardado falla a mitad THEN el save previo **permanece intacto** (temp+rename lo garantiza — no se tocó el archivo final).
+- [x] **AC-ES01**: GIVEN un estado recolectable WHEN `guardar_partida()` (ruta por defecto `user://savegame.save`) THEN devuelve `true` y crea el archivo con JSON válido que contiene la clave `"version"`.
+- [x] **AC-ES02**: GIVEN un guardado exitoso WHEN termina THEN **NO** existe el archivo temporal (`ruta + ".tmp"`) — el rename lo consumió.
+- [x] **AC-ES03**: GIVEN que `FileAccess.open` del temporal falla (ruta inválida/no escribible) WHEN `guardar_partida(ruta_mala)` THEN devuelve `false`, emite `push_error`, y **NO** crashea ni deja un `.tmp` colgando.
+- [x] **AC-ES04**: GIVEN un save previo válido en la ruta destino WHEN un guardado falla a mitad THEN el save previo **permanece intacto** (temp+rename lo garantiza — no se tocó el archivo final).
 
 ---
 
@@ -80,7 +80,7 @@
 **Story Type**: Integration (I/O real a `user://`)
 **Required evidence**: `tests/integration/save_manager/save_manager_escritura_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (save_manager_escritura_test.gd 4/4; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -94,3 +94,9 @@
 - **`user://` aislamiento**: I/O real → ruta única por test + teardown que borra el archivo Y su `.tmp`. Nunca compartir rutas entre tests (romperían el aislamiento/orden-independencia del manifest de testing).
 - **`FileAccess.open` puede devolver `null`**: comprobar antes de llamar a `store_string` (no es una excepción, es un valor de retorno).
 - **`res://` prohibido**: nunca escribir el save fuera de `user://`.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente godot-gdscript-specialist (Opus) + verificacion independiente del hilo
+principal (suite 135/135, exit 0). Commit 821d33a. Hallazgo Windows (003): rename_absolute NO sobrescribe
+-> borrar destino solo con .tmp valido listo; rutas globalizadas con ProjectSettings.globalize_path.

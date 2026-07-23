@@ -1,12 +1,12 @@
 # Story 006: Round-trip END-TO-END con autoloads reales (disco `user://`)
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,10 +31,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-RT01**: GIVEN Tiempo con `minutos_juego = 930.0` (15:30), `semana`/`mes`/`anio` conocidos, guardado a `user://` y luego ALTERADO WHEN `cargar_partida` THEN el reloj vuelve a `minutos_juego == 930.0` y la misma `semana`/`mes`/`anio` (round-trip idéntico a través de JSON en disco).
-- [ ] **AC-RT02**: GIVEN el mismo ciclo WHEN se carga THEN `Tiempo.velocidad_actual == PAUSA` (cargar arranca en Pausa, sea cual sea la velocidad previa — TR-time-008).
-- [ ] **AC-RT03**: GIVEN RNGService sembrado y consumido antes de guardar, luego ALTERADO WHEN se carga THEN la **secuencia futura** del RNG tras cargar es **idéntica** a la que habría producido sin guardar (determinismo restaurado vía el int64-como-String a través del disco — TR-save-002).
-- [ ] **AC-RT04**: GIVEN el archivo de test en `user://` WHEN termina el test THEN el teardown lo borra (aislamiento; el `user://` queda limpio).
+- [x] **AC-RT01**: GIVEN Tiempo con `minutos_juego = 930.0` (15:30), `semana`/`mes`/`anio` conocidos, guardado a `user://` y luego ALTERADO WHEN `cargar_partida` THEN el reloj vuelve a `minutos_juego == 930.0` y la misma `semana`/`mes`/`anio` (round-trip idéntico a través de JSON en disco).
+- [x] **AC-RT02**: GIVEN el mismo ciclo WHEN se carga THEN `Tiempo.velocidad_actual == PAUSA` (cargar arranca en Pausa, sea cual sea la velocidad previa — TR-time-008).
+- [x] **AC-RT03**: GIVEN RNGService sembrado y consumido antes de guardar, luego ALTERADO WHEN se carga THEN la **secuencia futura** del RNG tras cargar es **idéntica** a la que habría producido sin guardar (determinismo restaurado vía el int64-como-String a través del disco — TR-save-002).
+- [x] **AC-RT04**: GIVEN el archivo de test en `user://` WHEN termina el test THEN el teardown lo borra (aislamiento; el `user://` queda limpio).
 
 ---
 
@@ -77,7 +77,7 @@
 **Story Type**: Integration (autoloads reales + disco `user://`)
 **Required evidence**: `tests/integration/save_manager/save_manager_roundtrip_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (save_manager_roundtrip_test.gd 4/4; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -92,3 +92,9 @@
 - **`Tiempo._ready` con bus/config**: en el test, inyectar un bus (`usar_bus`) o tolerar `null` (fallback seguro documentado); el config ausente cae a defaults seguros (no peta).
 - **`user://` aislamiento**: ruta única + teardown que borra el archivo Y su `.tmp`.
 - **Lambdas capturan por valor → Arrays**: si se acumula la secuencia esperada del RNG en un `Array`, ojo con la captura (referencia mutable del Array, valores por copia).
+
+## Cierre (2026-07-23)
+
+Test de integracion escrito por subagente Opus (aislamiento: instancias propias + metodos internos con
+lista inyectada, sin contaminar los autoloads del runner) + verificacion del hilo principal. Suite
+135/135, exit 0.

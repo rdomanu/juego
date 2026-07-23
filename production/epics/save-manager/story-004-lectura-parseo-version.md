@@ -1,12 +1,12 @@
 # Story 004: Lectura + parseo + chequeo de `version` (hook de migraciones)
 
 > **Epic**: SaveManager (guardado y carga)
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -31,10 +31,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-LC01**: GIVEN una ruta inexistente (o `FileAccess.open` devuelve `null`) WHEN `cargar_partida(ruta)` THEN devuelve `false`, emite log, y NO crashea.
-- [ ] **AC-LC02**: GIVEN un archivo con texto NO-JSON (o JSON que no es un objeto, p. ej. `"42"` o `"[1,2]"`) WHEN `cargar_partida(ruta)` THEN `JSON.parse_string` devuelve algo cuyo `typeof != TYPE_DICTIONARY` → `false` + log, sin crash.
-- [ ] **AC-LC03**: GIVEN un JSON válido pero SIN la clave `"version"` WHEN `cargar_partida(ruta)` THEN devuelve `false` + log (no es un save reconocible).
-- [ ] **AC-LC04**: GIVEN un save con `"version"` **mayor** que `VERSION_ACTUAL` (p. ej. 99) WHEN `cargar_partida(ruta)` THEN se **RECHAZA** con log (MVP sin migraciones hacia adelante — no sabemos leer un formato futuro); GIVEN `version == 1` THEN `_migrar` es la **identidad** y la carga continúa.
+- [x] **AC-LC01**: GIVEN una ruta inexistente (o `FileAccess.open` devuelve `null`) WHEN `cargar_partida(ruta)` THEN devuelve `false`, emite log, y NO crashea.
+- [x] **AC-LC02**: GIVEN un archivo con texto NO-JSON (o JSON que no es un objeto, p. ej. `"42"` o `"[1,2]"`) WHEN `cargar_partida(ruta)` THEN `JSON.parse_string` devuelve algo cuyo `typeof != TYPE_DICTIONARY` → `false` + log, sin crash.
+- [x] **AC-LC03**: GIVEN un JSON válido pero SIN la clave `"version"` WHEN `cargar_partida(ruta)` THEN devuelve `false` + log (no es un save reconocible).
+- [x] **AC-LC04**: GIVEN un save con `"version"` **mayor** que `VERSION_ACTUAL` (p. ej. 99) WHEN `cargar_partida(ruta)` THEN se **RECHAZA** con log (MVP sin migraciones hacia adelante — no sabemos leer un formato futuro); GIVEN `version == 1` THEN `_migrar` es la **identidad** y la carga continúa.
 
 ---
 
@@ -94,7 +94,7 @@
 **Story Type**: Integration (lee fixtures reales de `user://`)
 **Required evidence**: `tests/integration/save_manager/save_manager_lectura_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (save_manager_lectura_test.gd 6/6; suite 135/135, 2026-07-23)
 
 ## Dependencies
 
@@ -108,3 +108,8 @@
 - **`user://` aislamiento con teardown**: fixtures con ruta única + borrado en teardown (incl. `.tmp`).
 - **Seguridad JSON**: nunca cargar el save con `load()`/`ResourceLoader` (ejecutaría `_init` de un Resource manipulado) — solo `FileAccess` + `JSON.parse_string`.
 - **Preload por ruta en headless**: `preload("res://src/foundation/save_manager/save_manager.gd")` en el test.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente Opus + verificacion independiente del hilo principal (suite 135/135, exit 0).
+Commit c7e8ddb.
