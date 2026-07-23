@@ -58,6 +58,13 @@ var _horas_extra_dia: float = 0.0
 ## Coste de la peonada por hora (cacheado del catálogo `costes_global`).
 var _peonada_eur_hora: float = 15.0
 
+# ── Préstamos del Comisario (Story 004 · TR-economy-003 · GDD E9, F8) ───────────────────────
+## Strikes: préstamos pedidos EN TODA LA PARTIDA (fija el límite y el game over; NUNCA baja — devolver
+## no recupera el salvavidas gastado).
+var prestamos_usados: int = 0
+## Préstamos SIN saldar (0..usados): los que generan la penalización diaria F8.
+var prestamos_vivos: int = 0
+
 
 func _ready() -> void:
 	if _bus == null:
@@ -198,9 +205,39 @@ func _gasto_salarios_dia() -> float:
 	return total
 
 
-## Penalización diaria de préstamos vivos (F8). HOOK: hasta la Story 004 no hay préstamos → 0.
+# ── Préstamos del Comisario (Story 004 — E9/F8) ─────────────────────────────────────────────
+
+## Pide un préstamo al Comisario (E9): inyecta `importe_prestamo_eur` al instante y gasta un STRIKE.
+## Permitido también en positivo (uso preventivo — Edge Case del GDD: su decisión y su coste).
+## Rechazado si ya se agotaron los strikes (`usados ≥ max`). Emite `prestamo_pedido` + `saldo_cambiado`.
+func pedir_prestamo() -> bool:
+	if prestamos_usados >= num_prestamos_max:
+		return false
+	prestamos_usados += 1
+	prestamos_vivos += 1
+	saldo_eur += importe_prestamo_eur
+	# TODO(#16 Presión e Influencia): hook "−valoración de jefes" al pedir (métrica futura, GDD E9).
+	if _bus != null:
+		_bus.prestamo_pedido.emit(prestamos_usados, prestamos_vivos)
+	_emitir_saldo()
+	return true
+
+
+## Salda un préstamo vivo devolviendo el principal (E9): exige caja literal (`saldo ≥ importe`) y algún
+## préstamo vivo. `vivos −= 1` (deja de pesar en F8); el strike NO se recupera. Emite `saldo_cambiado`.
+func saldar_prestamo() -> bool:
+	if prestamos_vivos <= 0 or saldo_eur < importe_prestamo_eur:
+		return false
+	prestamos_vivos -= 1
+	saldo_eur -= importe_prestamo_eur
+	_emitir_saldo()
+	return true
+
+
+## Penalización diaria por préstamos vivos (F8): `vivos × (fija + pct × ingreso_doc_dia)`.
+## Se evalúa en el paso (2) del cierre, ANTES del reset de `ingreso_doc_dia` (orden F6).
 func _penalizacion_prestamos_dia() -> float:
-	return 0.0
+	return prestamos_vivos * (penalizacion_fija_prestamo + pct_ingreso_prestamo * ingreso_doc_dia)
 
 
 # ── Config (E8 — data-driven, patrón ConfigTiempo) ──────────────────────────────────────────

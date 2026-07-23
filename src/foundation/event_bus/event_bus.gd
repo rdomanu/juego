@@ -38,6 +38,10 @@ signal velocidad_cambiada(indice: int)
 ## (Enmienda 2026-07-23, epic economia story 001: int -> float — el dinero tiene decimales, GDD F2.)
 signal saldo_cambiado(nuevo_saldo: float)
 
+## Se ha pedido un prestamo del Comisario (E9): inyeccion + strike. Emisor: Economia. Oyentes: UI
+## (contador de salvavidas restantes), Feedback. (Ampliacion 2026-07-23, epic economia story 004.)
+signal prestamo_pedido(usados: int, vivos: int)
+
 ## Se ha generado una reclamacion (p. ej. por un abandono en Documentacion). Emisor: Paciencia.
 ## Oyentes: ODAC (recibe la carga), Feedback.
 signal reclamacion_generada(origen: StringName)
