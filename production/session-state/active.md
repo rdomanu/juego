@@ -177,11 +177,27 @@ smoke doc `production/qa/smoke-2026-07-23.md`. **Suite 135/135, exit 0.**
 **🏗️ HITO: LOS 5 MÓDULOS FOUNDATION COMPLETOS Y CERRADOS (EventBus, RNGService, Datos, Tiempo,
 SaveManager) + esqueleto visible firmado.** El "ERROR Parse JSON ... got 'esto'" de la salida de la suite
 es un caso de test intencionado (save corrupto → fallo controlado).
-**PRÓXIMO INMEDIATO: capa CORE** (orden de construcción del índice: Economía → Demanda → Personal →
-Construcción → Flujo al final por ser el integrador) — `/create-stories economia` (propuesta → aprobar →
-flujo híbrido) y valorar `/sprint-plan` ahora que Foundation está cerrada. Cada epic Core añade cosas
-VISIBLES/jugables al esqueleto (avisar al usuario en los hitos visuales; relanzar ventana).
-Estado de código: 135/135 tests verdes; Foundation 5/5 COMPLETA; Core 0/5.
+**✅ SPRINT 1 ABIERTO (2026-07-23, commits 8bfda34/112768f/4b3730a):** `/sprint-plan` hecho —
+production/sprints/sprint-1.md + sprint-status.yaml + review-mode.txt=lean. Must Have = epic Economía;
+Should = Demanda; Nice = stories de Personal. **QA plan del sprint escrito** (qa-plan-sprint-1.md, lean:
+6 Logic BLOCKING + 1 Visual ADVISORY).
+**⚠️ SUBAGENTES CAÍDOS OTRA VEZ** ("Usage credits required for 1M context", como la sesión original) →
+TODO en hilo principal (regla fija). El usuario puede reactivarlos con /usage-credits.
+**✅ C1-1: 7 stories de Economía ESCRITAS y aprobadas** (hilo principal). Decisiones: Economía = NODO del
+mundo (arquitectura §3.4, no autoload); ConfigEconomia .tres (9 knobs); enmienda bus `saldo_cambiado`
+int→float + 6 señales nuevas previstas (prestamo_pedido, entro/salio_de_deuda, insolvencia,
+gracia_iniciada, game_over); interfaces provisionales (sat_cierre=50 fija + fijar_sat_cierre; plantilla
+inyectable fijar_plantilla; registrar_horas_extra; modal rescate = señales + aceptar/rechazar_rescate).
+**✅ eco-001 IMPLEMENTADA (commit d877995):** src/core/economia/economia.gd (nodo, gates E4, usar_bus) +
+config_economia.gd + tools/build_config_economia.gd → datos/config/economia.tres + enmienda del bus
+aplicada (señal float + test alineado). Tests 6/6. **Suite 141/141, exit 0.**
+**PRÓXIMO INMEDIATO:** eco-002 (ingresos retorno DGP: fórmula F1 con Costes del catálogo, sat provisional
+50, handler tramite_completado con cache de ids de TramiteDoc para no disparar warnings con denuncias) →
+eco-003 (cierre diario prio 20: recargo apertura→gastos→reset) → eco-004 (préstamos) → eco-005
+(insolvencia/gracia/game over) → eco-006 (balance mes prio 10 + save) → **eco-007 SALDO EN HUD (VISIBLE:
+plantilla provisional [ag_doc,ag_doc,ag_odac] → nómina −190 €/medianoche a la vista; AVISAR + ABRIR
+VENTANA + sign-off)**. Cierres formales de las stories eco-* en batch al completar el epic.
+Estado de código: 141/141 tests verdes; Foundation 5/5; Sprint 1: eco-001 done, eco-002 ready.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).
