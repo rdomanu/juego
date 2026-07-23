@@ -10,6 +10,7 @@ config_version=5
 [application]
 
 config/name="Comisario"
+run/main_scene="res://src/main/Main.tscn"
 config/description="Tycoon de gestion de una comisaria del CNP (Godot 4.6, 2D top-down)."
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
