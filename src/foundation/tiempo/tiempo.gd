@@ -25,6 +25,12 @@ extends Node
 ## el bus, H4): 0=mañana, 1=tarde, 2=noche.
 enum Turno { MANANA = 0, TARDE = 1, NOCHE = 2 }
 
+## Estados de la máquina de velocidad que controla el jugador (Story 006 — GDD Core Rules 2, TR-time-002).
+## Es la ÚNICA máquina de estados que maneja el jugador y un SELECTOR DIRECTO (cualquier estado →
+## cualquier otro, no una rueda secuencial). El valor entero de cada estado COINCIDE con su multiplicador
+## (PAUSA=0, X1=1, X2=2, X3=3) → `multiplicador_velocidad` se DERIVA del estado sin tabla aparte.
+enum Velocidad { PAUSA = 0, X1 = 1, X2 = 2, X3 = 3 }
+
 ## Minutos en un día (24 h × 60 min). El acumulador envuelve al alcanzarlo. NO es un tuning knob de gameplay
 ## (es la definición de "día de 24 h") → constante del código, no del config.
 const MINUTOS_POR_DIA: float = 1440.0
@@ -50,9 +56,21 @@ var minutos_juego: float = 0.0
 ## de [3, 12] tras el clamp. Default 4.0 antes de aplicar config (fallback seguro).
 var escala_tiempo: float = 4.0
 
-## Multiplicador de la máquina de velocidad (Pausa=0 / 1× / 2× / 3×). Var simple con default 1×; la lógica
-## de la máquina de velocidad es H6.
-var multiplicador_velocidad: int = 1
+## Estado ACTUAL de la máquina de velocidad (Story 006). Fuente de verdad de la velocidad; el
+## multiplicador se DERIVA de aquí (`multiplicador_velocidad`), nunca se almacena desincronizado. Se cambia
+## SOLO por `fijar_velocidad()`/`reanudar()`. Default X1 (partida nueva arranca en 1×; al CARGAR, H8 fuerza
+## PAUSA). El índice viaja en `EventBus.velocidad_cambiada(indice: int)`.
+var velocidad_actual: Velocidad = Velocidad.X1
+
+## Última velocidad DE JUEGO (nunca PAUSA) — a la que vuelve `reanudar()` al salir de Pausa (AC-T31).
+## Se actualiza al fijar cualquier velocidad ≠ PAUSA; entrar en Pausa NO la pisa. Default X1 → tras cargar
+## (que arranca en Pausa sin velocidad previa en la sesión) reanudar va a 1× (AC-T31 excepción).
+var _ultima_velocidad_de_juego: Velocidad = Velocidad.X1
+
+## Multiplicador de la máquina de velocidad (Pausa=0 / 1× / 2× / 3×). DERIVADO de `velocidad_actual` —
+## los valores enteros del enum `Velocidad` ya SON el multiplicador (PAUSA=0). Lo lee `avanzar()` (H1). NO
+## se escribe directamente: cambiar de velocidad es `fijar_velocidad()`, que lo mantiene sincronizado.
+var multiplicador_velocidad: int = Velocidad.X1
 
 ## Techo del `delta` real aceptado por frame, en segundos (clamp anti-salto TR-time-005). Se LEE del config.
 var delta_max_por_frame: float = 0.5
@@ -93,6 +111,14 @@ var _era_de_noche_anterior: bool = true
 ## objeto se usa sin árbol y sin inyección: en ese caso `_procesar_cruces` no emite (fallback seguro).
 var _bus: Node = null
 
+# ── Hook del tick de simulación (Story 007 — GDD Interacciones, ADR-0001) ────────────────────
+## Suscriptores del tick de simulación, en el ORDEN de suscripción (ADR-0001: Tiempo EMPUJA el tick a
+## Demanda → Flujo → Paciencia, en orden fijo). Cada `Callable` recibe el `delta_juego` (minutos de juego
+## avanzados este frame, ya escalados por escala×mult; 0 en Pausa) y corre DESPUÉS de que el reloj avance y
+## procese sus cruces. Es un HOOK GENÉRICO: se registran callables con `suscribir_tick()`; NUNCA se llama a
+## Demanda/Flujo/Paciencia POR NOMBRE (aún no existen; violaría las capas — ADR-0001). Vacío en el MVP.
+var _suscriptores_tick: Array[Callable] = []
+
 
 func _ready() -> void:
 	_cargar_config()
@@ -102,6 +128,48 @@ func _ready() -> void:
 		_bus = get_node_or_null("/root/EventBus")
 	# Sincronizar las guardas anti-jitter con la hora inicial → el 1er cruce real no dispara evento espurio.
 	sincronizar_umbrales()
+	# Persistencia (Story 008): SaveManager (epic aparte) recorre el grupo sin conocer el reloj por nombre.
+	add_to_group("Persist")
+
+
+## Tick de simulación (Story 007 — GDD Core Rules 1.3, TR-time-001/007 · ADR-0001). Toda la lógica del reloj
+## corre aquí, en `_physics_process` (PASO FIJO ~1/60 s, independiente de los FPS de dibujado) → determinismo
+## (misma secuencia de deltas ⇒ idéntico resultado; AC-T35) y compatibilidad con `NavigationAgent2D`. NUNCA
+## en `_process` (variable → no determinista) ni leyendo la hora real del sistema.
+##
+## Orden del frame (idéntico al par manual que ejercitan los tests): capturar `minutos_antes` → `avanzar()`
+## (H1: acumula `delta×escala×mult` clampado) → `_procesar_cruces()` (H4/H5: turno/día-noche/calendario) →
+## empujar el tick a los suscriptores del hook. En Pausa (mult 0) el avance es 0 → sin cruces y sin empuje.
+##
+## El reloj es la FUENTE ÚNICA (TR-time-007, AC-T36): nadie más mantiene un contador; los consumidores LEEN
+## los getters (`minutos_juego`, `turno_de`, `es_de_noche`, `mes`/`semana`/`anio`) y se enganchan al hook.
+func _physics_process(delta: float) -> void:
+	var minutos_antes: float = minutos_juego
+	avanzar(delta)
+	_procesar_cruces(minutos_antes)
+	# Empuje del tick a los suscriptores (orden de suscripción). En Pausa el avance es 0 → no empujar.
+	if multiplicador_velocidad != 0 and not _suscriptores_tick.is_empty():
+		var delta_juego: float = _delta_a_minutos(delta)
+		for cb: Callable in _suscriptores_tick:
+			if cb.is_valid():
+				cb.call(delta_juego)
+
+
+## Registra un `callable` como suscriptor del tick de simulación (hook del ADR-0001). El callable recibe el
+## `delta_juego` (minutos de juego del frame) y se invoca en orden de suscripción tras avanzar y procesar
+## cruces. Los sistemas de Core (Demanda/Flujo/Paciencia) se registrarán aquí en SUS epics — Tiempo NUNCA los
+## conoce por nombre. Idempotente frente a duplicados (no re-registra el mismo callable).
+func suscribir_tick(cb: Callable) -> void:
+	if not _suscriptores_tick.has(cb):
+		_suscriptores_tick.append(cb)
+
+
+## Minutos de juego que corresponden a `delta_real` segundos con la escala y el multiplicador ACTUALES,
+## aplicando el mismo clamp anti-salto que `avanzar()`. Función PURA (no muta estado) — la usa el empuje del
+## hook para pasar `delta_juego` a los suscriptores sin leerlo de `minutos_juego` (que ya envolvió por 1440).
+func _delta_a_minutos(delta_real: float) -> float:
+	var delta_clampado: float = min(delta_real, delta_max_por_frame)
+	return escala_tiempo * multiplicador_velocidad * delta_clampado
 
 
 ## Avanza el reloj acumulando el `delta` REAL entregado por el motor (función pura y determinista).
@@ -116,6 +184,36 @@ func avanzar(delta_real: float) -> void:
 	var delta_clampado: float = min(delta_real, delta_max_por_frame)
 	minutos_juego += escala_tiempo * multiplicador_velocidad * delta_clampado
 	minutos_juego = fposmod(minutos_juego, MINUTOS_POR_DIA)
+
+
+# ── Máquina de velocidad (Story 006 — GDD Core Rules 2, TR-time-002 · ADR-0001) ──────────────
+
+## Fija la velocidad de la simulación a `v` (SELECTOR DIRECTO: cualquier estado → cualquier otro, GDD).
+##
+## Deriva el multiplicador del estado (los enteros del enum ya SON el multiplicador; PAUSA=0) y, si `v` es
+## una velocidad de juego (≠ PAUSA), la recuerda en `_ultima_velocidad_de_juego` para que `reanudar()`
+## vuelva a ella (AC-T31). Entrar en Pausa NO pisa esa memoria. NO toca `minutos_juego`: solo cambia el ritmo
+## de los SIGUIENTES frames → el tiempo ya transcurrido no se pierde ni se gana (AC-T30).
+##
+## Emisión "una vez por acción" (AC-T32): `EventBus.velocidad_cambiada(indice)` se emite SOLO si el estado
+## CAMBIA (re-seleccionar la misma velocidad no re-emite). Sin bus inyectado (`_bus == null`) no emite
+## (fallback seguro), pero el estado/multiplicador se actualizan igual.
+func fijar_velocidad(v: Velocidad) -> void:
+	if v != Velocidad.PAUSA:
+		_ultima_velocidad_de_juego = v
+	if v == velocidad_actual:
+		return   # sin cambio efectivo → no re-emitir (una vez por acción)
+	velocidad_actual = v
+	multiplicador_velocidad = v   # derivado: el entero del enum ES el multiplicador (PAUSA=0)
+	if _bus != null:
+		_bus.velocidad_cambiada.emit(v)
+
+
+## Reanuda desde Pausa volviendo a la última velocidad de juego (`_ultima_velocidad_de_juego`, nunca PAUSA;
+## default X1 → tras cargar reanuda a 1×, AC-T31 excepción). Es azúcar sobre `fijar_velocidad` (misma
+## emisión "una vez por acción" e igual respeto por `minutos_juego`).
+func reanudar() -> void:
+	fijar_velocidad(_ultima_velocidad_de_juego)
 
 
 # ── Detección de cruces de umbral (Story 004 · 005 — GDD States/Transitions B + Edge Cases) ──
@@ -274,6 +372,43 @@ func _avanzar_calendario() -> void:
 		_bus.disparar_ordenado(&"nuevo_dia")
 		if hay_nuevo_mes:
 			_bus.disparar_ordenado(&"nuevo_mes")
+
+
+# ── Serialización del reloj (Story 008 — GDD Interacciones, TR-time-008 · ADR-0002) ──────────
+
+## Devuelve el estado SERIALIZABLE del reloj para el save (patrón `save()`/`load_state()` del RNGService).
+##
+## Solo el estado NO DERIVADO: `minutos_juego` (float) + calendario `semana`/`mes`/`anio` (int). NO incluye
+## `turno` ni `es_de_noche` (se recalculan de `minutos_juego` al cargar — fuente única, TR-time-006/007), NO
+## la velocidad (al cargar SIEMPRE arranca en Pausa), NO el RNG (lo guarda `RNGService.save()`), NI la config
+## (`ConfigTiempo` es del desarrollador, no del save). Enteros pequeños directos (sin el truco de string del
+## RNG, que sí lo necesita por los int64). El `SaveManager` (epic aparte) recorre el grupo `Persist` y ensambla
+## el JSON sin conocer el reloj por nombre (ADR-0002).
+func save() -> Dictionary:
+	return {
+		"minutos_juego": minutos_juego,
+		"semana": semana,
+		"mes": mes,
+		"anio": anio,
+	}
+
+
+## Restaura el estado del reloj desde un `Dictionary` (p. ej. cargado de JSON). "Cargar SITÚA, no reproduce"
+## (GDD Edge Cases / ADR-0002): fija el estado, deja el reloj en Pausa y NO re-dispara NINGÚN evento pasado.
+##
+## Pasos (AC-T26/T27): (1) fija `minutos_juego`/`semana`/`mes`/`anio` desde `d` (defaults seguros si falta una
+## clave, sobre el estado actual); (2) fuerza PAUSA con `fijar_velocidad(PAUSA)` → el reloj no avanza hasta que
+## el jugador elija velocidad, y `_ultima_velocidad_de_juego` queda en su default X1 (reanudar irá a 1×);
+## (3) `sincronizar_umbrales()` alinea las guardas anti-jitter (`_turno_anterior`/`_era_de_noche_anterior`) con
+## la hora cargada, SIN emitir → el 1er `_physics_process` tras cargar NO detecta un cruce espurio. Durante toda
+## la carga se emiten CERO eventos de cruce/calendario (no se llama a `_procesar_cruces`).
+func load_state(d: Dictionary) -> void:
+	minutos_juego = float(d.get("minutos_juego", minutos_juego))
+	semana = int(d.get("semana", semana))
+	mes = int(d.get("mes", mes))
+	anio = int(d.get("anio", anio))
+	fijar_velocidad(Velocidad.PAUSA)   # H6: cargar arranca SIEMPRE en Pausa (AC-T27)
+	sincronizar_umbrales()             # alinea las guardas con la hora cargada → sin cruce espurio (AC-T26)
 
 
 # ── Carga del config (privado) ───────────────────────────────────────────────────────────────

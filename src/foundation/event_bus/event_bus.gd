@@ -29,6 +29,11 @@ signal cambio_de_turno(turno: int)
 ## Cambia el ciclo dia/noche (true = es de noche). Emisor: Tiempo.
 signal cambio_dia_noche(es_de_noche: bool)
 
+## Cambia la velocidad de la simulacion (indice del enum Velocidad: 0=PAUSA, 1=X1, 2=X2, 3=X3).
+## Emisor: Tiempo (maquina de velocidad, Story 006). Oyentes: UI/HUD (resalta el boton activo),
+## Feedback. Se emite UNA vez por accion efectiva (solo cuando el indice CAMBIA). Story 006 · TR-time-002.
+signal velocidad_cambiada(indice: int)
+
 ## El saldo de la comisaria ha cambiado. Emisor: Economia. Oyentes: UI, Feedback.
 signal saldo_cambiado(nuevo_saldo: int)
 
