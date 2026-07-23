@@ -174,11 +174,11 @@ stories:
     blocker: "dem-006"
     completed: "2026-07-24"
   - id: "C1-5"
-    name: "Crear stories del epic Personal (para Sprint 2)"
+    name: "Crear stories del epic Personal (para Sprint 2) — 7 escritas, 20/21 AC (+1 diferido a Flujo)"
     file: "production/epics/personal/EPIC.md"
     priority: nice-to-have
-    status: backlog
-    owner: ""
+    status: done
+    owner: "Fable (hilo principal)"
     estimate_days: 0.2
     blocker: "C1-4"
-    completed: ""
+    completed: "2026-07-24"

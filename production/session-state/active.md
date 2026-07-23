@@ -254,6 +254,21 @@ commit a1df0fc (stories 001-003) + cierre final. Stories 004-007 en hilo princip
   **Expectativa del usuario registrada:** quiere VER gente entrar → eso es FLUJO (rechazó el +1
   flotante provisional). Idea apuntada: hora de arranque ~07:55 (tuning Tiempo futuro).
 **Suite final: 220/220, exit 0.** Sprint: C1-4 + dem-001..007 = done. Epic + índice → Complete.
+**✅ C1-5 `/create-stories personal` HECHO (2026-07-24, aprobado por el usuario — SOLO escritura, la
+implementación es Sprint 2):** 7 historias en `production/epics/personal/` (001 Agente+fórmulas F1-F4 ·
+002 mercado sembrado con sesgo al centro · 003 asignación+gate FL4 [puestos ABSTRACTOS registrables —
+Construcción los hará reales con la misma API] · 004 ausencias nuevo_dia prio 30 [nómina prio 20 cobra
+ANTES → baja pagada] · 005 Oficial F6/F7 [cubre floor(Mando/2), solo libres MVP; parte agrupado] ·
+006 nómina efectiva a Economía [enmienda fijar_salarios_dia — hook previsto en eco-003] + persistencia ·
+007 HUD plantilla+nómina+ausencia [VISIBLE]). **20/21 AC; AC-PE10 (duración efectiva) diferido a Flujo
+explícitamente.** Decisiones propuestas EN las stories (aprobar al implementar): prob_candidato_oficial
+0.2 · refresco mercado por calendario (contratar solo retira al contratado) · gate contratación =
+puede_pagar(salario_dia) sin coste puntual (Open Q4) · plantilla inicial 2+1 atributos medios (nómina
+190 € intacta) · señales bus incidencia_personal/parte_personal. Erratilla GDD anotada (k_motivacion
+0.05 tabla vs 0.1 en F3 → dos knobs separados). EPIC+índice+sprint actualizados (C1-5 done).
+**SPRINT 1 COMPLETO AL 100 % (todas las tareas done, 6 días antes de plazo).** Sin commit aún.
+**PRÓXIMO:** commit de C1-5 → luego Sprint 2 (/sprint-plan: implementar Personal; después Construcción
+y Flujo — al cerrar Flujo el saldo SUBIRÁ por fin en el HUD y la pantalla se parecerá a la preview).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

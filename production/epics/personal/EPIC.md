@@ -4,7 +4,7 @@
 > **GDD**: design/gdd/staff-agents.md
 > **Architecture Module**: Personal #6
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories personal`
+> **Stories**: 7 (creadas 2026-07-24 — ver tabla; implementación prevista en Sprint 2)
 
 ## Overview
 
@@ -48,6 +48,26 @@ This epic is complete when:
   las ausencias; cálculo de `modificador_produccion`/`factor_trato`)
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/`
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [El Agente y sus fórmulas (F1–F4)](story-001-agente-y-formulas.md) | Logic | Ready | ADR-0003, ADR-0002 |
+| 002 | [El mercado de fichajes](story-002-mercado-fichajes.md) | Logic | Ready | ADR-0002, ADR-0001 |
+| 003 | [Asignación a puestos y gate para Flujo (FL4)](story-003-asignacion-gate-flujo.md) | Logic | Ready | ADR-0001, ADR-0003 |
+| 004 | [Ausencias del día (nuevo_dia prio 30)](story-004-ausencias-del-dia.md) | Integration | Ready | ADR-0001, ADR-0002 |
+| 005 | [El Oficial — cobertura y canalización (F6/F7)](story-005-oficial-cobertura-canalizacion.md) | Integration | Ready | ADR-0001 |
+| 006 | [Nómina real a Economía y persistencia](story-006-nomina-persistencia.md) | Integration | Ready | ADR-0002, ADR-0001 |
+| 007 | [Personal en el mundo — tu equipo en el HUD (HITO VISIBLE)](story-007-personal-en-el-mundo.md) | UI | Ready | ADR-0001 |
+
+Cobertura: **20/21 AC del GDD** — AC-PE10 (duración efectiva con el agente rápido) queda **diferido a
+Flujo** explícitamente (Personal aporta F2 testeada; Flujo la consumirá en su F1). Orden secuencial
+estricto. **Decisiones propuestas marcadas en las stories** (aprobar al implementar): prob. de Oficial
+en el mercado (0.2), refresco del mercado por calendario, gate de contratación = `puede_pagar(salario)`
+sin coste puntual (Open Q4), plantilla inicial 2+1 con atributos medios (nómina 190 € intacta), y
+enmiendas menores previstas (señales de personal en el bus; `fijar_salarios_dia` en Economía — hook ya
+documentado en eco-003).
+
 ## Next Step
 
-Run `/create-stories personal` to break this epic into implementable stories.
+**Sprint 2**: `/story-readiness production/epics/personal/story-001-agente-y-formulas.md` → `/dev-story`.
