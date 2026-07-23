@@ -28,15 +28,29 @@ const NOMBRES_TURNO: Array[String] = ["Mañana", "Tarde", "Noche"]
 ## Etiquetas de los botones de velocidad, indexadas por el enum `Tiempo.Velocidad` (0..3).
 const NOMBRES_VELOCIDAD: Array[String] = ["⏸ Pausa", "1×", "2×", "3×"]
 
+## Economía (Story 007 del epic economia): el primer sistema Core instanciado en el mundo (§3.4).
+const EconomiaScript := preload("res://src/core/economia/economia.gd")
+## Plantilla inicial PROVISIONAL (dotación estándar del GDD: 2 ag_doc + 1 ag_odac = 190 €/jornada).
+## HOOK de Personal: su epic la sustituirá por la dotación real contratada.
+var PLANTILLA_INICIAL: Array[StringName] = [&"ag_doc", &"ag_doc", &"ag_odac"]
+## Colores del estado financiero (placeholder sobrio; SIEMPRE acompañados de texto — accesibilidad).
+const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
+const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
+const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
+
 var _lbl_hora: Label
 var _lbl_fecha: Label
 var _lbl_turno: Label
 var _botones: Array[Button] = []
+var _economia: Node
+var _lbl_saldo: Label
+var _lbl_estado_fin: Label
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
 	_crear_suelo()
+	_instanciar_mundo()
 	_crear_hud()
 	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
 	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
@@ -69,6 +83,19 @@ func _unhandled_input(evento: InputEvent) -> void:
 			Tiempo.fijar_velocidad(Tiempo.Velocidad.X2)
 		KEY_3:
 			Tiempo.fijar_velocidad(Tiempo.Velocidad.X3)
+
+
+# ── El mundo (sistemas Core instanciados — arquitectura §3.4 paso 3) ─────────────────────────
+## Instancia los sistemas Core del mundo. De momento: Economía (name "Economia" = su clave de save).
+## Su _ready auto-resuelve los autoloads reales (bus/reloj), carga su config, se registra en el
+## dispatcher (cobros nuevo_dia prio 20 / nuevo_mes prio 10) y entra al grupo Persist.
+func _instanciar_mundo() -> void:
+	_economia = EconomiaScript.new()
+	_economia.name = "Economia"
+	add_child(_economia)
+	_economia.fijar_plantilla(PLANTILLA_INICIAL)
+	# La ventana de gracia de insolvencia corre en MINUTOS DE JUEGO → la empuja el tick del reloj.
+	Tiempo.suscribir_tick(_economia.avanzar_gracia)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
@@ -136,6 +163,15 @@ func _crear_hud() -> void:
 		fila_botones.add_child(boton)
 		_botones.append(boton)
 
+	# Bloque financiero (Story 007 del epic economia): saldo + estado, SOLO lectura.
+	caja.add_child(HSeparator.new())
+	_lbl_saldo = Label.new()
+	_lbl_saldo.add_theme_font_size_override("font_size", 22)
+	caja.add_child(_lbl_saldo)
+	_lbl_estado_fin = Label.new()
+	_lbl_estado_fin.add_theme_font_size_override("font_size", 12)
+	caja.add_child(_lbl_estado_fin)
+
 	var nota := Label.new()
 	nota.text = "Esqueleto visible — no jugable (HUD provisional) · Espacio pausa · 1/2/3 velocidad"
 	nota.add_theme_font_size_override("font_size", 11)
@@ -143,11 +179,28 @@ func _crear_hud() -> void:
 	caja.add_child(nota)
 
 
-## Refresca hora/fecha/turno LEYENDO el reloj (fuente única; jamás se escribe en él).
+## Refresca hora/fecha/turno LEYENDO el reloj (fuente única; jamás se escribe en él) y el saldo
+## LEYENDO Economía (la UI lee y ordena, nunca muta — ADR-0001).
 func _refrescar_etiquetas() -> void:
 	_lbl_hora.text = Tiempo.hhmm(Tiempo.minutos_juego)
 	_lbl_fecha.text = "Mes %d · Semana %d — Año %d" % [Tiempo.mes, Tiempo.semana, Tiempo.anio]
 	_lbl_turno.text = "Turno: %s" % NOMBRES_TURNO[Tiempo.turno_de(Tiempo.minutos_juego)]
+	if _economia == null or _lbl_saldo == null:
+		return
+	var saldo: float = _economia.saldo_eur
+	_lbl_saldo.text = "%.2f €" % saldo
+	if saldo < 0.0:
+		_lbl_saldo.modulate = COLOR_ROJOS
+		_lbl_estado_fin.text = "Estado: NÚMEROS ROJOS (gasto bloqueado)"
+		_lbl_estado_fin.modulate = COLOR_ROJOS
+	elif saldo < _economia.umbral_holgura_ui:
+		_lbl_saldo.modulate = COLOR_JUSTO
+		_lbl_estado_fin.text = "Estado: justo"
+		_lbl_estado_fin.modulate = COLOR_JUSTO
+	else:
+		_lbl_saldo.modulate = COLOR_HOLGADO
+		_lbl_estado_fin.text = "Estado: holgado"
+		_lbl_estado_fin.modulate = COLOR_HOLGADO
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.
@@ -166,5 +219,5 @@ func _programar_captura_evidencia() -> void:
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
 		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
 		var img: Image = get_viewport().get_texture().get_image()
-		img.save_png("res://production/qa/evidence/tiempo-esqueleto-2026-07-23.png")
+		img.save_png("res://production/qa/evidence/economia-saldo-hud-2026-07-23.png")
 	)
