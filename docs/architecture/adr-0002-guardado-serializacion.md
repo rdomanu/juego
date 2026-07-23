@@ -89,8 +89,8 @@ orquestado por un `SaveManager` (autoload Foundation) que recorre el grupo `Pers
 ### Key Interfaces
 ```gdscript
 # save_manager.gd — Autoload "SaveManager" (Foundation)
-func guardar(ruta := "user://savegame.save") -> bool
-func cargar(ruta := "user://savegame.save") -> bool
+func guardar_partida(ruta := "user://savegame.save") -> bool  # nombre final (decision 2026-07-23; deja hueco a slots)
+func cargar_partida(ruta := "user://savegame.save") -> bool
 
 # Contrato que implementa cada sistema persistente (marcado con el grupo "Persist"):
 func save() -> Dictionary            # devuelve SOLO datos serializables (numeros, texto, listas, dicts)

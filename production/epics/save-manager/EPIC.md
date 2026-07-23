@@ -4,7 +4,7 @@
 > **GDD**: — (módulo de infraestructura sin GDD; corresponde al sistema #20 "Guardado y Carga" del índice; derivado de `docs/architecture/architecture.md` §3.3 y ADR-0002)
 > **Architecture Module**: ▸SaveManager
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories save-manager`
+> **Stories**: 7 created — see table below
 
 ## Overview
 
@@ -49,6 +49,20 @@ This epic is complete when:
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/` (N/A esperado
   para este módulo puramente técnico)
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [Helper de tipos JSON-safe (`Vector2i`↔`{x,y}`)](story-001-serial-util.md) | Logic | Ready | ADR-0002 |
+| 002 | [Recolección: grupo `Persist` → dict raíz con `version`](story-002-recoleccion-persist.md) | Logic | Ready | ADR-0002 |
+| 003 | [Escritura segura en `user://` (temp+rename, bool de `store_*`)](story-003-escritura-segura.md) | Logic | Ready | ADR-0002 |
+| 004 | [Lectura + parseo + chequeo de `version` (hook migraciones)](story-004-lectura-parseo-version.md) | Logic | Ready | ADR-0002 |
+| 005 | [Distribución tolerante: sub-dicts vía `load_state`](story-005-distribucion-tolerante.md) | Logic | Ready | ADR-0002 |
+| 006 | [Round-trip END-TO-END con autoloads reales (disco `user://`)](story-006-roundtrip-end-to-end.md) | Integration | Ready | ADR-0002 |
+| 007 | [Registro autoload 5º + smoke](story-007-autoload-smoke.md) | Integration | Ready | ADR-0002 |
+
+**Orden**: 001 → 002 → 003 → 004 → 005 → 006 → 007 (dependencias lineales con un par de bifurcaciones: 005 depende de 002 y 004; 006 de 003 y 005). Los tipos JSON-safe (001) son la raíz; el registro del autoload + smoke (007) es el cierre, tras el round-trip verde (006).
+
 ## Next Step
 
-Run `/create-stories save-manager` to break this epic into implementable stories.
+Run `/story-readiness production/epics/save-manager/story-001-serial-util.md` para validar la primera story, luego `/dev-story production/epics/save-manager/story-001-serial-util.md` para empezar a implementarla.
