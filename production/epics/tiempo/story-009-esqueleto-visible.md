@@ -1,12 +1,12 @@
 # Story 009 (EXTRA): Esqueleto visible — `Main.tscn` + TileMapLayer + HUD reloj
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Visual/UI
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -34,12 +34,12 @@
 
 *Visual/UI — evidencia por captura + sign-off (ADVISORY). No hay AC-T del GDD asociados; los criterios verifican que lo ya construido se ve y responde:*
 
-- [ ] Existe `Main.tscn` (+ `main.gd`) registrada como **main scene** en `project.godot`; al lanzar, abre una ventana sin errores en consola.
-- [ ] Se ve una **rejilla de suelo** (`TileMapLayer`) — solo visual, **sin construcción** (no se colocan/borran celdas con el ratón).
-- [ ] El **HUD** muestra, actualizándose en vivo: **hora HH:MM**, **fecha "Mes · Semana N"** (+ año), **turno** (Mañana/Tarde/Noche).
-- [ ] Hay **botones de velocidad** Pausa / 1× / 2× / 3× (el activo resaltado) y **atajos** `Espacio` (pausa/reanuda), `1`/`2`/`3` (velocidades) que llaman a `Tiempo.fijar_velocidad(...)`.
-- [ ] Al correr el reloj, la hora avanza; al pulsar Pausa/Espacio, se congela; al cambiar de velocidad, la hora corre más rápido — **visible**.
-- [ ] El HUD reacciona a `EventBus.cambio_de_turno` / `cambio_dia_noche` / `velocidad_cambiada` (p. ej. actualiza el turno / resalta el botón activo).
+- [x] Existe `Main.tscn` (+ `main.gd`) registrada como **main scene** en `project.godot`; al lanzar, abre una ventana sin errores en consola.
+- [x] Se ve una **rejilla de suelo** (`TileMapLayer`) — solo visual, **sin construcción** (no se colocan/borran celdas con el ratón).
+- [x] El **HUD** muestra, actualizándose en vivo: **hora HH:MM**, **fecha "Mes · Semana N"** (+ año), **turno** (Mañana/Tarde/Noche).
+- [x] Hay **botones de velocidad** Pausa / 1× / 2× / 3× (el activo resaltado) y **atajos** `Espacio` (pausa/reanuda), `1`/`2`/`3` (velocidades) que llaman a `Tiempo.fijar_velocidad(...)`.
+- [x] Al correr el reloj, la hora avanza; al pulsar Pausa/Espacio, se congela; al cambiar de velocidad, la hora corre más rápido — **visible**.
+- [x] El HUD reacciona a `EventBus.cambio_de_turno` / `cambio_dia_noche` / `velocidad_cambiada` (p. ej. actualiza el turno / resalta el botón activo).
 
 ---
 
@@ -79,7 +79,7 @@
 **Story Type**: Visual/UI (ADVISORY — screenshot + sign-off del usuario)
 **Required evidence**: captura + doc de walkthrough en `production/qa/evidence/` (p. ej. `tiempo-esqueleto-[fecha].md` + PNG). Sign-off del usuario.
 
-**Status**: not yet created
+**Status**: [x] Evidencia creada y FIRMADA: `production/qa/evidence/tiempo-esqueleto-2026-07-23.md` + PNG (captura automática). Sign-off del usuario 2026-07-23.
 
 ## Dependencies
 
@@ -92,3 +92,12 @@
 - Botones de velocidad con **`focus_mode = FOCUS_NONE`** para no robar `Espacio` (gotcha del prototipo).
 - El HUD **lee** el reloj (fuente única); **nunca** lo muta — solo ordena velocidad por la API pública.
 - Validar primero en **headless** (que no pete al cargar la escena) y luego **lanzar la ventana** al usuario para el sign-off (flujo Godot del slice).
+
+## Cierre (2026-07-23)
+
+Implementada en el HILO PRINCIPAL (Fable — agentes inestables ese día; escena/HUD construidos por código,
+mismo enfoque que validó el prototipo). Commit 3282e06. Headless limpio (0 errores/warnings) + suite
+107/107 intacta. **Ventana abierta al usuario y SIGN-OFF recibido (2026-07-23)** — primera visual del
+juego de producción. Evidencia: `production/qa/evidence/tiempo-esqueleto-2026-07-23.md` + PNG (captura
+automática a los 2 s, solo en dev). Gotcha del prototipo aplicado (`focus_mode=FOCUS_NONE` en los botones
+para que Espacio pause).

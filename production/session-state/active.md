@@ -156,12 +156,19 @@ grupo Persist. **Suite 107/107, exit 0.** El agente agotó el turno antes del ú
 hilo principal. **🐛 ERRATA del GDD cazada por el test:** AC-T26 empareja "14:30" con turno "Tarde", pero
 14:30 es MAÑANA según la tabla de turnos del propio GDD (mezcla el horario laboral de Documentación con
 el turno del reloj) → test con 15:30; backlog: corregir el ejemplo en time-system.md.
-**PRÓXIMO INMEDIATO: 009 ESQUELETO VISIBLE** (Main.tscn: suelo TileMapLayer + HUD reloj/fecha/turno +
-botones y atajos de velocidad; main scene en project.godot; validar headless; **ABRIR LA VENTANA AL
-USUARIO** — primera visual del juego de producción; evidencia ADVISORY captura + sign-off en
-production/qa/evidence/). Al cerrarla: EPIC TIEMPO COMPLETO (4/5 Foundation) → save-manager → Core →
-`/sprint-plan`.
-Estado de código: 107/107 tests verdes; Foundation: EventBus/RNGService/Datos CERRADOS, Tiempo 8/9.
+**🎉🎉🎉 EPIC TIEMPO COMPLETO (2026-07-23, 9/9) + PRIMERA VENTANA DEL JUEGO ABIERTA Y FIRMADA:** Story
+009 implementada en HILO PRINCIPAL (commit 3282e06; escena/HUD por código como el prototipo): Main.tscn
+main scene, suelo TileMapLayer 24×13 (TileSet generado por código), HUD provisional (hora/fecha/turno,
+botones Pausa-1×-2×-3× con focus_mode NONE, atajos Espacio/1/2/3, resaltado vía velocidad_cambiada),
+captura de evidencia automática a los 2 s (solo dev). Headless limpio. **VENTANA ABIERTA AL USUARIO →
+SIGN-OFF ✅ (2026-07-23)**; evidencia `production/qa/evidence/tiempo-esqueleto-2026-07-23.md` + PNG.
+**4 de 5 módulos Foundation COMPLETOS Y CERRADOS: EventBus, RNGService, Datos, Tiempo.**
+**PRÓXIMO INMEDIATO:** epic **save-manager** (último Foundation; ADR-0002: JSON en user://, recorre grupo
+Persist [RNGService y Tiempo ya lo implementan], escritura temp+rename, version en el save, "cargar sitúa"
+— Tiempo.load_state ya fuerza Pausa) → `/create-stories save-manager` (propuesta → aprobar → implementar
+flujo híbrido) → al cerrar: FOUNDATION 5/5 → Core (Economía → Demanda → Personal → Construcción → Flujo)
+→ `/sprint-plan`. La ventana del juego puede relanzarse cuando el usuario quiera (main scene registrada).
+Estado de código: 107/107 tests verdes; Foundation 4/5 (falta SaveManager).
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

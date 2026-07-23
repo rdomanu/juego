@@ -12,7 +12,7 @@ Manifest: control-manifest 2026-07-22
 
 | Epic | Layer | System | GDD | Governing ADRs | Engine Risk | Stories | Status |
 |------|-------|--------|-----|----------------|-------------|---------|--------|
-| [Sistema de Tiempo](tiempo/EPIC.md) | Foundation | Tiempo #1 | time-system.md | ADR-0001, ADR-0002 | MEDIUM | 9 stories | **In Progress (8/9)** |
+| [Sistema de Tiempo](tiempo/EPIC.md) | Foundation | Tiempo #1 | time-system.md | ADR-0001, ADR-0002 | MEDIUM | 9 stories | **Complete** |
 | [Datos y Configuración](datos/EPIC.md) | Foundation | Datos #2 | data-config.md | ADR-0003, ADR-0002 | LOW-MEDIUM | 4 stories | **Complete** |
 | [EventBus](event-bus/EPIC.md) | Foundation | ▸EventBus (infra) | — | ADR-0001 | LOW | 2 stories | **Complete** |
 | [SaveManager](save-manager/EPIC.md) | Foundation | ▸SaveManager (infra) | — (#20) | ADR-0002 | MEDIUM | Not yet created | Ready |

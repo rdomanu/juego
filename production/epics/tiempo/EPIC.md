@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: design/gdd/time-system.md
 > **Architecture Module**: Tiempo #1
-> **Status**: In Progress (8/9)
+> **Status**: Complete (2026-07-23)
 > **Stories**: 9 created — see table below
 
 ## Overview
@@ -55,7 +55,7 @@ SaveManager).
 | 006 | [Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`](story-006-maquina-velocidad.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
 | 007 | [Integración `_physics_process`: tick + determinismo + presupuesto](story-007-integracion-physics.md) | Integration | **Complete** (2026-07-23) | ADR-0001 |
 | 008 | [`save()`/`load_state()` + grupo Persist + "cargar sitúa"](story-008-serializacion-reloj.md) | Logic | **Complete** (2026-07-23) | ADR-0002, ADR-0001 |
-| 009 | [(EXTRA) Esqueleto visible: `Main.tscn` + TileMapLayer + HUD reloj](story-009-esqueleto-visible.md) | Visual/UI | Ready | ADR-0001 |
+| 009 | [(EXTRA) Esqueleto visible: `Main.tscn` + TileMapLayer + HUD reloj](story-009-esqueleto-visible.md) | Visual/UI | **Complete** (2026-07-23, sign-off usuario) | ADR-0001 |
 
 **Orden**: 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 (la 009 **abre la primera ventana al usuario**). El grafo de dependencias es lineal salvo ramas menores (003 puede solaparse con 002; 006 depende de 002; 007 requiere 004+006). Seguir el orden numérico es seguro.
 
@@ -69,7 +69,8 @@ This epic is complete when:
 
 ## Next Step
 
-Stories 001–008 Complete (suite 107/107; el reloj está FUNCIONALMENTE COMPLETO: acumulador, config,
-turnos, cruces, calendario, velocidad, physics y save). Última: **009 — esqueleto visible** (`Main.tscn`:
-rejilla + HUD del reloj; abre la PRIMERA VENTANA del juego de producción al usuario; evidencia ADVISORY
-con captura + sign-off).
+**EPIC COMPLETO (2026-07-23): 9/9 stories cerradas.** Suite 107/107; el reloj entero (acumulador, config
+data-driven, turnos, cruces al bus, calendario semanal, velocidad, physics, save) + el **esqueleto
+visible firmado por el usuario** (primera ventana del juego de producción; evidencia en
+`production/qa/evidence/tiempo-esqueleto-2026-07-23.md`). Siguiente trabajo del proyecto: epic
+**save-manager** (último módulo Foundation) → Core → `/sprint-plan`.
