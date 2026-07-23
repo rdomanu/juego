@@ -1,12 +1,12 @@
 # Story 007: Integración `_physics_process` — tick + determinismo + presupuesto
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Integration
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,9 +30,9 @@
 
 *De GDD AC-T33/T35/T36. Valores transcritos exactos de los AC-T del GDD:*
 
-- [ ] **AC-T33**: GIVEN el reloj a 3× con `escala=12` (peor caso) WHEN se mide el update del reloj durante **1000 frames** THEN el tiempo medio del update es **< 0,1 ms** (< 0,6 % del presupuesto de 16,6 ms a 60 FPS). *(Hardware de referencia = Open Question del GDD; ver Implementation Notes — umbral holgado, NO gate bloqueante.)*
-- [ ] **AC-T35**: GIVEN la **misma secuencia de deltas** aplicada dos veces desde idéntico estado WHEN se ejecutan THEN `minutos_juego`, turno y señales son **idénticos** (sin dependencia de fecha/hora real del sistema ni semillas aleatorias).
-- [ ] **AC-T36** `[Integration]`: GIVEN Flujo, Demanda y Documentación activos WHEN cada uno consulta la hora THEN los tres devuelven el **mismo `minutos_del_dia`** del Sistema de Tiempo (ninguno mantiene su propio contador). *(MVP: como esos sistemas aún no existen, el test verifica el principio: **múltiples consultores leen el mismo valor del único reloj** y no hay un segundo contador — ver Implementation Notes.)*
+- [x] **AC-T33**: GIVEN el reloj a 3× con `escala=12` (peor caso) WHEN se mide el update del reloj durante **1000 frames** THEN el tiempo medio del update es **< 0,1 ms** (< 0,6 % del presupuesto de 16,6 ms a 60 FPS). *(Hardware de referencia = Open Question del GDD; ver Implementation Notes — umbral holgado, NO gate bloqueante.)*
+- [x] **AC-T35**: GIVEN la **misma secuencia de deltas** aplicada dos veces desde idéntico estado WHEN se ejecutan THEN `minutos_juego`, turno y señales son **idénticos** (sin dependencia de fecha/hora real del sistema ni semillas aleatorias).
+- [x] **AC-T36** `[Integration]`: GIVEN Flujo, Demanda y Documentación activos WHEN cada uno consulta la hora THEN los tres devuelven el **mismo `minutos_del_dia`** del Sistema de Tiempo (ninguno mantiene su propio contador). *(MVP: como esos sistemas aún no existen, el test verifica el principio: **múltiples consultores leen el mismo valor del único reloj** y no hay un segundo contador — ver Implementation Notes.)*
 
 ---
 
@@ -74,7 +74,7 @@
 **Story Type**: Integration
 **Required evidence**: `tests/integration/tiempo/tiempo_integracion_test.gd` — debe existir y pasar (BLOCKING para T35/T36; T33 es advisory).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_integracion_test.gd 5/5; suite 107/107, 2026-07-23)
 
 ## Dependencies
 
@@ -84,3 +84,9 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd`. Para test de `_physics_process` sin ventana, instanciar el nodo en el árbol del test y **llamar `_physics_process(dt)` manualmente** con deltas fijos (no depender del bucle real del motor headless) — así el test es determinista y no depende del scheduler. Medir con `Time.get_ticks_usec()`, **nunca** `OS.get_ticks_msec()`. **Nunca** hora real del sistema en la lógica.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente godot-gdscript-specialist (Opus) + verificacion independiente del hilo
+principal (suite 107/107, exit 0). Commit d54246e. T33 medido como ADVISORY con umbral holgado
+documentado (hardware objetivo = Open Question del GDD).

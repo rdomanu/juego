@@ -148,12 +148,20 @@ la 007); `sincronizar_umbrales()` evita cruces espurios al arrancar/cargar (lo u
 **⚠️ Incidencias de agentes (2026-07-22/23):** límite de sesión + 2 atascos de stream + 1 proceso caído a
 mitad de la 004-005 → el hilo principal (Fable) rescató el parcial (117 líneas buenas) y escribió los
 tests. Si los agentes vuelven a fallar seguido: hacer en hilo principal directamente.
-**PRÓXIMO INMEDIATO:** tiempo 006 (máquina de velocidad Pausa/1×/2×/3× + AÑADIR
-`velocidad_cambiada(indice: int)` al EventBus — ampliación menor aprobada del epic cerrado) → 007
-(integración `_physics_process`: tick real, determinismo, T33 advisory) → 008 (save/load + Persist +
-"cargar sitúa" con `sincronizar_umbrales`) → **009 ESQUELETO VISIBLE (Main.tscn: rejilla + HUD reloj →
-AVISAR AL USUARIO Y ABRIRLE LA VENTANA)** → save-manager → Core → `/sprint-plan`.
-Estado de código: 90/90 tests verdes; Foundation: EventBus/RNGService/Datos CERRADOS, Tiempo 5/9.
+**✅ Stories 006-008 IMPLEMENTADAS + CERRADAS (2026-07-23, commit d54246e):** máquina de velocidad
+{PAUSA,X1,X2,X3} directa (mult derivado; reanudar→última velocidad; `velocidad_cambiada(indice:int)`
+AÑADIDA al EventBus) · `_physics_process` = avanzar+_procesar_cruces + hook del tick sin nombres + T33
+advisory · save()={minutos_juego,semana,mes,anio}, load_state→PAUSA+sincronizar_umbrales+0 eventos,
+grupo Persist. **Suite 107/107, exit 0.** El agente agotó el turno antes del último test → rematado en
+hilo principal. **🐛 ERRATA del GDD cazada por el test:** AC-T26 empareja "14:30" con turno "Tarde", pero
+14:30 es MAÑANA según la tabla de turnos del propio GDD (mezcla el horario laboral de Documentación con
+el turno del reloj) → test con 15:30; backlog: corregir el ejemplo en time-system.md.
+**PRÓXIMO INMEDIATO: 009 ESQUELETO VISIBLE** (Main.tscn: suelo TileMapLayer + HUD reloj/fecha/turno +
+botones y atajos de velocidad; main scene en project.godot; validar headless; **ABRIR LA VENTANA AL
+USUARIO** — primera visual del juego de producción; evidencia ADVISORY captura + sign-off en
+production/qa/evidence/). Al cerrarla: EPIC TIEMPO COMPLETO (4/5 Foundation) → save-manager → Core →
+`/sprint-plan`.
+Estado de código: 107/107 tests verdes; Foundation: EventBus/RNGService/Datos CERRADOS, Tiempo 8/9.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

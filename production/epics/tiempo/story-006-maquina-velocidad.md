@@ -1,12 +1,12 @@
 # Story 006: Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,10 +30,10 @@
 
 *De GDD Core Rules 2 + States/Transitions A + Edge Cases. Valores transcritos exactos de los AC-T del GDD:*
 
-- [ ] **AC-T04** *(desde la máquina de velocidad)*: GIVEN Pausa (mult 0) WHEN cualquier `delta_real>0` THEN `minutos_juego` **no cambia** (el multiplicador derivado de PAUSA es 0). *(El acumulador es H1; aquí se verifica que PAUSA → mult 0 alimenta correctamente ese avance nulo.)*
-- [ ] **AC-T30**: GIVEN 3× con `minutos_juego=500.0` WHEN el jugador cambia a 1× THEN `minutos_juego` **sigue en 500,0** (ni pierde ni gana) y los frames siguientes van a 1×.
-- [ ] **AC-T31**: GIVEN estaba en 3×, pulsa Pausa y reanuda WHEN se reanuda THEN vuelve a **3×** (la última velocidad de juego). *(Excepción: tras cargar, que arranca en Pausa sin velocidad previa, reanudar va a **1×**.)*
-- [ ] **AC-T32**: GIVEN cualquier velocidad WHEN el jugador selecciona otra (incluida Pausa) THEN se emite **`velocidad_cambiada`** con el nuevo valor, **una vez por acción**.
+- [x] **AC-T04** *(desde la máquina de velocidad)*: GIVEN Pausa (mult 0) WHEN cualquier `delta_real>0` THEN `minutos_juego` **no cambia** (el multiplicador derivado de PAUSA es 0). *(El acumulador es H1; aquí se verifica que PAUSA → mult 0 alimenta correctamente ese avance nulo.)*
+- [x] **AC-T30**: GIVEN 3× con `minutos_juego=500.0` WHEN el jugador cambia a 1× THEN `minutos_juego` **sigue en 500,0** (ni pierde ni gana) y los frames siguientes van a 1×.
+- [x] **AC-T31**: GIVEN estaba en 3×, pulsa Pausa y reanuda WHEN se reanuda THEN vuelve a **3×** (la última velocidad de juego). *(Excepción: tras cargar, que arranca en Pausa sin velocidad previa, reanudar va a **1×**.)*
+- [x] **AC-T32**: GIVEN cualquier velocidad WHEN el jugador selecciona otra (incluida Pausa) THEN se emite **`velocidad_cambiada`** con el nuevo valor, **una vez por acción**.
 
 ---
 
@@ -72,7 +72,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/tiempo/tiempo_velocidad_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_velocidad_test.gd 7/7; suite 107/107, 2026-07-23)
 
 ## Dependencies
 
@@ -82,3 +82,9 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd`. Conectar un espía local a `EventBus.velocidad_cambiada` en el setup y desconectar en el teardown (aislamiento). **Nunca** hora real del sistema. Al añadir la señal al `event_bus.gd`, un test de que la señal existe con la firma esperada evita regresiones del contrato.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente godot-gdscript-specialist (Opus) + verificacion independiente del hilo
+principal (suite 107/107, exit 0). Commit d54246e. La senal velocidad_cambiada(indice:int) quedo anadida
+al EventBus (ampliacion menor aprobada del epic cerrado).

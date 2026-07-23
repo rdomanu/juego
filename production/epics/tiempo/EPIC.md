@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: design/gdd/time-system.md
 > **Architecture Module**: Tiempo #1
-> **Status**: In Progress (5/9)
+> **Status**: In Progress (8/9)
 > **Stories**: 9 created — see table below
 
 ## Overview
@@ -52,9 +52,9 @@ SaveManager).
 | 003 | [Conversiones hora↔minutos + turno + `es_de_noche`](story-003-conversiones-turnos.md) | Logic | **Complete** (2026-07-22) | ADR-0001 |
 | 004 | [Cruce de umbrales → señales de turno y día/noche](story-004-cruce-umbrales-senales.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
 | 005 | [Medianoche → calendario semanal + `nuevo_dia`/`nuevo_mes`](story-005-calendario-semanal.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
-| 006 | [Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`](story-006-maquina-velocidad.md) | Logic | Ready | ADR-0001 |
-| 007 | [Integración `_physics_process`: tick + determinismo + presupuesto](story-007-integracion-physics.md) | Integration | Ready | ADR-0001 |
-| 008 | [`save()`/`load_state()` + grupo Persist + "cargar sitúa"](story-008-serializacion-reloj.md) | Logic | Ready | ADR-0002, ADR-0001 |
+| 006 | [Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`](story-006-maquina-velocidad.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 007 | [Integración `_physics_process`: tick + determinismo + presupuesto](story-007-integracion-physics.md) | Integration | **Complete** (2026-07-23) | ADR-0001 |
+| 008 | [`save()`/`load_state()` + grupo Persist + "cargar sitúa"](story-008-serializacion-reloj.md) | Logic | **Complete** (2026-07-23) | ADR-0002, ADR-0001 |
 | 009 | [(EXTRA) Esqueleto visible: `Main.tscn` + TileMapLayer + HUD reloj](story-009-esqueleto-visible.md) | Visual/UI | Ready | ADR-0001 |
 
 **Orden**: 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 (la 009 **abre la primera ventana al usuario**). El grafo de dependencias es lineal salvo ramas menores (003 puede solaparse con 002; 006 depende de 002; 007 requiere 004+006). Seguir el orden numérico es seguro.
@@ -69,7 +69,7 @@ This epic is complete when:
 
 ## Next Step
 
-Stories 001–005 Complete (suite 90/90; el reloj emite cruces y calendario por el bus). Siguientes:
-**006** (máquina de velocidad + `velocidad_cambiada` al EventBus) → **007** (integración
-`_physics_process`) → **008** (save/load) → **009** (esqueleto visible — abre la primera ventana al
-usuario).
+Stories 001–008 Complete (suite 107/107; el reloj está FUNCIONALMENTE COMPLETO: acumulador, config,
+turnos, cruces, calendario, velocidad, physics y save). Última: **009 — esqueleto visible** (`Main.tscn`:
+rejilla + HUD del reloj; abre la PRIMERA VENTANA del juego de producción al usuario; evidencia ADVISORY
+con captura + sign-off).

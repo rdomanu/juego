@@ -1,12 +1,12 @@
 # Story 008: `save()`/`load_state()` + grupo Persist + "cargar sitúa" (Pausa)
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,8 +30,8 @@
 
 *De GDD Edge Cases (carga) + Interacciones. Valores transcritos exactos de los AC-T del GDD:*
 
-- [ ] **AC-T26**: GIVEN partida guardada a las **14:30, día 5, turno Tarde** WHEN se carga THEN muestra **14:30, día 5, Tarde**, **sin emitir** señales de cambio de turno / día-noche / `nuevo_dia`.
-- [ ] **AC-T27**: GIVEN partida guardada con velocidad **3×** WHEN se carga THEN la velocidad activa es **Pausa (0×)**, sea cual sea la guardada; el reloj **no avanza** hasta que el jugador elija velocidad.
+- [x] **AC-T26**: GIVEN partida guardada a las **14:30, día 5, turno Tarde** WHEN se carga THEN muestra **14:30, día 5, Tarde**, **sin emitir** señales de cambio de turno / día-noche / `nuevo_dia`.
+- [x] **AC-T27**: GIVEN partida guardada con velocidad **3×** WHEN se carga THEN la velocidad activa es **Pausa (0×)**, sea cual sea la guardada; el reloj **no avanza** hasta que el jugador elija velocidad.
 
 ---
 
@@ -72,7 +72,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/tiempo/tiempo_save_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_save_test.gd 5/5; suite 107/107, 2026-07-23)
 
 ## Dependencies
 
@@ -82,3 +82,11 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd`. Para verificar "0 emisiones durante la carga", conectar espías al EventBus en el setup y assertar contador 0 tras `load_state` (y tras un `_physics_process` inmediato). Desconectar en el teardown. **Nunca** hora real del sistema.
+
+## Cierre (2026-07-23)
+
+Implementada via subagente Opus + fix de test en el hilo principal (suite 107/107, exit 0). Commit
+d54246e. ERRATA del GDD detectada y anotada: el ejemplo del AC-T26 empareja "14:30" con turno "Tarde",
+pero segun la tabla de turnos del propio GDD ([420,900) manana) las 14:30 son MANANA (el ejemplo mezcla el
+horario laboral de Documentacion 08:00-14:30 con el turno del reloj). El test usa 15:30 (Tarde real).
+Backlog: corregir el ejemplo en design/gdd/time-system.md.
