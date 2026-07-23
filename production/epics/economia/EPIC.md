@@ -4,7 +4,25 @@
 > **GDD**: design/gdd/economy-budget.md
 > **Architecture Module**: Economía #3
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories economia`
+> **Stories**: 7 created — see table below
+
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [Núcleo: nodo + config + saldo + gates](story-001-nucleo-saldo-gates.md) | Logic | Ready | ADR-0001/0002 |
+| 002 | [Ingresos: retorno DGP + trámite completado](story-002-ingresos-retorno-dgp.md) | Logic | Ready | ADR-0001 |
+| 003 | [Cierre diario: recargo→gastos→reset (prio 20)](story-003-cierre-diario.md) | Logic | Ready | ADR-0001 |
+| 004 | [Préstamos del Comisario](story-004-prestamos-comisario.md) | Logic | Ready | ADR-0001 |
+| 005 | [Estados + insolvencia (gracia, game over)](story-005-estados-insolvencia.md) | Logic | Ready | ADR-0001 |
+| 006 | [Balance mensual + save/load](story-006-balance-mensual-save.md) | Logic | Ready | ADR-0001/0002 |
+| 007 | [💶 Saldo en el HUD (visible + sign-off)](story-007-saldo-en-hud.md) | Visual/UI | Ready | ADR-0001 |
+
+**Orden**: 001 → … → 007 (la 007 abre la ventana al usuario con el saldo vivo). Decisiones fijadas
+(2026-07-23): Economía = **nodo del mundo** (no autoload, arquitectura §3.4); config `ConfigEconomia`
+`.tres` propio; enmienda del bus `saldo_cambiado: int → float` + señales nuevas (`prestamo_pedido`,
+`entro_en_deuda`, `salio_de_deuda`, `insolvencia`, `gracia_iniciada`, `game_over`); interfaces
+provisionales con sistemas futuros (sat fija 50, plantilla inyectable, peonadas por API, modal = señales).
 
 ## Overview
 
@@ -51,4 +69,5 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/create-stories economia` to break this epic into implementable stories.
+Stories creadas (7, aprobadas por el usuario 2026-07-23 — tarea C1-1 del Sprint 1 ✅). Siguiente:
+`/qa-plan sprint` (decidido) y `/dev-story` de la 001 (tarea C1-2).
