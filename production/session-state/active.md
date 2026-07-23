@@ -201,6 +201,49 @@ usuario** (3000 € verde/ámbar/rojo + texto; nómina −190 €/medianoche a l
 economia-saldo-hud-2026-07-23.md + PNG). **Suite 173/173, exit 0.** Bus ampliado documentado:
 saldo_cambiado float + prestamo_pedido, entro/salio_de_deuda, insolvencia, gracia_iniciada, game_over.
 Sprint 1: C1-1/C1-2/C1-3 + eco-001..007 = done en sprint-status.yaml.
+**✅ `/create-stories demanda` HECHO (2026-07-23, aprobado por el usuario tras explicación en llano):**
+7 historias en `production/epics/demanda/` (001 núcleo+config+volumen · 002 generador determinista ·
+003 tick+ventana+bus [Integration] · 004 nivel BAJA/MEDIA/ALTA [enmienda bus `nivel_demanda_cambiado`] ·
+005 estacionalidad+eventos · 006 persistencia [Integration] · 007 HUD llegadas+nivel [UI, HITO VISIBLE]).
+19/19 AC del GDD + **AC-DM20 nuevo** (proporcionalidad de `poblacion` — petición del usuario: población
+variable por escenario, tasas ajustables por config sin tocar código; verificado que `Escenario.poblacion`
+ya existe en el esquema). Decisiones del usuario: ficha Persona = **RefCounted tipada** (servicio,
+tramite_id, minuto_llegada; Flujo la envolverá); HUD = contador llegadas + nivel (expectativa ajustada:
+el saldo NO sube hasta Flujo/C1-6, Demanda solo hace llegar gente). Verificado: `persona_generada` ya está
+en el bus (event_bus.gd:24) — sin `tramite_solicitado`. **⚠️ 2 erratas del GDD anotadas en story-001**
+(tasa_base_odac 0.4 [F1/AC] vs 0.5 [tabla Tuning]; "≈10 nocturnas" vs ≈5.25 derivado de 36×7/24×0.5) —
+propagar al GDD cuando se toque. EPIC.md + index.md actualizados. SIN commit (las 7 stories + código 001 se commitean cuando el usuario diga).
+**✅ demanda-001 IMPLEMENTADA + TEST EN VERDE (2026-07-23, hilo principal — subagentes caídos de la sesión
+anterior, sin reintentar):** `src/core/demanda/demanda.gd` (nodo `class_name Demanda`, F1/F2 puras:
+tasa_efectiva/demanda_dia/llegadas_esperadas_hora/densidad_por_minuto con ventana Doc 480-870, valle ODAC
+horas 0-6 × mult, franja 14 = 30 min; poblacion SIEMPRE del Escenario vía `fijar_escenario`/inyectable
+`fijar_poblacion`; aplicar_config con clamps patrón Economía) + `config_demanda.gd` (ConfigDemanda: 16
+knobs incl. mezclas F3, umbrales DG12, mult_estacional DG13 y eventos DG11 para stories 002-005; perfil
+ODAC uniforme rellenado en _init) + `tools/build_config_demanda.gd` → `datos/config/demanda.tres`
+(generado OK; Godot solo persiste lo ≠ default — normal). Test `demanda_volumen_test.gd` **17/17 PASS**
+a la primera (AC-DM01..04, 12, 13, 19 + AC-DM20 proporcionalidad poblacion 30k/180k + mezclas vs catálogo
+real + .tres real). **Suite total: 190/190, exit 0.** Nota: valle nocturno testeado al valor DERIVADO
+5.25 (no el "≈10" del GDD — errata anotada en la story).
+**✅ demanda-002 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** `persona.gd` (class_name Persona,
+RefCounted: servicio/tramite_id/minuto_llegada, cero lógica) + generador F4 en demanda.gd:
+`procesar_avance(delta_min, min_dia) -> Array[RefCounted]` (acumuladores Dictionary por servicio,
+residuo conservado, tope de ráfaga GLOBAL por tick, orden fijo Doc→ODAC, aviso anti-no-drena con
+guarda), `_elegir_tramite` vía RNGService.elegir_ponderado sobre arrays PARALELOS ids/pesos (orden de
+inserción del config = estable/determinista; `acumulador_de()` read-only). Test
+`demanda_generador_test.gd` **7/7** (DM06 determinismo secuencia completa, DM07 tope+excedente, DM08
+proporciones 2100 draws ±0.05, DM17 [2,1,1] end-to-end, ficha válida, tope global, delta 0).
+**Lección tipado:** un literal Dictionary SIN tipo no se asigna a una propiedad `Dictionary[K,V]` vía
+referencia `Resource` → declarar el literal tipado primero. **Suite: 197/197, exit 0.**
+**✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
+usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
+Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
+avance → _detectar_cierre_doc por CRUCE de 870 con guarda `_min_dia_anterior` → procesar_avance →
+emit persona_generada + llegadas_hoy++), reset acumulador Doc al cierre, `_al_nuevo_dia` prio 40
+(reset llegadas_hoy; registrado en _ready solo en árbol). Test integración
+`demanda_tick_ventana_test.gd` **6/6 a la primera** (DM05 bus+catálogo real, DM09 15:00 Doc 0/ODAC≥1,
+DM10 reset al cruce, DM11 Pausa con physics REAL en árbol (mult 0 → no push), DM16 360 fichas exactas
+sin freno, orden prio 40 con espías 39/41). **Suite total: 203/203, exit 0.** Sin commit aún (todo el
+epic pendiente de commit).
 **PRÓXIMO INMEDIATO (SESIÓN NUEVA — decidido por contexto al 75%):** tarea **C1-4 = epic DEMANDA**
 (Should Have del Sprint 1): `/create-stories demanda` (propuesta desde demand-generation.md: tasas de
 llegada calibradas a R5, mezcla ponderada de los 14 tipos vía RNGService.elegir_ponderado, régimen
