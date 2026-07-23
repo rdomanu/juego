@@ -304,7 +304,21 @@ idempotente), `desasignar`, `servicio_de_puesto`, `_oficial_de_servicio` (lo reu
 `modificador_produccion_de`/`factor_trato_de` (sin agente → 1.0 + aviso). `despedir` ahora libera el
 puesto de verdad. Test `personal_asignacion_test.gd` **7/7 a la primera** (PE02/08/09 + doble
 ocupación + modificadores + inválidos + despedir/quitar_puesto liberan). **Suite total: 243/243,
-exit 0.** SIN commit (001+002+003 pendientes).
+exit 0.**
+**✅ personal-001..003 COMMITEADAS (commit 06d6fb0, pusheado). FIN DE SESIÓN 2026-07-24.**
+**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** epic Personal 3/7 — seguir con **personal-004 (ausencias del
+día)**: leer production/epics/personal/story-004-ausencias-del-dia.md e implementar en hilo principal
+(patrón de las anteriores): handler `_al_nuevo_dia` YA EXISTE en personal.gd (refresco del mercado,
+002) → AMPLIARLO con (1) reincorporar ausentes de ayer, (2) tirada F4 por agente en orden estable de
+plantilla (RNGService.randf() < prob_ausencia), (3) marcar &"ausente" (titularidad conservada:
+puesto_id se mantiene, puesto_dotado→false), (4) registrar en _ready `registrar_ordenado(&"nuevo_dia",
+30, _al_nuevo_dia)` SOLO en árbol + enmienda del bus `incidencia_personal(texto, puesto)` (aviso
+individual; el parte agrupado es de la 005). Después 005 (Oficial: cobertura floor(Mando/2) con
+`_oficial_de_servicio` ya hecho + parte agrupado `parte_personal`), 006 (nómina efectiva → enmienda
+`fijar_salarios_dia` en Economía + save/load) y 007 (HUD VISIBLE: plantilla+nómina+ausencia; sustituir
+PLANTILLA_INICIAL de Main; abrir ventana + sign-off). Decisiones propuestas pendientes de ratificar al
+implementar: ya ratificadas de facto 001-003 (prob_oficial 0.2, refresco calendario, gate sin coste,
+servicio del catálogo); quedan las de 005-007 (solo libres para cubrir; plantilla inicial 2+1 medios).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
