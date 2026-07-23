@@ -42,6 +42,24 @@ signal saldo_cambiado(nuevo_saldo: float)
 ## (contador de salvavidas restantes), Feedback. (Ampliacion 2026-07-23, epic economia story 004.)
 signal prestamo_pedido(usados: int, vivos: int)
 
+## El saldo ha entrado en numeros rojos (saldo < 0): gasto voluntario bloqueado, recargo diario activo.
+## Emisor: Economia. Oyentes: UI (alerta), Feedback. (Ampliacion 2026-07-23, epic economia story 005.)
+signal entro_en_deuda(saldo: float)
+
+## El saldo ha vuelto a positivo (>= 0). Emisor: Economia. Oyentes: UI, Feedback. (Story 005.)
+signal salio_de_deuda(saldo: float)
+
+## El saldo ha tocado el suelo de insolvencia con prestamos disponibles: el juego se pausa y la UI debe
+## mostrar el modal del Comisario (aceptar_rescate/rechazar_rescate). Emisor: Economia. (Story 005.)
+signal insolvencia(saldo: float, prestamos_restantes: int)
+
+## El jugador rechazo el rescate: arranca la ventana de gracia (minutos de JUEGO restantes). (Story 005.)
+signal gracia_iniciada(minutos: float)
+
+## Derrota terminal (E9): insolvencia sin salvavidas — te echan de la comisaria. Emisor: Economia.
+## Oyentes: UI (pantalla de fin), Feedback. (Story 005.)
+signal game_over(motivo: StringName)
+
 ## Se ha generado una reclamacion (p. ej. por un abandono en Documentacion). Emisor: Paciencia.
 ## Oyentes: ODAC (recibe la carga), Feedback.
 signal reclamacion_generada(origen: StringName)

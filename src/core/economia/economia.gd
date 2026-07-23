@@ -65,10 +65,30 @@ var prestamos_usados: int = 0
 ## Préstamos SIN saldar (0..usados): los que generan la penalización diaria F8.
 var prestamos_vivos: int = 0
 
+# ── Estado financiero e insolvencia (Story 005 · TR-economy-003 · GDD E5/E9, States) ────────
+## Estados DERIVADOS del saldo (nunca almacenados como verdad; se recalculan al aplicar cada movimiento).
+enum EstadoFinanciero { POSITIVO = 0, ROJOS = 1, INSOLVENCIA = 2 }
+
+## Guarda anti-duplicado de transiciones (patrón de los cruces de Tiempo): solo se emite al CAMBIAR.
+var _estado_anterior: int = EstadoFinanciero.POSITIVO
+## true mientras el modal del Comisario espera la decisión del jugador (juego en pausa).
+var _esperando_decision: bool = false
+## Ventana de gracia activa (tras rechazar el rescate) y sus minutos de JUEGO restantes.
+var en_gracia: bool = false
+var gracia_restante_min: float = 0.0
+## true tras el game over (la partida terminó; los movimientos dejan de procesar transiciones).
+var partida_terminada: bool = false
+
+## El reloj del juego (inyectable; auto-resuelto al autoload `Tiempo` en _ready). Economía lo usa SOLO
+## para pausar/reanudar en el rescate (Core → Foundation permitido). Puede ser null en tests.
+var _tiempo: Node = null
+
 
 func _ready() -> void:
 	if _bus == null:
 		_bus = get_node_or_null("/root/EventBus")
+	if _tiempo == null:
+		_tiempo = get_node_or_null("/root/Tiempo")
 	_conectar_bus()
 	_cargar_config()
 	# El cobro diario va por el DISPATCHER (orden crítico Paciencia 10 → Economía 20 — ADR-0001).
@@ -279,7 +299,122 @@ func _clamp_knob(valor: float, nombre: String) -> float:
 	return valor
 
 
-## Emite `saldo_cambiado(saldo_eur)` por el bus inyectado (si lo hay).
+## Inyecta el reloj (dependency injection → testeable sin el autoload real). Solo reasigna.
+func usar_tiempo(tiempo: Node) -> void:
+	_tiempo = tiempo
+
+
+# ── Estado financiero e insolvencia (Story 005 — E5/E9, States and Transitions) ─────────────
+
+## Estado financiero DERIVADO del saldo (States del GDD): POSITIVO / ROJOS / INSOLVENCIA.
+func estado() -> int:
+	if saldo_eur >= 0.0:
+		return EstadoFinanciero.POSITIVO
+	if saldo_eur > -deuda_max_eur:
+		return EstadoFinanciero.ROJOS
+	return EstadoFinanciero.INSOLVENCIA
+
+
+## Procesa las transiciones de estado tras CADA movimiento del saldo (único punto — determinismo; nunca
+## salto retroactivo). Solo emite al CAMBIAR de estado (guarda anti-duplicado, patrón cruces de Tiempo).
+func _procesar_transiciones() -> void:
+	if partida_terminada:
+		return
+	var nuevo: int = estado()
+	# Salir del suelo durante la gracia CANCELA el rescate sin gastar préstamo (premia remontar, E9).
+	if en_gracia and nuevo != EstadoFinanciero.INSOLVENCIA:
+		en_gracia = false
+		gracia_restante_min = 0.0
+	if nuevo == _estado_anterior:
+		return
+	var anterior: int = _estado_anterior
+	_estado_anterior = nuevo
+	match nuevo:
+		EstadoFinanciero.ROJOS:
+			# Solo al ENTRAR desde positivo (INSOLVENCIA→ROJOS es "volver a rojos", sin re-alarma).
+			if anterior == EstadoFinanciero.POSITIVO and _bus != null:
+				_bus.entro_en_deuda.emit(saldo_eur)
+		EstadoFinanciero.POSITIVO:
+			if _bus != null:
+				_bus.salio_de_deuda.emit(saldo_eur)
+		EstadoFinanciero.INSOLVENCIA:
+			_al_cruzar_suelo()
+
+
+## Al tocar el suelo (`saldo ≤ −deuda_max_eur`, E9): con préstamos → PAUSA + señal `insolvencia` (la UI
+## futura muestra el modal; la decisión entra por aceptar/rechazar_rescate). Sin préstamos → GAME OVER.
+func _al_cruzar_suelo() -> void:
+	_pausar_juego()
+	var restantes: int = num_prestamos_max - prestamos_usados
+	if restantes <= 0:
+		_declarar_game_over()
+		return
+	_esperando_decision = true
+	if _bus != null:
+		_bus.insolvencia.emit(saldo_eur, restantes)
+
+
+## El jugador ACEPTA el rescate del modal: se inyecta el préstamo (con su strike) y el juego se reanuda.
+func aceptar_rescate() -> bool:
+	if not _esperando_decision:
+		return false
+	_esperando_decision = false
+	var inyectado: bool = pedir_prestamo()
+	_reanudar_juego()
+	return inyectado
+
+
+## El jugador RECHAZA el rescate: arranca la ventana de gracia (minutos de JUEGO) y el juego se reanuda
+## para intentar remontar por sus medios. Emite `gracia_iniciada`.
+func rechazar_rescate() -> bool:
+	if not _esperando_decision:
+		return false
+	_esperando_decision = false
+	en_gracia = true
+	gracia_restante_min = ventana_gracia_insolvencia_horas * 60.0
+	if _bus != null:
+		_bus.gracia_iniciada.emit(gracia_restante_min)
+	_reanudar_juego()
+	return true
+
+
+## Descuenta la ventana de gracia con el DELTA DE JUEGO (lo enchufa el tick de Tiempo en runtime — la 007
+## del epic lo cablea; los tests lo llaman directo). Al expirar aún en el suelo → préstamo AUTOMÁTICO con
+## aviso; si ni eso es posible (strikes agotados durante la gracia) → game over.
+func avanzar_gracia(delta_min: float) -> void:
+	if not en_gracia or partida_terminada:
+		return
+	gracia_restante_min -= maxf(delta_min, 0.0)
+	if gracia_restante_min > 0.0:
+		return
+	en_gracia = false
+	gracia_restante_min = 0.0
+	if estado() == EstadoFinanciero.INSOLVENCIA and not pedir_prestamo():
+		_declarar_game_over()
+
+
+## Derrota terminal (E9): te echan de la comisaría. Pausa definitiva + señal `game_over`.
+func _declarar_game_over() -> void:
+	partida_terminada = true
+	_pausar_juego()
+	if _bus != null:
+		_bus.game_over.emit(&"insolvencia_sin_prestamos")
+
+
+## Pausa/reanuda el reloj del juego (Core → Foundation permitido). Sin reloj inyectado: no-op (tests).
+func _pausar_juego() -> void:
+	if _tiempo != null:
+		_tiempo.fijar_velocidad(0)
+
+
+func _reanudar_juego() -> void:
+	if _tiempo != null and not partida_terminada:
+		_tiempo.reanudar()
+
+
+## Emite `saldo_cambiado(saldo_eur)` por el bus inyectado (si lo hay) y procesa las transiciones de
+## estado (único punto de choque de todo movimiento del saldo).
 func _emitir_saldo() -> void:
 	if _bus != null:
 		_bus.saldo_cambiado.emit(saldo_eur)
+	_procesar_transiciones()
