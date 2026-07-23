@@ -133,11 +133,27 @@ COMPLETOS Y CERRADOS: EventBus, RNGService, Datos.**
 crear la escena principal mínima (Main.tscn: suelo TileMapLayer + HUD del reloj) y ABRIRLE LA VENTANA
 al usuario (primera visual del juego de producción; no jugable aún). Es la escena que Construcción
 necesitará igualmente.
-**PRÓXIMO INMEDIATO:** epic tiempo — `/create-stories tiempo` (propuesta de historias desde GDD
-time-system.md + ADR-0001/0002; TR-time-*) → aprobar con el usuario → implementar (flujo híbrido:
-especialista Opus implementa, Fable 5 coordina/verifica, QA read-only en paralelo) → ESQUELETO VISIBLE
-(avisar + lanzar ventana) → save-manager → Core → `/sprint-plan`.
-Estado de código: 53/53 tests verdes; Foundation 3/5 (faltan Tiempo y SaveManager).
+**✅ Epic tiempo EN MARCHA:** 9 stories aprobadas y escritas (commit f3fd3b4; decisiones: ConfigTiempo
+.tres propio · `velocidad_cambiada(indice:int)` se añadirá al EventBus en la 006 · T33 advisory).
+**Stories 001-005 IMPLEMENTADAS + CERRADAS** (commits 67c118b / 8f47e31 / [004-005 commit 2026-07-23]):
+acumulador `avanzar(delta)` puro con clamp anti-salto (fposmod 1440) · ConfigTiempo data-driven
+(datos/config/tiempo.tres vía tools/build_config_tiempo.gd; clamp escala [3,12]) · conversiones puras +
+enum Turno (derivados, nunca almacenados) · **cruces de umbral → señales del bus** (1 emisión por cruce,
+orden turno→día/noche, guardas anti-jitter, bus INYECTABLE con `usar_bus()` para aislar tests) ·
+**calendario semanal** (semana/mes/año; 48 jornadas=1 año; `nuevo_dia`/`nuevo_mes` SIEMPRE vía
+`disparar_ordenado`; orden completo turno→día/noche→nuevo_dia testeado).
+**Suite 90/90, exit 0.** Gotchas nuevos: tipos por class_name en firmas fallan en frío → `Resource` +
+preload por ruta; `_procesar_cruces(minutos_antes)` se llama TRAS `avanzar()` (el enganche automático es
+la 007); `sincronizar_umbrales()` evita cruces espurios al arrancar/cargar (lo usará la 008).
+**⚠️ Incidencias de agentes (2026-07-22/23):** límite de sesión + 2 atascos de stream + 1 proceso caído a
+mitad de la 004-005 → el hilo principal (Fable) rescató el parcial (117 líneas buenas) y escribió los
+tests. Si los agentes vuelven a fallar seguido: hacer en hilo principal directamente.
+**PRÓXIMO INMEDIATO:** tiempo 006 (máquina de velocidad Pausa/1×/2×/3× + AÑADIR
+`velocidad_cambiada(indice: int)` al EventBus — ampliación menor aprobada del epic cerrado) → 007
+(integración `_physics_process`: tick real, determinismo, T33 advisory) → 008 (save/load + Persist +
+"cargar sitúa" con `sincronizar_umbrales`) → **009 ESQUELETO VISIBLE (Main.tscn: rejilla + HUD reloj →
+AVISAR AL USUARIO Y ABRIRLE LA VENTANA)** → save-manager → Core → `/sprint-plan`.
+Estado de código: 90/90 tests verdes; Foundation: EventBus/RNGService/Datos CERRADOS, Tiempo 5/9.
 Leftovers a limpiar (permiso rm denegado): `tests/verify_event_bus_tmp.gd` (gitignored) + clon externo
 `C:/Users/manur/gdunit4_tmp` (fuera del repo).
 Producción reimplementa en `src/` DESDE CERO (nunca importa de `prototypes/`; el slice es solo referencia de diseño).

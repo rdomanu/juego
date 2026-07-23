@@ -1,12 +1,12 @@
 # Story 002: Escala configurable data-driven + clamp [3,12]
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -30,9 +30,9 @@
 
 *De GDD F1/Tuning + Edge Cases (clamp de escala). Valores transcritos de los AC-T del GDD:*
 
-- [ ] **AC-T28**: GIVEN se configura `escala_tiempo=0` (o ≤0) WHEN se procesa THEN queda en **`3.0`** (mínimo) y se registra **aviso** en el log.
-- [ ] **AC-T29**: GIVEN se configura `escala_tiempo=15` (fuera de 3–12) WHEN se procesa THEN queda en **`12.0`** (máximo) y se registra **aviso**.
-- [ ] **AC-T34** *(parte de escala/config)*: GIVEN un config con `escala_tiempo=6`, `inicio_mañana=360`, `inicio_tarde=840`, `inicio_noche=1320` WHEN se inicializa leyendo ese config (sin tocar código) THEN el reloj usa **esos valores exactos**; **ningún** límite de turno ni `escala_tiempo` está incrustado en el código. *(El uso de los límites de turno en el cálculo se completa en H3/H4; aquí se verifica que se LEEN exactos del config y que `escala=6` está dentro de [3,12] y se respeta sin clamp.)*
+- [x] **AC-T28**: GIVEN se configura `escala_tiempo=0` (o ≤0) WHEN se procesa THEN queda en **`3.0`** (mínimo) y se registra **aviso** en el log.
+- [x] **AC-T29**: GIVEN se configura `escala_tiempo=15` (fuera de 3–12) WHEN se procesa THEN queda en **`12.0`** (máximo) y se registra **aviso**.
+- [x] **AC-T34** *(parte de escala/config)*: GIVEN un config con `escala_tiempo=6`, `inicio_mañana=360`, `inicio_tarde=840`, `inicio_noche=1320` WHEN se inicializa leyendo ese config (sin tocar código) THEN el reloj usa **esos valores exactos**; **ningún** límite de turno ni `escala_tiempo` está incrustado en el código. *(El uso de los límites de turno en el cálculo se completa en H3/H4; aquí se verifica que se LEEN exactos del config y que `escala=6` está dentro de [3,12] y se respeta sin clamp.)*
 
 ---
 
@@ -75,7 +75,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/tiempo/tiempo_config_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_config_test.gd 6/6; suite 79/79, 2026-07-22)
 
 ## Dependencies
 
@@ -85,3 +85,11 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd` y `config_tiempo.gd` en los tests headless. Para inyectar config sin depender del `.tres` en disco, construir `ConfigTiempo.new()` en el test y pasarlo (inyección de dependencia > singleton) — así el test no toca I/O ni el `.tres` real.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) + verificación independiente del hilo
+principal (suite 79/79, exit 0). Commit 8f47e31. Gotcha aplicado: el tipo `ConfigTiempo` no resuelve por
+`class_name` en headless "en frío" → firma con `Resource` + validación runtime vía preload por ruta
+(documentado en código). El `.tres` real (`datos/config/tiempo.tres`, generado por
+`tools/build_config_tiempo.gd`) existe, carga y sus defaults están verificados por test.

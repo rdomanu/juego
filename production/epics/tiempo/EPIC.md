@@ -3,7 +3,7 @@
 > **Layer**: Foundation
 > **GDD**: design/gdd/time-system.md
 > **Architecture Module**: Tiempo #1
-> **Status**: Ready
+> **Status**: In Progress (5/9)
 > **Stories**: 9 created — see table below
 
 ## Overview
@@ -47,11 +47,11 @@ SaveManager).
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [Reloj base: acumulador `minutos_juego` + clamp anti-salto](story-001-reloj-base.md) | Logic | Ready | ADR-0001 |
-| 002 | [Escala configurable data-driven + clamp [3,12]](story-002-escala-configurable.md) | Logic | Ready | ADR-0001, ADR-0002 |
-| 003 | [Conversiones hora↔minutos + turno + `es_de_noche`](story-003-conversiones-turnos.md) | Logic | Ready | ADR-0001 |
-| 004 | [Cruce de umbrales → señales de turno y día/noche](story-004-cruce-umbrales-senales.md) | Logic | Ready | ADR-0001 |
-| 005 | [Medianoche → calendario semanal + `nuevo_dia`/`nuevo_mes`](story-005-calendario-semanal.md) | Logic | Ready | ADR-0001 |
+| 001 | [Reloj base: acumulador `minutos_juego` + clamp anti-salto](story-001-reloj-base.md) | Logic | **Complete** (2026-07-22) | ADR-0001 |
+| 002 | [Escala configurable data-driven + clamp [3,12]](story-002-escala-configurable.md) | Logic | **Complete** (2026-07-22) | ADR-0001, ADR-0002 |
+| 003 | [Conversiones hora↔minutos + turno + `es_de_noche`](story-003-conversiones-turnos.md) | Logic | **Complete** (2026-07-22) | ADR-0001 |
+| 004 | [Cruce de umbrales → señales de turno y día/noche](story-004-cruce-umbrales-senales.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
+| 005 | [Medianoche → calendario semanal + `nuevo_dia`/`nuevo_mes`](story-005-calendario-semanal.md) | Logic | **Complete** (2026-07-23) | ADR-0001 |
 | 006 | [Máquina de velocidad Pausa/1×/2×/3× + `velocidad_cambiada`](story-006-maquina-velocidad.md) | Logic | Ready | ADR-0001 |
 | 007 | [Integración `_physics_process`: tick + determinismo + presupuesto](story-007-integracion-physics.md) | Integration | Ready | ADR-0001 |
 | 008 | [`save()`/`load_state()` + grupo Persist + "cargar sitúa"](story-008-serializacion-reloj.md) | Logic | Ready | ADR-0002, ADR-0001 |
@@ -69,5 +69,7 @@ This epic is complete when:
 
 ## Next Step
 
-Run `/story-readiness production/epics/tiempo/story-001-reloj-base.md` para validar la 001, y luego
-`/dev-story production/epics/tiempo/story-001-reloj-base.md` para empezar a implementarla.
+Stories 001–005 Complete (suite 90/90; el reloj emite cruces y calendario por el bus). Siguientes:
+**006** (máquina de velocidad + `velocidad_cambiada` al EventBus) → **007** (integración
+`_physics_process`) → **008** (save/load) → **009** (esqueleto visible — abre la primera ventana al
+usuario).

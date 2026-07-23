@@ -1,12 +1,12 @@
 # Story 003: Conversiones hora↔minutos + turno + `es_de_noche`
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -31,20 +31,20 @@
 *De GDD F3 (conversiones y turno) + Core Rules 5. Valores transcritos exactos de los AC-T del GDD:*
 
 **Conversión hora ↔ minutos (F3):**
-- [ ] **AC-T06**: GIVEN `minutos_del_dia=567` WHEN a HH:MM THEN **`"09:27"`**.
-- [ ] **AC-T07**: GIVEN hora=14, min=30 WHEN a minutos del día THEN **`870`**.
-- [ ] **AC-T08**: GIVEN `minutos_del_dia=0` WHEN a HH:MM THEN **`"00:00"`** (nunca `"24:00"`).
+- [x] **AC-T06**: GIVEN `minutos_del_dia=567` WHEN a HH:MM THEN **`"09:27"`**.
+- [x] **AC-T07**: GIVEN hora=14, min=30 WHEN a minutos del día THEN **`870`**.
+- [x] **AC-T08**: GIVEN `minutos_del_dia=0` WHEN a HH:MM THEN **`"00:00"`** (nunca `"24:00"`).
 
 **Cálculo de turno (F3):**
-- [ ] **AC-T09**: GIVEN `420` (07:00) WHEN calcular turno THEN **MAÑANA**.
-- [ ] **AC-T10**: GIVEN `900` (15:00) WHEN calcular turno THEN **TARDE**.
-- [ ] **AC-T11**: GIVEN `1395` (23:15) WHEN calcular turno THEN **NOCHE**.
-- [ ] **AC-T12**: GIVEN `200` (03:20) WHEN calcular turno THEN **NOCHE** (cubre `[1380,1440) ∪ [0,420)`).
+- [x] **AC-T09**: GIVEN `420` (07:00) WHEN calcular turno THEN **MAÑANA**.
+- [x] **AC-T10**: GIVEN `900` (15:00) WHEN calcular turno THEN **TARDE**.
+- [x] **AC-T11**: GIVEN `1395` (23:15) WHEN calcular turno THEN **NOCHE**.
+- [x] **AC-T12**: GIVEN `200` (03:20) WHEN calcular turno THEN **NOCHE** (cubre `[1380,1440) ∪ [0,420)`).
 
 **Estado `es_de_noche`:**
-- [ ] **AC-T13**: GIVEN `1381` (23:01) THEN `es_de_noche=**true**`.
-- [ ] **AC-T14**: GIVEN `419` (06:59) THEN `es_de_noche=**true**`.
-- [ ] **AC-T15**: GIVEN `420` (07:00) THEN `es_de_noche=**false**`.
+- [x] **AC-T13**: GIVEN `1381` (23:01) THEN `es_de_noche=**true**`.
+- [x] **AC-T14**: GIVEN `419` (06:59) THEN `es_de_noche=**true**`.
+- [x] **AC-T15**: GIVEN `420` (07:00) THEN `es_de_noche=**false**`.
 
 ---
 
@@ -87,9 +87,10 @@
 ## Test Evidence
 
 **Story Type**: Logic
-**Required evidence**: `tests/unit/tiempo/tiempo_conversiones_test.gd` — debe existir y pasar (BLOCKING).
+**Required evidence**: `tests/unit/tiempo/tiempo_turnos_test.gd` — debe existir y pasar (BLOCKING). *(Nombre
+actualizado al archivo real creado; el planificado era `tiempo_conversiones_test.gd` — mismo contenido/AC.)*
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_turnos_test.gd 14/14; suite 79/79, 2026-07-22)
 
 ## Dependencies
 
@@ -99,3 +100,8 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd` en el test. Las funciones son puras → el test las llama directamente con valores de `min_dia`, sin necesidad de correr `_physics_process`.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) + verificación independiente del hilo
+principal (suite 79/79, exit 0). Commit 8f47e31.

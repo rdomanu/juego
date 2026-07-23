@@ -1,12 +1,12 @@
 # Story 005: Medianoche → calendario semanal + `nuevo_dia`/`nuevo_mes` por dispatcher
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,11 +30,11 @@
 
 *De GDD Core Rules 7 + Edge Cases. Valores transcritos exactos de los AC-T del GDD:*
 
-- [ ] **AC-T20**: GIVEN `1439.8` WHEN pasa a `0.3` (cruza 00:00) THEN se emite **`nuevo_dia` una vez** y avanza **1 semana** (Semana +1; al pasar de Semana 4 → mes +1, regla 7).
-- [ ] **AC-T21**: GIVEN cruce de 00:00 en turno Noche THEN se emite **`nuevo_dia` pero NO `cambio_de_turno`** (sigue NOCHE).
-- [ ] **AC-T22**: GIVEN la **Semana 4** de un mes a 23:59 WHEN cruza medianoche THEN se emiten **`nuevo_dia` y `nuevo_mes`**, el mes **+1** y la Semana vuelve a **1**.
-- [ ] **AC-T22b**: GIVEN el **mes 12 (Diciembre) · Semana 4** a 23:59 WHEN cruza medianoche THEN se emiten `nuevo_dia` y `nuevo_mes`, avanza el **año +1**, el mes vuelve a **1** y la Semana a **1** (48 jornadas = 1 año).
-- [ ] **AC-T23** *(orden completo del multi-cruce)*: GIVEN `1379.0` (22:59, Tarde) WHEN un `delta` grande lleva el acumulador a `1441.0` (cruza 23:00 y 00:00) THEN se disparan **en orden** `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)` → **`nuevo_dia`**, una vez cada uno.
+- [x] **AC-T20**: GIVEN `1439.8` WHEN pasa a `0.3` (cruza 00:00) THEN se emite **`nuevo_dia` una vez** y avanza **1 semana** (Semana +1; al pasar de Semana 4 → mes +1, regla 7).
+- [x] **AC-T21**: GIVEN cruce de 00:00 en turno Noche THEN se emite **`nuevo_dia` pero NO `cambio_de_turno`** (sigue NOCHE).
+- [x] **AC-T22**: GIVEN la **Semana 4** de un mes a 23:59 WHEN cruza medianoche THEN se emiten **`nuevo_dia` y `nuevo_mes`**, el mes **+1** y la Semana vuelve a **1**.
+- [x] **AC-T22b**: GIVEN el **mes 12 (Diciembre) · Semana 4** a 23:59 WHEN cruza medianoche THEN se emiten `nuevo_dia` y `nuevo_mes`, avanza el **año +1**, el mes vuelve a **1** y la Semana a **1** (48 jornadas = 1 año).
+- [x] **AC-T23** *(orden completo del multi-cruce)*: GIVEN `1379.0` (22:59, Tarde) WHEN un `delta` grande lleva el acumulador a `1441.0` (cruza 23:00 y 00:00) THEN se disparan **en orden** `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)` → **`nuevo_dia`**, una vez cada uno.
 
 ---
 
@@ -82,7 +82,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/tiempo/tiempo_calendario_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_calendario_test.gd 5/5; suite 90/90, 2026-07-23)
 
 ## Dependencies
 
@@ -92,3 +92,11 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd`. Para verificar el ORDEN del multi-cruce, registrar callbacks que **añadan un token a una lista compartida** (p. ej. `["turno","dianoche","nuevo_dia"]`) y assertar la secuencia — más robusto que medir tiempos. **Nunca** hora real del sistema.
+
+## Cierre (2026-07-23)
+
+Código iniciado por subagente Opus (interrumpido por caída de infraestructura) y REMATADO en el hilo
+principal (tests del orquestador). Suite 90/90, exit 0. `nuevo_dia`/`nuevo_mes` verificados vía la señal
+de notificación que emite `disparar_ordenado` (patrón del ADR-0001); orden completo del multi-cruce
+turno→día/noche→nuevo_dia cubierto por test con lista de tokens. El calendario avanza aunque no haya bus
+inyectado (fallback seguro documentado).

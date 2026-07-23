@@ -1,12 +1,12 @@
 # Story 004: Cruce de umbrales → señales de turno y día/noche (1 vez, en orden)
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-23
 
 ## Context
 
@@ -30,12 +30,12 @@
 
 *De GDD States/Transitions B + Edge Cases. Valores transcritos exactos de los AC-T del GDD:*
 
-- [ ] **AC-T16**: GIVEN `899.7` (Mañana) a 3× WHEN el update pasa a `900.3` (cruza 15:00) THEN se emite **`cambio_de_turno(TARDE)` una sola vez** y el turno registrado es TARDE.
-- [ ] **AC-T17**: GIVEN `1379.8` (Tarde) WHEN pasa a `1380.5` (cruza 23:00) THEN se emiten **`cambio_de_turno(NOCHE)`** y **`cambio_dia_noche(noche)`**, una vez cada uno, **en ese orden**.
-- [ ] **AC-T18**: GIVEN `419.8` (Noche) WHEN pasa a `420.5` (cruza 07:00) THEN se emiten **`cambio_de_turno(MAÑANA)`** y **`cambio_dia_noche(dia)`**, una vez cada uno, **en ese orden**.
-- [ ] **AC-T19** `[Integration]`: GIVEN un sistema oyente suscrito a `cambio_de_turno` WHEN el reloj cruza 15:00 THEN el oyente recibe **exactamente una** notificación con `TARDE` antes del siguiente frame.
-- [ ] **AC-T23** *(parte turno+día/noche del multi-cruce)*: GIVEN `1379.0` (22:59, Tarde) WHEN un `delta` grande lleva el acumulador a `1441.0` (cruza 23:00 **y** 00:00) THEN, de los eventos de esta story, se disparan **en orden** `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)`, **una vez cada uno**. *(El `nuevo_dia` del mismo frame es H5; el orden completo turno→día/noche→nuevo_dia se cierra allí.)*
-- [ ] **AC-T24**: GIVEN el escenario de AC-T23 WHEN se recogen las señales THEN **ninguna se omite ni se duplica** (sin duplicados por jitter de float; la guarda del último umbral lo garantiza).
+- [x] **AC-T16**: GIVEN `899.7` (Mañana) a 3× WHEN el update pasa a `900.3` (cruza 15:00) THEN se emite **`cambio_de_turno(TARDE)` una sola vez** y el turno registrado es TARDE.
+- [x] **AC-T17**: GIVEN `1379.8` (Tarde) WHEN pasa a `1380.5` (cruza 23:00) THEN se emiten **`cambio_de_turno(NOCHE)`** y **`cambio_dia_noche(noche)`**, una vez cada uno, **en ese orden**.
+- [x] **AC-T18**: GIVEN `419.8` (Noche) WHEN pasa a `420.5` (cruza 07:00) THEN se emiten **`cambio_de_turno(MAÑANA)`** y **`cambio_dia_noche(dia)`**, una vez cada uno, **en ese orden**.
+- [x] **AC-T19** `[Integration]`: GIVEN un sistema oyente suscrito a `cambio_de_turno` WHEN el reloj cruza 15:00 THEN el oyente recibe **exactamente una** notificación con `TARDE` antes del siguiente frame.
+- [x] **AC-T23** *(parte turno+día/noche del multi-cruce)*: GIVEN `1379.0` (22:59, Tarde) WHEN un `delta` grande lleva el acumulador a `1441.0` (cruza 23:00 **y** 00:00) THEN, de los eventos de esta story, se disparan **en orden** `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)`, **una vez cada uno**. *(El `nuevo_dia` del mismo frame es H5; el orden completo turno→día/noche→nuevo_dia se cierra allí.)*
+- [x] **AC-T24**: GIVEN el escenario de AC-T23 WHEN se recogen las señales THEN **ninguna se omite ni se duplica** (sin duplicados por jitter de float; la guarda del último umbral lo garantiza).
 
 ---
 
@@ -78,7 +78,7 @@
 **Story Type**: Logic (+ un caso Integration para AC-T19)
 **Required evidence**: `tests/unit/tiempo/tiempo_cruces_test.gd` — debe existir y pasar (BLOCKING). Caso AC-T19 en `tests/integration/tiempo/tiempo_senales_test.gd`.
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_cruces_test.gd 5/5 + tiempo_senales_test.gd 1/1; suite 90/90, 2026-07-23)
 
 ## Dependencies
 
@@ -88,3 +88,12 @@
 ## Notas de headless (gotcha del proyecto)
 
 Preload por ruta literal de `tiempo.gd`. Para contar emisiones sin depender del árbol, conectar un `Callable` local a `EventBus.cambio_de_turno`/`cambio_dia_noche` en el `before`/`setup` del test y desconectar en el `teardown` (aislamiento entre tests). **Nunca** leer la hora real del sistema para decidir un cruce.
+
+## Cierre (2026-07-23)
+
+Código iniciado por subagente Opus (interrumpido por caída de infraestructura, no por el código) y
+REMATADO en el hilo principal: revisión del parcial + tests escritos por el orquestador. Suite 90/90,
+exit 0. Diseño destacable: el bus se INYECTA (`usar_bus()`) → los unit tests corren contra un EventBus
+propio (aislamiento total del autoload real); el test de integración AC-T19 usa el autoload real y
+desconecta su oyente al terminar. Detección de cruce por cambio del valor DERIVADO (guardas
+`_turno_anterior`/`_era_de_noche_anterior`) — robusta a jitter y a multi-cruce en un frame.

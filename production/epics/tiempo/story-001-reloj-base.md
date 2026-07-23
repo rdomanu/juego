@@ -1,12 +1,12 @@
 # Story 001: Reloj base — acumulador `minutos_juego` + clamp anti-salto
 
 > **Epic**: Sistema de Tiempo
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Foundation
 > **Type**: Logic
 > **Estimate**: S (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: (lo fija /dev-story al empezar)
+> **Last Updated**: 2026-07-22
 
 ## Context
 
@@ -30,12 +30,12 @@
 
 *De GDD F2 (avance del reloj) + Edge Cases (clamp anti-salto, módulo medianoche). Valores transcritos de los AC-T del GDD:*
 
-- [ ] **AC-T01**: GIVEN 1× con `escala_tiempo=4` WHEN `avanzar(delta_real=1.0)` THEN `minutos_juego` sube exactamente **4,0 min** (±0,001).
-- [ ] **AC-T02**: GIVEN 2× (`escala=4`) WHEN `avanzar(1.0)` THEN sube **8,0 min**.
-- [ ] **AC-T03**: GIVEN 3× (`escala=4`) WHEN `avanzar(1.0)` THEN sube **12,0 min**.
-- [ ] **AC-T04**: GIVEN Pausa (mult 0) WHEN cualquier `avanzar(delta_real>0)` THEN `minutos_juego` **no cambia** (incremento 0).
-- [ ] **AC-T05**: GIVEN 1× (`escala=4`) WHEN se acumulan **360,0 s** de `delta_real` THEN el reloj recorre **1440 min** y vuelve a **00:00** del día siguiente (módulo 1440; envuelve).
-- [ ] **AC-T25**: GIVEN `delta_max_por_frame=0.5 s`, 1× (`escala=4`) WHEN el motor entrega `delta_real=30.0 s` (alt-tab) THEN el reloj solo avanza `4×1×0.5=**2,0 min**`, no 120,0 min (el `delta` se clampa **antes** de acumular).
+- [x] **AC-T01**: GIVEN 1× con `escala_tiempo=4` WHEN `avanzar(delta_real=1.0)` THEN `minutos_juego` sube exactamente **4,0 min** (±0,001).
+- [x] **AC-T02**: GIVEN 2× (`escala=4`) WHEN `avanzar(1.0)` THEN sube **8,0 min**.
+- [x] **AC-T03**: GIVEN 3× (`escala=4`) WHEN `avanzar(1.0)` THEN sube **12,0 min**.
+- [x] **AC-T04**: GIVEN Pausa (mult 0) WHEN cualquier `avanzar(delta_real>0)` THEN `minutos_juego` **no cambia** (incremento 0).
+- [x] **AC-T05**: GIVEN 1× (`escala=4`) WHEN se acumulan **360,0 s** de `delta_real` THEN el reloj recorre **1440 min** y vuelve a **00:00** del día siguiente (módulo 1440; envuelve).
+- [x] **AC-T25**: GIVEN `delta_max_por_frame=0.5 s`, 1× (`escala=4`) WHEN el motor entrega `delta_real=30.0 s` (alt-tab) THEN el reloj solo avanza `4×1×0.5=**2,0 min**`, no 120,0 min (el `delta` se clampa **antes** de acumular).
 
 ---
 
@@ -79,7 +79,7 @@
 **Story Type**: Logic
 **Required evidence**: `tests/unit/tiempo/tiempo_reloj_test.gd` — debe existir y pasar (BLOCKING).
 
-**Status**: not yet created
+**Status**: [x] Creado y PASA (tiempo_reloj_test.gd 6/6; suite 79/79, 2026-07-22)
 
 ## Dependencies
 
@@ -89,3 +89,8 @@
 ## Notas de headless (gotcha del proyecto)
 
 En los tests headless, si el runner corre "en frío" sin el proyecto importado, **preload por ruta literal** el script bajo test (`preload("res://src/foundation/tiempo/tiempo.gd")`) en lugar de depender de resolución por nombre de autoload. Patrón ya usado en los tests de `datos`/`rng_service`.
+
+## Cierre (2026-07-22)
+
+Implementada vía subagente godot-gdscript-specialist (Opus) + verificación independiente del hilo
+principal (suite 79/79, exit 0). Commit 67c118b.
