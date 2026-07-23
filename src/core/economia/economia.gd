@@ -49,12 +49,25 @@ var _retorno_max: float = 0.45
 var _tarifas_por_id: Dictionary = {}
 var _cache_catalogo_listo: bool = false
 
+# ── Cierre diario (Story 003 · TR-economy-002 · GDD E3/E5/E6, F3/F4/F5/F6) ──────────────────
+## Plantilla contratada PROVISIONAL (ids de TipoAgente del catálogo): la fijará Personal en su epic
+## (con `salario_dia_efectivo` = base × prima, Personal F1; MVP provisional = salario base). Hook.
+var _plantilla: Array[StringName] = []
+## Horas extra acumuladas HOY (las registra Horarios/Personal en el futuro; Economía solo el coste E3).
+var _horas_extra_dia: float = 0.0
+## Coste de la peonada por hora (cacheado del catálogo `costes_global`).
+var _peonada_eur_hora: float = 15.0
+
 
 func _ready() -> void:
 	if _bus == null:
 		_bus = get_node_or_null("/root/EventBus")
 	_conectar_bus()
 	_cargar_config()
+	# El cobro diario va por el DISPATCHER (orden crítico Paciencia 10 → Economía 20 — ADR-0001).
+	# Solo en runtime real (árbol); los tests llaman `_al_nuevo_dia()` directo (patrón del proyecto).
+	if _bus != null and _bus.has_method("registrar_ordenado"):
+		_bus.registrar_ordenado(&"nuevo_dia", 20, _al_nuevo_dia)
 
 
 ## Inyecta el EventBus (dependency injection → testeable sin el autoload real) y engancha los handlers.
@@ -131,8 +144,63 @@ func _asegurar_cache_catalogo() -> void:
 		_retorno_max = costes.retorno_dgp_max
 	else:
 		push_warning("Economia: sin 'costes_global' en el catalogo -> retorno DGP con defaults")
+	if costes != null:
+		_peonada_eur_hora = costes.peonada_eur_hora
 	for tramite: Resource in Datos.obtener_todos(&"TramiteDoc"):
 		_tarifas_por_id[tramite.id] = tramite.tarifa_eur
+
+
+# ── Cierre de cuentas diario (Story 003 — F6: recargo → gastos → reset) ─────────────────────
+
+## Fija la plantilla contratada (PROVISIONAL — hook de Personal; ver var). Los salarios salen del
+## catálogo (`TipoAgente.salario_dia_eur`) por id.
+func fijar_plantilla(ids: Array[StringName]) -> void:
+	_plantilla = ids.duplicate()
+
+
+## Acumula horas extra del día (F4; quién y cuándo las genera lo posee Horarios/Personal — futuro).
+func registrar_horas_extra(horas: float) -> void:
+	_horas_extra_dia += maxf(horas, 0.0)
+
+
+## El cierre de cuentas al `nuevo_dia` (prioridad 20), en el ORDEN DETERMINISTA de F6:
+## (1) RECARGO sobre la deuda de APERTURA (antes de los gastos de hoy — así el déficit que crea la
+##     nómina de hoy no genera recargo hasta mañana, AC-E09/E10c);
+## (2) GASTOS obligatorios (salarios + peonadas + penalización de préstamos) — se descuentan AUNQUE
+##     dejen el saldo en negativo (E5: la nómina no pasa por el gate);
+## (3) REINICIO de los acumuladores del día.
+func _al_nuevo_dia() -> void:
+	_asegurar_cache_catalogo()
+	# (1) Recargo de deuda (F5) — solo si la APERTURA ya era negativa.
+	if saldo_eur < 0.0:
+		saldo_eur -= absf(saldo_eur) * interes_deuda_diario
+	# (2) Gastos del día (F3 + F4 + F8) — obligatorios, sin gate.
+	var gastos: float = _gasto_salarios_dia() \
+		+ _peonada_eur_hora * _horas_extra_dia \
+		+ _penalizacion_prestamos_dia()
+	saldo_eur -= gastos
+	# (3) Reinicio de acumuladores.
+	ingreso_doc_dia = 0.0
+	_horas_extra_dia = 0.0
+	_emitir_saldo()
+
+
+## Nómina del día (F3): Σ salario base del catálogo por cada agente de la plantilla. Un id huérfano se
+## salta con aviso (tolerancia, patrón Datos).
+func _gasto_salarios_dia() -> float:
+	var total: float = 0.0
+	for id in _plantilla:
+		var agente: Resource = Datos.obtener(&"TipoAgente", id)
+		if agente == null:
+			push_warning("Economia: TipoAgente '%s' no existe -> se salta su salario" % id)
+			continue
+		total += agente.salario_dia_eur
+	return total
+
+
+## Penalización diaria de préstamos vivos (F8). HOOK: hasta la Story 004 no hay préstamos → 0.
+func _penalizacion_prestamos_dia() -> float:
+	return 0.0
 
 
 # ── Config (E8 — data-driven, patrón ConfigTiempo) ──────────────────────────────────────────
