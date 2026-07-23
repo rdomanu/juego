@@ -269,6 +269,42 @@ puede_pagar(salario_dia) sin coste puntual (Open Q4) · plantilla inicial 2+1 at
 **SPRINT 1 COMPLETO AL 100 % (todas las tareas done, 6 días antes de plazo).** Sin commit aún.
 **PRÓXIMO:** commit de C1-5 → luego Sprint 2 (/sprint-plan: implementar Personal; después Construcción
 y Flujo — al cerrar Flujo el saldo SUBIRÁ por fin en el HUD y la pantalla se parecerá a la preview).
+**✅ C1-5 COMMITEADO (a525cff, pusheado). SPRINT 1 CERRADO.**
+**✅ personal-001 IMPLEMENTADA + TEST EN VERDE (2026-07-24, hilo principal — arranque de facto del
+Sprint 2 a petición del usuario, sin /sprint-plan formal aún):** `src/core/personal/agente.gd`
+(class_name Agente, RefCounted: nombre/tipo_id/rango/4 atributos con CLAMP en setter/mando forzado a 0
+en Policías/estado/puesto_id + media_atributos) + `personal.gd` (nodo class_name Personal: fórmulas
+F1 salario_dia [base del catálogo `TipoAgente.salario_dia_eur` × prima calidad × prima rango] · F2
+modificador_produccion [0.5-1.3] · F3 factor_trato [0.5-1.5, Trato 3 = 1.0 neutro con cualquier Mot —
+la modulación multiplica el DESVÍO] · F4 prob_ausencia [0-1] + aplicar_config con clamps [prima_rango
+≥ 1.0; pool vacío → genérico]) + `config_personal.gd` (13 knobs + pool 24 nombres; k_motivacion
+SEPARADO en dos: 0.05 F2 / 0.1 F3 — erratilla GDD) + `tools/build_config_personal.gd` →
+`datos/config/personal.tres`. Test `personal_agente_formulas_test.gd` **9/9** (PE01/03/04/11/12/18/20
++ clamps config + .tres real). **Lección float:** un assert de FRONTERA exacta (<= 0.1) cae por
+representación binaria (0.05×2 ≠ 0.1 exacto) → epsilon 0.1001. Nota GdUnit: tras un FAIL corta la
+suite (los "6 de 9 tests" eran eso). **Suite total: 229/229, exit 0.** SIN commit aún.
+**✅ personal-002 IMPLEMENTADA + TEST EN VERDE (2026-07-24):** mercado F5 en personal.gd —
+`generar_mercado()` (n_candidatos sembrados; orden de tiradas FIJO nombre→tipo→rango→atributos→mando),
+`_tirada_sesgada` (media redondeada de 2×randi_rango(1,5) → triangular, cracks raros), Oficiales con
+prob_candidato_oficial 0.2, TIPOS_MERCADO=[ag_doc, ag_odac] (ag_seguridad fuera), `contratar(i)` (gate
+E4 `_economia.puede_pagar(salario_dia)` inyectado vía usar_economia; SOLO comprueba, no cobra —
+Open Q4; contratado sale del mercado → plantilla libre), `despedir` (gratis, limpia puesto_id),
+`_al_nuevo_dia` con ciclo de refresco (regeneración completa cada refresco_mercado_jornadas=3;
+contratar NO repone el hueco — decisión de la story; la 004 le añadirá ausencias y el registro prio
+30). Test `personal_mercado_test.gd` **7/7 a la primera** (PE05 gate con Economía REAL, PE06
+determinismo campo a campo, sesgo triangular 1600 tiradas, mercado vacío válido, refresco calendario,
+despido, banquillo). **Suite total: 236/236, exit 0.** SIN commit (001+002 pendientes).
+**✅ personal-003 IMPLEMENTADA + TEST EN VERDE (2026-07-24):** asignación en personal.gd —
+`registrar_puesto/quitar_puesto` (puestos ABSTRACTOS `_puestos: {puesto_id -> tipo_puesto_id}`;
+Construcción registrará los reales con la misma API), `asignar` (valida: registrado, plazas 1,
+`puestos_operables` del catálogo, máx 1 Oficial/servicio [PA2 — `TipoPuesto.servicio` YA estaba en el
+esquema, sin convención]; mover atómico; rechazos de REGLA silenciosos, datos malos con aviso;
+idempotente), `desasignar`, `servicio_de_puesto`, `_oficial_de_servicio` (lo reutilizará la 005) +
+**gate FL4**: `puesto_dotado` (asignado/cubriendo — el ausente NO dota, 004), `agente_de`,
+`modificador_produccion_de`/`factor_trato_de` (sin agente → 1.0 + aviso). `despedir` ahora libera el
+puesto de verdad. Test `personal_asignacion_test.gd` **7/7 a la primera** (PE02/08/09 + doble
+ocupación + modificadores + inválidos + despedir/quitar_puesto liberan). **Suite total: 243/243,
+exit 0.** SIN commit (001+002+003 pendientes).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

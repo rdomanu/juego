@@ -1,12 +1,12 @@
 # Story 001: El Agente y sus fórmulas (F1–F4)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Implemented — 9/9 tests en verde (pendiente `/story-done`)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24
 
 ## Context
 
@@ -78,7 +78,7 @@
 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/personal/personal_agente_formulas_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde (9 tests; suite total 229/229, exit 0 — 2026-07-24)
 
 ---
 

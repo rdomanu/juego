@@ -1,12 +1,12 @@
 # Story 003: Asignación a puestos y el gate para Flujo (FL4)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Implemented — 7/7 tests en verde (pendiente `/story-done`)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24
 
 ## Context
 
@@ -85,7 +85,8 @@ tira. El **gate FL4** se entrega como API que Flujo consumirá (`puesto_dotado`,
 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/personal/personal_asignacion_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde (7 tests; suite total 243/243, exit 0 — 2026-07-24). La decisión del
+servicio se resolvió limpia: `TipoPuesto.servicio` YA existe en el esquema (sin convención de nombres).
 
 ---
 

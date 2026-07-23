@@ -1,12 +1,12 @@
 # Story 002: El mercado de fichajes (candidatos, contratar, despedir)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Implemented — 7/7 tests en verde (pendiente `/story-done`)
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24
 
 ## Context
 
@@ -84,7 +84,7 @@
 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/personal/personal_mercado_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde (7 tests; suite total 236/236, exit 0 — 2026-07-24)
 
 ---
 
