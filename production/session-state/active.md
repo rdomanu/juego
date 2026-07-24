@@ -378,12 +378,16 @@ expectativa NPCs en la 007); EPIC.md → Complete (todas las decisiones propuest
 index.md Personal → Complete; evidencia personal-hud-2026-07-24.md con sign-off ✅ (M2/M3 no
 ejercitados en demo, cubiertos por tests automáticos — anotado con honestidad). **Suite 264/264,
 exit 0.**
-**PRÓXIMO (SESIÓN NUEVA):** `/sprint-plan` formal del **Sprint 2** → epics **Construcción**
-(`/create-stories construccion` — puestos REALES con la API registrar_puesto/quitar_puesto que
-Personal ya expone) → **Flujo** (los NPCs visibles que el usuario espera: fichas de Demanda →
-muñequitos que entran, cola, atención en puesto vía gate FL4 + modificador_produccion/factor_trato;
-al cerrarlo el saldo SUBIRÁ por fin y la pantalla se parecerá a la preview). Backlog GDD pendiente:
-corregir F6 floor→ceil en staff-agents.md (anotado en story-005 y EPIC).
+**✅ SPRINT 2 ABIERTO FORMALMENTE (2026-07-24, /sprint-plan new, lean — PR-SPRINT omitido):**
+production/sprints/sprint-2.md + sprint-status.yaml reescrito (C2-1..C2-7). Goal: cerrar Core —
+**Construcción** (Must: C2-1 create-stories → C2-2 implementar ~6-7 stories con ratón+E4+API puestos
+de Personal, HITO VISIBLE → C2-3 cierre) → **Flujo** (Should: C2-4 stories [verificar nav en
+engine-reference] → C2-5 implementar ~7-8 stories, NPCs VISIBLES + saldo SUBE, 60 FPS spike QQ-02 →
+C2-6 cierre+demo) → C2-7 Nice: propagar erratas GDD (F6 ceil, AC-T26, tasa_base_odac, valle
+nocturno). Capacidad ~2,5 sesiones (velocidad ~7 stories/sesión). Personal quedó registrado como
+trabajo ENTRE sprints. **Decisión usuario: /qa-plan sprint ANTES de implementar** (como Sprint 1).
+**PRÓXIMO:** `/qa-plan sprint` → `/create-stories construccion` (C2-1) → implementar. SIN commit
+del plan aún.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
@@ -978,3 +982,4 @@ Economía (regla propiedad/E7/F1/interacciones/deps/OpenQ1 actualizados). Nuevos
 **autoinfligida** (no toca R5 base de ODAC). **10 GDD consistentes.**
 <!-- CONSISTENCY-CHECK: 2026-07-21 | GDDs checked: 9 (+odac) | Conflicts found: 6 stale (propagados) | Verdict: PASS (tras propagar) -->
 ✅ `/consistency-check` (2026-07-21, 7ª): **PASS tras propagar**. Cerrado ODAC #9 (9/12). El cambio de ancla ODAC (dur. media 28→**29,75≈30**, throughput 34→**32**, cap 137→**128**) dejó **6 referencias obsoletas** que la skill cazó y se **propagaron**: Flujo F3 (4×32=128), Demanda F5 + AC-DM12 (128), ODAC Tuning (128), Datos F8 (960/30≈32) + AC-D12 (≈30→128). Nueva constante **`mult_nocturno_odac`** (0.5, escalable) registrada (source Demanda; ref Demanda/ODAC/Tiempo) y sustituye el "~10 fijo". Mezcla ODAC F3 = 13 tipos (Σ=1.0). Registro `last_updated`→2026-07-21. Grep final: 0 restos de 137/34/28 en GDD/registro. **9 GDD consistentes.**
+<!-- QA-PLAN: 2026-07-24 | System: sprint-2 (Construccion+Flujo) | Plan written: production/qa/qa-plan-sprint-2.md -->

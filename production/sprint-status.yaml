@@ -9,176 +9,79 @@
 #   done           ↔  Complete
 #   blocked        ↔  Blocked
 #
-# NOTA: las tareas C1-2/C1-4 se expandirán a stories concretas tras /create-stories
+# NOTA: las tareas C2-2/C2-5 se expandirán a stories concretas tras /create-stories
 # (se refinará este yaml con los archivos reales — /sprint-plan update).
+# Sprint 1 (cerrado 100 %, 2026-07-24) archivado en production/sprints/sprint-1.md.
+# El epic Personal (7/7 + sign-off) se implementó ENTRE sprints — no figura aquí.
 
-sprint: 1
-goal: "Economía y Demanda funcionando sobre los cimientos: presupuesto visible y llegadas lógicas de ciudadanos"
-start: "2026-07-23"
-end: "2026-07-30"
-generated: "2026-07-23"
+sprint: 2
+goal: "Cerrar la capa Core: Construcción con el ratón y Flujo con ciudadanos visibles — el saldo sube por primera vez"
+start: "2026-07-24"
+end: "2026-07-31"
+generated: "2026-07-24"
 updated: "2026-07-24"
 
 stories:
-  - id: "C1-1"
-    name: "Crear stories del epic Economía"
-    file: "production/epics/economia/EPIC.md"
+  - id: "C2-1"
+    name: "Crear stories del epic Construcción"
+    file: "production/epics/construccion/EPIC.md"
     priority: must-have
-    status: done
+    status: ready-for-dev
     owner: "Fable (hilo principal)"
     estimate_days: 0.2
     blocker: ""
-    completed: "2026-07-23"
-  - id: "eco-001"
-    name: "Economía: núcleo + config + saldo + gates"
-    file: "production/epics/economia/story-001-nucleo-saldo-gates.md"
+    completed: ""
+  - id: "C2-2"
+    name: "Implementar epic Construcción (~6-7 stories, HITO VISIBLE)"
+    file: "production/epics/construccion/EPIC.md"
     priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: ""
-    completed: "2026-07-23"
-  - id: "eco-002"
-    name: "Economía: ingresos retorno DGP"
-    file: "production/epics/economia/story-002-ingresos-retorno-dgp.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "eco-001"
-    completed: "2026-07-23"
-  - id: "eco-003"
-    name: "Economía: cierre diario ordenado"
-    file: "production/epics/economia/story-003-cierre-diario.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "eco-002"
-    completed: "2026-07-23"
-  - id: "eco-004"
-    name: "Economía: préstamos del Comisario"
-    file: "production/epics/economia/story-004-prestamos-comisario.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "eco-003"
-    completed: "2026-07-23"
-  - id: "eco-005"
-    name: "Economía: estados + insolvencia"
-    file: "production/epics/economia/story-005-estados-insolvencia.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "eco-004"
-    completed: "2026-07-23"
-  - id: "eco-006"
-    name: "Economía: balance mensual + save"
-    file: "production/epics/economia/story-006-balance-mensual-save.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "eco-005"
-    completed: "2026-07-23"
-  - id: "eco-007"
-    name: "Economía: saldo en HUD (visible + sign-off)"
-    file: "production/epics/economia/story-007-saldo-en-hud.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "eco-006"
-    completed: "2026-07-23"
-  - id: "C1-3"
-    name: "Cierre formal epic Economía"
-    file: "production/epics/economia/EPIC.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "C1-2"
-    completed: "2026-07-23"
-  - id: "C1-4"
-    name: "Crear + implementar epic Demanda (7/7 + sign-off del hito visible)"
-    file: "production/epics/demanda/EPIC.md"
-    priority: should-have
-    status: done
+    status: backlog
     owner: "Fable (hilo principal)"
-    estimate_days: 1.0
-    blocker: "C1-3"
-    completed: "2026-07-24"
-  - id: "dem-001"
-    name: "Demanda: núcleo + config + volumen F1/F2"
-    file: "production/epics/demanda/story-001-nucleo-config-volumen.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: ""
-    completed: "2026-07-23"
-  - id: "dem-002"
-    name: "Demanda: generador determinista (acumulador + mezcla)"
-    file: "production/epics/demanda/story-002-generador-determinista.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "dem-001"
-    completed: "2026-07-23"
-  - id: "dem-003"
-    name: "Demanda: tick + ventana + pausa + bus"
-    file: "production/epics/demanda/story-003-tick-ventana-bus.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "dem-002"
-    completed: "2026-07-23"
-  - id: "dem-004"
-    name: "Demanda: nivel BAJA/MEDIA/ALTA (+ señal del bus)"
-    file: "production/epics/demanda/story-004-nivel-demanda.md"
-    priority: should-have
-    status: done
-    owner: ""
+    estimate_days: 0.8
+    blocker: "C2-1 + QA plan"
+    completed: ""
+  - id: "C2-3"
+    name: "Cierre formal Construcción"
+    file: "production/epics/construccion/EPIC.md"
+    priority: must-have
+    status: backlog
+    owner: "Fable (hilo principal)"
     estimate_days: 0.1
-    blocker: "dem-003"
-    completed: "2026-07-23"
-  - id: "dem-005"
-    name: "Demanda: estacionalidad + eventos"
-    file: "production/epics/demanda/story-005-estacionalidad-eventos.md"
+    blocker: "C2-2"
+    completed: ""
+  - id: "C2-4"
+    name: "Crear stories del epic Flujo"
+    file: "production/epics/flujo/EPIC.md"
     priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "dem-004"
-    completed: "2026-07-23"
-  - id: "dem-006"
-    name: "Demanda: persistencia (save/load + Persist)"
-    file: "production/epics/demanda/story-006-persistencia.md"
+    status: backlog
+    owner: "Fable (hilo principal)"
+    estimate_days: 0.2
+    blocker: "C2-3"
+    completed: ""
+  - id: "C2-5"
+    name: "Implementar epic Flujo (~7-8 stories, HITO VISIBLE: gente + saldo sube)"
+    file: "production/epics/flujo/EPIC.md"
     priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "dem-005"
-    completed: "2026-07-23"
-  - id: "dem-007"
-    name: "Demanda: HUD llegadas + nivel (visible + sign-off)"
-    file: "production/epics/demanda/story-007-demanda-en-el-mundo.md"
+    status: backlog
+    owner: "Fable (hilo principal)"
+    estimate_days: 1.2
+    blocker: "C2-4"
+    completed: ""
+  - id: "C2-6"
+    name: "Cierre formal Flujo + demo integradora con sign-off"
+    file: "production/epics/flujo/EPIC.md"
     priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "dem-006"
-    completed: "2026-07-24"
-  - id: "C1-5"
-    name: "Crear stories del epic Personal (para Sprint 2) — 7 escritas, 20/21 AC (+1 diferido a Flujo)"
-    file: "production/epics/personal/EPIC.md"
+    status: backlog
+    owner: "Fable (hilo principal)"
+    estimate_days: 0.1
+    blocker: "C2-5"
+    completed: ""
+  - id: "C2-7"
+    name: "Propagar erratas anotadas al GDD (F6 ceil, AC-T26, tasa_base_odac, valle nocturno)"
+    file: "design/gdd/staff-agents.md"
     priority: nice-to-have
-    status: done
+    status: backlog
     owner: "Fable (hilo principal)"
-    estimate_days: 0.2
-    blocker: "C1-4"
-    completed: "2026-07-24"
+    estimate_days: 0.1
+    blocker: ""
+    completed: ""
