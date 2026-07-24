@@ -44,6 +44,11 @@ class_name Flujo extends Node
 ## atiende hasta vaciarse y esos minutos van al hook de peonada (`fijar_hook_horas_extra` →
 ## Economía F4, en horas). La Pausa congela por construcción (Tiempo no empuja el tick — FL8).
 ##
+## Story 007: PERSISTENCIA (ADR-0002) — `save()`/`load_state()` + grupo Persist (clave "Flujo"):
+## personas por campos + turno + estado (las colas y el dentro/fuera se RE-DERIVAN del estado),
+## puestos por id (el mundo los registra ANTES de cargar — patrón Personal) y contadores de
+## turno. Carga defensiva (corrupto → descartado con aviso), 0 señales, sin eventos retroactivos.
+##
 ## La LÓGICA jamás lee la posición de un sprite (FL5/ADR-0004): el movimiento es cosmético (008).
 ##
 ## Story: production/epics/flujo/story-001-persona-estados-turnos.md · TR-flow-001/002 · ADR-0001
@@ -53,6 +58,8 @@ const RUTA_CONFIG := "res://datos/config/flujo.tres"
 const ConfigFlujoScript := preload("res://src/core/flujo/config_flujo.gd")
 ## La persona del flujo (preload por RUTA — gotcha del headless en frío).
 const PersonaFlujoScript := preload("res://src/core/flujo/persona_flujo.gd")
+## La ficha de Demanda (para RECONSTRUIRLA al cargar — story 007; PersonaFlujo ya la envuelve).
+const PersonaScript := preload("res://src/core/demanda/persona.gd")
 
 ## Claves de servicio (coinciden con la ficha de Demanda y el catálogo).
 const SERVICIO_DOC := &"Documentacion"
@@ -119,6 +126,7 @@ func _ready() -> void:
 		_tiempo = get_node_or_null("/root/Tiempo")
 	_suscribir_al_tick()
 	_cargar_config()
+	add_to_group("Persist")   # ADR-0002 (story 007): el SaveManager recolecta por este grupo
 
 
 ## Inyecta el EventBus (dependency injection → testeable sin el autoload real).
@@ -562,6 +570,164 @@ func espera_estimada(personas_delante: int, n_puestos: int, duracion_media_min: 
 	if n_puestos <= 0 or duracion_media_min <= 0.0:
 		return -1.0
 	return float(personas_delante) * duracion_media_min / float(n_puestos)
+
+
+# ── Persistencia (Story 007 · TR-flow-006 · ADR-0002 — "cargar sitúa": 0 señales) ────────────
+
+## Estado serializable del flujo (contrato `Persist`; clave = node.name "Flujo"). SOLO estado
+## lógico NO derivado: personas (campos de su ficha + turno + estado — la pertenencia a colas y
+## el dentro/fuera se RE-DERIVAN del estado al cargar: una sola verdad), puestos (su estado de
+## runtime; el REGISTRO lo hace el mundo ANTES de cargar — patrón Personal) y contadores de
+## turno. NUNCA posiciones de sprites (FL5) ni el RNG (Flujo no usa azar). JSON-safe.
+func save() -> Dictionary:
+	var personas: Array = []
+	for servicio: StringName in _colas:
+		for persona: RefCounted in _colas[servicio]:
+			personas.append(_persona_a_dict(persona))
+	var puestos: Array = []
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		var persona_turno: int = -1
+		if puesto["persona"] != null:
+			personas.append(_persona_a_dict(puesto["persona"]))
+			persona_turno = puesto["persona"].numero_turno
+		var override_json: Array = []
+		for atencion: StringName in puesto["override"]:
+			override_json.append(String(atencion))
+		puestos.append({
+			"id": String(puesto_id),
+			"abierto": puesto["abierto"],
+			"cierre_pendiente": puesto["cierre_pendiente"],
+			"retirada_pendiente": puesto["retirada_pendiente"],   # no estaba en la story: el
+			"override": override_json,                            # diseño de la 006 lo exige
+			"persona_turno": persona_turno,
+			"restante": float(puesto["restante"]),
+		})
+	var turnos: Dictionary = {}
+	for servicio: StringName in _turnos:
+		turnos[String(servicio)] = _turnos[servicio]
+	return {"personas": personas, "puestos": puestos, "turnos": turnos}
+
+
+## La persona serializada por CAMPOS (su ficha de Demanda son 3 campos — se reconstruye al
+## cargar; StringName → String para JSON).
+func _persona_a_dict(persona: RefCounted) -> Dictionary:
+	return {
+		"servicio": String(persona.servicio()),
+		"tramite": String(persona.tramite_id()),
+		"minuto_llegada": float(persona.ficha.minuto_llegada),
+		"turno": persona.numero_turno,
+		"estado": String(persona.estado),
+	}
+
+
+## Restaura el estado (AC-FL26): "cargar sitúa" — 0 señales, sin eventos retroactivos (la Pausa
+## la pone el SaveManager). DEFENSIVO (patrón Personal): una entrada corrupta se DESCARTA con
+## aviso y el resto carga — jamás invalida el save entero. INVARIANTE del caller: los puestos
+## registrados ANTES de cargar (Construcción y Personal cargan primero — orden de hijos en Main).
+func load_state(d: Dictionary) -> void:
+	# 1) Limpiar runtime: colas y contadores fuera; los puestos REGISTRADOS se resetean a default.
+	_colas.clear()
+	_turnos.clear()
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		puesto["abierto"] = true
+		puesto["persona"] = null
+		puesto["restante"] = 0.0
+		puesto["cierre_pendiente"] = false
+		puesto["retirada_pendiente"] = false
+		var sin_override: Array[StringName] = []
+		puesto["override"] = sin_override
+	# 2) Contadores de turno (el paso 3 los refuerza: jamás por debajo de un turno visto — FL2).
+	var turnos: Dictionary = d.get("turnos", {})
+	for servicio: String in turnos:
+		_turnos[StringName(servicio)] = maxi(int(turnos[servicio]), 0)
+	# 3) Personas: reconstruir y RE-DERIVAR su sitio del estado (esperando → cola; en atención /
+	#    llamada → a la espera de que su puesto la reclame por servicio+turno en el paso 4).
+	var atendidas: Dictionary = {}   # "servicio/turno" -> PersonaFlujo
+	for entrada: Variant in d.get("personas", []):
+		var persona: RefCounted = _persona_desde_dict(entrada)
+		if persona == null:
+			continue
+		var servicio: StringName = persona.servicio()
+		if (
+			persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO
+			or persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_FUERA
+		):
+			if not _colas.has(servicio):
+				_colas[servicio] = []
+			_colas[servicio].append(persona)
+		elif (
+			persona.estado == PersonaFlujoScript.ESTADO_EN_ATENCION
+			or persona.estado == PersonaFlujoScript.ESTADO_LLAMADA
+		):
+			atendidas["%s/%d" % [servicio, persona.numero_turno]] = persona
+		else:
+			push_warning("Flujo: persona en estado '%s' en el save -> descartada" % persona.estado)
+			continue
+		_turnos[servicio] = maxi(_turnos.get(servicio, 0), persona.numero_turno)
+	# 4) Puestos: aplicar el save SOLO a los registrados; re-atar la atención por servicio+turno.
+	for entrada: Variant in d.get("puestos", []):
+		if not (entrada is Dictionary) or not entrada.has("id"):
+			push_warning("Flujo: entrada de puesto corrupta en el save -> descartada")
+			continue
+		var puesto_id: StringName = StringName(String(entrada["id"]))
+		if not _puestos_flujo.has(puesto_id):
+			push_warning("Flujo: puesto '%s' del save no esta registrado -> descartado" % puesto_id)
+			continue
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		puesto["abierto"] = bool(entrada.get("abierto", true))
+		puesto["cierre_pendiente"] = bool(entrada.get("cierre_pendiente", false))
+		puesto["retirada_pendiente"] = bool(entrada.get("retirada_pendiente", false))
+		puesto["restante"] = maxf(float(entrada.get("restante", 0.0)), 0.0)
+		var override_cargado: Array[StringName] = []
+		for atencion: Variant in entrada.get("override", []):
+			override_cargado.append(StringName(String(atencion)))
+		puesto["override"] = override_cargado
+		var persona_turno: int = int(entrada.get("persona_turno", -1))
+		if persona_turno >= 0:
+			var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+			var clave: String = "%s/%d" % [StringName(tipo.servicio), persona_turno]
+			if atendidas.has(clave):
+				puesto["persona"] = atendidas[clave]
+				atendidas.erase(clave)
+			else:
+				push_warning(
+					"Flujo: la persona del puesto '%s' (turno %d) no esta en el save -> puesto libre"
+					% [puesto_id, persona_turno]
+				)
+				puesto["restante"] = 0.0
+	# 5) Atendidas que ningún puesto reclamó → descartadas con aviso (no hay dónde situarlas).
+	for clave: String in atendidas:
+		push_warning("Flujo: persona en atencion sin puesto en el save ('%s') -> descartada" % clave)
+
+
+## Reconstruye una PersonaFlujo desde el save. Corrupta (servicio desconocido, trámite fuera del
+## catálogo, turno/estado inválidos) → null con aviso (el caller la descarta y sigue).
+func _persona_desde_dict(entrada: Variant) -> RefCounted:
+	if not (entrada is Dictionary):
+		push_warning("Flujo: entrada de persona corrupta en el save -> descartada")
+		return null
+	var servicio: StringName = StringName(String(entrada.get("servicio", "")))
+	if servicio != SERVICIO_DOC and servicio != SERVICIO_ODAC:
+		push_warning("Flujo: persona con servicio '%s' en el save -> descartada" % servicio)
+		return null
+	var tramite: StringName = StringName(String(entrada.get("tramite", "")))
+	var tipo_catalogo: StringName = &"TramiteDoc" if servicio == SERVICIO_DOC else &"DenunciaODAC"
+	if Datos.obtener(tipo_catalogo, tramite) == null:
+		push_warning("Flujo: persona con tramite '%s' fuera del catalogo -> descartada" % tramite)
+		return null
+	var turno: int = int(entrada.get("turno", 0))
+	var estado: StringName = StringName(String(entrada.get("estado", "")))
+	if turno <= 0 or not TRANSICIONES_VALIDAS.has(estado):
+		push_warning("Flujo: persona con turno/estado invalido en el save -> descartada")
+		return null
+	var ficha: RefCounted = PersonaScript.new(
+		servicio, tramite, float(entrada.get("minuto_llegada", 0.0))
+	)
+	var persona: RefCounted = PersonaFlujoScript.new(ficha, turno)
+	persona.estado = estado
+	return persona
 
 
 # ── Config (patrón del proyecto: aplicar con clamp defensivo + carga con fallback) ───────────
