@@ -446,11 +446,81 @@ lo PAGADO · mover asiento a tope [ignorar] · ids inexistentes) y `construccion
 (CO17 campo a campo + contador fresco · re-registro · **combinado Construcción→Personal en ORDEN** ·
 sin dinero/señales · corrupto · CO16 Pausa con physics real). **Suite total: 295/295, exit 0**
 (Construcción 31/31). Motor completo 5/7 — quedan las visibles.
-**PRÓXIMO INMEDIATO:** const-006 (solar visible: TileMapLayer "Salas" con TileSet por código color
-por servicio + etiquetas · puestos/asientos PackedScene placeholder por código con map_to_local ·
-montaje inicial DE OFICIO construido por la API real con flag gratis + ids compat doc_1/doc_2/odac_1
-· **Main reordenado Construcción ANTES que Personal** y retirar registrar_puesto a mano; captura,
-sign-off conjunto con 007) → 007 (modo construcción ratón+preview fantasma, HITO VISIBLE+sign-off).
+**✅ const-006 IMPLEMENTADA (2026-07-24) — headless limpio, suite 295/295 exit 0, SIN regresiones:**
+construccion.gd: API DE OFICIO (`construir_de_oficio_sala/elemento` — valida pero NO cobra,
+coste_pagado 0 [demoler no regala reembolso], id_forzado compat; montaje inválido = aviso ruidoso) +
+refactor `_alta_elemento` común + CAPA VISUAL (`montar_visual(tam_celda, desplazamiento)`:
+TileMapLayer "Salas" con TileSet por código — un source por TipoSala del catálogo vía obtener_todos,
+color por servicio [Doc azul/ODAC naranja/Común gris, esperas apagadas lerp] + etiqueta de nombre;
+elementos = PackedScene placeholder EMPAQUETADAS por código (pack + instantiate + map_to_local,
+TR-construction-003; puesto caja 0.8 celda con etiqueta nombre, asiento 0.4) · `_refrescar_visual`
+redibuja TODO desde el modelo en cada mutación (hooks en _crear_sala/_crear_elemento/demoler_*/
+mover/load_state; nunca por frame; sin montar_visual = inerte para tests headless). Main:
+**Construcción instanciada ANTES que Personal** (orden de hijos = orden de carga del SaveManager),
+`usar_personal` tras crear Personal, `_montar_comisaria_inicial()` de oficio (oficina Doc 6×4 en
+(1,1) con doc_1/doc_2 · espera Doc 6×4 con 8 asientos · oficina ODAC 4×3 con odac_1 · espera ODAC
+3×3 con 3 asientos; puestos → Personal por el PUENTE, ya no a mano) + `_dotar_plantilla_inicial()`;
+POS_SUELO const compartida; captura → construccion-hud-2026-07-24.png. SIN commit aún; sign-off
+conjunto con la 007.
+**🔨 const-007 IMPLEMENTADA — VENTANA ABIERTA, SIGN-OFF PENDIENTE (2026-07-24):** getters nuevos en
+construccion.gd (`celda_bajo_cursor` [local_to_map del manifiesto; headless → (-1,-1)] ·
+`centro_de_celda` · `elemento_en` · `reembolso_de_sala` · `puede_pagar` [preview "sin caja" sin
+intentar construir]) + `src/main/modo_construccion.gd` NUEVO (class_name ModoConstruccion, Node2D
+andamio: atajo B/botón toggle con atenuador del mundo · barra inferior CanvasLayer con tipos LEÍDOS
+del catálogo [Seguridad excluida CO11; asiento de config; ❌ demoler] focus_mode NONE · preview
+fantasma ColorRect+Label REUTILIZADOS con guarda de celda/herramienta/arrastre (cero alloc con
+cursor quieto) verde/rojo/naranja + TEXTO · dibujar sala arrastrando con área+coste en vivo ·
+clic coloca vía construir_* (paga E4) · demoler con ConfirmationDialog de cascada [contenido +
+reembolso; cancelar no demuele] · clic dcho/Esc cancela por capas) + Main lo instancia tras el HUD
+(nota + "B construcción"). Headless limpio; **suite 295/295, exit 0**; evidencia
+`construccion-hud-2026-07-24.md` escrita (sign-off ⬜, conjunto 006+007). SIN commit aún.
+**Guion demo:** M1 solar montado (saldo/nómina intactos) · M2 B→ventanilla→preview verde/rojo ·
+M3 colocar −500/demoler +250 · M4 arrastrar sala coste en vivo + 1×2 rojo · M5 cascada con diálogo.
+**🔧 FEEDBACK 1ª pasada del usuario, CORREGIDO (2026-07-24):** (a) barra de construcción invisible
+al pulsar B — bug de anclas (PRESET_BOTTOM_WIDE crece hacia ABAJO fuera de pantalla) → `grow_vertical
+= GROW_DIRECTION_BEGIN` en AMBAS barras (gotcha registrado: toda barra anclada abajo necesita grow
+BEGIN); (b) panel de info tapaba la comisaría → **HUD REDISEÑADO a barra inferior estilo tycoon**
+(petición del usuario, ya aplicada): _crear_hud ahora es PRESET_BOTTOM_WIDE con fila de secciones
+(helper _seccion con VSeparator: reloj 24px · velocidad+nota · saldo · demanda · personal), la barra
+de construcción se apoya ENCIMA (offset -84 = HUECO_BARRA_INFO), POS_SUELO y 64→24 (mundo despejado).
+Headless limpio; ventana RELANZADA con los arreglos (la vieja cerrada con TaskStop).
+**🔧 FEEDBACK 2ª pasada, CORREGIDO (2026-07-24):** (c) preview del puesto poco visible → movido a la
+CanvasLayer POR ENCIMA del atenuador (sin cámara, coords mundo==pantalla), Panel+StyleBoxFlat borde
+3px casi opaco + relleno 0.30 + Label con outline negro; (d) **ENMIENDA de diseño (petición del
+usuario): AMPLIAR salas** — `sala_ampliable(tipo, rect)` (unión rectangular EXACTA con sala del
+mismo tipo, aporta celdas nuevas, cabe, no pisa otras; en "L" o tipo distinto → sala aparte CO3) +
+`coste_ampliacion` (SOLO celdas nuevas, SIN base) + construir_sala fusiona rect (merge) y acumula
+coste_pagado; preview "AMPLIAR sala · N celdas · X €". 2 tests nuevos en construccion_pagar_test
+(ampliar pegado 120 € + solapado rectangular 100 € con rect final 5×4; tipo distinto/L → sala
+nueva). **Suite total: 297/297, exit 0.** Ventana relanzada de nuevo. Sign-off ⬜ pendiente.
+**🔧 FEEDBACK 3ª pasada, CORREGIDO (2026-07-24):** "los bancos no se pueden construir" → los botones
+Asiento/Demoler quedaban FUERA de pantalla (fila única HBox con nombres largos del catálogo >
+1152 px) → `_fila_herramientas` pasa a **HFlowContainer** (envuelve en filas; h/v_separation).
+Headless limpio; ventana relanzada. Gotcha UI registrado: toolbars con textos de catálogo →
+SIEMPRE flow/scroll, nunca HBox fijo.
+**🔧 FEEDBACK 4ª pasada, CORREGIDO (2026-07-24):** "demoler no deja demoler puestos/asientos, solo
+salas" → los ColorRect de los placeholders TRAGABAN los clics (mouse_filter STOP por defecto): el
+clic sobre un elemento nunca llegaba a _unhandled_input (solo celdas vacías → ruta de sala) →
+`caja.mouse_filter = MOUSE_FILTER_IGNORE` en _empaquetar_placeholder. **Gotcha UI registrado: todo
+Control DECORATIVO del mundo (ColorRect/Panel de placeholders) debe ignorar el ratón.** Headless
+limpio; ventana relanzada.
+**🎉🎉🎉 EPIC CONSTRUCCIÓN COMPLETO (2026-07-24, 7/7 + SIGN-OFF ✅ del usuario) — CUARTO MÓDULO
+CORE TERMINADO (Economía, Demanda, Personal, Construcción; solo queda FLUJO):** sign-off dado tras
+4 rondas de prueba-y-arreglo con ventana ("continúa" tras cerrar la ventana conforme). Suite final
+**297/297, exit 0**. Cierre formal: stories 001-007 → Complete con secciones Cierre (001 tamaño
+edificio en config · 002 ENMIENDA AMPLIAR salas · 003 puentes e2e · 004 ignorar+AC-CO13 diferido ·
+005 round-trip combinado en orden · 006 rediseño HUD tycoon+POS_SUELO 24 · 007 los 4 gotchas de UI);
+EPIC.md → Complete; index → Complete; sprint-status: C2-1..C2-3 + const-001..007 = done (TODO el
+Must Have del Sprint 2 hecho EL MISMO DÍA de abrirlo); evidencia construccion-hud-2026-07-24.md con
+sign-off ✅ y las 4 rondas documentadas.
+**PRÓXIMO (Should Have del Sprint 2): C2-4 `/create-stories flujo`** — el módulo que lo integra
+todo y el hito que el usuario espera: fichas de Demanda → NPCs VISIBLES entrando (nav 2D verificar
+en engine-reference/modules/navigation.md; movimiento COSMÉTICO por FL5, lógica determinista por
+estados), cola FIFO+prioridad, atención vía gate FL4 + modificador_produccion de Personal,
+tramite_completado → Economía cobra → **EL SALDO SUBE POR FIN**. AC-FL01..27 en el GDD; AC-CO13
+pendiente de Construcción se verifica aquí. Riesgo mitigado por spike QQ-02 (150 NPCs ≈ 145 FPS).
+Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
+sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

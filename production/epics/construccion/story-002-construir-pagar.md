@@ -1,12 +1,12 @@
 # Story 002: Construir y pagar — F1/F2 con el gate E4 de Economía
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 67ec85a; ver Cierre — enmienda AMPLIAR salas)
 
 ## Context
 
@@ -28,10 +28,10 @@ la construcción es instantánea al confirmar (CO9). Economía inyectable (patr�
 
 ## Acceptance Criteria
 
-- [ ] **AC-CO04** `[Unit]` — GIVEN sala 3×3 THEN coste `380`; 5×4 → `600` (F1: base 200 + 20/celda).
-- [ ] **AC-CO05** `[Integration]` — GIVEN `saldo < coste` WHEN se construye THEN **rechazado**, saldo intacto (E4).
-- [ ] **AC-CO06** `[Integration]` — GIVEN `saldo=600` WHEN se construye un `doc_general` (500) THEN `saldo=100`.
-- [ ] **AC-CO18** `[Unit]` — GIVEN un coste negativo (corrupto) THEN se **clampa a ≥ 0**.
+- [x] **AC-CO04** `[Unit]` — GIVEN sala 3×3 THEN coste `380`; 5×4 → `600` (F1: base 200 + 20/celda).
+- [x] **AC-CO05** `[Integration]` — GIVEN `saldo < coste` WHEN se construye THEN **rechazado**, saldo intacto (E4).
+- [x] **AC-CO06** `[Integration]` — GIVEN `saldo=600` WHEN se construye un `doc_general` (500) THEN `saldo=100`.
+- [x] **AC-CO18** `[Unit]` — GIVEN un coste negativo (corrupto) THEN se **clampa a ≥ 0**.
 
 ---
 
@@ -79,7 +79,7 @@ la construcción es instantánea al confirmar (CO9). Economía inyectable (patr�
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/construccion/construccion_pagar_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 7/7 PASS (5 originales + 2 de la enmienda AMPLIAR).
 
 ---
 
@@ -87,3 +87,14 @@ la construcción es instantánea al confirmar (CO9). Economía inyectable (patr�
 
 - Depends on: Story 001 (validación y modelo) — DONE antes de empezar.
 - Unlocks: Story 003 (puentes a Personal) y 004 (demoler).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 5/5 a la primera. **ENMIENDA posterior (feedback del usuario
+en el sign-off de la 007): AMPLIAR salas** — dibujar pegado/solapado a una sala del MISMO tipo la
+amplía (`sala_ampliable`: unión rectangular EXACTA, con celdas nuevas, sin pisar otras;
+`coste_ampliacion` = SOLO celdas nuevas SIN base; `construir_sala` fusiona el rect y acumula
+`coste_pagado`). Un dibujo en "L" o de otro tipo crea sala aparte (CO3: salas rectangulares).
++2 tests (ampliación adyacente 120 € y solapada rectangular 100 €; tipo distinto/L → sala nueva).

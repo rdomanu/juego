@@ -1,12 +1,12 @@
 # Story 004: Demoler y mover — reembolso F4, cascada con confirmación y reorganización libre
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 47aab7c; test 7/7; AC-CO13 diferido a Flujo)
 
 ## Context
 
@@ -30,10 +30,10 @@ que la UI confirme antes.
 
 ## Acceptance Criteria
 
-- [ ] **AC-CO11** `[Unit]` — GIVEN demoler `doc_general` (pagado 500), `pct_reembolso=0.5` THEN reembolso **250**.
-- [ ] **AC-CO12** `[Integration]` — GIVEN una oficina con 2 puestos WHEN se demuele THEN **cascada con confirmación**: reembolsa los 2 puestos + la sala, y todo desaparece del modelo.
-- [ ] **AC-CO14** `[Integration]` — GIVEN un puesto construido WHEN se **mueve** THEN es **gratis** y queda reubicado (posición nueva; mismo id; Personal NI se entera — el registro no cambia).
-- [ ] *(Edge CO4)* — GIVEN mover un `odac` a la oficina de Documentación THEN **rechazado** (revalidación al mover).
+- [x] **AC-CO11** `[Unit]` — GIVEN demoler `doc_general` (pagado 500), `pct_reembolso=0.5` THEN reembolso **250**.
+- [x] **AC-CO12** `[Integration]` — GIVEN una oficina con 2 puestos WHEN se demuele THEN **cascada con confirmación**: reembolsa los 2 puestos + la sala, y todo desaparece del modelo.
+- [x] **AC-CO14** `[Integration]` — GIVEN un puesto construido WHEN se **mueve** THEN es **gratis** y queda reubicado (posición nueva; mismo id; Personal NI se entera — el registro no cambia).
+- [x] *(Edge CO4)* — GIVEN mover un `odac` a la oficina de Documentación THEN **rechazado** (revalidación al mover).
 
 ---
 
@@ -82,7 +82,7 @@ que la UI confirme antes.
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/construccion/construccion_demoler_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 7/7 PASS.
 
 ---
 
@@ -90,3 +90,14 @@ que la UI confirme antes.
 
 - Depends on: Story 003 (puentes) — DONE antes de empezar.
 - Unlocks: Story 005 (persistencia del ciclo completo).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 7/7 a la primera. Decisiones ratificadas de facto: mover solo
+puestos/objetos (salas: demoler+redibujar... o AMPLIAR desde la enmienda de la 002/007); mover
+gratis NO pasa por el gate (no es gasto — con `coste_mover` > 0 sí). Hallazgo de diseño: la
+revalidación al mover usa el param `ignorar` (el elemento no se cuenta a sí mismo — permite mover
+un asiento con la sala a tope). **AC-CO13 (demoler un puesto ATENDIENDO termina la atención antes)
+DIFERIDO al epic Flujo** — anotado también en su plan de QA.

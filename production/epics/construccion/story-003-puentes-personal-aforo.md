@@ -1,12 +1,12 @@
 # Story 003: Los puentes — puestos registrados en Personal, aforo por asientos (F3) y puestos útiles (F5)
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 67ec85a; test 6/6)
 
 ## Context
 
@@ -29,11 +29,11 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-CO15** `[Integration]` — GIVEN un puesto **construido** THEN Personal puede asignarle agente y el gate FL4 responde (`puesto_dotado`); **sin construir**, `asignar` a ese id falla (no existe).
-- [ ] **AC-CO07** `[Unit]` — GIVEN sala 5×4 (densidad 0.7) THEN caben **14** plazas; 10 asientos → aforo **10**; intentar el 15.º… 20.º asiento → **rechazado** (tope 14).
-- [ ] **AC-CO08** `[Integration]` — GIVEN una sala de espera **sin asientos** THEN `aforo_de_sala == 0` (Flujo mandará a todos a la cola exterior — su edge, aquí solo el dato).
-- [ ] **AC-CO09** `[Integration]` — GIVEN `puestos_utiles=5` WHEN el jugador pone 10 puestos THEN **permitido** (sin tope), no error.
-- [ ] **AC-CO10** `[Unit]` — GIVEN demanda pico 17,6/h y throughput 4/h THEN `puestos_utiles = ceil(17.6/4) = 5` (F5).
+- [x] **AC-CO15** `[Integration]` — GIVEN un puesto **construido** THEN Personal puede asignarle agente y el gate FL4 responde (`puesto_dotado`); **sin construir**, `asignar` a ese id falla (no existe).
+- [x] **AC-CO07** `[Unit]` — GIVEN sala 5×4 (densidad 0.7) THEN caben **14** plazas; 10 asientos → aforo **10**; intentar el 15.º… 20.º asiento → **rechazado** (tope 14).
+- [x] **AC-CO08** `[Integration]` — GIVEN una sala de espera **sin asientos** THEN `aforo_de_sala == 0` (Flujo mandará a todos a la cola exterior — su edge, aquí solo el dato).
+- [x] **AC-CO09** `[Integration]` — GIVEN `puestos_utiles=5` WHEN el jugador pone 10 puestos THEN **permitido** (sin tope), no error.
+- [x] **AC-CO10** `[Unit]` — GIVEN demanda pico 17,6/h y throughput 4/h THEN `puestos_utiles = ceil(17.6/4) = 5` (F5).
 
 ---
 
@@ -81,7 +81,7 @@
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/construccion/construccion_puentes_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 6/6 PASS.
 
 ---
 
@@ -89,3 +89,13 @@
 
 - Depends on: Story 002 (construir y pagar) — DONE antes de empezar.
 - Unlocks: Story 004 (demoler retira del puente) y el epic Flujo (consume los getters).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 6/6 a la primera (incluido AC-CO15 de punta a punta con
+Personal y Economía reales: construir → asignar → gate FL4 dotado). El rechazo del asiento sobrante
+se metió EN la validación (el preview de la 007 también lo pinta rojo). Getters para Flujo listos:
+`posicion_de`, `puestos_de_servicio`, `aforo_de_sala` (+ en la 007 se sumaron `elemento_en`,
+`reembolso_de_sala`, `puede_pagar`, `celda_bajo_cursor`, `centro_de_celda`).

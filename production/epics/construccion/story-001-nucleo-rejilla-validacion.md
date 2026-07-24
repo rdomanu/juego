@@ -1,12 +1,12 @@
 # Story 001: El solar — núcleo, config y validación de colocación (F6)
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 67ec85a; test 7/7)
 
 ## Context
 
@@ -29,9 +29,9 @@ determinista (límites del edificio + solapamiento + área mínima). La LÓGICA 
 
 ## Acceptance Criteria
 
-- [ ] **AC-CO01** `[Unit]` — GIVEN una sala dentro del edificio, sin solapar, área ≥ mínimo WHEN se valida THEN **válida**; si solapa o sale del edificio → **inválida** (F6).
-- [ ] **AC-CO03** `[Unit]` — GIVEN un área < `area_min` WHEN se dibuja THEN **rechazada** (CO3).
-- [ ] *(AC-CO02, parte de regla)* — GIVEN un tipo de puesto WHEN se valida su celda THEN solo es válido **dentro de una sala cuyo `puestos_admitidos` lo incluya** (CO4); fuera de sala o en sala ajena → inválido.
+- [x] **AC-CO01** `[Unit]` — GIVEN una sala dentro del edificio, sin solapar, área ≥ mínimo WHEN se valida THEN **válida**; si solapa o sale del edificio → **inválida** (F6).
+- [x] **AC-CO03** `[Unit]` — GIVEN un área < `area_min` WHEN se dibuja THEN **rechazada** (CO3).
+- [x] *(AC-CO02, parte de regla)* — GIVEN un tipo de puesto WHEN se valida su celda THEN solo es válido **dentro de una sala cuyo `puestos_admitidos` lo incluya** (CO4); fuera de sala o en sala ajena → inválido.
 
 ---
 
@@ -80,7 +80,7 @@ determinista (límites del edificio + solapamiento + área mínima). La LÓGICA 
 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/construccion/construccion_validacion_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 7/7 PASS.
 
 ---
 
@@ -88,3 +88,12 @@ determinista (límites del edificio + solapamiento + área mínima). La LÓGICA 
 
 - Depends on: None (primera del epic; Foundation completa).
 - Unlocks: Story 002 (construir y pagar).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 7/7 a la primera. Decisión propuesta RATIFICADA de facto:
+tamaño del edificio en ConfigConstruccion (24×13 = el suelo del esqueleto; a `Escenario` cuando
+haya multi-comisaría). `validar_elemento` ganó después un param `ignorar` (mover, 004) y el chequeo
+del tope de asientos F3 (003).

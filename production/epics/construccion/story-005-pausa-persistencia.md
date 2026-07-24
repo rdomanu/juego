@@ -1,12 +1,12 @@
 # Story 005: Pausa y persistencia del layout
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 47aab7c; test 6/6)
 
 ## Context
 
@@ -29,9 +29,9 @@ aplicado en SaveManager)
 
 ## Acceptance Criteria
 
-- [ ] **AC-CO16** `[Integration]` — GIVEN el juego en **Pausa** (mundo real en árbol) WHEN se construye/demuele/mueve THEN se permite y funciona (CO12 — la construcción no depende del reloj).
-- [ ] **AC-CO17** `[Unit]` — GIVEN un save del **layout** WHEN se carga en una instancia nueva THEN se restauran rejilla, salas (tipo+rect), puestos y objetos (tipo+celda+coste_pagado) — campo a campo.
-- [ ] *(ADR-0002)* — GIVEN la carga THEN **cero señales** y los puestos quedan **re-registrados en Personal**.
+- [x] **AC-CO16** `[Integration]` — GIVEN el juego en **Pausa** (mundo real en árbol) WHEN se construye/demuele/mueve THEN se permite y funciona (CO12 — la construcción no depende del reloj).
+- [x] **AC-CO17** `[Unit]` — GIVEN un save del **layout** WHEN se carga en una instancia nueva THEN se restauran rejilla, salas (tipo+rect), puestos y objetos (tipo+celda+coste_pagado) — campo a campo.
+- [x] *(ADR-0002)* — GIVEN la carga THEN **cero señales** y los puestos quedan **re-registrados en Personal**.
 
 ---
 
@@ -85,7 +85,7 @@ aplicado en SaveManager)
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/construccion/construccion_save_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 6/6 PASS (incl. round-trip COMBINADO Construcción→Personal).
 
 ---
 
@@ -93,3 +93,13 @@ aplicado en SaveManager)
 
 - Depends on: Story 004 (ciclo completo construir/demoler/mover) — DONE antes de empezar.
 - Unlocks: Story 006 (el mundo visible con carga ordenada).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 6/6 a la primera. El test estrella es el round-trip COMBINADO
+en el orden del invariante (Construcción carga ANTES que Personal): un agente asignado a un puesto
+construido sobrevive al viaje. `load_state` además RETIRA del puente los puestos del estado
+anterior antes de re-registrar los cargados (sin huérfanos en `Personal._puestos`). Main quedó
+reordenado en la 006 (Construcción antes que Personal en el árbol = orden de carga del SaveManager).

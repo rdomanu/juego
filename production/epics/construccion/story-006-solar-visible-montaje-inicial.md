@@ -1,12 +1,12 @@
 # Story 006: El solar visible — TileMapLayer, escenas y montaje inicial "de oficio"
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core (instanciación) + Presentation (capa visual del esqueleto)
 > **Type**: UI
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada con sign-off conjunto 006+007 (ver Cierre)
 
 ## Context
 
@@ -31,18 +31,18 @@ instanciadas con `instantiate()` y posicionadas con `map_to_local(celda)` — NU
 
 ## Acceptance Criteria
 
-- [ ] La capa visual refleja el MODELO (001): salas pintadas en un `TileMapLayer` propio (color por
+- [x] La capa visual refleja el MODELO (001): salas pintadas en un `TileMapLayer` propio (color por
       servicio Doc/ODAC/espera + etiqueta de texto), puestos y asientos como escenas placeholder
       (formas/colores, cero arte) posicionadas con `map_to_local`.
-- [ ] **El montaje inicial pasa a estar CONSTRUIDO de verdad**: oficina Doc + `doc_1`/`doc_2` + sala de
+- [x] **El montaje inicial pasa a estar CONSTRUIDO de verdad**: oficina Doc + `doc_1`/`doc_2` + sala de
       espera Doc con asientos + oficina ODAC + `odac_1` — el registro a mano de `main.gd`
-      (registrar_puesto directo) se retira en favor del layout real. **⚠️ Decisión propuesta (aprobar al
-      implementar): el layout inicial viene pagado "de oficio"** (coste 0 al arranque — la DGP entrega
-      la comisaría montada) → saldo 3000 € y nómina 190 € INTACTOS (cero cambio de balance).
-- [ ] **Main reordenado**: Construcción se instancia ANTES que Personal (invariante de carga — story 005);
+      (registrar_puesto directo) se retira en favor del layout real. **✅ Decisión RATIFICADA: el
+      layout inicial viene pagado "de oficio"** (coste 0 al arranque — la DGP entrega la comisaría
+      montada) → saldo 3000 € y nómina 190 € INTACTOS (cero cambio de balance).
+- [x] **Main reordenado**: Construcción se instancia ANTES que Personal (invariante de carga — story 005);
       los 3 agentes se asignan a los puestos del layout real; suite completa en verde (sin regresiones).
-- [ ] Demoler en el modelo borra el visual (celdas de sala restauradas, escena liberada con
-      `queue_free`) — el visual NUNCA diverge del modelo (una sola fuente de verdad).
+- [x] Demoler en el modelo borra el visual (celdas de sala restauradas, escena liberada) — el visual
+      NUNCA diverge del modelo (una sola fuente de verdad: `_refrescar_visual` redibuja del modelo).
 
 ---
 
@@ -87,7 +87,7 @@ instanciadas con `instantiate()` y posicionadas con `map_to_local(celda)` — NU
 **Story Type**: UI (ADVISORY)
 **Required evidence**: captura en `production/qa/evidence/construccion-hud-[fecha].md` (doc compartido
 con la 007; sign-off del usuario al cierre de la 007).
-**Status**: [ ] Not yet created
+**Status**: [x] `construccion-hud-2026-07-24.md` + PNG — sign-off conjunto con la 007 ✅.
 
 ---
 
@@ -95,3 +95,14 @@ con la 007; sign-off del usuario al cierre de la 007).
 
 - Depends on: Story 005 (persistencia y orden de carga) — DONE antes de empezar.
 - Unlocks: Story 007 (el modo construcción interactivo sobre esta capa visual).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal (headless limpio, suite sin regresiones). Las escenas placeholder se
+EMPAQUETAN por código (`PackedScene.pack` + `instantiate` — TR-construction-003 literal). Del
+feedback de la demo salió un **rediseño del HUD de Main a barra inferior estilo tycoon** (petición
+del usuario: el panel de la esquina tapaba la comisaría) y **POS_SUELO subió a y=24**. Gotcha cazado
+en la 007 que nace aquí: los ColorRect de los placeholders debían ser `MOUSE_FILTER_IGNORE`
+(decorativos — se tragaban los clics de demoler).

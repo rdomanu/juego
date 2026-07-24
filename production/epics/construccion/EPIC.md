@@ -3,8 +3,8 @@
 > **Layer**: Core
 > **GDD**: design/gdd/construction-layout.md
 > **Architecture Module**: Construcción #7
-> **Status**: In Progress (stories creadas 2026-07-24 — Sprint 2, C2-1)
-> **Stories**: 7 (ver tabla)
+> **Status**: Complete (2026-07-24 — 7/7 stories, sign-off del usuario tras 4 rondas de feedback)
+> **Stories**: 7 (creadas e implementadas 2026-07-24, Sprint 2)
 
 ## Overview
 
@@ -55,13 +55,13 @@ This epic is complete when:
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [El solar: núcleo, config y validación de colocación (F6)](story-001-nucleo-rejilla-validacion.md) | Logic | Ready | ADR-0004, ADR-0003 |
-| 002 | [Construir y pagar: F1/F2 con el gate E4](story-002-construir-pagar.md) | Integration | Ready | ADR-0004, ADR-0001 |
-| 003 | [Puentes: puestos → Personal, aforo F3, puestos útiles F5](story-003-puentes-personal-aforo.md) | Integration | Ready | ADR-0004, ADR-0001 |
-| 004 | [Demoler y mover: reembolso F4, cascada, reorganización](story-004-demoler-mover.md) | Integration | Ready | ADR-0004, ADR-0001 |
-| 005 | [Pausa y persistencia del layout](story-005-pausa-persistencia.md) | Integration | Ready | ADR-0002, ADR-0004 |
-| 006 | [El solar visible: TileMapLayer + escenas + montaje inicial](story-006-solar-visible-montaje-inicial.md) | UI | Ready | ADR-0004, ADR-0001 |
-| 007 | [Modo construcción con ratón: preview fantasma (HITO VISIBLE)](story-007-modo-construccion-raton.md) | UI | Ready | ADR-0004, ADR-0001 |
+| 001 | [El solar: núcleo, config y validación de colocación (F6)](story-001-nucleo-rejilla-validacion.md) | Logic | Complete | ADR-0004, ADR-0003 |
+| 002 | [Construir y pagar: F1/F2 con el gate E4](story-002-construir-pagar.md) | Integration | Complete | ADR-0004, ADR-0001 |
+| 003 | [Puentes: puestos → Personal, aforo F3, puestos útiles F5](story-003-puentes-personal-aforo.md) | Integration | Complete | ADR-0004, ADR-0001 |
+| 004 | [Demoler y mover: reembolso F4, cascada, reorganización](story-004-demoler-mover.md) | Integration | Complete | ADR-0004, ADR-0001 |
+| 005 | [Pausa y persistencia del layout](story-005-pausa-persistencia.md) | Integration | Complete | ADR-0002, ADR-0004 |
+| 006 | [El solar visible: TileMapLayer + escenas + montaje inicial](story-006-solar-visible-montaje-inicial.md) | UI | Complete | ADR-0004, ADR-0001 |
+| 007 | [Modo construcción con ratón: preview fantasma (HITO VISIBLE)](story-007-modo-construccion-raton.md) | UI | Complete | ADR-0004, ADR-0001 |
 
 Cobertura: **17/18 AC del GDD** — **AC-CO13 (demoler un puesto atendiendo) DIFERIDO al epic Flujo**
 explícitamente (no existe "atendiendo" aún — patrón AC-PE10). Orden secuencial estricto 001→007.
@@ -73,5 +73,10 @@ gesto de mover en UI diferido a UI/HUD #11) · ids `doc_1`/`doc_2`/`odac_1` cons
 
 ## Next Step
 
-`/story-readiness production/epics/construccion/story-001-nucleo-rejilla-validacion.md` → implementar
-en orden. El QA plan del sprint (`production/qa/qa-plan-sprint-2.md`) ya define gates y casos.
+**EPIC COMPLETO (2026-07-24).** 17/18 AC verificados (AC-CO13 diferido a Flujo, anotado). Todas las
+decisiones propuestas ratificadas + **1 enmienda de diseño del usuario en el sign-off: AMPLIAR salas**
+(dibujar pegado al mismo tipo = misma sala más grande, cobra solo celdas nuevas). Suite 297/297.
+**4 gotchas de UI registrados en las stories/evidencia** (grow_vertical en barras inferiores ·
+HFlowContainer para toolbars de catálogo · MOUSE_FILTER_IGNORE en decorativos · HUD abajo estilo
+tycoon). Siguiente: **C2-4 `/create-stories flujo`** — el epic que lo integra todo (NPCs visibles,
+colas, atención, saldo subiendo; spike QQ-02 ya da el margen de rendimiento).

@@ -87,6 +87,41 @@ func test_construir_sala_paga_y_registra() -> void:
 	assert_float(eco.saldo_eur).is_equal_approx(2620.0, 0.0001)
 
 
+# ── Enmienda 007 (feedback usuario): dibujar pegado a una sala del MISMO tipo la AMPLÍA ───
+func test_ampliar_sala_pegada_cobra_solo_celdas_nuevas() -> void:
+	# Arrange — espera 3×3 construida (380 €): saldo 2620.
+	var mundo: Array = _mundo()
+	var construccion: Node = mundo[0]
+	var eco: Node = mundo[1]
+	var sala_id: StringName = construccion.construir_sala(&"sala_espera_doc", Rect2i(0, 0, 3, 3))
+	assert_float(eco.saldo_eur).is_equal_approx(2620.0, 0.0001)
+
+	# Act 1 — dibujar PEGADO (misma altura, a la derecha): amplía la MISMA sala, sin base (6×20=120).
+	assert_str(String(construccion.construir_sala(&"sala_espera_doc", Rect2i(3, 0, 2, 3)))).is_equal(String(sala_id))
+	assert_float(eco.saldo_eur).is_equal_approx(2500.0, 0.0001)
+	assert_str(String(construccion.sala_en(Vector2i(4, 2)))).is_equal(String(sala_id))
+
+	# Act 2 — dibujar SOLAPANDO pero con unión rectangular (una fila más abajo, ancho completo):
+	# solo cobra las 5 celdas nuevas (100 €). Sala final 5×4 → el tope de aforo crece a 14.
+	assert_str(String(construccion.construir_sala(&"sala_espera_doc", Rect2i(0, 2, 5, 2)))).is_equal(String(sala_id))
+	assert_float(eco.saldo_eur).is_equal_approx(2400.0, 0.0001)
+	assert_bool((construccion._salas[sala_id]["rect"] as Rect2i) == Rect2i(0, 0, 5, 4)).is_true()
+
+
+# ── Enmienda 007: tipo distinto o unión en "L" NO amplían — crean sala aparte ─────────────
+func test_pegada_tipo_distinto_o_en_l_crea_sala_nueva() -> void:
+	# Arrange
+	var construccion: Node = _mundo()[0]
+	var espera: StringName = construccion.construir_sala(&"sala_espera_doc", Rect2i(0, 0, 3, 3))
+
+	# Act / Assert — OTRO tipo pegado: sala nueva (no se fusionan tipos distintos).
+	var odac: StringName = construccion.construir_sala(&"sala_espera_odac", Rect2i(3, 0, 3, 3))
+	assert_bool(odac != &"" and odac != espera).is_true()
+	# El MISMO tipo pero formando "L" (no rectangular exacta): sala nueva separada (CO3).
+	var ele: StringName = construccion.construir_sala(&"sala_espera_doc", Rect2i(0, 3, 2, 2))
+	assert_bool(ele != &"" and ele != espera).is_true()
+
+
 # ── AC-CO18: un coste corrupto (negativo) se clampa a ≥ 0 con aviso ───────────────────────
 func test_coste_corrupto_clampado() -> void:
 	# Arrange — el push_warning esperado es intencional.

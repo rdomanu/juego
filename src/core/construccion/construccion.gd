@@ -23,6 +23,10 @@ class_name Construccion extends Node
 ## Story 005: PAUSA (CO12 — nada escucha el reloj: construir en Pausa funciona por construcción) y
 ## PERSISTENCIA (ADR-0002: save/load del layout con Vector2i→[x,y]; "cargar sitúa" — 0 señales, sin
 ## cobros; re-registra los puestos en Personal. ⚠️ ORDEN: Construcción carga ANTES que Personal).
+## Story 006: la CAPA VISUAL (`montar_visual` — TileMapLayer de salas con color por servicio +
+## puestos/asientos como PackedScene placeholder instanciadas con map_to_local; el VISUAL refleja el
+## MODELO en cada cambio, nunca al revés) y la API DE OFICIO (`construir_de_oficio_*`: el montaje
+## inicial viene pagado por la DGP — coste 0, decisión ratificada; ids compat doc_1/doc_2/odac_1).
 ##
 ## Story: production/epics/construccion/story-001-nucleo-rejilla-validacion.md · TR-construction-001/002 · ADR-0004
 
@@ -146,6 +150,7 @@ func _crear_sala(
 ) -> StringName:
 	var sala_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(&"sala")
 	_salas[sala_id] = {"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado}
+	_refrescar_visual()
 	return sala_id
 
 
@@ -157,6 +162,7 @@ func _crear_elemento(
 	_elementos[elemento_id] = {
 		"catalogo": id_catalogo, "celda": celda, "sala": sala_en(celda), "coste_pagado": coste_pagado,
 	}
+	_refrescar_visual()
 	return elemento_id
 
 
@@ -190,13 +196,62 @@ func coste_elemento(id_catalogo: StringName) -> float:
 
 ## Construye una sala (CO3/CO6/CO9): valida F6 → cobra por el gate E4 → alta en el modelo. Devuelve
 ## el id creado o `&""` (rechazo de REGLA — inválido o sin caja — silencioso: la UI lo pinta en rojo).
+## ENMIENDA 007 (feedback del usuario en el sign-off): dibujar PEGADO o solapado a una sala del
+## MISMO tipo la AMPLÍA (misma sala, rect unido, cobra solo las celdas nuevas) en vez de crear otra.
 func construir_sala(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
+	var ampliable: StringName = sala_ampliable(tipo_sala_id, rect)
+	if ampliable != &"":
+		var coste_ampliar: float = coste_ampliacion(ampliable, rect)
+		if not _pagar(coste_ampliar):
+			return &""
+		_salas[ampliable]["rect"] = (_salas[ampliable]["rect"] as Rect2i).merge(rect)
+		_salas[ampliable]["coste_pagado"] = float(_salas[ampliable]["coste_pagado"]) + coste_ampliar
+		_refrescar_visual()
+		return ampliable
 	if not validar_sala(tipo_sala_id, rect):
 		return &""
 	var coste: float = coste_sala(tipo_sala_id, rect)
 	if not _pagar(coste):
 		return &""
 	return _crear_sala(tipo_sala_id, rect, coste)
+
+
+## ¿El rectángulo AMPLÍA una sala existente del mismo tipo? Exige que la UNIÓN siga siendo un
+## rectángulo EXACTO (CO3: las salas son rectángulos — un dibujo en "L" no amplía, crea sala aparte),
+## que aporte celdas nuevas, quepa en el edificio y no pise otras salas. Devuelve el id o `&""`.
+func sala_ampliable(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
+	if not _dentro_del_edificio(rect):
+		return &""
+	for sala_id: StringName in _salas:
+		var sala: Dictionary = _salas[sala_id]
+		if sala["tipo"] != tipo_sala_id:
+			continue
+		var actual: Rect2i = sala["rect"]
+		var union: Rect2i = actual.merge(rect)
+		var interseccion: int = actual.intersection(rect).get_area()
+		if union.get_area() != actual.get_area() + rect.get_area() - interseccion:
+			continue   # la unión no es rectangular exacta (haría una L)
+		if union.get_area() == actual.get_area():
+			continue   # todo cae dentro de la sala: nada que ampliar
+		if not _dentro_del_edificio(union):
+			continue
+		var choca: bool = false
+		for otra_id: StringName in _salas:
+			if otra_id != sala_id and union.intersects(_salas[otra_id]["rect"]):
+				choca = true
+				break
+		if not choca:
+			return sala_id
+	return &""
+
+
+## Coste de la ampliación (F1 SIN base — la sala ya está "abierta"): solo las celdas NUEVAS.
+func coste_ampliacion(sala_id: StringName, rect: Rect2i) -> float:
+	if not _salas.has(sala_id):
+		return 0.0
+	var actual: Rect2i = _salas[sala_id]["rect"]
+	var celdas_nuevas: int = actual.merge(rect).get_area() - actual.get_area()
+	return coste_por_celda * float(celdas_nuevas)
 
 
 ## Construye un elemento (CO4/CO6/CO9): valida → cobra → alta guardando `coste_pagado` (F4). Si es
@@ -207,13 +262,43 @@ func construir_elemento(id_catalogo: StringName, celda: Vector2i) -> StringName:
 	var coste: float = coste_elemento(id_catalogo)
 	if not _pagar(coste):
 		return &""
-	var elemento_id: StringName = _crear_elemento(id_catalogo, celda, coste)
+	return _alta_elemento(id_catalogo, celda, coste)
+
+
+## Alta común (construir normal y de oficio): registra en el modelo + puente a Personal si es puesto.
+func _alta_elemento(
+	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &""
+) -> StringName:
+	var elemento_id: StringName = _crear_elemento(id_catalogo, celda, coste_pagado, id_forzado)
 	if id_catalogo != ASIENTO_BASICO:
 		if _personal != null:
 			_personal.registrar_puesto(elemento_id, id_catalogo)
 		else:
 			push_warning("Construccion: puesto '%s' construido SIN Personal inyectado" % elemento_id)
 	return elemento_id
+
+
+# ── Montaje de oficio (Story 006 — SOLO arranque; decisión ratificada: la DGP entrega pagado) ─
+
+## Construye una sala del montaje inicial: valida pero NO cobra (coste_pagado 0 — demolerla no
+## "regala" reembolso). Si la validación falla es un BUG del layout inicial → aviso ruidoso.
+func construir_de_oficio_sala(
+	tipo_sala_id: StringName, rect: Rect2i, id_forzado: StringName = &""
+) -> StringName:
+	if not validar_sala(tipo_sala_id, rect):
+		push_warning("Construccion: montaje de oficio INVALIDO (sala '%s' en %s)" % [tipo_sala_id, rect])
+		return &""
+	return _crear_sala(tipo_sala_id, rect, 0.0, id_forzado)
+
+
+## Construye un elemento del montaje inicial (coste 0; `id_forzado` para los ids compat doc_1...).
+func construir_de_oficio_elemento(
+	id_catalogo: StringName, celda: Vector2i, id_forzado: StringName = &""
+) -> StringName:
+	if not validar_elemento(id_catalogo, celda):
+		push_warning("Construccion: montaje de oficio INVALIDO ('%s' en %s)" % [id_catalogo, celda])
+		return &""
+	return _alta_elemento(id_catalogo, celda, 0.0, id_forzado)
 
 
 ## El gate E4 (CO6): `cobrar` de Economía ya comprueba `puede_pagar` — sin caja devuelve false y el
@@ -269,6 +354,33 @@ func puestos_utiles(tasa_llegadas_pico: float, throughput_hora_puesto: float) ->
 	return ceili(tasa_llegadas_pico / throughput_hora_puesto)
 
 
+## El elemento que ocupa una celda (&"" si ninguno) — lo usa la herramienta de demolición (007).
+func elemento_en(celda: Vector2i) -> StringName:
+	for elemento_id: StringName in _elementos:
+		if _elementos[elemento_id]["celda"] == celda:
+			return elemento_id
+	return &""
+
+
+## Reembolso TOTAL de demoler una sala en cascada (sala + contenido, F4) — para el diálogo de
+## confirmación de la UI (paso 1 de la cascada). No muta nada.
+func reembolso_de_sala(sala_id: StringName) -> float:
+	if not _salas.has(sala_id):
+		return 0.0
+	var total: float = float(_salas[sala_id]["coste_pagado"]) * pct_reembolso
+	for elemento_id: StringName in contenido_de_sala(sala_id):
+		total += float(_elementos[elemento_id]["coste_pagado"]) * pct_reembolso
+	return total
+
+
+## ¿Hay caja para este coste? (el preview pinta "sin caja" en rojo SIN intentar construir — 007).
+## Sin Economía inyectada → true (tests).
+func puede_pagar(coste: float) -> bool:
+	if _economia == null:
+		return true
+	return _economia.puede_pagar(coste)
+
+
 ## Celda de un elemento (getter para Flujo/visual). Inexistente → (-1,-1) con aviso.
 func posicion_de(elemento_id: StringName) -> Vector2i:
 	if not _elementos.has(elemento_id):
@@ -305,6 +417,7 @@ func demoler_elemento(elemento_id: StringName) -> bool:
 	if elemento["catalogo"] != ASIENTO_BASICO and _personal != null:
 		_personal.quitar_puesto(elemento_id)
 	_elementos.erase(elemento_id)
+	_refrescar_visual()
 	return true
 
 
@@ -329,6 +442,7 @@ func demoler_sala(sala_id: StringName) -> bool:
 		demoler_elemento(elemento_id)
 	_abonar(float(_salas[sala_id]["coste_pagado"]) * pct_reembolso)
 	_salas.erase(sala_id)
+	_refrescar_visual()
 	return true
 
 
@@ -347,6 +461,7 @@ func mover_elemento(elemento_id: StringName, celda_destino: Vector2i) -> bool:
 		return false
 	elemento["celda"] = celda_destino
 	elemento["sala"] = sala_en(celda_destino)
+	_refrescar_visual()
 	return true
 
 
@@ -436,6 +551,150 @@ func load_state(d: Dictionary) -> void:
 			else:
 				push_warning("Construccion: puesto '%s' cargado SIN Personal inyectado" % elemento_id)
 	_contador_ids = maxi(int(d.get("contador_ids", 0)), 0)
+	_refrescar_visual()
+
+
+# ── Capa visual (Story 006 · TR-construction-001/003 — el visual REFLEJA el modelo) ──────────
+## Solo presentación: TileMapLayer para las salas (color por servicio + tono por tipo) y escenas
+## placeholder para puestos/asientos (`PackedScene` + `instantiate()` + `map_to_local` — NUNCA
+## lógica en tiles, ADR-0004). Sin `montar_visual` (tests headless), todo esto queda inerte.
+
+var _capa_salas: TileMapLayer = null
+var _capa_elementos: Node2D = null
+var _tam_celda: int = 40
+## `tipo_sala_id -> source_id` del TileSet generado por código (un tile plano por tipo de sala).
+var _fuentes_tileset: Dictionary = {}
+var _escena_puesto: PackedScene = null
+var _escena_asiento: PackedScene = null
+
+
+## Crea la capa visual (la llama Main tras add_child): TileMapLayer "Salas" + Node2D "Elementos",
+## alineados con el suelo del esqueleto (`desplazamiento` = posición del suelo; `tam_celda` = 40).
+func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
+	_tam_celda = tam_celda
+	var tileset := TileSet.new()
+	tileset.tile_size = Vector2i(tam_celda, tam_celda)
+	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
+		var fuente := TileSetAtlasSource.new()
+		fuente.texture = _textura_de_celda(_color_de_sala(tipo_sala))
+		fuente.texture_region_size = Vector2i(tam_celda, tam_celda)
+		fuente.create_tile(Vector2i.ZERO)
+		_fuentes_tileset[tipo_sala.id] = tileset.add_source(fuente)
+	_capa_salas = TileMapLayer.new()
+	_capa_salas.name = "Salas"
+	_capa_salas.tile_set = tileset
+	_capa_salas.position = desplazamiento
+	add_child(_capa_salas)
+	_capa_elementos = Node2D.new()
+	_capa_elementos.name = "Elementos"
+	_capa_elementos.position = desplazamiento
+	add_child(_capa_elementos)
+	_escena_puesto = _empaquetar_placeholder(int(tam_celda * 0.8), Color(0.16, 0.18, 0.22), true)
+	_escena_asiento = _empaquetar_placeholder(int(tam_celda * 0.4), Color(0.45, 0.42, 0.35), false)
+	_refrescar_visual()
+
+
+## La celda de la rejilla bajo el cursor (manifiesto ADR-0004: `local_to_map` del TileMapLayer).
+## Sin capa visual montada (headless/tests) → (-1,-1).
+func celda_bajo_cursor() -> Vector2i:
+	if _capa_salas == null:
+		return Vector2i(-1, -1)
+	return _capa_salas.local_to_map(_capa_salas.get_local_mouse_position())
+
+
+## El centro de una celda en coordenadas de MUNDO (`map_to_local` — para posicionar previews).
+func centro_de_celda(celda: Vector2i) -> Vector2:
+	if _capa_salas == null:
+		return Vector2.ZERO
+	return _capa_salas.to_global(_capa_salas.map_to_local(celda))
+
+
+## Redibuja TODO el visual desde el modelo (se llama en cada cambio de layout, nunca por frame —
+## el layout cambia por acciones puntuales del jugador, no en el tick).
+func _refrescar_visual() -> void:
+	if _capa_salas == null:
+		return
+	_capa_salas.clear()
+	for hijo: Node in _capa_elementos.get_children():
+		hijo.free()
+	for sala_id: StringName in _salas:
+		var tipo_id: StringName = _salas[sala_id]["tipo"]
+		if not _fuentes_tileset.has(tipo_id):
+			continue
+		var rect: Rect2i = _salas[sala_id]["rect"]
+		for x: int in range(rect.position.x, rect.end.x):
+			for y: int in range(rect.position.y, rect.end.y):
+				_capa_salas.set_cell(Vector2i(x, y), _fuentes_tileset[tipo_id], Vector2i.ZERO)
+		# Etiqueta de la sala (respaldo daltónico: texto además del color).
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", tipo_id)
+		var etiqueta := Label.new()
+		etiqueta.text = tipo_sala.nombre if tipo_sala != null else String(tipo_id)
+		etiqueta.add_theme_font_size_override("font_size", 10)
+		etiqueta.modulate = Color(1, 1, 1, 0.75)
+		etiqueta.position = _capa_salas.map_to_local(rect.position) - Vector2(_tam_celda, _tam_celda) / 2.0 + Vector2(3, 1)
+		_capa_elementos.add_child(etiqueta)
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		var es_asiento: bool = elemento["catalogo"] == ASIENTO_BASICO
+		var escena: PackedScene = _escena_asiento if es_asiento else _escena_puesto
+		var instancia: Node2D = escena.instantiate()
+		instancia.position = _capa_salas.map_to_local(elemento["celda"])
+		if not es_asiento:
+			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
+			var texto: Label = instancia.get_node("Etiqueta")
+			texto.text = tipo_puesto.nombre if tipo_puesto != null else String(elemento["catalogo"])
+		_capa_elementos.add_child(instancia)
+
+
+## Color placeholder por tipo de sala: azul institucional (Doc) / naranja apagado (ODAC) / gris
+## (Común); las ESPERAS, más apagadas que las oficinas (art bible §mood provisional).
+func _color_de_sala(tipo_sala: Resource) -> Color:
+	var base := Color(0.30, 0.38, 0.55)
+	if tipo_sala.servicio == "ODAC":
+		base = Color(0.55, 0.40, 0.22)
+	elif tipo_sala.servicio == "Comun":
+		base = Color(0.35, 0.37, 0.40)
+	if tipo_sala.tipo == "espera":
+		base = base.lerp(Color(0.22, 0.24, 0.27), 0.45)
+	return base
+
+
+## Tile plano con borde de rejilla (patrón del suelo de Main).
+func _textura_de_celda(color: Color) -> ImageTexture:
+	var imagen := Image.create(_tam_celda, _tam_celda, false, Image.FORMAT_RGBA8)
+	imagen.fill(color)
+	var linea: Color = color.darkened(0.3)
+	for i: int in _tam_celda:
+		imagen.set_pixel(i, 0, linea)
+		imagen.set_pixel(0, i, linea)
+	return ImageTexture.create_from_image(imagen)
+
+
+## Construye una PackedScene placeholder por código (caja centrada + etiqueta opcional). Escenas
+## de verdad (TR-construction-003) — el arte real llegará tras el art bible (condición 2 del gate).
+func _empaquetar_placeholder(lado: int, color: Color, con_etiqueta: bool) -> PackedScene:
+	var raiz := Node2D.new()
+	var caja := ColorRect.new()
+	caja.name = "Caja"
+	caja.size = Vector2(lado, lado)
+	caja.position = -caja.size / 2.0
+	caja.color = color
+	# Gotcha: un ColorRect por defecto SE TRAGA los clics (mouse_filter STOP) → los clics sobre un
+	# puesto/asiento nunca llegaban a la herramienta de demoler. El placeholder es decorativo: IGNORE.
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	raiz.add_child(caja)
+	caja.owner = raiz
+	if con_etiqueta:
+		var etiqueta := Label.new()
+		etiqueta.name = "Etiqueta"
+		etiqueta.add_theme_font_size_override("font_size", 9)
+		etiqueta.position = Vector2(-lado / 2.0, lado / 2.0 + 1)
+		raiz.add_child(etiqueta)
+		etiqueta.owner = raiz
+	var escena := PackedScene.new()
+	escena.pack(raiz)
+	raiz.free()
+	return escena
 
 
 # ── Config (patrón Economía/Demanda/Personal: aplicar con clamp defensivo + fallback) ────────

@@ -1,12 +1,12 @@
 # Story 007: Modo construcción con ratón — preview fantasma 🎉 (HITO VISIBLE)
 
 > **Epic**: Construcción y Distribución
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core (entrada) + Presentation (preview/overlay)
 > **Type**: UI
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada con SIGN-OFF del usuario tras 4 rondas de feedback (ver Cierre)
 
 ## Context
 
@@ -33,17 +33,17 @@ no exija rediseño); teclas de modo como atajo.
 
 *(Historia de interacción; evidencia ADVISORY con sign-off del usuario.)*
 
-- [ ] **Modo construcción on/off** (botón del HUD + atajo): al entrar, overlay de rejilla y el mundo se
-      atenúa; al salir, todo vuelve.
-- [ ] **Colocar elemento**: seleccionar tipo (mini-barra provisional con nombre y coste LEÍDOS de
+- [x] **Modo construcción on/off** (botón del HUD + atajo B): al entrar, overlay/atenuación del mundo;
+      al salir, todo vuelve.
+- [x] **Colocar elemento**: seleccionar tipo (mini-barra provisional con nombre y coste LEÍDOS de
       Datos) → preview fantasma sigue al cursor celda a celda, **verde/rojo según F6 EN VIVO** (+ texto
-      "Válido"/"No cabe/Sin caja") → clic confirma SOLO si es válido → cobra (gate E4) y aparece.
-- [ ] **Dibujar sala**: arrastrar rectángulo con **área y coste en vivo** (F1); soltar confirma si
-      válido (AC-CO03 visible: área < mínimo en rojo).
-- [ ] **Demoler**: herramienta de demolición con clic; sala con contenido → **confirmación de cascada**
-      (lista del contenido + reembolso total antes de ejecutar — AC-CO12 visible).
-- [ ] Suite completa en verde y **sign-off del usuario con la ventana abierta** (colocar una ventanilla
-      nueva, ver el saldo bajar; demolerla, ver el reembolso).
+      "Válido"/"No válido"/"Sin caja") → clic confirma SOLO si es válido → cobra (gate E4) y aparece.
+- [x] **Dibujar sala**: arrastrar rectángulo con **área y coste en vivo** (F1); soltar confirma si
+      válido (AC-CO03 visible: área < mínimo en rojo). *(+ ENMIENDA: pegado al mismo tipo = AMPLIAR.)*
+- [x] **Demoler**: herramienta de demolición con clic; sala con contenido → **confirmación de cascada**
+      (nº de elementos + reembolso total antes de ejecutar — AC-CO12 visible).
+- [x] Suite completa en verde y **sign-off del usuario con la ventana abierta** (colocó/demolió con el
+      saldo a la vista a lo largo de 4 rondas de prueba).
 
 ---
 
@@ -93,7 +93,7 @@ no exija rediseño); teclas de modo como atajo.
 **Story Type**: UI (ADVISORY) — requiere **sign-off del usuario**.
 **Required evidence**: `production/qa/evidence/construccion-hud-[fecha].md` + PNG + sign-off explícito
 (doc compartido con la 006).
-**Status**: [ ] Not yet created
+**Status**: [x] `construccion-hud-2026-07-24.md` + PNG — **SIGN-OFF ✅ del usuario (2026-07-24)**.
 
 ---
 
@@ -101,3 +101,18 @@ no exija rediseño); teclas de modo como atajo.
 
 - Depends on: Story 006 (capa visual + montaje inicial) — DONE antes de empezar.
 - Unlocks: cierre del epic Construcción → `/create-stories flujo` (C2-4).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal (`src/main/modo_construccion.gd` + 5 getters en Construcción).
+**4 rondas de feedback del usuario con la ventana abierta, todas corregidas antes del sign-off**
+(detalladas en la evidencia): (1) barra invisible — bug de anclas `grow_vertical` (toda barra
+anclada abajo debe crecer HACIA ARRIBA); (2) HUD tapando el mundo → **rediseño a barra inferior
+estilo tycoon** (petición del usuario); (3) botones Asiento/Demoler fuera de pantalla →
+`HFlowContainer` (toolbars con textos de catálogo: SIEMPRE flow/scroll); (4) placeholders
+tragándose los clics → `MOUSE_FILTER_IGNORE` en Controls decorativos del mundo. **ENMIENDA de
+diseño ratificada (petición del usuario): dibujar pegado/solapado a una sala del MISMO tipo la
+AMPLÍA** (unión rectangular exacta, cobra solo celdas nuevas; en "L" o tipo distinto → sala aparte)
+— implementada en Construcción (002) con 2 tests. Suite final **297/297, exit 0**.
