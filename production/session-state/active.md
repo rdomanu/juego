@@ -340,13 +340,28 @@ coberturas (sin cubridores colgantes). Test `personal_oficial_test.gd` **8/8 a l
 Mando 4→2 y Mando 1→1 · PE15 sin Oficial · PE16 1 parte vs 3 individuales · PE17 escalada ·
 Oficial ausente · reincorporación deshace cobertura · compatibilidad ag_odac no cubre Doc).
 **Suite total: 258/258, exit 0** (Personal 38/38). SIN commit aún (004+005 pendientes).
-**PRÓXIMO INMEDIATO:** epic Personal 5/7 — **personal-006 (nómina efectiva + persistencia)**:
-enmienda a Economía `fijar_salarios_dia` (hook previsto en eco-003) + save/load del estado de
-Personal (grupo Persist; serializar plantilla/estados/asignaciones/coberturas/mercado/ciclo
-refresco). Después 007 (HUD VISIBLE: plantilla+nómina+ausencia; sustituir PLANTILLA_INICIAL de Main
-por 2 ag_doc + 1 ag_odac atributos medios [⚠️ ratificar plantilla; nómina 190 € intacta] + registrar
-puestos doc_1/doc_2 (puesto_doc_general) y odac_1 (puesto_odac); abrir ventana + sign-off).
-Backlog GDD: corregir F6 floor→ceil en staff-agents.md al tocarlo.
+**✅ personal-004+005 COMMITEADAS (commit 6296a52, pusheado).**
+**✅ personal-006 IMPLEMENTADA + TEST EN VERDE (2026-07-24, hilo principal):** nómina efectiva +
+persistencia — **enmienda a Economía APLICADA** (`fijar_salarios_dia(Array[float])`: una vez fijada
+SUSTITUYE al cálculo por tipos en `_gasto_salarios_dia`; array vacío = nómina 0, NO fallback;
+`fijar_plantilla` queda para compat/tests); Personal `_actualizar_nomina()` (F1 por agente, plantilla
+completa — el ausente cobra) llamada en contratar/despedir/load_state. Persistencia ADR-0002:
+`save()` = {plantilla, mercado (dicts JSON-safe por agente), jornadas_desde_refresco, **coberturas
+por ÍNDICE de plantilla** (necesarias para restaurar puesto_dotado — la story no las listaba, el
+diseño de la 005 las exige)}; `load_state` defensivo (tipo huérfano → agente descartado con aviso,
+NUNCA invalida el save; estado desconocido → libre; `_reconstruir_asignaciones` [puesto no
+registrado/duplicado → banquillo, gana el 1º] + `_reconstruir_coberturas` + `_sanear_estados_
+cargados`), 0 señales, nómina re-fijada en silencio; grupo Persist en _ready. INVARIANTE del caller:
+puestos registrados ANTES de cargar. Test `personal_nomina_save_test.gd` **6/6 a la primera**
+(AC-PE07 160 € efectivos vs 130 base con hook fijado · contratar/despedir re-fijan [despedir todo →
+cierre sin gasto] · AC-PE21 round-trip JSON full_precision campo a campo con cobertura restaurada ·
+AC-PE21 determinismo A-vs-B 2+3 días con refresco de mercado en medio, semilla 4242 · carga 0
+señales · huérfano descartado). **Suite total: 264/264, exit 0.** SIN commit aún.
+**PRÓXIMO INMEDIATO:** epic Personal 6/7 — **personal-007 (HUD, VISIBLE + sign-off)**: sustituir
+PLANTILLA_INICIAL de Main por Personal real con 2 ag_doc + 1 ag_odac atributos medios [⚠️ RATIFICAR
+plantilla; nómina 190 € intacta: 60+60+70] + registrar puestos doc_1/doc_2 (puesto_doc_general) y
+odac_1 (puesto_odac) + asignarlos + HUD plantilla/nómina/ausencias + ABRIR VENTANA (guion demo: 3×
+hasta 07:55) + sign-off del usuario. Backlog GDD: corregir F6 floor→ceil en staff-agents.md.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

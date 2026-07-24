@@ -53,6 +53,11 @@ var _cache_catalogo_listo: bool = false
 ## Plantilla contratada PROVISIONAL (ids de TipoAgente del catálogo): la fijará Personal en su epic
 ## (con `salario_dia_efectivo` = base × prima, Personal F1; MVP provisional = salario base). Hook.
 var _plantilla: Array[StringName] = []
+## Nómina EFECTIVA del día (enmienda personal-006 — ejecuta el hook de arriba): los `salario_dia` F1
+## (base × primas) que fija Personal al contratar/despedir/cargar. Una vez fijada SUSTITUYE al
+## cálculo provisional por tipos; `fijar_plantilla` queda para compat/tests sin Personal.
+var _salarios_dia: Array[float] = []
+var _salarios_fijados: bool = false
 ## Horas extra acumuladas HOY (las registra Horarios/Personal en el futuro; Economía solo el coste E3).
 var _horas_extra_dia: float = 0.0
 ## Coste de la peonada por hora (cacheado del catálogo `costes_global`).
@@ -198,6 +203,13 @@ func fijar_plantilla(ids: Array[StringName]) -> void:
 	_plantilla = ids.duplicate()
 
 
+## Fija los salarios EFECTIVOS del día (enmienda personal-006: Personal los calcula con F1, Economía
+## los COBRA en su prio 20 — la propiedad del dinero no se mueve). No emite señales (cargar sitúa).
+func fijar_salarios_dia(salarios: Array[float]) -> void:
+	_salarios_dia = salarios.duplicate()
+	_salarios_fijados = true
+
+
 ## Acumula horas extra del día (F4; quién y cuándo las genera lo posee Horarios/Personal — futuro).
 func registrar_horas_extra(horas: float) -> void:
 	_horas_extra_dia += maxf(horas, 0.0)
@@ -228,9 +240,15 @@ func _al_nuevo_dia() -> void:
 	_emitir_saldo()
 
 
-## Nómina del día (F3): Σ salario base del catálogo por cada agente de la plantilla. Un id huérfano se
-## salta con aviso (tolerancia, patrón Datos).
+## Nómina del día (F3): con salarios efectivos fijados (Personal F1, enmienda personal-006), su suma;
+## si no (compat/tests sin Personal), Σ salario base del catálogo por id de la plantilla provisional.
+## Un id huérfano se salta con aviso (tolerancia, patrón Datos).
 func _gasto_salarios_dia() -> float:
+	if _salarios_fijados:
+		var suma: float = 0.0
+		for salario: float in _salarios_dia:
+			suma += salario
+		return suma
 	var total: float = 0.0
 	for id in _plantilla:
 		var agente: Resource = Datos.obtener(&"TipoAgente", id)

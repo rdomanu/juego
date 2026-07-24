@@ -17,6 +17,10 @@ class_name Personal extends Node
 ## (⚠️ errata del GDD anotada: el texto de F6 dice floor, pero su tabla de salida y AC-PE14 son ceil)
 ## y canalización: con Oficial PRESENTE las incidencias del servicio salen en UN parte agrupado
 ## (`parte_personal`); sin él, avisos individuales (`incidencia_personal`).
+## Story 006: la NÓMINA EFECTIVA a Economía (F1 por agente vía `fijar_salarios_dia` — enmienda que
+## ejecuta el hook previsto en eco-003; el COBRO sigue siendo de Economía, prio 20) y la
+## PERSISTENCIA (`save()`/`load_state()` + grupo `Persist` — ADR-0002; el RNG lo serializa
+## RNGService, los puestos los registra el mundo ANTES de cargar).
 ##
 ## Provee (cuando el epic avance) el gate FL4 y los modificadores que consumirá Flujo; el dinero lo
 ## posee Economía (esta clase solo CALCULA salarios — cobrarlos es de Economía, prio 20 del nuevo_dia).
@@ -73,6 +77,8 @@ func _ready() -> void:
 	# `_al_nuevo_dia` directo (patrón del proyecto).
 	if _bus != null and _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 30, _al_nuevo_dia)
+	# Contrato de persistencia (ADR-0002): el SaveManager recoge por el grupo, clave = node.name.
+	add_to_group("Persist")
 
 
 ## Inyecta Economía (dependency injection → testeable). Sin ella, contratar avisa y no aplica gate.
@@ -178,6 +184,7 @@ func contratar(indice: int) -> bool:
 	mercado.remove_at(indice)
 	candidato.estado = AgenteScript.ESTADO_LIBRE
 	plantilla.append(candidato)
+	_actualizar_nomina()
 	return true
 
 
@@ -190,6 +197,7 @@ func despedir(agente: RefCounted) -> void:
 		return
 	desasignar(agente)
 	plantilla.remove_at(indice)
+	_actualizar_nomina()
 
 
 ## Handler del `nuevo_dia` (prioridad 30 del dispatcher — registrado en `_ready`; los tests lo llaman
@@ -474,6 +482,153 @@ func factor_trato_de(puesto_id: StringName) -> float:
 		push_warning("Personal: factor de trato de un puesto sin agente ('%s') -> 1.0" % puesto_id)
 		return 1.0
 	return factor_trato(agente)
+
+
+# ── Nómina efectiva y persistencia (Story 006 · TR-staff-001 · GDD F1/PA6 · ADR-0002) ────────
+
+## Recalcula la nómina del día y se la fija a Economía (F1 por agente — enmienda personal-006). La
+## nómina es por PLANTILLA, no por asistencia: el ausente cobra igual (baja pagada, orden 20/30 del
+## dispatcher — documentado en la 004). Sin Economía inyectada (tests unitarios) → no-op. No emite.
+func _actualizar_nomina() -> void:
+	if _economia == null or not _economia.has_method("fijar_salarios_dia"):
+		return
+	var salarios: Array[float] = []
+	for agente: RefCounted in plantilla:
+		salarios.append(salario_dia(agente))
+	_economia.fijar_salarios_dia(salarios)
+
+
+## Estado serializable de Personal (contrato `Persist`; clave = node.name). SOLO estado no derivado:
+## los salarios se recalculan con F1 al cargar, el RNG lo serializa RNGService (NUNCA duplicarlo
+## aquí) y los puestos los registra el mundo al arrancar. Las coberturas se guardan por ÍNDICE de
+## plantilla (los nombres pueden repetirse). Tipos JSON-safe (StringName → String).
+func save() -> Dictionary:
+	var coberturas: Dictionary = {}
+	for puesto_id: StringName in _coberturas:
+		coberturas[String(puesto_id)] = plantilla.find(_coberturas[puesto_id])
+	return {
+		"plantilla": plantilla.map(_agente_a_dict),
+		"mercado": mercado.map(_agente_a_dict),
+		"jornadas_desde_refresco": _jornadas_desde_refresco,
+		"coberturas": coberturas,
+	}
+
+
+## Restaura desde un Dictionary (p. ej. parseado de JSON). Defensivo (ADR-0002: el dato corrupto se
+## DESCARTA con aviso, nunca invalida el save entero) y SIN señales ("cargar sitúa, no reproduce"):
+## ni incidencias ni partes retroactivos; la nómina se re-fija en silencio. INVARIANTE del caller:
+## los puestos del mundo ya están registrados ANTES de cargar (los registra Main/Construcción).
+func load_state(d: Dictionary) -> void:
+	plantilla.clear()
+	mercado.clear()
+	_asignaciones.clear()
+	_coberturas.clear()
+	for datos: Variant in d.get("plantilla", []):
+		var agente: RefCounted = _agente_desde_dict(datos)
+		if agente != null:
+			plantilla.append(agente)
+	for datos: Variant in d.get("mercado", []):
+		var candidato: RefCounted = _agente_desde_dict(datos)
+		if candidato != null:
+			mercado.append(candidato)
+	_jornadas_desde_refresco = maxi(int(d.get("jornadas_desde_refresco", 0)), 0)
+	_reconstruir_asignaciones()
+	_reconstruir_coberturas(d.get("coberturas", {}))
+	_sanear_estados_cargados()
+	_actualizar_nomina()
+
+
+## Un agente → Dictionary JSON-safe (StringName → String; el resto ya son int/String).
+func _agente_a_dict(agente: RefCounted) -> Dictionary:
+	return {
+		"nombre": agente.nombre,
+		"tipo": String(agente.tipo_id),
+		"rango": String(agente.rango),
+		"rapidez": agente.rapidez,
+		"trato": agente.trato,
+		"salud": agente.salud,
+		"motivacion": agente.motivacion,
+		"mando": agente.mando,
+		"estado": String(agente.estado),
+		"puesto": String(agente.puesto_id),
+	}
+
+
+## Dictionary → agente. Tipo huérfano (no está en el catálogo) → null con aviso (se descarta ESE
+## agente, el resto del save carga). Estado desconocido → libre con aviso. Los setters de Agente ya
+## clampan los atributos corruptos (edge del GDD).
+func _agente_desde_dict(datos: Variant) -> RefCounted:
+	if not (datos is Dictionary):
+		push_warning("Personal: entrada de agente corrupta en el save -> descartada")
+		return null
+	var tipo_id: StringName = StringName(String(datos.get("tipo", "")))
+	if Datos.obtener(&"TipoAgente", tipo_id) == null:
+		push_warning("Personal: TipoAgente '%s' del save no existe -> agente descartado" % tipo_id)
+		return null
+	var agente: RefCounted = AgenteScript.new(
+		String(datos.get("nombre", "")), tipo_id,
+		StringName(String(datos.get("rango", "policia"))),
+		int(datos.get("rapidez", 3)), int(datos.get("trato", 3)),
+		int(datos.get("salud", 3)), int(datos.get("motivacion", 3)),
+		int(datos.get("mando", 0))
+	)
+	var estado: StringName = StringName(String(datos.get("estado", "libre")))
+	var conocidos: Array[StringName] = [
+		AgenteScript.ESTADO_LIBRE, AgenteScript.ESTADO_ASIGNADO,
+		AgenteScript.ESTADO_AUSENTE, AgenteScript.ESTADO_CUBRIENDO,
+	]
+	if not (estado in conocidos):
+		push_warning("Personal: estado '%s' desconocido en el save -> libre" % estado)
+		estado = AgenteScript.ESTADO_LIBRE
+	agente.estado = estado
+	agente.puesto_id = StringName(String(datos.get("puesto", "")))
+	return agente
+
+
+## Reconstruye `_asignaciones` desde la titularidad cargada (`puesto_id` de cada agente). Puesto no
+## registrado en el mundo o duplicado (gana el 1º — patrón Datos) → el agente pierde la plaza con
+## aviso (al banquillo; si estaba ausente, sigue de baja).
+func _reconstruir_asignaciones() -> void:
+	for agente: RefCounted in plantilla:
+		if agente.puesto_id == &"":
+			continue
+		if not _puestos.has(agente.puesto_id) or _asignaciones.has(agente.puesto_id):
+			push_warning(
+				"Personal: puesto '%s' del save no registrado o duplicado -> '%s' al banquillo"
+				% [agente.puesto_id, agente.nombre]
+			)
+			agente.puesto_id = &""
+			if agente.estado == AgenteScript.ESTADO_ASIGNADO:
+				agente.estado = AgenteScript.ESTADO_LIBRE
+			continue
+		_asignaciones[agente.puesto_id] = agente
+
+
+## Reconstruye `_coberturas` del save (`{puesto: índice de plantilla}`). Entrada inválida (puesto no
+## registrado, índice fuera de rango o agente que no venía como cubriendo) → descartada con aviso.
+func _reconstruir_coberturas(guardadas: Variant) -> void:
+	if not (guardadas is Dictionary):
+		return
+	for clave: Variant in guardadas:
+		var puesto_id: StringName = StringName(String(clave))
+		var indice: int = int(guardadas[clave])
+		if not _puestos.has(puesto_id) or indice < 0 or indice >= plantilla.size() \
+				or plantilla[indice].estado != AgenteScript.ESTADO_CUBRIENDO:
+			push_warning("Personal: cobertura de '%s' invalida en el save -> descartada" % puesto_id)
+			continue
+		_coberturas[puesto_id] = plantilla[indice]
+
+
+## Última red tras cargar: un "asignado" sin puesto o un "cubriendo" sin cobertura reconstruida
+## queda libre (aviso) — nunca estados huérfanos que confundan al gate FL4.
+func _sanear_estados_cargados() -> void:
+	for agente: RefCounted in plantilla:
+		if agente.estado == AgenteScript.ESTADO_ASIGNADO and agente.puesto_id == &"":
+			push_warning("Personal: '%s' asignado sin puesto en el save -> libre" % agente.nombre)
+			agente.estado = AgenteScript.ESTADO_LIBRE
+		elif agente.estado == AgenteScript.ESTADO_CUBRIENDO and _coberturas.find_key(agente) == null:
+			push_warning("Personal: '%s' cubriendo sin cobertura en el save -> libre" % agente.nombre)
+			agente.estado = AgenteScript.ESTADO_LIBRE
 
 
 # ── Config (patrón Economía/Demanda: aplicar con clamp defensivo + carga con fallback) ───────
