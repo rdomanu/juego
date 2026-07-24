@@ -23,7 +23,7 @@ Manifest: control-manifest 2026-07-22
 | Epic | Layer | System | GDD | Governing ADRs | Engine Risk | Stories | Status |
 |------|-------|--------|-----|----------------|-------------|---------|--------|
 | [Economía / Presupuesto](economia/EPIC.md) | Core | Economía #3 | economy-budget.md | ADR-0001, ADR-0002 | LOW | 7 stories | **Complete** |
-| [Flujo de Personas y Colas](flujo/EPIC.md) | Core | Flujo #4 | flow-queues.md | ADR-0004, ADR-0001, ADR-0002 | MEDIUM-HIGH* | Not yet created | Ready |
+| [Flujo de Personas y Colas](flujo/EPIC.md) | Core | Flujo #4 | flow-queues.md | ADR-0004, ADR-0001, ADR-0002 | MEDIUM-HIGH* | 8 stories | In Progress |
 | [Generación de Demanda](demanda/EPIC.md) | Core | Demanda #5 | demand-generation.md | ADR-0002, ADR-0001 | LOW | 7 stories | **Complete** |
 | [Personal / Agentes](personal/EPIC.md) | Core | Personal #6 | staff-agents.md | ADR-0002, ADR-0001 | LOW | 7 stories | **Complete** |
 | [Construcción y Distribución](construccion/EPIC.md) | Core | Construcción #7 | construction-layout.md | ADR-0004, ADR-0002 | MEDIUM | 7 stories | **Complete** |

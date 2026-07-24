@@ -107,19 +107,82 @@ stories:
     name: "Crear stories del epic Flujo"
     file: "production/epics/flujo/EPIC.md"
     priority: should-have
-    status: backlog
+    status: done
     owner: "Fable (hilo principal)"
     estimate_days: 0.2
-    blocker: "C2-3"
-    completed: ""
-  - id: "C2-5"
-    name: "Implementar epic Flujo (~7-8 stories, HITO VISIBLE: gente + saldo sube)"
-    file: "production/epics/flujo/EPIC.md"
+    blocker: ""
+    completed: "2026-07-24"
+  - id: "flujo-001"
+    name: "Flujo: PersonaFlujo, 7 estados y turnos"
+    file: "production/epics/flujo/story-001-persona-estados-turnos.md"
     priority: should-have
-    status: backlog
-    owner: "Fable (hilo principal)"
-    estimate_days: 1.2
-    blocker: "C2-4"
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: ""
+    completed: ""
+  - id: "flujo-002"
+    name: "Flujo: colas FIFO + prioridad + compatibilidad (F7)"
+    file: "production/epics/flujo/story-002-colas-seleccion-f7.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "flujo-001"
+    completed: ""
+  - id: "flujo-003"
+    name: "Flujo: puestos, gate FL4 y emparejamiento"
+    file: "production/epics/flujo/story-003-puestos-gate-emparejamiento.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "flujo-002"
+    completed: ""
+  - id: "flujo-004"
+    name: "Flujo: atención F1 + tramite_completado (saldo SUBE)"
+    file: "production/epics/flujo/story-004-atencion-cobro.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "flujo-003"
+    completed: ""
+  - id: "flujo-005"
+    name: "Flujo: aforo + cola exterior + fórmulas F2-F5"
+    file: "production/epics/flujo/story-005-aforo-formulas-colas.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "flujo-004"
+    completed: ""
+  - id: "flujo-006"
+    name: "Flujo: compromiso de servicio + gestión en caliente (+AC-CO13)"
+    file: "production/epics/flujo/story-006-compromiso-gestion-caliente.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.2
+    blocker: "flujo-005"
+    completed: ""
+  - id: "flujo-007"
+    name: "Flujo: persistencia + determinismo (AC-FL27)"
+    file: "production/epics/flujo/story-007-persistencia-determinismo.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "flujo-006"
+    completed: ""
+  - id: "flujo-008"
+    name: "Flujo: NPCs navegando + demo integradora (HITO VISIBLE)"
+    file: "production/epics/flujo/story-008-comisaria-viva-npcs.md"
+    priority: should-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.25
+    blocker: "flujo-007"
     completed: ""
   - id: "C2-6"
     name: "Cierre formal Flujo + demo integradora con sign-off"

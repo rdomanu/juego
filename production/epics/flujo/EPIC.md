@@ -3,8 +3,8 @@
 > **Layer**: Core
 > **GDD**: design/gdd/flow-queues.md
 > **Architecture Module**: Flujo #4
-> **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories flujo`
+> **Status**: In Progress (stories creadas 2026-07-24 — Sprint 2, C2-4)
+> **Stories**: 8 (ver tabla)
 
 ## Overview
 
@@ -57,6 +57,28 @@ This epic is complete when:
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/`
 - **Rendimiento**: confirmado ≥60 FPS con el volumen objetivo de NPCs (el spike QQ-02 ya da el margen)
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [La Persona en el flujo: 7 estados + turnos](story-001-persona-estados-turnos.md) | Logic | Ready | ADR-0001, ADR-0003 |
+| 002 | [Las colas: FIFO + prioridad ODAC + compatibilidad (F7)](story-002-colas-seleccion-f7.md) | Logic | Ready | ADR-0001, ADR-0003 |
+| 003 | [Los puestos: estados, gate FL4 y emparejamiento sin dobles](story-003-puestos-gate-emparejamiento.md) | Integration | Ready | ADR-0001 |
+| 004 | [La atención y el cobro: F1 + tramite_completado (saldo SUBE)](story-004-atencion-cobro.md) | Integration | Ready | ADR-0001 |
+| 005 | [La sala respira: aforo + cola exterior (F6) y F2-F5](story-005-aforo-formulas-colas.md) | Logic | Ready | ADR-0001 |
+| 006 | [Compromiso de servicio y gestión en caliente (+AC-CO13)](story-006-compromiso-gestion-caliente.md) | Integration | Ready | ADR-0001 |
+| 007 | [Persistencia y determinismo (AC-FL27)](story-007-persistencia-determinismo.md) | Integration | Ready | ADR-0002, ADR-0001 |
+| 008 | [🎉 La comisaría VIVE: NPCs navegando + demo (HITO VISIBLE)](story-008-comisaria-viva-npcs.md) | Visual/Feel | Ready | ADR-0004, ADR-0001 |
+
+Cobertura: **27/27 AC del GDD + AC-CO13** (el diferido de Construcción se cierra en la 006). Orden
+secuencial estricto 001→008; la nav (post-cutoff, riesgo del epic) queda AISLADA en la 008 con la
+lógica ya determinista y testeada (FL5). **Interfaces provisionales documentadas en las stories**
+(aprobar al implementar): paciencia = stub + `forzar_abandono` (Paciencia #10) · cierre Doc por
+cruce de 870 en Flujo (→ Documentación #8) · `minutos_operativos` como entrada de F2 (→ Horarios) ·
+puestos nacen abiertos (→ horarios de Doc #8) · AC-CO13 vía callable `puede_demoler` cableado por
+Main.
+
 ## Next Step
 
-Run `/create-stories flujo` to break this epic into implementable stories.
+`/story-readiness production/epics/flujo/story-001-persona-estados-turnos.md` → implementar en
+orden. QA plan: `production/qa/qa-plan-sprint-2.md` (gates y casos ya definidos).

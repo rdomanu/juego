@@ -513,12 +513,22 @@ edificio en config · 002 ENMIENDA AMPLIAR salas · 003 puentes e2e · 004 ignor
 EPIC.md → Complete; index → Complete; sprint-status: C2-1..C2-3 + const-001..007 = done (TODO el
 Must Have del Sprint 2 hecho EL MISMO DÍA de abrirlo); evidencia construccion-hud-2026-07-24.md con
 sign-off ✅ y las 4 rondas documentadas.
-**PRÓXIMO (Should Have del Sprint 2): C2-4 `/create-stories flujo`** — el módulo que lo integra
-todo y el hito que el usuario espera: fichas de Demanda → NPCs VISIBLES entrando (nav 2D verificar
-en engine-reference/modules/navigation.md; movimiento COSMÉTICO por FL5, lógica determinista por
-estados), cola FIFO+prioridad, atención vía gate FL4 + modificador_produccion de Personal,
-tramite_completado → Economía cobra → **EL SALDO SUBE POR FIN**. AC-FL01..27 en el GDD; AC-CO13
-pendiente de Construcción se verifica aquí. Riesgo mitigado por spike QQ-02 (150 NPCs ≈ 145 FPS).
+**✅ C2-4 `/create-stories flujo` HECHO (2026-07-24, aprobado por el usuario):** 8 stories en
+`production/epics/flujo/` (001 PersonaFlujo 7 estados+turnos [Logic; ENVUELVE la ficha de Demanda]
+· 002 colas F7 FIFO+prioridad+compatibilidad [Logic; sin RNG] · 003 puestos+gate FL4+emparejamiento
+menor-id-gana [Int] · 004 atención F1 clamp≥1 + tramite_completado UNA vez + E2E SALDO SUBE [Int;
+tick DESPUÉS de Demanda; el viaje NO descuenta trámite] · 005 aforo F6 dentro/fuera por asientos de
+Construcción + F2-F5 puras con centinelas -1 [Logic] · 006 compromiso+gestión caliente: cierre/
+reconfig pendientes, forzar_abandono API para Paciencia, cierre Doc cruce 870 provisional,
+**AC-CO13 vía callable puede_demoler cableado por Main** [Int] · 007 persistencia+AC-FL27
+determinismo A-vs-B con save a mitad [Int] · 008 NPCs navegando: bake del layout real, re-bake solo
+al cambiar, target tras 1er physics frame, avoidance OFF, FPS≥60, HUD "En cola/Atendiendo", HITO
+VISIBLE+sign-off [Visual]). **27/27 AC + AC-CO13.** Interfaces provisionales documentadas (paciencia
+stub · cierre Doc → Documentación #8 · minutos_operativos → Horarios · puestos nacen abiertos).
+EPIC→In Progress, index, sprint-status expandido (C2-4 done; flujo-001..008 ready-for-dev). SIN
+commit aún.
+**PRÓXIMO INMEDIATO:** implementar flujo-001 → ... → 008 (ventana+sign-off = CORE 5/5 COMPLETO);
+patrón de siempre (hilo principal, test por story, suite completa, commit por hito).
 Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
 sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
