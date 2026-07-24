@@ -400,8 +400,40 @@ en ConfigConstruccion · montaje inicial pagado DE OFICIO (saldo 3000/nómina 19
 solo puestos/objetos · ids doc_1/doc_2/odac_1 compat · **⚠️ Main reordenado: Construcción ANTES que
 Personal (invariante de carga de personal-006 — detectado al trocear)**. EPIC→In Progress, index
 actualizado, sprint-status.yaml expandido (C2-1 done; const-001..007 ready-for-dev). SIN commit aún.
-**PRÓXIMO INMEDIATO:** implementar **const-001** (validación F6) → 002 → ... → 007 (ventana+sign-off);
-patrón de las anteriores (hilo principal, test por story, suite completa, commit por hito).
+**✅ Stories de Construcción COMMITEADAS (3f3a793, pusheado).**
+**✅ const-001 IMPLEMENTADA + TEST EN VERDE (2026-07-24, hilo principal):**
+`src/core/construccion/construccion.gd` (class_name Construccion, nodo del mundo: modelo lógico
+`_salas {id->{tipo,rect:Rect2i}}` + `_elementos {id->{catalogo,celda,sala,coste_pagado}}` +
+`_contador_ids`; `validar_sala` F6 [dentro edificio ∧ sin solape estricto — adyacente vale ∧ área ≥
+mín] · `validar_elemento` [sala compatible: puesto → puestos_admitidos del catálogo, ASIENTO_BASICO
+(id especial, no está en catálogo) → sala tipo "espera"; celda libre] · `sala_en`/`_crear_sala`/
+`_crear_elemento` (registro directo sin cobrar — lo usará la 002; `id_forzado` para compat doc_1...))
++ `config_construccion.gd` (9 knobs; edificio 24×13 = el suelo del esqueleto; ⚠️ decisión propuesta:
+tamaño edificio en config, a Escenario en multi-comisaría) + `tools/build_config_construccion.gd` →
+`datos/config/construccion.tres` (generado OK). Test `construccion_validacion_test.gd` **7/7 a la
+primera** (CO01 solape/límites/adyacente · CO03 frontera área 4 · CO02 puesto en su oficina ·
+asiento solo en espera · solape elementos · tipos inexistentes · clamps+.tres real).
+**Suite total: 271/271, exit 0.** SIN commit aún.
+**✅ const-002 + const-003 IMPLEMENTADAS + TEST EN VERDE (2026-07-24):** en construccion.gd —
+002: `coste_sala` F1 (base catálogo TipoSala + coste_por_celda×área; oficinas base 0) ·
+`coste_elemento` F2 (ASIENTO_BASICO de config 25 €; puestos del catálogo 500/500/600) ·
+`_clamp_coste` AC-CO18 · `construir_sala`/`construir_elemento` (validar → `_pagar` → alta con
+coste_pagado; rechazo de regla silencioso; `_pagar` usa `_economia.cobrar` que YA gatea E4 él solo —
+sin Economía avisa y construye gratis [tests]) · usar_economia/usar_personal inyectables.
+003: construir un PUESTO llama `_personal.registrar_puesto(elemento_id, id_catalogo)` (puente;
+elemento_id generado tipo "puesto_doc_general_1") · `aforo_de_sala` F3 = min(_asientos_en,
+floor(área×densidad)) con RECHAZO del asiento sobrante EN validar_elemento (el preview también lo
+verá rojo) · `puestos_utiles` F5 puro (throughput ≤0 → 0 aviso) · getters Flujo: `posicion_de`
+(centinela (-1,-1)) + `puestos_de_servicio` (orden estable). Tests `construccion_pagar_test.gd`
+**5/5** (F1 380/600/oficina 180 · CO05 saldo intacto · CO06 600→100 + coste_pagado · sala paga y
+registra + inválida no cobra · clamp) y `construccion_puentes_test.gd` **6/6** (CO15 asignar+gate
+FL4 real · CO07 aforo 10→14→15.º rechazado sin cobrar · CO08 aforo 0 · CO09 10 puestos sin tope
+1000 € restantes · CO10 F5 · posicion_de). **Suite total: 282/282, exit 0** (Construcción 18/18).
+**PRÓXIMO INMEDIATO:** const-004 (demoler/mover: F4 reembolso sobre coste_pagado vía abonar ·
+cascada 2 pasos contenido_de_sala+demoler_sala · mover_elemento gratis con revalidación · liberar
+celda + quitar_puesto) → 005 (pausa+persistencia; ⚠️ orden de carga Construcción ANTES que
+Personal) → 006 (solar visible + montaje inicial de oficio + Main reordenado) → 007 (ratón+preview,
+HITO VISIBLE+sign-off).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
