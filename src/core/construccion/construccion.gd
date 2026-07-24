@@ -61,6 +61,13 @@ var _contador_ids: int = 0
 var _economia: Node = null
 ## Personal inyectado (el puente `registrar_puesto`/`quitar_puesto` — story 003).
 var _personal: Node = null
+## Gate de demolición (AC-CO13, story flujo-006): callable que responde si un PUESTO puede
+## demolerse YA (Main lo cablea a `Flujo.puede_demoler_puesto` — no está atendiendo). Sin cablear
+## → demolición directa (compat tests y asientos, que no atienden).
+var _puede_demoler: Callable = Callable()
+## Puestos cuya demolición ESPERA al fin de su atención (compromiso de servicio — Flujo reintenta
+## vía `reintentar_demoliciones_pendientes` al completar cada atención).
+var _demoliciones_pendientes: Array[StringName] = []
 
 
 func _ready() -> void:
@@ -433,12 +440,51 @@ func demoler_elemento(elemento_id: StringName) -> bool:
 		push_warning("Construccion: demoler un elemento inexistente ('%s') -> ignorado" % elemento_id)
 		return false
 	var elemento: Dictionary = _elementos[elemento_id]
+	if elemento["catalogo"] != ASIENTO_BASICO and not _gate_demolicion(elemento_id):
+		# AC-CO13: puesto ATENDIENDO → la demolición queda PENDIENTE (compromiso de servicio);
+		# Flujo la reintenta al terminar la atención. Aún no se demuele ni se reembolsa.
+		if not (elemento_id in _demoliciones_pendientes):
+			_demoliciones_pendientes.append(elemento_id)
+		return false
+	_demoliciones_pendientes.erase(elemento_id)
 	_abonar(float(elemento["coste_pagado"]) * pct_reembolso)
 	if elemento["catalogo"] != ASIENTO_BASICO and _personal != null:
 		_personal.quitar_puesto(elemento_id)
 	_elementos.erase(elemento_id)
 	_refrescar_visual()
 	return true
+
+
+## ¿El gate AC-CO13 deja demoler este puesto YA? Sin callable cableado → sí (compat).
+func _gate_demolicion(elemento_id: StringName) -> bool:
+	if not _puede_demoler.is_valid():
+		return true
+	return bool(_puede_demoler.call(elemento_id))
+
+
+## Cablea el gate de demolición (AC-CO13). Main: `fijar_puede_demoler(flujo.puede_demoler_puesto)`.
+func fijar_puede_demoler(gate: Callable) -> void:
+	_puede_demoler = gate
+
+
+## ¿Hay demoliciones esperando a que termine una atención? (chequeo barato para el tick de Flujo).
+func hay_demoliciones_pendientes() -> bool:
+	return not _demoliciones_pendientes.is_empty()
+
+
+## Reintenta las demoliciones pendientes (las llama Flujo al completar atenciones). Devuelve los
+## ids que SÍ cayeron (Flujo los retira de su registro); las que sigan frenadas se re-encolan
+## solas (demoler_elemento las vuelve a apuntar).
+func reintentar_demoliciones_pendientes() -> Array[StringName]:
+	var pendientes: Array[StringName] = _demoliciones_pendientes.duplicate()
+	_demoliciones_pendientes.clear()
+	var demolidos: Array[StringName] = []
+	for elemento_id: StringName in pendientes:
+		if not _elementos.has(elemento_id):
+			continue   # ya no existe (p. ej. cayó en una cascada) — nada que hacer
+		if demoler_elemento(elemento_id):
+			demolidos.append(elemento_id)
+	return demolidos
 
 
 ## El contenido de una sala (ids de sus elementos, orden estable de construcción). Es el paso 1 de
@@ -454,10 +500,16 @@ func contenido_de_sala(sala_id: StringName) -> Array[StringName]:
 
 ## Paso 2 de la cascada: demuele el contenido (reembolsando CADA elemento por su `coste_pagado`) y
 ## después la sala (reembolsando el suyo). Libera todas sus celdas.
+## AC-CO13 (story flujo-006): si ALGÚN puesto de la sala está atendiendo (gate), la cascada entera
+## se rechaza con aviso — sin salas a medio demoler ni pendientes huérfanos; el jugador reintenta.
 func demoler_sala(sala_id: StringName) -> bool:
 	if not _salas.has(sala_id):
 		push_warning("Construccion: demoler una sala inexistente ('%s') -> ignorado" % sala_id)
 		return false
+	for elemento_id: StringName in contenido_de_sala(sala_id):
+		if _elementos[elemento_id]["catalogo"] != ASIENTO_BASICO and not _gate_demolicion(elemento_id):
+			push_warning("Construccion: la sala '%s' tiene un puesto atendiendo -> cascada rechazada" % sala_id)
+			return false
 	for elemento_id: StringName in contenido_de_sala(sala_id):
 		demoler_elemento(elemento_id)
 	_abonar(float(_salas[sala_id]["coste_pagado"]) * pct_reembolso)

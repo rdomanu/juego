@@ -34,6 +34,16 @@ class_name Flujo extends Node
 ## (FL7 — la válvula es el abandono, Paciencia #10). F2-F5 son funciones PURAS para la UI y el
 ## sanity R5 (centinela -1.0 = "sin servicio"/"indefinida", NUNCA ∞ ni división por cero).
 ##
+## Story 006: COMPROMISO DE SERVICIO y gestión en caliente — nada se interrumpe a medias (regla
+## dura del manifiesto): cerrar (`cierre_pendiente`), retirar (`retirada_pendiente`) y demoler
+## (AC-CO13, pendientes en Construcción que Flujo reintenta al terminar cada atención) ESPERAN al
+## fin de la atención en curso; `forzar_abandono` (la API que Paciencia #10 llamará) devuelve
+## false en Llamada/En atención. `reconfigurar_puesto` (FL9, solo tipos `reconfigurable`) cambia
+## el filtro para la PRÓXIMA llamada. Cierre Doc (AC-FL24, PROVISIONAL hasta Documentación #8):
+## pasada la hora (`cierre_doc_min`) la puerta no admite NUEVAS personas Doc, la cola admitida se
+## atiende hasta vaciarse y esos minutos van al hook de peonada (`fijar_hook_horas_extra` →
+## Economía F4, en horas). La Pausa congela por construcción (Tiempo no empuja el tick — FL8).
+##
 ## La LÓGICA jamás lee la posición de un sprite (FL5/ADR-0004): el movimiento es cosmético (008).
 ##
 ## Story: production/epics/flujo/story-001-persona-estados-turnos.md · TR-flow-001/002 · ADR-0001
@@ -66,6 +76,7 @@ const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 var duracion_desplazamiento_seg: float = 1.5
 var habilitar_aging_odac: bool = false
 var tope_cola_exterior: int = 0
+var cierre_doc_min: int = 870
 
 # ── El estado del flujo ──────────────────────────────────────────────────────────────────────
 ## Estados del PUESTO (GDD §States B — derivados, nunca almacenados como verdad).
@@ -84,6 +95,11 @@ var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
 var _personal: Node = null
 ## Construcción inyectada (story 005: el aforo por asientos es SUYO). Sin ella → sin límite (tests).
 var _construccion: Node = null
+## Hook de peonada (story 006, AC-FL24): Main lo cablea a `Economia.registrar_horas_extra` (recibe
+## HORAS). Sin cablear → no-op. SOLO el hook — la peonada real la hará Horarios #13.
+var _hook_horas_extra: Callable = Callable()
+## Puestos a retirar tras completar su atención (retirada_pendiente) — pre-alocado (regla hot path).
+var _puestos_a_retirar: Array[StringName] = []
 ## Colas lógicas por servicio (FL2): personas en espera, en orden de inserción — el ORDEN de
 ## servicio lo impone la clave F7 al elegir, no la posición en el array (menos invariantes).
 var _colas: Dictionary[StringName, Array] = {}
@@ -126,11 +142,25 @@ func _suscribir_al_tick() -> void:
 
 ## Admite una ficha de Demanda al flujo (FL1): la envuelve, le asigna turno de SU servicio y nace
 ## en estado Llegando. (`encolar` la clasifica después dentro/fuera por aforo — F6.)
+## AC-FL24: con la puerta de Documentación CERRADA (pasada `cierre_doc_min`) una ficha Doc "en
+## camino" ya NO se admite → devuelve null (el caller lo descarta). ODAC es 24 h.
 func admitir(ficha: RefCounted) -> RefCounted:
 	var servicio: StringName = ficha.servicio
+	if servicio == SERVICIO_DOC and not puerta_doc_abierta():
+		return null
 	var turno: int = _turnos.get(servicio, 0) + 1
 	_turnos[servicio] = turno
 	return PersonaFlujoScript.new(ficha, turno)
+
+
+## AC-FL24 (PROVISIONAL en Flujo hasta Documentación #8 — decisión propuesta en la story): la
+## puerta de Doc a NUEVAS admisiones, DERIVADA del reloj (≥ `cierre_doc_min` → cerrada hasta la
+## medianoche; Demanda ya corta el grifo en su ventana — esto cubre a las "en camino"). Sin reloj
+## inyectado (tests unitarios) → siempre abierta.
+func puerta_doc_abierta() -> bool:
+	if _tiempo == null:
+		return true
+	return fposmod(_tiempo.minutos_juego, 1440.0) < float(cierre_doc_min)
 
 
 ## Transición de estado con guardia (States A): una transición inválida AVISA y no cambia nada
@@ -273,26 +303,106 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 		return
 	if _puestos_flujo.has(puesto_id):
 		return
-	_puestos_flujo[puesto_id] = {"tipo": tipo_puesto_id, "abierto": true, "persona": null, "restante": 0.0}
+	var sin_override: Array[StringName] = []
+	_puestos_flujo[puesto_id] = {
+		"tipo": tipo_puesto_id,
+		"abierto": true,
+		"persona": null,
+		"restante": 0.0,
+		"cierre_pendiente": false,     # story 006: cerrar espera al fin de la atención
+		"retirada_pendiente": false,   # story 006: retirar (demoler) espera al fin de la atención
+		"override": sin_override,      # story 006: reconfiguración FL9 (vacío = catálogo)
+	}
 
 
-## Retira un puesto del flujo (demolición). La atención en curso es contrato de la story 006
-## (compromiso de servicio) — hoy retira directo; la 006 lo hará esperar al trámite.
-func quitar_puesto_flujo(puesto_id: StringName) -> void:
+## Retira un puesto del flujo (demolición). COMPROMISO (story 006): con atención en curso queda
+## `retirada_pendiente` — termina el trámite y ENTONCES desaparece. Devuelve si se retiró YA.
+func quitar_puesto_flujo(puesto_id: StringName) -> bool:
+	if not _puestos_flujo.has(puesto_id):
+		return true
+	if _puestos_flujo[puesto_id]["persona"] != null:
+		_puestos_flujo[puesto_id]["retirada_pendiente"] = true
+		return false
 	_puestos_flujo.erase(puesto_id)
+	return true
 
 
-## Abre un puesto (FL10 — API del jugador/horarios).
+## Abre un puesto (FL10 — API del jugador/horarios). Reabrir CANCELA un cierre pendiente.
 func abrir_puesto(puesto_id: StringName) -> void:
 	if _puestos_flujo.has(puesto_id):
 		_puestos_flujo[puesto_id]["abierto"] = true
+		_puestos_flujo[puesto_id]["cierre_pendiente"] = false
 
 
-## Cierra un puesto: deja de llamar a nuevas. El cierre DURANTE una atención (terminarla primero)
-## es de la story 006.
+## Cierra un puesto: deja de llamar a nuevas. AC-FL17 (story 006): con una atención EN CURSO no se
+## interrumpe — queda `cierre_pendiente` y pasa a Cerrado al emitir su `tramite_completado`.
 func cerrar_puesto(puesto_id: StringName) -> void:
-	if _puestos_flujo.has(puesto_id):
-		_puestos_flujo[puesto_id]["abierto"] = false
+	if not _puestos_flujo.has(puesto_id):
+		return
+	if _puestos_flujo[puesto_id]["persona"] != null:
+		_puestos_flujo[puesto_id]["cierre_pendiente"] = true
+		return
+	_puestos_flujo[puesto_id]["abierto"] = false
+
+
+## FL9 (AC-FL16) — reconfigura las atenciones que el puesto admite: override LOCAL sobre las
+## `atenciones_admitidas` del catálogo (la operativa completa la poseerá ODAC #9). SOLO tipos
+## `reconfigurable`; la atención EN CURSO no se interrumpe (el filtro aplica a la PRÓXIMA
+## llamada). Ids fuera del catálogo del tipo se descartan con aviso; si no queda ninguno válido
+## no se aplica. Lista vacía = LIMPIAR el override (vuelve al catálogo). Devuelve si se aplicó.
+func reconfigurar_puesto(puesto_id: StringName, atenciones: Array[StringName]) -> bool:
+	if not _puestos_flujo.has(puesto_id):
+		push_warning("Flujo: reconfigurar un puesto no registrado ('%s') -> ignorado" % puesto_id)
+		return false
+	var puesto: Dictionary = _puestos_flujo[puesto_id]
+	var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+	if tipo == null or not tipo.reconfigurable:
+		push_warning("Flujo: el puesto '%s' (tipo '%s') no es reconfigurable -> ignorado" % [puesto_id, puesto["tipo"]])
+		return false
+	var filtradas: Array[StringName] = []
+	if atenciones.is_empty():
+		puesto["override"] = filtradas
+		return true
+	for atencion: StringName in atenciones:
+		if atencion in tipo.atenciones_admitidas:
+			filtradas.append(atencion)
+		else:
+			push_warning("Flujo: atencion '%s' no admitida por '%s' -> descartada" % [atencion, puesto["tipo"]])
+	if filtradas.is_empty():
+		push_warning("Flujo: reconfiguracion de '%s' sin ninguna atencion valida -> ignorada" % puesto_id)
+		return false
+	puesto["override"] = filtradas
+	return true
+
+
+## AC-CO13 — el gate que Main cablea en Construcción (`fijar_puede_demoler`): un puesto solo se
+## demuele YA si NO está atendiendo (compromiso de servicio). No registrado en el flujo → sí.
+func puede_demoler_puesto(puesto_id: StringName) -> bool:
+	if not _puestos_flujo.has(puesto_id):
+		return true
+	return _puestos_flujo[puesto_id]["persona"] == null
+
+
+## AC-FL18 — la API que Paciencia #10 llamará (interfaz PROVISIONAL: en este epic solo la usan
+## los tests): en Esperando (dentro/fuera) → sale de la cola (si libera plaza entra el de fuera),
+## pasa a Abandonando y emite `abandono(persona)` en el bus. En Llamada/En atención → COMPROMISO
+## DE SERVICIO (regla dura del manifiesto): false y nada cambia. Otros estados → false.
+func forzar_abandono(persona: RefCounted) -> bool:
+	if (
+		persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO
+		and persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_FUERA
+	):
+		return false
+	retirar_de_cola(persona)
+	_transicionar(persona, PersonaFlujoScript.ESTADO_ABANDONANDO)
+	if _bus != null:
+		_bus.abandono.emit(persona)
+	return true
+
+
+## Cablea el hook de peonada (AC-FL24): Main → `Economia.registrar_horas_extra` (recibe HORAS).
+func fijar_hook_horas_extra(hook: Callable) -> void:
+	_hook_horas_extra = hook
 
 
 ## Estado DERIVADO del puesto (States B): Cerrado → Abierto-sin-agente (gate FL4 de Personal) →
@@ -322,7 +432,10 @@ func _emparejar() -> void:
 			continue
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
-		var persona: RefCounted = elegir_de_cola(StringName(tipo.servicio), tipo.atenciones_admitidas)
+		var admitidas: Array[StringName] = puesto["override"]   # FL9: override local (006)…
+		if admitidas.is_empty():
+			admitidas = tipo.atenciones_admitidas               # …vacío = catálogo
+		var persona: RefCounted = elegir_de_cola(StringName(tipo.servicio), admitidas)
 		if persona == null:
 			continue
 		retirar_de_cola(persona)
@@ -347,23 +460,33 @@ func duracion_efectiva(servicio: StringName, tramite_id: StringName, puesto_id: 
 
 ## El tick de simulación (recibe `delta_juego` en MINUTOS; en Pausa Tiempo no empuja → FL8).
 ## ORDEN FIJO del contrato determinista: (1) avanzar/completar atenciones — el puesto liberado
-## queda Libre; (2) emparejar — los libres llaman EN el mismo tick; (3) arrancar llamadas — la
-## atención empieza el mismo tick del emparejamiento (el viaje es cosmético, no descuenta).
+## queda Libre (o Cerrado/retirado si tenía un pendiente, story 006); (2) reintentar demoliciones
+## pendientes de Construcción (AC-CO13 — antes de emparejar: un puesto demolido no llama);
+## (3) emparejar — los libres llaman EN el mismo tick; (4) arrancar llamadas — la atención
+## empieza el mismo tick del emparejamiento (el viaje es cosmético, no descuenta).
 func _al_tick(delta_juego_min: float) -> void:
 	_avanzar_atenciones(delta_juego_min)
+	_reintentar_demoliciones()
 	_emparejar()
 	_arrancar_llamadas()
 
 
 ## Resta delta a cada atención en curso; al cumplirse la duración: emite `tramite_completado`
 ## (tramite + agente REAL del puesto — Economía cobra, Paciencia cerrará visita) UNA sola vez,
-## la Persona pasa a Resuelta (despawn lógico) y el puesto queda Libre.
+## la Persona pasa a Resuelta (despawn lógico) y el puesto queda Libre — salvo pendientes de la
+## story 006: `cierre_pendiente` → Cerrado; `retirada_pendiente` → fuera del flujo.
+## AC-FL24: los minutos trabajados en Doc con la puerta CERRADA son peonada → hook en HORAS.
 func _avanzar_atenciones(delta_min: float) -> void:
+	var minutos_extra: float = 0.0
+	var doc_cerrada: bool = not puerta_doc_abierta()
+	_puestos_a_retirar.clear()
 	for puesto_id: StringName in _puestos_flujo:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_EN_ATENCION:
 			continue
+		if doc_cerrada and persona.servicio() == SERVICIO_DOC:
+			minutos_extra += minf(delta_min, maxf(float(puesto["restante"]), 0.0))
 		puesto["restante"] = float(puesto["restante"]) - delta_min
 		if puesto["restante"] > 0.0:
 			continue
@@ -373,6 +496,27 @@ func _avanzar_atenciones(delta_min: float) -> void:
 		_transicionar(persona, PersonaFlujoScript.ESTADO_RESUELTA)
 		puesto["persona"] = null
 		puesto["restante"] = 0.0
+		if puesto["cierre_pendiente"]:
+			puesto["abierto"] = false
+			puesto["cierre_pendiente"] = false
+		if puesto["retirada_pendiente"]:
+			_puestos_a_retirar.append(puesto_id)   # no se borra DENTRO de la iteración
+	for puesto_id: StringName in _puestos_a_retirar:
+		_puestos_flujo.erase(puesto_id)
+	if minutos_extra > 0.0 and _hook_horas_extra.is_valid():
+		_hook_horas_extra.call(minutos_extra / 60.0)
+
+
+## AC-CO13: si Construcción tiene demoliciones PENDIENTES (el gate `puede_demoler` las frenó por
+## atención en curso), reintentarlas — las que caigan salen también del registro del flujo. En el
+## camino común (sin pendientes) no aloca nada.
+func _reintentar_demoliciones() -> void:
+	if _construccion == null or not _construccion.has_method("hay_demoliciones_pendientes"):
+		return
+	if not _construccion.hay_demoliciones_pendientes():
+		return
+	for puesto_id: StringName in _construccion.reintentar_demoliciones_pendientes():
+		_puestos_flujo.erase(puesto_id)
 
 
 ## Las personas en Llamada empiezan su atención (F1): mismo tick del emparejamiento — FL5: el
@@ -430,6 +574,7 @@ func aplicar_config(config: Resource) -> void:
 	duracion_desplazamiento_seg = clampf(config.duracion_desplazamiento_seg, 0.0, 5.0)
 	habilitar_aging_odac = config.habilitar_aging_odac
 	tope_cola_exterior = maxi(config.tope_cola_exterior, 0)
+	cierre_doc_min = clampi(config.cierre_doc_min, 0, 1439)
 
 
 ## Carga el `.tres` real con fallback seguro (falta/inválido → defaults con aviso; no peta).
