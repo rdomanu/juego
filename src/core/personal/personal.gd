@@ -8,7 +8,15 @@ class_name Personal extends Node
 ## contratar con gate de caja de Economía (E4, sin coste puntual — Open Q4) y despedir (gratis, MVP).
 ## Story 003: la ASIGNACIÓN a puestos (PA5; puestos ABSTRACTOS registrados por el mundo — Construcción
 ## registrará los reales con la misma API), máx. 1 Oficial por servicio (PA2) y el GATE FL4 que
-## consumirá Flujo (`puesto_dotado` + modificadores por puesto). Sin ausencias (004) todavía.
+## consumirá Flujo (`puesto_dotado` + modificadores por puesto).
+## Story 004: las AUSENCIAS del día (PA7/PA11, F4) — tirada diaria al `nuevo_dia` (prioridad 30 del
+## dispatcher: la nómina de Economía, prio 20, se cobra ANTES → baja pagada), titularidad conservada
+## y aviso por el bus (`incidencia_personal`).
+## Story 005: el OFICIAL (PA8/PA9, F6/F7) — cobertura automática de bajas con agentes LIBRES (MVP
+## ratificado: no mueve titulares de otros puestos), presupuesto diario `ceil(Mando/2)` por servicio
+## (⚠️ errata del GDD anotada: el texto de F6 dice floor, pero su tabla de salida y AC-PE14 son ceil)
+## y canalización: con Oficial PRESENTE las incidencias del servicio salen en UN parte agrupado
+## (`parte_personal`); sin él, avisos individuales (`incidencia_personal`).
 ##
 ## Provee (cuando el epic avance) el gate FL4 y los modificadores que consumirá Flujo; el dinero lo
 ## posee Economía (esta clase solo CALCULA salarios — cobrarlos es de Economía, prio 20 del nuevo_dia).
@@ -47,6 +55,9 @@ var mercado: Array[RefCounted] = []
 var _jornadas_desde_refresco: int = 0
 ## Economía inyectada (gate E4 de contratación). En runtime la enchufa Main; los tests, una instancia real.
 var _economia: Node = null
+## EventBus inyectable (patrón Demanda; auto-resuelto en _ready): emite `incidencia_personal` y
+## registra el hueco 30 del `nuevo_dia`. Sin bus (tests unitarios), las ausencias corren sin avisar.
+var _bus: Node = null
 
 ## Tipos contratables del MVP (los 2 perfiles operativos del catálogo; `ag_seguridad` queda fuera del
 ## mercado — el vigilante llegará con su sistema).
@@ -55,11 +66,23 @@ const TIPOS_MERCADO: Array[StringName] = [&"ag_doc", &"ag_odac"]
 
 func _ready() -> void:
 	_cargar_config()
+	if _bus == null:
+		_bus = get_node_or_null("/root/EventBus")
+	# Ausencias del día por el DISPATCHER (orden crítico ADR-0001, `nuevo_dia`: Paciencia 10 →
+	# Economía 20 → **Personal 30** → Demanda 40). Solo en runtime real (árbol); los tests llaman
+	# `_al_nuevo_dia` directo (patrón del proyecto).
+	if _bus != null and _bus.has_method("registrar_ordenado"):
+		_bus.registrar_ordenado(&"nuevo_dia", 30, _al_nuevo_dia)
 
 
 ## Inyecta Economía (dependency injection → testeable). Sin ella, contratar avisa y no aplica gate.
 func usar_economia(economia: Node) -> void:
 	_economia = economia
+
+
+## Inyecta el EventBus (dependency injection → testeable sin el autoload real).
+func usar_bus(bus: Node) -> void:
+	_bus = bus
 
 
 # ── F1 · Salario diario efectivo (base × prima de calidad × prima de rango) ──────────────────
@@ -169,12 +192,143 @@ func despedir(agente: RefCounted) -> void:
 	plantilla.remove_at(indice)
 
 
-## Handler del `nuevo_dia` (la story 004 lo registrará en el dispatcher con prioridad 30 y le añadirá
-## las ausencias; los tests lo llaman directo). Hoy: el ciclo de regeneración del mercado (F5).
+## Handler del `nuevo_dia` (prioridad 30 del dispatcher — registrado en `_ready`; los tests lo llaman
+## directo). Orden interno FIJO — contrato determinista del RNG (cambiarlo rompería la reproducibilidad
+## de partidas guardadas): (1) deshacer las coberturas de ayer ANTES de reincorporar (story 005),
+## (2) reincorporar a los ausentes de ayer, (3) tirada F4 de ausencia por agente, (4) cobertura del
+## Oficial F6, (5) avisos F7 (parte agrupado o individuales), (6) ciclo de refresco del mercado (F5).
+## Solo el paso (3) —y el (6) los días de refresco— consume tiradas del RNG.
 func _al_nuevo_dia() -> void:
+	_deshacer_coberturas()
+	_reincorporar_ausentes()
+	var incidencias: Dictionary = _evaluar_ausencias()
+	var cobertura: Dictionary = _cubrir_vacantes()
+	_emitir_avisos(incidencias, cobertura)
 	_jornadas_desde_refresco += 1
 	if _jornadas_desde_refresco >= refresco_mercado_jornadas:
 		generar_mercado()
+
+
+# ── Ausencias del día (Story 004 · TR-staff-003 · GDD PA7/PA11, F4) ──────────────────────────
+
+## Reincorpora a los ausentes de AYER (PA7): el titular vuelve a su puesto (su plaza se le conservó);
+## un ausente sin puesto vuelve al banquillo.
+func _reincorporar_ausentes() -> void:
+	for agente: RefCounted in plantilla:
+		if agente.estado == AgenteScript.ESTADO_AUSENTE:
+			if agente.puesto_id != &"":
+				agente.estado = AgenteScript.ESTADO_ASIGNADO
+			else:
+				agente.estado = AgenteScript.ESTADO_LIBRE
+
+
+## La tirada diaria de ausencia (PA11): recorre la plantilla en ORDEN ESTABLE y por agente tira
+## `RNGService.randf() < prob_ausencia` (F4) — orden fijo + RNG sembrado = determinista (AC-PE13).
+## El ausente CONSERVA la titularidad (no se desasigna) pero su puesto deja de estar dotado
+## (`puesto_dotado` → false: pérdida de capacidad real para Flujo — AC-PE15). Devuelve las
+## incidencias del día agrupadas por servicio (&"" = baja de un agente del banquillo):
+## `servicio -> Array de {agente, puesto}` — los avisos los emite `_emitir_avisos` (F7, story 005).
+func _evaluar_ausencias() -> Dictionary:
+	var incidencias: Dictionary = {}
+	for agente: RefCounted in plantilla:
+		if RNGService.randf() < prob_ausencia(agente):
+			agente.estado = AgenteScript.ESTADO_AUSENTE
+			var servicio: String = "" if agente.puesto_id == &"" else servicio_de_puesto(agente.puesto_id)
+			if not incidencias.has(servicio):
+				incidencias[servicio] = []
+			incidencias[servicio].append({"agente": agente, "puesto": agente.puesto_id})
+	return incidencias
+
+
+# ── El Oficial: cobertura y canalización (Story 005 · TR-staff-003 · GDD PA8/PA9, F6/F7) ─────
+
+## Deshace las coberturas de ayer: cada cubridor vuelve al banquillo. Corre ANTES de reincorporar
+## (el titular que vuelve se encuentra su puesto libre de prestados). Si el titular sigue de baja,
+## la pasada de cobertura de HOY volverá a cubrirlo (con presupuesto fresco del Oficial).
+func _deshacer_coberturas() -> void:
+	for puesto_id: StringName in _coberturas:
+		_coberturas[puesto_id].estado = AgenteScript.ESTADO_LIBRE
+	_coberturas.clear()
+
+
+## La cobertura del Oficial (F6): por cada puesto con TITULAR DE BAJA (en orden estable de registro),
+## si el servicio tiene Oficial asignado Y presente (no de baja él mismo — edge del GDD), gasta su
+## presupuesto diario `ceil(Mando/2)` reasignando al primer agente LIBRE compatible
+## (`puestos_operables`; MVP ratificado: solo libres, no mueve titulares). Sin candidato o sin
+## presupuesto → la baja se ESCALA al jugador (F7). Un puesto sin titular no se cubre (dotarlo es
+## tarea del jugador, no una baja). Devuelve `servicio -> {cubiertas, escaladas}`. Sin azar: la
+## cobertura es determinista por reglas (manifest).
+func _cubrir_vacantes() -> Dictionary:
+	var resumen: Dictionary = {}
+	var presupuesto: Dictionary = {}
+	for puesto_id: StringName in _puestos:
+		var titular: RefCounted = _asignaciones.get(puesto_id)
+		if titular == null or titular.estado != AgenteScript.ESTADO_AUSENTE:
+			continue
+		var servicio: String = servicio_de_puesto(puesto_id)
+		var oficial: RefCounted = _oficial_de_servicio(servicio)
+		if oficial == null or oficial.estado != AgenteScript.ESTADO_ASIGNADO:
+			continue   # sin mando presente no hay cobertura NI parte: avisos individuales (F7)
+		if not presupuesto.has(servicio):
+			# F6 por la TABLA del GDD (Mando 1-2 → 1 · 3-4 → 2 · 5 → 3) = ceil, no el floor del texto.
+			presupuesto[servicio] = ceili(float(oficial.mando) / 2.0)
+		if not resumen.has(servicio):
+			resumen[servicio] = {"cubiertas": 0, "escaladas": 0}
+		var candidato: RefCounted = _libre_compatible(_puestos[puesto_id])
+		if int(presupuesto[servicio]) <= 0 or candidato == null:
+			resumen[servicio]["escaladas"] = int(resumen[servicio]["escaladas"]) + 1
+			continue
+		presupuesto[servicio] = int(presupuesto[servicio]) - 1
+		_coberturas[puesto_id] = candidato
+		candidato.estado = AgenteScript.ESTADO_CUBRIENDO
+		resumen[servicio]["cubiertas"] = int(resumen[servicio]["cubiertas"]) + 1
+	return resumen
+
+
+## El primer agente LIBRE de la plantilla (orden estable) que puede operar ese tipo de puesto.
+func _libre_compatible(tipo_puesto_id: StringName) -> RefCounted:
+	for agente: RefCounted in plantilla:
+		if agente.estado != AgenteScript.ESTADO_LIBRE:
+			continue
+		var tipo_agente: Resource = Datos.obtener(&"TipoAgente", agente.tipo_id)
+		if tipo_agente != null and tipo_puesto_id in tipo_agente.puestos_operables:
+			return agente
+	return null
+
+
+## La canalización (F7, PA9): por servicio con incidencias, CON Oficial presente → UN parte agrupado
+## (`parte_personal`; las cubiertas cuentan como autoresueltas, `escaladas` > 0 = requiere decisión);
+## SIN Oficial (o bajas del banquillo, servicio &"") → un aviso individual por baja
+## (`incidencia_personal`). Orden de emisión determinista (orden de detección de las bajas).
+func _emitir_avisos(incidencias: Dictionary, cobertura: Dictionary) -> void:
+	if _bus == null:
+		return
+	for servicio: String in incidencias:
+		var lista: Array = incidencias[servicio]
+		var oficial: RefCounted = null
+		if servicio != "":
+			oficial = _oficial_de_servicio(servicio)
+		if oficial != null and oficial.estado == AgenteScript.ESTADO_ASIGNADO:
+			var datos_cobertura: Dictionary = cobertura.get(servicio, {"cubiertas": 0, "escaladas": 0})
+			_bus.parte_personal.emit({
+				"servicio": servicio,
+				"ausencias": lista.size(),
+				"cubiertas": int(datos_cobertura["cubiertas"]),
+				"escaladas": int(datos_cobertura["escaladas"]),
+			})
+		else:
+			for incidencia: Dictionary in lista:
+				_bus.incidencia_personal.emit(
+					"%s no ha venido hoy (baja)" % incidencia["agente"].nombre, incidencia["puesto"]
+				)
+
+
+## Si el agente estaba cubriendo un puesto, la cobertura se anula (el puesto vuelve a quedar sin
+## dotar). NO toca el estado del agente — eso lo decide quien llama (asignar/desasignar).
+func _liberar_cobertura_de(agente: RefCounted) -> void:
+	var puesto_cubierto: Variant = _coberturas.find_key(agente)
+	if puesto_cubierto != null:
+		_coberturas.erase(puesto_cubierto)
 
 
 # ── Asignación a puestos y gate FL4 (Story 003 · TR-staff-002 · GDD PA2/PA5) ─────────────────
@@ -183,8 +337,12 @@ func _al_nuevo_dia() -> void:
 ## (dotación estándar del esqueleto); cuando exista Construcción, registrará los puestos REALES con
 ## esta misma API y nada se tira.
 var _puestos: Dictionary[StringName, StringName] = {}
-## Asignaciones vigentes: `puesto_id -> Agente` (`plazas_agente = 1`).
+## Asignaciones vigentes: `puesto_id -> Agente` (`plazas_agente = 1`). SIEMPRE el TITULAR (un
+## ausente conserva su entrada — story 004); los cubridores van aparte en `_coberturas`.
 var _asignaciones: Dictionary[StringName, RefCounted] = {}
+## Coberturas vigentes HOY (story 005): `puesto_id -> cubridor` (estado &"cubriendo"; su `puesto_id`
+## propio queda &"" — cubre de prestado, sin titularidad). Se deshacen al empezar cada `nuevo_dia`.
+var _coberturas: Dictionary[StringName, RefCounted] = {}
 
 
 ## Registra un puesto del mundo. El tipo debe existir en el catálogo (integridad — patrón Datos).
@@ -195,8 +353,13 @@ func registrar_puesto(puesto_id: StringName, tipo_puesto_id: StringName) -> void
 	_puestos[puesto_id] = tipo_puesto_id
 
 
-## Retira un puesto del mundo (demolición futura): su agente, si lo había, queda libre.
+## Retira un puesto del mundo (demolición futura): su agente, si lo había, queda libre; una
+## cobertura activa se anula (el cubridor vuelve al banquillo — story 005).
 func quitar_puesto(puesto_id: StringName) -> void:
+	var cubridor: RefCounted = _coberturas.get(puesto_id)
+	if cubridor != null:
+		cubridor.estado = AgenteScript.ESTADO_LIBRE
+		_coberturas.erase(puesto_id)
 	var agente: RefCounted = _asignaciones.get(puesto_id)
 	if agente != null:
 		desasignar(agente)
@@ -212,6 +375,8 @@ func asignar(agente: RefCounted, puesto_id: StringName) -> bool:
 	if not _puestos.has(puesto_id):
 		push_warning("Personal: asignar a puesto no registrado '%s'" % puesto_id)
 		return false
+	if agente.estado == AgenteScript.ESTADO_AUSENTE:
+		return false   # hoy está de baja (story 004): no se incorpora hasta el nuevo_dia siguiente
 	var ocupante: RefCounted = _asignaciones.get(puesto_id)
 	if ocupante == agente:
 		return true   # ya estaba — idempotente
@@ -230,18 +395,29 @@ func asignar(agente: RefCounted, puesto_id: StringName) -> bool:
 			return false   # máx. 1 Oficial por servicio (PA2)
 	if agente.puesto_id != &"":
 		_asignaciones.erase(agente.puesto_id)
+	# (story 005) si el propio agente estaba cubriendo en otro sitio, deja de hacerlo; y si el puesto
+	# destino lo tapaba un cubridor (su titular se fue), el cubridor vuelve al banquillo: llega titular.
+	_liberar_cobertura_de(agente)
+	var cubridor: RefCounted = _coberturas.get(puesto_id)
+	if cubridor != null:
+		cubridor.estado = AgenteScript.ESTADO_LIBRE
+		_coberturas.erase(puesto_id)
 	_asignaciones[puesto_id] = agente
 	agente.puesto_id = puesto_id
 	agente.estado = AgenteScript.ESTADO_ASIGNADO
 	return true
 
 
-## Quita a un agente de su puesto (vuelve al banquillo). Sin puesto → no-op.
+## Quita a un agente de su puesto (vuelve al banquillo). Sin puesto → no-op. Un AUSENTE pierde la
+## titularidad pero sigue de baja hoy (story 004: la baja es del día, no se "cura" desasignando).
+## A un CUBRIENDO se le anula la cobertura (story 005) y queda libre.
 func desasignar(agente: RefCounted) -> void:
+	_liberar_cobertura_de(agente)
 	if agente.puesto_id != &"":
 		_asignaciones.erase(agente.puesto_id)
 	agente.puesto_id = &""
-	agente.estado = AgenteScript.ESTADO_LIBRE
+	if agente.estado != AgenteScript.ESTADO_AUSENTE:
+		agente.estado = AgenteScript.ESTADO_LIBRE
 
 
 ## Servicio de un puesto registrado ("Documentacion"/"ODAC"/"Seguridad") — lo posee el catálogo.
@@ -262,32 +438,38 @@ func _oficial_de_servicio(servicio: String) -> RefCounted:
 
 # ── Gate FL4 y modificadores por puesto (la API que consumirá Flujo) ─────────────────────────
 
-## ¿El puesto está DOTADO? (gate FL4): tiene agente y está operativo (asignado o cubriendo — el
-## AUSENTE no dota, story 004). Un puesto sin dotar está cerrado: Flujo no atiende en él.
+## ¿El puesto está DOTADO? (gate FL4): hay un cubridor (story 005) o el titular está al pie. El
+## AUSENTE no dota (story 004). Un puesto sin dotar está cerrado: Flujo no atiende en él.
 func puesto_dotado(puesto_id: StringName) -> bool:
+	if _coberturas.has(puesto_id):
+		return true
 	var agente: RefCounted = _asignaciones.get(puesto_id)
-	if agente == null:
-		return false
-	return agente.estado == AgenteScript.ESTADO_ASIGNADO or agente.estado == AgenteScript.ESTADO_CUBRIENDO
+	return agente != null and agente.estado == AgenteScript.ESTADO_ASIGNADO
 
 
-## El agente del puesto (null si no hay).
+## El agente que responde HOY por el puesto: el cubridor si hay cobertura (story 005); si no, el
+## titular (aunque esté ausente — la titularidad se consulta aquí o por `agente.puesto_id`).
 func agente_de(puesto_id: StringName) -> RefCounted:
+	var cubridor: RefCounted = _coberturas.get(puesto_id)
+	if cubridor != null:
+		return cubridor
 	return _asignaciones.get(puesto_id)
 
 
-## F2 del agente del puesto (lo consumirá Flujo F1). Sin agente → 1.0 neutro con aviso.
+## F2 del agente OPERATIVO del puesto (lo consumirá Flujo F1; con cobertura rinde el cubridor).
+## Sin agente → 1.0 neutro con aviso.
 func modificador_produccion_de(puesto_id: StringName) -> float:
-	var agente: RefCounted = _asignaciones.get(puesto_id)
+	var agente: RefCounted = agente_de(puesto_id)
 	if agente == null:
 		push_warning("Personal: modificador de un puesto sin agente ('%s') -> 1.0" % puesto_id)
 		return 1.0
 	return modificador_produccion(agente)
 
 
-## F3 del agente del puesto (lo consumirá Flujo al cerrar → Paciencia). Sin agente → 1.0 con aviso.
+## F3 del agente OPERATIVO del puesto (lo consumirá Flujo al cerrar → Paciencia). Sin agente → 1.0
+## con aviso.
 func factor_trato_de(puesto_id: StringName) -> float:
-	var agente: RefCounted = _asignaciones.get(puesto_id)
+	var agente: RefCounted = agente_de(puesto_id)
 	if agente == null:
 		push_warning("Personal: factor de trato de un puesto sin agente ('%s') -> 1.0" % puesto_id)
 		return 1.0

@@ -70,6 +70,19 @@ signal reclamacion_generada(origen: StringName)
 ## (Ampliacion 2026-07-23, epic demanda story 004.)
 signal nivel_demanda_cambiado(nivel: StringName)
 
+## Incidencia de plantilla (p. ej. una baja del dia): `texto` legible para la bandeja de la UI y
+## `puesto` afectado (&"" si el agente no tenia puesto). UNA emision por incidencia individual; el
+## parte AGRUPADO del Oficial llegara por otra senal (story 005). Emisor: Personal. Oyentes: UI/HUD
+## (bandeja de avisos), Feedback. (Ampliacion 2026-07-24, epic personal story 004.)
+signal incidencia_personal(texto: String, puesto: StringName)
+
+## Parte diario del Oficial (F7): las incidencias de SU servicio agrupadas en UN aviso. `resumen` =
+## {servicio: String, ausencias: int, cubiertas: int, escaladas: int} — `escaladas` > 0 significa
+## "requiere decision del jugador" (no hubo a quien reasignar o se agoto el Mando). Sin Oficial
+## presente en el servicio, cada baja sale como `incidencia_personal` individual. Emisor: Personal.
+## Oyentes: UI/HUD (bandeja), Feedback. (Ampliacion 2026-07-24, epic personal story 005.)
+signal parte_personal(resumen: Dictionary)
+
 # ── Senales de notificacion (se emiten TRAS el orden critico → dispatcher de la Story 002) ──────
 ## Empieza un nuevo dia. Para oyentes NO criticos (UI refresca, Feedback). El orden critico
 ## (Paciencia cierra sat -> Economia cobra -> Personal ausencias -> Demanda reset) va por

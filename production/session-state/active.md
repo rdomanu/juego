@@ -306,19 +306,47 @@ puesto de verdad. Test `personal_asignacion_test.gd` **7/7 a la primera** (PE02/
 ocupación + modificadores + inválidos + despedir/quitar_puesto liberan). **Suite total: 243/243,
 exit 0.**
 **✅ personal-001..003 COMMITEADAS (commit 06d6fb0, pusheado). FIN DE SESIÓN 2026-07-24.**
-**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** epic Personal 3/7 — seguir con **personal-004 (ausencias del
-día)**: leer production/epics/personal/story-004-ausencias-del-dia.md e implementar en hilo principal
-(patrón de las anteriores): handler `_al_nuevo_dia` YA EXISTE en personal.gd (refresco del mercado,
-002) → AMPLIARLO con (1) reincorporar ausentes de ayer, (2) tirada F4 por agente en orden estable de
-plantilla (RNGService.randf() < prob_ausencia), (3) marcar &"ausente" (titularidad conservada:
-puesto_id se mantiene, puesto_dotado→false), (4) registrar en _ready `registrar_ordenado(&"nuevo_dia",
-30, _al_nuevo_dia)` SOLO en árbol + enmienda del bus `incidencia_personal(texto, puesto)` (aviso
-individual; el parte agrupado es de la 005). Después 005 (Oficial: cobertura floor(Mando/2) con
-`_oficial_de_servicio` ya hecho + parte agrupado `parte_personal`), 006 (nómina efectiva → enmienda
-`fijar_salarios_dia` en Economía + save/load) y 007 (HUD VISIBLE: plantilla+nómina+ausencia; sustituir
-PLANTILLA_INICIAL de Main; abrir ventana + sign-off). Decisiones propuestas pendientes de ratificar al
-implementar: ya ratificadas de facto 001-003 (prob_oficial 0.2, refresco calendario, gate sin coste,
-servicio del catálogo); quedan las de 005-007 (solo libres para cubrir; plantilla inicial 2+1 medios).
+**✅ personal-004 IMPLEMENTADA + TEST EN VERDE (2026-07-24, hilo principal):** ausencias del día en
+personal.gd — `_al_nuevo_dia` AMPLIADO con orden interno FIJO documentado (contrato determinista del
+RNG: reincorporar ausentes de ayer → tirada F4 por agente en orden de plantilla → refresco del
+mercado al final); `_reincorporar_ausentes` (titular→asignado / banquillo→libre) +
+`_evaluar_ausencias` (RNGService.randf() < prob_ausencia; marca &"ausente" CONSERVANDO titularidad →
+puesto_dotado false); registro `registrar_ordenado(&"nuevo_dia", 30, ...)` en _ready SOLO en árbol
+(bus inyectable `usar_bus` patrón Demanda, auto-resuelto a /root/EventBus); enmienda del bus
+APLICADA: señal `incidencia_personal(texto, puesto)` (una por baja; puesto &"" si banquillo).
+**2 micro-decisiones NUEVAS fuera de story (pendientes de ratificar): la baja del día no se "cura"**
+— (a) `asignar` RECHAZA a un ausente (silencioso, regla de juego) y (b) `desasignar` a un ausente le
+quita la plaza pero conserva &"ausente" hasta la reincorporación (cierran el exploit de re-dotar el
+puesto reasignando al enfermo). Test integración `personal_ausencias_test.gd` **7/7 a la primera**
+(AC-PE13 determinismo 2 pasadas · boundary prob 1/0 · AC-PE15 titularidad+no-cura · reincorporación
+titular/banquillo · señal 2 bajas · orden prio 30 con espías 29/31 · AC-PE19 Pausa con physics real).
+**Suite total: 250/250, exit 0.** SIN commit aún.
+**✅ RATIFICADO por el usuario (2026-07-24):** las 2 micro-decisiones de la 004 (asignar rechaza
+ausente; desasignar conserva &"ausente") + la simplificación MVP de la 005 (solo LIBRES cubren).
+**✅ personal-005 IMPLEMENTADA + TEST EN VERDE (2026-07-24, hilo principal):** el Oficial en
+personal.gd — `_al_nuevo_dia` ahora: deshacer coberturas de ayer → reincorporar → tirada F4 (devuelve
+incidencias por servicio) → `_cubrir_vacantes` (F6) → `_emitir_avisos` (F7) → mercado. Cobertura:
+`_coberturas {puesto->cubridor}` SEPARADO de `_asignaciones` (el titular ausente conserva su entrada;
+el cubridor cubre de prestado con puesto_id &"" y estado &"cubriendo"); presupuesto por servicio
+**`ceil(Mando/2)` — ⚠️ ERRATA GDD F6 cazada: el texto dice floor(Mando/2) pero su tabla de salida
+(1-2→1 · 3-4→2 · 5→3) y AC-PE14 son ceil; implementado fiel a la TABLA, propagar al GDD** (como
+k_motivacion). Solo cubre puestos con TITULAR de baja (sin titular = tarea del jugador); candidato =
+primer LIBRE compatible (puestos_operables) en orden de plantilla; Oficial ausente no cubre (edge).
+Canalización F7: con Oficial presente → 1 `parte_personal({servicio, ausencias, cubiertas,
+escaladas})` (enmienda del bus APLICADA); sin Oficial o banquillo → `incidencia_personal`
+individuales. Gate FL4 actualizado: `puesto_dotado` true si hay cubridor; `agente_de`/modificadores
+responden por el agente OPERATIVO (cubridor si lo hay). asignar/desasignar/quitar_puesto liberan
+coberturas (sin cubridores colgantes). Test `personal_oficial_test.gd` **8/8 a la primera** (PE14
+Mando 4→2 y Mando 1→1 · PE15 sin Oficial · PE16 1 parte vs 3 individuales · PE17 escalada ·
+Oficial ausente · reincorporación deshace cobertura · compatibilidad ag_odac no cubre Doc).
+**Suite total: 258/258, exit 0** (Personal 38/38). SIN commit aún (004+005 pendientes).
+**PRÓXIMO INMEDIATO:** epic Personal 5/7 — **personal-006 (nómina efectiva + persistencia)**:
+enmienda a Economía `fijar_salarios_dia` (hook previsto en eco-003) + save/load del estado de
+Personal (grupo Persist; serializar plantilla/estados/asignaciones/coberturas/mercado/ciclo
+refresco). Después 007 (HUD VISIBLE: plantilla+nómina+ausencia; sustituir PLANTILLA_INICIAL de Main
+por 2 ag_doc + 1 ag_odac atributos medios [⚠️ ratificar plantilla; nómina 190 € intacta] + registrar
+puestos doc_1/doc_2 (puesto_doc_general) y odac_1 (puesto_odac); abrir ventana + sign-off).
+Backlog GDD: corregir F6 floor→ceil en staff-agents.md al tocarlo.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
