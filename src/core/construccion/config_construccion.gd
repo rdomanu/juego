@@ -17,6 +17,9 @@ class_name ConfigConstruccion extends Resource
 @export var coste_por_celda: float = 20.0
 ## Plazas de asiento que caben por celda de sala de espera (F3) — deja hueco para pasillos. Semilla 0.7.
 @export var densidad_asientos: float = 0.7
+## Personas DE PIE que caben por celda de sala de espera (ENMIENDA F3, flujo-005: sin asiento se
+## entra igual — el asiento será confort cuando llegue Paciencia #10). Semilla 0.5.
+@export var densidad_de_pie: float = 0.5
 ## Fracción del coste pagado que se devuelve al demoler (F4). Semilla 0.5.
 @export var pct_reembolso: float = 0.5
 ## Área mínima de una sala, en celdas (CO3). Semilla 4 (2×2).

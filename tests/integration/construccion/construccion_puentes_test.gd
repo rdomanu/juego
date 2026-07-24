@@ -52,39 +52,39 @@ func test_puesto_construido_usable_por_personal() -> void:
 	assert_bool(personal.asignar(_policia_doc("Carlos Vega"), &"puesto_fantasma")).is_false()
 
 
-# ── AC-CO07: F3 — caben floor(20×0.7)=14; con 10 asientos aforo 10; el 15.º se rechaza ────
+# ── AC-CO07 (enmienda F3 flujo-005): sentados (tope 14) + de pie floor(20×0.5)=10 ─────────
 func test_aforo_por_asientos_con_tope() -> void:
-	# Arrange — sala de espera 5×4 (20 celdas) y caja de sobra (asientos a 25 €).
+	# Arrange — sala de espera 5×4 (20 celdas → 10 de pie) y caja de sobra (asientos a 25 €).
 	var mundo: Array = _mundo()
 	var construccion: Node = mundo[0]
 	var eco: Node = mundo[1]
 	construccion._crear_sala(&"sala_espera_doc", Rect2i(0, 0, 5, 4))
 
-	# Act / Assert — 10 asientos → aforo 10.
+	# Act / Assert — 10 asientos → aforo 10 sentados + 10 de pie = 20.
 	for i: int in range(10):
 		var celda := Vector2i(i % 5, floori(float(i) / 5.0))
 		assert_bool(construccion.construir_elemento(construccion.ASIENTO_BASICO, celda) != &"").is_true()
-	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(10)
-	# Hasta el tope físico 14 → aforo 14.
+	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(20)
+	# Hasta el tope físico de asientos floor(20×0.7)=14 → aforo 14 + 10 = 24.
 	for i: int in range(10, 14):
 		var celda := Vector2i(i % 5, floori(float(i) / 5.0))
 		assert_bool(construccion.construir_elemento(construccion.ASIENTO_BASICO, celda) != &"").is_true()
-	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(14)
-	# El 15.º NO cabe (boundary intencional): rechazado sin cobrar.
+	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(24)
+	# El 15.º asiento NO cabe (boundary intencional): rechazado sin cobrar.
 	var saldo_antes: float = eco.saldo_eur
 	assert_str(String(construccion.construir_elemento(construccion.ASIENTO_BASICO, Vector2i(4, 2)))).is_equal("")
-	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(14)
+	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(24)
 	assert_float(eco.saldo_eur).is_equal_approx(saldo_antes, 0.0001)
 
 
-# ── AC-CO08: sala de espera sin asientos → aforo 0 (el dato que Flujo consumirá) ──────────
-func test_sala_sin_asientos_aforo_cero() -> void:
+# ── AC-CO08 (enmienda F3 flujo-005): sala SIN asientos → se entra DE PIE por área ─────────
+func test_sala_sin_asientos_aforo_de_pie() -> void:
 	# Arrange
 	var construccion: Node = _mundo()[0]
 	var sala_id: StringName = construccion._crear_sala(&"sala_espera_odac", Rect2i(0, 0, 3, 3))
 
-	# Act / Assert
-	assert_int(construccion.aforo_de_sala(sala_id)).is_equal(0)
+	# Act / Assert — 0 sentados + floor(9×0.5)=4 de pie (la petición del usuario: entran igual).
+	assert_int(construccion.aforo_de_sala(sala_id)).is_equal(4)
 	# Sala inexistente → 0 con aviso (robustez).
 	assert_int(construccion.aforo_de_sala(&"sala_fantasma")).is_equal(0)
 

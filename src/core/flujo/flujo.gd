@@ -27,6 +27,13 @@ class_name Flujo extends Node
 ## modificador_produccion del agente, clamp ≥ 1). El viaje al puesto NO descuenta trámite (es
 ## cosmético); en la lógica la atención arranca el mismo tick del emparejamiento.
 ##
+## Story 005: el AFORO (F6/FL6) y las MATEMÁTICAS de colas (F2-F5) — la sala de espera es finita:
+## al encolar se clasifica dentro/fuera comparando la ocupación con el aforo REAL de Construcción
+## (los ASIENTOS mandan — `aforo_de_servicio`; Flujo compara, NO recalcula — manifiesto); al
+## liberarse una plaza entra de fuera la de MENOR turno. La cola exterior crece SIN tope de Flujo
+## (FL7 — la válvula es el abandono, Paciencia #10). F2-F5 son funciones PURAS para la UI y el
+## sanity R5 (centinela -1.0 = "sin servicio"/"indefinida", NUNCA ∞ ni división por cero).
+##
 ## La LÓGICA jamás lee la posición de un sprite (FL5/ADR-0004): el movimiento es cosmético (008).
 ##
 ## Story: production/epics/flujo/story-001-persona-estados-turnos.md · TR-flow-001/002 · ADR-0001
@@ -75,6 +82,8 @@ var _turnos: Dictionary[StringName, int] = {}
 var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
 ## Personal inyectado (gate FL4: `puesto_dotado`). En runtime lo enchufa Main (008).
 var _personal: Node = null
+## Construcción inyectada (story 005: el aforo por asientos es SUYO). Sin ella → sin límite (tests).
+var _construccion: Node = null
 ## Colas lógicas por servicio (FL2): personas en espera, en orden de inserción — el ORDEN de
 ## servicio lo impone la clave F7 al elegir, no la posición en el array (menos invariantes).
 var _colas: Dictionary[StringName, Array] = {}
@@ -116,8 +125,7 @@ func _suscribir_al_tick() -> void:
 # ── Admisión y máquina de estados (Story 001 · FL1/FL2) ──────────────────────────────────────
 
 ## Admite una ficha de Demanda al flujo (FL1): la envuelve, le asigna turno de SU servicio y nace
-## en estado Llegando. (El paso a Esperando dentro/fuera por aforo es de la story 005; la 002
-## encola con `encolar`.)
+## en estado Llegando. (`encolar` la clasifica después dentro/fuera por aforo — F6.)
 func admitir(ficha: RefCounted) -> RefCounted:
 	var servicio: StringName = ficha.servicio
 	var turno: int = _turnos.get(servicio, 0) + 1
@@ -141,13 +149,18 @@ func _transicionar(persona: RefCounted, estado_nuevo: StringName) -> bool:
 
 # ── Colas y selección F7 (Story 002 · FL2/FL3) ───────────────────────────────────────────────
 
-## Encola a una persona recién llegada en la cola lógica de su servicio (FL2). En el MVP de esta
-## story entra directamente a Esperando (dentro); la story 005 (aforo) refinará dentro/fuera.
+## Encola a una persona recién llegada en la cola lógica de su servicio (FL2) clasificándola por
+## aforo (F6/FL6): con plaza en la sala de espera → Esperando (dentro); sin plaza → Esperando
+## (fuera). La cola exterior crece SIN tope de Flujo (FL7 — la válvula es el abandono, Paciencia).
 func encolar(persona: RefCounted) -> void:
-	_transicionar(persona, PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO)
-	if not _colas.has(persona.servicio()):
-		_colas[persona.servicio()] = []
-	_colas[persona.servicio()].append(persona)
+	var servicio: StringName = persona.servicio()
+	if hay_plaza_dentro(ocupacion_dentro(servicio), _aforo_de(servicio)):
+		_transicionar(persona, PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO)
+	else:
+		_transicionar(persona, PersonaFlujoScript.ESTADO_ESPERANDO_FUERA)
+	if not _colas.has(servicio):
+		_colas[servicio] = []
+	_colas[servicio].append(persona)
 
 
 ## F7 — la selección del puesto libre: entre las personas EN ESPERA (dentro) de la cola del
@@ -159,7 +172,7 @@ func elegir_de_cola(servicio: StringName, atenciones_admitidas: Array[StringName
 	var mejor_rango: int = 0
 	for persona: RefCounted in _colas.get(servicio, []):
 		if persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO:
-			continue   # las de fuera aún no han "entrado" (FL6 — story 005)
+			continue   # las de fuera aún no han "entrado" (FL6)
 		if not (persona.tramite_id() in atenciones_admitidas):
 			continue
 		var rango: int = _rango_prioridad(persona)
@@ -172,10 +185,12 @@ func elegir_de_cola(servicio: StringName, atenciones_admitidas: Array[StringName
 	return mejor
 
 
-## Retira a una persona de su cola (la usará el emparejamiento al tomarla — story 003).
+## Retira a una persona de su cola (el emparejamiento al tomarla — 003; el abandono — 006). Si con
+## ello se libera plaza dentro, promociona de la cola exterior (F6 — el hueco no se desperdicia).
 func retirar_de_cola(persona: RefCounted) -> void:
 	var cola: Array = _colas.get(persona.servicio(), [])
 	cola.erase(persona)
+	_promover_de_fuera(persona.servicio())
 
 
 ## Personas en la cola lógica de un servicio (getter para F5/UI).
@@ -192,6 +207,55 @@ func _rango_prioridad(persona: RefCounted) -> int:
 	if denuncia != null and denuncia.prioridad == "Prioritaria":
 		return 0
 	return 1
+
+
+# ── Aforo F6 y cola exterior (Story 005 · TR-flow-002 · FL6/FL7) ─────────────────────────────
+
+## Inyecta Construcción (el aforo por ASIENTOS es suyo — manifiesto: Flujo compara, no recalcula).
+func usar_construccion(construccion: Node) -> void:
+	_construccion = construccion
+
+
+## F6 — ¿queda plaza en la sala de espera? PURA (AC-FL12: 39/40 sí, 40/40 no). Un aforo negativo
+## significa "sin límite" (modo sin Construcción inyectada — tests unitarios de colas).
+func hay_plaza_dentro(ocupacion: int, aforo: int) -> bool:
+	return aforo < 0 or ocupacion < aforo
+
+
+## Ocupación real de la sala de espera: personas ESPERANDO (dentro) en la cola del servicio (las
+## que ya están en un puesto no ocupan asiento).
+func ocupacion_dentro(servicio: StringName) -> int:
+	var total: int = 0
+	for persona: RefCounted in _colas.get(servicio, []):
+		if persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO:
+			total += 1
+	return total
+
+
+## El aforo del servicio según Construcción (`aforo_de_servicio` — F3 por asientos, suma de todas
+## sus salas de espera). Sin Construcción inyectada → -1 ("sin límite": todos dentro — el
+## comportamiento de las stories 001-004 y sus tests).
+## Sin NINGUNA sala de espera del servicio → aforo 0: nadie entra ni es llamado (la UI/R5 lo
+## harán visible). Con sala pero sin asientos se entra DE PIE (enmienda F3 — `densidad_de_pie`).
+func _aforo_de(servicio: StringName) -> int:
+	if _construccion == null:
+		return -1
+	return _construccion.aforo_de_servicio(servicio)
+
+
+## FL6 — al liberarse plaza dentro entra desde fuera la de MENOR turno. En bucle por si se liberan
+## varias plazas de golpe (p. ej. tras ampliar la sala de espera). Determinista: solo turnos.
+func _promover_de_fuera(servicio: StringName) -> void:
+	while hay_plaza_dentro(ocupacion_dentro(servicio), _aforo_de(servicio)):
+		var candidata: RefCounted = null
+		for persona: RefCounted in _colas.get(servicio, []):
+			if persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_FUERA:
+				continue
+			if candidata == null or persona.numero_turno < candidata.numero_turno:
+				candidata = persona
+		if candidata == null:
+			return
+		_transicionar(candidata, PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO)
 
 
 # ── Puestos, gate FL4 y emparejamiento (Story 003 · TR-flow-003 · FL3/FL4, States B) ─────────
@@ -321,6 +385,39 @@ func _arrancar_llamadas() -> void:
 			continue
 		_transicionar(persona, PersonaFlujoScript.ESTADO_EN_ATENCION)
 		puesto["restante"] = duracion_efectiva(persona.servicio(), persona.tramite_id(), puesto_id)
+
+
+# ── Matemáticas de colas F2-F5 (Story 005 · PURAS — las llama la UI/R5 bajo demanda, NO el tick) ──
+
+## F2: trámites que un puesto saca por jornada = floor(minutos operativos / duración media).
+## `minutos_operativos` es entrada PROVISIONAL (Documentación/Horarios #8 la poseerá). Duración
+## ≤ 0 (dato corrupto) → 0 con aviso: un puesto que no procesa, NUNCA división por cero.
+func throughput_puesto(minutos_operativos: float, duracion_media_min: float) -> int:
+	if duracion_media_min <= 0.0:
+		push_warning("Flujo: F2 con duracion media <= 0 -> throughput 0")
+		return 0
+	return int(floorf(minutos_operativos / duracion_media_min))
+
+
+## F3: capacidad de un servicio = puestos operativos × throughput por puesto (F2). Negativos → 0.
+func capacidad_servicio(n_puestos: int, throughput_por_puesto: int) -> int:
+	return maxi(n_puestos, 0) * maxi(throughput_por_puesto, 0)
+
+
+## F4: factor de carga ρ = tasa de llegadas / capacidad (misma unidad de tiempo). Capacidad ≤ 0 →
+## -1.0, el centinela "sin servicio" (la UI muestra texto; NUNCA ∞ ni división por cero).
+func factor_carga(tasa_llegadas: float, capacidad: float) -> float:
+	if capacidad <= 0.0:
+		return -1.0
+	return tasa_llegadas / capacidad
+
+
+## F5: espera estimada (min) = personas delante × duración media / puestos operativos. Se ESTIMA,
+## no se simula (ADR-0001). Sin puestos o duración ≤ 0 → -1.0 ("indefinida" — la UI pone texto).
+func espera_estimada(personas_delante: int, n_puestos: int, duracion_media_min: float) -> float:
+	if n_puestos <= 0 or duracion_media_min <= 0.0:
+		return -1.0
+	return float(personas_delante) * duracion_media_min / float(n_puestos)
 
 
 # ── Config (patrón del proyecto: aplicar con clamp defensivo + carga con fallback) ───────────

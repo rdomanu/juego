@@ -14,7 +14,7 @@ class_name Construccion extends Node
 ## F2 (coste del elemento = catálogo / config) con el gate E4 de Economía (`cobrar` — gasto
 ## voluntario: sin caja se rechaza, no te endeudas construyendo). Guarda `coste_pagado` (F4).
 ## Story 003: los PUENTES — construir un puesto lo registra en Personal (`registrar_puesto`, API de
-## personal-003), el AFORO por asientos (F3: min(asientos, floor(área × densidad))) y F5
+## personal-003), el AFORO (F3, enmienda flujo-005: sentados + de pie por área) y F5
 ## `puestos_utiles` (informativo, sin tope duro — CO7). Getters read-only para Flujo.
 ## Story 004: DEMOLER Y MOVER (CO8) — reembolso F4 (`coste_pagado × pct_reembolso` vía `abonar`),
 ## demolición de sala EN CASCADA con API en 2 pasos (`contenido_de_sala` para que la UI confirme +
@@ -40,6 +40,7 @@ const ASIENTO_BASICO := &"asiento_basico"
 # ── Tuning knobs (copiados del config con clamp; ver aplicar_config) ─────────────────────────
 var coste_por_celda: float = 20.0
 var densidad_asientos: float = 0.7
+var densidad_de_pie: float = 0.5
 var pct_reembolso: float = 0.5
 var area_min_sala: int = 4
 var coste_mover: float = 0.0
@@ -320,13 +321,32 @@ func _clamp_coste(valor: float, id_origen: StringName) -> float:
 
 # ── Aforo, puestos útiles y getters para Flujo (Story 003 · TR-construction-004 · F3/F5) ─────
 
-## F3: aforo de una sala de espera = `min(asientos colocados, floor(área × densidad_asientos))`.
-## Sala inexistente → 0 con aviso. Sin asientos → 0 (Flujo mandará a la cola exterior — su edge).
+## F3 (ENMIENDA flujo-005, petición del usuario): aforo de una sala de espera = SENTADOS
+## (`min(asientos colocados, floor(área × densidad_asientos))`) + DE PIE (`floor(área ×
+## densidad_de_pie)`) — sin asientos se entra igual, de pie; lo que no cabe espera fuera (F6 de
+## Flujo). El asiento será confort cuando llegue Paciencia #10. Sala inexistente → 0 con aviso.
 func aforo_de_sala(sala_id: StringName) -> int:
 	if not _salas.has(sala_id):
 		push_warning("Construccion: aforo de una sala inexistente ('%s') -> 0" % sala_id)
 		return 0
-	return mini(_asientos_en(sala_id), _plazas_max_de(sala_id))
+	var sentados: int = mini(_asientos_en(sala_id), _plazas_max_de(sala_id))
+	var area: int = (_salas[sala_id]["rect"] as Rect2i).get_area()
+	var de_pie: int = int(floor(float(area) * densidad_de_pie))
+	return sentados + de_pie
+
+
+## F3 agregado (para el F6 de Flujo — story flujo-005): aforo TOTAL de espera de un servicio =
+## suma del aforo de TODAS sus salas de espera (una sala "Comun" cuenta para ambos servicios —
+## comparte asientos). Sin salas de espera del servicio → 0 (Flujo manda a la cola exterior).
+func aforo_de_servicio(servicio: StringName) -> int:
+	var total: int = 0
+	for sala_id: StringName in _salas:
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala == null or tipo_sala.tipo != "espera":
+			continue
+		if tipo_sala.servicio == String(servicio) or tipo_sala.servicio == "Comun":
+			total += aforo_de_sala(sala_id)
+	return total
 
 
 ## Asientos colocados en una sala (`ignorar` excluye a uno — para revalidar al moverlo).
@@ -706,6 +726,7 @@ func aplicar_config(config: Resource) -> void:
 		config = ConfigConstruccionScript.new()
 	coste_por_celda = _clamp_knob(config.coste_por_celda, "coste_por_celda")
 	densidad_asientos = clampf(config.densidad_asientos, 0.0, 1.0)
+	densidad_de_pie = clampf(config.densidad_de_pie, 0.0, 1.0)
 	pct_reembolso = clampf(config.pct_reembolso, 0.0, 1.0)
 	area_min_sala = maxi(config.area_min_sala, 1)
 	coste_mover = _clamp_knob(config.coste_mover, "coste_mover")

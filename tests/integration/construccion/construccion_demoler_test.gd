@@ -140,11 +140,11 @@ func test_mover_asiento_en_sala_a_tope() -> void:
 	var primero: StringName = construccion.construir_elemento(construccion.ASIENTO_BASICO, Vector2i(0, 0))
 	for i: int in range(1, 6):
 		construccion.construir_elemento(construccion.ASIENTO_BASICO, Vector2i(i % 3, floori(float(i) / 3.0)))
-	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(6)
+	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(10)   # 6 sentados + 4 de pie (F3 enm.)
 
 	# Act / Assert — mover dentro de la misma sala: válido (no se cuenta a sí mismo en el tope).
 	assert_bool(construccion.mover_elemento(primero, Vector2i(0, 2))).is_true()
-	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(6)
+	assert_int(construccion.aforo_de_sala(&"sala_1")).is_equal(10)
 
 
 # ── Robustez: demoler/mover inexistentes no revientan ─────────────────────────────────────
