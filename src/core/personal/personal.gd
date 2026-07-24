@@ -188,6 +188,15 @@ func contratar(indice: int) -> bool:
 	return true
 
 
+## API de ARRANQUE del mundo (Main hoy; escenarios futuros): incorpora un agente YA construido a la
+## plantilla (entra libre, SIN gate de caja — la dotación inicial viene dada, story 007) y re-fija
+## la nómina. El flujo normal de juego es `contratar()` (mercado + gate E4).
+func incorporar(agente: RefCounted) -> void:
+	agente.estado = AgenteScript.ESTADO_LIBRE
+	plantilla.append(agente)
+	_actualizar_nomina()
+
+
 ## Despide a un agente (PA6): sale de la plantilla, LIBERA su puesto y deja de contar en nómina.
 ## Coste 0 (MVP). (El compromiso "termina su atención en curso" es contrato de Flujo al integrar.)
 func despedir(agente: RefCounted) -> void:

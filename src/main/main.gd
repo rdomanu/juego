@@ -32,9 +32,17 @@ const NOMBRES_VELOCIDAD: Array[String] = ["⏸ Pausa", "1×", "2×", "3×"]
 const EconomiaScript := preload("res://src/core/economia/economia.gd")
 ## Demanda (Story 007 del epic demanda): el grifo de la comisaría — genera las llegadas.
 const DemandaScript := preload("res://src/core/demanda/demanda.gd")
-## Plantilla inicial PROVISIONAL (dotación estándar del GDD: 2 ag_doc + 1 ag_odac = 190 €/jornada).
-## HOOK de Personal: su epic la sustituirá por la dotación real contratada.
-var PLANTILLA_INICIAL: Array[StringName] = [&"ag_doc", &"ag_doc", &"ag_odac"]
+## Personal (story personal-007): la plantilla REAL del mundo — sustituye al hook PLANTILLA_INICIAL.
+const PersonalScript := preload("res://src/core/personal/personal.gd")
+const AgenteScript := preload("res://src/core/personal/agente.gd")
+## Dotación inicial del esqueleto (decisión ratificada 2026-07-24): [tipo, puesto, tipo_puesto] × 3
+## agentes de atributos MEDIOS (3/3/3/3) → nómina F1 = 60+60+70 = 190 €/día, idéntica al hook
+## provisional que sustituye (cero cambio de balance en el arranque).
+const DOTACION_INICIAL: Array = [
+	[&"ag_doc", &"doc_1", &"puesto_doc_general"],
+	[&"ag_doc", &"doc_2", &"puesto_doc_general"],
+	[&"ag_odac", &"odac_1", &"puesto_odac"],
+]
 ## Colores del estado financiero (placeholder sobrio; SIEMPRE acompañados de texto — accesibilidad).
 const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
@@ -55,6 +63,9 @@ var _lbl_estado_fin: Label
 var _demanda: Node
 var _lbl_llegadas: Label
 var _lbl_nivel: Label
+var _personal: Node
+var _lbl_plantilla: Label
+var _lbl_incidencia: Label
 
 
 func _ready() -> void:
@@ -103,7 +114,6 @@ func _instanciar_mundo() -> void:
 	_economia = EconomiaScript.new()
 	_economia.name = "Economia"
 	add_child(_economia)
-	_economia.fijar_plantilla(PLANTILLA_INICIAL)
 	# La ventana de gracia de insolvencia corre en MINUTOS DE JUEGO → la empuja el tick del reloj.
 	Tiempo.suscribir_tick(_economia.avanzar_gracia)
 	# Demanda (story demanda-007): su _ready se suscribe al tick, carga config + escenario (Pozuelo) y
@@ -112,6 +122,22 @@ func _instanciar_mundo() -> void:
 	_demanda = DemandaScript.new()
 	_demanda.name = "Demanda"
 	add_child(_demanda)
+	# Personal (story personal-007): la plantilla REAL. Su _ready carga config, registra las ausencias
+	# en el dispatcher (nuevo_dia prio 30) y entra a Persist (clave "Personal"). La nómina que cobra
+	# Economía sale ahora de los salarios F1 de estos agentes (fijar_salarios_dia, enmienda 006) — el
+	# hook fijar_plantilla/PLANTILLA_INICIAL queda retirado. Los puestos se registran ANTES de
+	# cualquier carga de partida (invariante de load_state).
+	_personal = PersonalScript.new()
+	_personal.name = "Personal"
+	_personal.usar_economia(_economia)
+	add_child(_personal)
+	for dotacion: Array in DOTACION_INICIAL:
+		_personal.registrar_puesto(dotacion[1], dotacion[2])
+	for i: int in DOTACION_INICIAL.size():
+		var nombre: String = _personal.pool_nombres[i % _personal.pool_nombres.size()]
+		var agente: RefCounted = AgenteScript.new(nombre, DOTACION_INICIAL[i][0])
+		_personal.incorporar(agente)
+		_personal.asignar(agente, DOTACION_INICIAL[i][1])
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
@@ -197,6 +223,15 @@ func _crear_hud() -> void:
 	_lbl_nivel.add_theme_font_size_override("font_size", 12)
 	caja.add_child(_lbl_nivel)
 
+	# Bloque de personal (story personal-007): plantilla + nómina + incidencia del día, SOLO lectura.
+	caja.add_child(HSeparator.new())
+	_lbl_plantilla = Label.new()
+	_lbl_plantilla.add_theme_font_size_override("font_size", 16)
+	caja.add_child(_lbl_plantilla)
+	_lbl_incidencia = Label.new()
+	_lbl_incidencia.add_theme_font_size_override("font_size", 12)
+	caja.add_child(_lbl_incidencia)
+
 	var nota := Label.new()
 	nota.text = "Esqueleto visible — no jugable (HUD provisional) · Espacio pausa · 1/2/3 velocidad"
 	nota.add_theme_font_size_override("font_size", 11)
@@ -232,6 +267,24 @@ func _refrescar_etiquetas() -> void:
 	var nivel: StringName = _demanda.nivel_demanda()
 	_lbl_nivel.text = "Demanda Doc: %s" % nivel
 	_lbl_nivel.modulate = COLORES_NIVEL.get(nivel, Color.WHITE)
+	if _personal == null or _lbl_plantilla == null:
+		return
+	# Personal (story personal-007): pull de los getters — plantilla, nómina F1 y ausencias del día.
+	var nomina: float = 0.0
+	var ausencias: Array[String] = []
+	for agente: RefCounted in _personal.plantilla:
+		nomina += _personal.salario_dia(agente)
+		if agente.estado == AgenteScript.ESTADO_AUSENTE:
+			var donde: String = String(agente.puesto_id) if agente.puesto_id != &"" else "banquillo"
+			ausencias.append("%s (%s)" % [agente.nombre, donde])
+	_lbl_plantilla.text = "Plantilla: %d · Nómina: %.0f €/día" % [_personal.plantilla.size(), nomina]
+	if ausencias.is_empty():
+		_lbl_incidencia.text = "Plantilla al completo"
+		_lbl_incidencia.modulate = COLOR_HOLGADO
+	else:
+		var verbo: String = "falta" if ausencias.size() == 1 else "faltan"
+		_lbl_incidencia.text = "Hoy %s: %s" % [verbo, ", ".join(ausencias)]
+		_lbl_incidencia.modulate = COLOR_JUSTO
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.
@@ -250,5 +303,5 @@ func _programar_captura_evidencia() -> void:
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
 		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
 		var img: Image = get_viewport().get_texture().get_image()
-		img.save_png("res://production/qa/evidence/demanda-hud-2026-07-23.png")
+		img.save_png("res://production/qa/evidence/personal-hud-2026-07-24.png")
 	)

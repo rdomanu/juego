@@ -3,8 +3,8 @@
 > **Layer**: Core
 > **GDD**: design/gdd/staff-agents.md
 > **Architecture Module**: Personal #6
-> **Status**: Ready
-> **Stories**: 7 (creadas 2026-07-24 — ver tabla; implementación prevista en Sprint 2)
+> **Status**: Complete (2026-07-24 — 7/7 stories, sign-off del HUD por el usuario)
+> **Stories**: 7 (creadas 2026-07-24; implementadas y cerradas 2026-07-24, Sprint 2 de facto)
 
 ## Overview
 
@@ -52,13 +52,13 @@ This epic is complete when:
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [El Agente y sus fórmulas (F1–F4)](story-001-agente-y-formulas.md) | Logic | Ready | ADR-0003, ADR-0002 |
-| 002 | [El mercado de fichajes](story-002-mercado-fichajes.md) | Logic | Ready | ADR-0002, ADR-0001 |
-| 003 | [Asignación a puestos y gate para Flujo (FL4)](story-003-asignacion-gate-flujo.md) | Logic | Ready | ADR-0001, ADR-0003 |
-| 004 | [Ausencias del día (nuevo_dia prio 30)](story-004-ausencias-del-dia.md) | Integration | Ready | ADR-0001, ADR-0002 |
-| 005 | [El Oficial — cobertura y canalización (F6/F7)](story-005-oficial-cobertura-canalizacion.md) | Integration | Ready | ADR-0001 |
-| 006 | [Nómina real a Economía y persistencia](story-006-nomina-persistencia.md) | Integration | Ready | ADR-0002, ADR-0001 |
-| 007 | [Personal en el mundo — tu equipo en el HUD (HITO VISIBLE)](story-007-personal-en-el-mundo.md) | UI | Ready | ADR-0001 |
+| 001 | [El Agente y sus fórmulas (F1–F4)](story-001-agente-y-formulas.md) | Logic | Complete | ADR-0003, ADR-0002 |
+| 002 | [El mercado de fichajes](story-002-mercado-fichajes.md) | Logic | Complete | ADR-0002, ADR-0001 |
+| 003 | [Asignación a puestos y gate para Flujo (FL4)](story-003-asignacion-gate-flujo.md) | Logic | Complete | ADR-0001, ADR-0003 |
+| 004 | [Ausencias del día (nuevo_dia prio 30)](story-004-ausencias-del-dia.md) | Integration | Complete | ADR-0001, ADR-0002 |
+| 005 | [El Oficial — cobertura y canalización (F6/F7)](story-005-oficial-cobertura-canalizacion.md) | Integration | Complete | ADR-0001 |
+| 006 | [Nómina real a Economía y persistencia](story-006-nomina-persistencia.md) | Integration | Complete | ADR-0002, ADR-0001 |
+| 007 | [Personal en el mundo — tu equipo en el HUD (HITO VISIBLE)](story-007-personal-en-el-mundo.md) | UI | Complete | ADR-0001 |
 
 Cobertura: **20/21 AC del GDD** — AC-PE10 (duración efectiva con el agente rápido) queda **diferido a
 Flujo** explícitamente (Personal aporta F2 testeada; Flujo la consumirá en su F1). Orden secuencial
@@ -70,4 +70,9 @@ documentado en eco-003).
 
 ## Next Step
 
-**Sprint 2**: `/story-readiness production/epics/personal/story-001-agente-y-formulas.md` → `/dev-story`.
+**EPIC COMPLETO (2026-07-24).** Todas las decisiones propuestas fueron ratificadas al implementar
+(prob. Oficial 0.2 · refresco por calendario · gate sin coste puntual · plantilla inicial 2+1 medios ·
+solo LIBRES cubren · la baja del día no se "cura"). Enmiendas del bus aplicadas (`incidencia_personal`,
+`parte_personal`) + `fijar_salarios_dia` en Economía. **Backlog GDD:** corregir la errata de F6 en
+staff-agents.md (texto `floor(Mando/2)` → `ceil(Mando/2)`, fiel a su tabla — cazada en la 005).
+Siguiente: `/sprint-plan` formal del Sprint 2 → epics **Construcción** y **Flujo**.

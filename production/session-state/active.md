@@ -357,11 +357,33 @@ puestos registrados ANTES de cargar. Test `personal_nomina_save_test.gd` **6/6 a
 cierre sin gasto] · AC-PE21 round-trip JSON full_precision campo a campo con cobertura restaurada ·
 AC-PE21 determinismo A-vs-B 2+3 días con refresco de mercado en medio, semilla 4242 · carga 0
 señales · huérfano descartado). **Suite total: 264/264, exit 0.** SIN commit aún.
-**PRÓXIMO INMEDIATO:** epic Personal 6/7 — **personal-007 (HUD, VISIBLE + sign-off)**: sustituir
-PLANTILLA_INICIAL de Main por Personal real con 2 ag_doc + 1 ag_odac atributos medios [⚠️ RATIFICAR
-plantilla; nómina 190 € intacta: 60+60+70] + registrar puestos doc_1/doc_2 (puesto_doc_general) y
-odac_1 (puesto_odac) + asignarlos + HUD plantilla/nómina/ausencias + ABRIR VENTANA (guion demo: 3×
-hasta 07:55) + sign-off del usuario. Backlog GDD: corregir F6 floor→ceil en staff-agents.md.
+**✅ personal-006 COMMITEADA (commit 08612d6, pusheado).**
+**🔨 personal-007 IMPLEMENTADA — VENTANA ABIERTA, SIGN-OFF PENDIENTE (2026-07-24):** plantilla
+RATIFICADA (2 ag_doc + 1 ag_odac medios, nómina 190 € intacta). Hecho: `incorporar(agente)` en
+personal.gd (API de arranque: entra libre sin gate + re-fija nómina); Main: hook
+PLANTILLA_INICIAL/fijar_plantilla RETIRADO → nodo Personal (name "Personal", usar_economia, tras
+Demanda), DOTACION_INICIAL const [tipo, puesto, tipo_puesto]×3, puestos registrados ANTES de
+cualquier carga (invariante load_state), 3 agentes del pool de nombres asignados; HUD bloque nuevo:
+"Plantilla: N · Nómina: X €/día" + "Plantilla al completo" (verde) / "Hoy falta(n): nombre (puesto)"
+(ámbar, pull por frame de estados — texto+color daltónico); captura evidencia →
+personal-hud-2026-07-24.png. Headless 30 frames limpio; **suite 264/264, exit 0**; evidencia
+`production/qa/evidence/personal-hud-2026-07-24.md` escrita (sign-off ⬜ PENDIENTE). SIN commit.
+**🎉🎉🎉 EPIC PERSONAL COMPLETO (2026-07-24, 7/7 + SIGN-OFF ✅ del usuario) — TERCER MÓDULO CORE
+TERMINADO (Economía, Demanda, Personal):** sign-off dado con la ventana abierta ("veo plantilla y
+coste"); en la demo el usuario preguntó por los NPCs visibles → expectativa re-gestionada en llano:
+son de FLUJO (tras Construcción), Personal es gestión — quedó conforme. Cierre formal hecho:
+stories 004-007 → Complete (con secciones "Cierre" que documentan: micro-decisiones ratificadas de
+la 004, errata F6 floor→ceil + solo-libres de la 005, coberturas añadidas al save en la 006,
+expectativa NPCs en la 007); EPIC.md → Complete (todas las decisiones propuestas RATIFICADAS);
+index.md Personal → Complete; evidencia personal-hud-2026-07-24.md con sign-off ✅ (M2/M3 no
+ejercitados en demo, cubiertos por tests automáticos — anotado con honestidad). **Suite 264/264,
+exit 0.**
+**PRÓXIMO (SESIÓN NUEVA):** `/sprint-plan` formal del **Sprint 2** → epics **Construcción**
+(`/create-stories construccion` — puestos REALES con la API registrar_puesto/quitar_puesto que
+Personal ya expone) → **Flujo** (los NPCs visibles que el usuario espera: fichas de Demanda →
+muñequitos que entran, cola, atención en puesto vía gate FL4 + modificador_produccion/factor_trato;
+al cerrarlo el saldo SUBIRÁ por fin y la pantalla se parecerá a la preview). Backlog GDD pendiente:
+corregir F6 floor→ceil en staff-agents.md (anotado en story-005 y EPIC).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

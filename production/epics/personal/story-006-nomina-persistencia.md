@@ -1,12 +1,12 @@
 # Story 006: Nómina real a Economía y persistencia
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 08612d6; ver Cierre — coberturas añadidas al save)
 
 ## Context
 
@@ -37,9 +37,9 @@ sigue siendo 100 % de Economía en su prio 20.
 
 ## Acceptance Criteria
 
-- [ ] **AC-PE07** `[Integration]` — GIVEN 2 agentes contratados WHEN `nuevo_dia` THEN Economía descuenta la **suma de sus `salario_dia` efectivos** (base × prima de calidad × prima de rango — F1), no el base.
-- [ ] **AC-PE21** `[Integration]` — GIVEN un save con plantilla + mercado + RNG WHEN se carga THEN se **restaura todo** (agentes con atributos/estados/asignaciones, candidatos del mercado, contador de refresco), arranca en **Pausa** y la secuencia futura (mercado/ausencias) es **determinista**.
-- [ ] *(ADR-0002)* — GIVEN la carga THEN **cero señales** emitidas (sin avisos retroactivos).
+- [x] **AC-PE07** `[Integration]` — GIVEN 2 agentes contratados WHEN `nuevo_dia` THEN Economía descuenta la **suma de sus `salario_dia` efectivos** (base × prima de calidad × prima de rango — F1), no el base.
+- [x] **AC-PE21** `[Integration]` — GIVEN un save con plantilla + mercado + RNG WHEN se carga THEN se **restaura todo** (agentes con atributos/estados/asignaciones, candidatos del mercado, contador de refresco), arranca en **Pausa** y la secuencia futura (mercado/ausencias) es **determinista**.
+- [x] *(ADR-0002)* — GIVEN la carga THEN **cero señales** emitidas (sin avisos retroactivos).
 
 ---
 
@@ -84,7 +84,7 @@ sigue siendo 100 % de Economía en su prio 20.
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/personal/personal_nomina_save_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 6/6 PASS (incl. round-trip JSON full_precision y determinismo A-vs-B).
 
 ---
 
@@ -92,3 +92,15 @@ sigue siendo 100 % de Economía en su prio 20.
 
 - Depends on: Story 005 (estado completo: cubriendo/ausente) — DONE antes de empezar.
 - Unlocks: Story 007 (cierre visible del epic).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 6/6 a la primera. Enmienda a Economía aplicada tal como estaba
+prevista (`fijar_salarios_dia`; array vacío = nómina 0, SIN fallback al hook — despedir a todos deja
+el cierre sin gasto). **DESVIACIÓN documentada:** el save incluye además `"coberturas"` (por ÍNDICE
+de plantilla — los nombres pueden repetirse), no listadas en el plan original de la story: el diseño
+de la 005 (`_coberturas` separado) las exige para que un puesto cubierto no cargue cerrado a mitad
+de día. `load_state` añade saneo final de estados (`asignado` sin puesto / `cubriendo` sin cobertura
+→ libre con aviso).

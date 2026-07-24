@@ -1,12 +1,12 @@
 # Story 005: El Oficial — cobertura automática y canalización (F6/F7)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 6296a52; ver Cierre — ⚠️ errata F6 del GDD)
 
 ## Context
 
@@ -26,10 +26,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-PE14** `[Integration]` — GIVEN Oficial (Mando 4) y 2 bajas con agentes libres compatibles THEN **cubre 2** (`floor(Mando/2)`); con Mando 1 → cubre 1 (F6).
-- [ ] **AC-PE15** `[Integration]` — GIVEN **sin** Oficial y una baja THEN el puesto queda **vacante** (sin cobertura automática — cierre del AC iniciado en la 004).
-- [ ] **AC-PE16** `[Integration]` — GIVEN Oficial y N incidencias del servicio THEN se **agrupan en 1 aviso** (parte del día); sin Oficial → **N avisos** individuales (PA9).
-- [ ] **AC-PE17** `[Integration]` — GIVEN Oficial sin agentes libres que reasignar THEN **escala** al jugador (la incidencia va marcada como "requiere decisión"; no cubre — F7).
+- [x] **AC-PE14** `[Integration]` — GIVEN Oficial (Mando 4) y 2 bajas con agentes libres compatibles THEN **cubre 2** (`floor(Mando/2)`); con Mando 1 → cubre 1 (F6). *(Implementado `ceil(Mando/2)` — ver Cierre.)*
+- [x] **AC-PE15** `[Integration]` — GIVEN **sin** Oficial y una baja THEN el puesto queda **vacante** (sin cobertura automática — cierre del AC iniciado en la 004).
+- [x] **AC-PE16** `[Integration]` — GIVEN Oficial y N incidencias del servicio THEN se **agrupan en 1 aviso** (parte del día); sin Oficial → **N avisos** individuales (PA9).
+- [x] **AC-PE17** `[Integration]` — GIVEN Oficial sin agentes libres que reasignar THEN **escala** al jugador (la incidencia va marcada como "requiere decisión"; no cubre — F7).
 
 ---
 
@@ -83,7 +83,7 @@
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/personal/personal_oficial_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 8/8 PASS.
 
 ---
 
@@ -91,3 +91,16 @@
 
 - Depends on: Story 004 (ausencias marcadas) — DONE antes de empezar.
 - Unlocks: Story 006 (persistencia del estado completo).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 8/8 a la primera. **⚠️ ERRATA del GDD cazada:** el texto de F6
+dice `floor(Mando/2)`, pero su propia tabla de salida (Mando 1–2 → 1 · 3–4 → 2 · 5 → 3) y AC-PE14
+("Mando 1 → cubre 1") corresponden a **`ceil(Mando/2)`** — implementado fiel a la TABLA (con floor un
+Oficial de Mando 1 cubriría 0). *Backlog: corregir el texto de F6 en staff-agents.md.* Simplificación
+MVP **ratificada**: solo cubren agentes LIBRES. Enmienda del bus `parte_personal(resumen)` aplicada.
+Diseño: coberturas en `_coberturas` SEPARADO de `_asignaciones` (el titular ausente conserva su
+entrada; el cubridor trabaja de prestado con `puesto_id` propio vacío) — el gate FL4 y los
+modificadores responden por el agente OPERATIVO.

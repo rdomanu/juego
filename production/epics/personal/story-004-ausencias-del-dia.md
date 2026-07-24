@@ -1,12 +1,12 @@
 # Story 004: Ausencias del día (nuevo_dia, prioridad 30)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada (commit 6296a52; ver Cierre)
 
 ## Context
 
@@ -27,10 +27,10 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-PE13** `[Unit]` — GIVEN RNG sembrado WHEN se evalúan las ausencias del día THEN el resultado es **determinista** (misma semilla + misma plantilla → mismos ausentes).
-- [ ] **AC-PE15 (parte)** `[Integration]` — GIVEN **sin** Oficial y una baja THEN el puesto queda **vacante**: `puesto_dotado()` pasa a false (pérdida de capacidad real para Flujo).
-- [ ] **AC-PE19** `[Integration]` — GIVEN el juego en **Pausa** THEN **no** se evalúan ausencias (nada corre fuera del `nuevo_dia`; en Pausa el reloj no avanza → no hay medianoche).
-- [ ] *(PA7/States)* — GIVEN un ausente WHEN llega el `nuevo_dia` siguiente THEN se **reincorpora** (vuelve a su puesto → `&"asignado"`).
+- [x] **AC-PE13** `[Unit]` — GIVEN RNG sembrado WHEN se evalúan las ausencias del día THEN el resultado es **determinista** (misma semilla + misma plantilla → mismos ausentes).
+- [x] **AC-PE15 (parte)** `[Integration]` — GIVEN **sin** Oficial y una baja THEN el puesto queda **vacante**: `puesto_dotado()` pasa a false (pérdida de capacidad real para Flujo).
+- [x] **AC-PE19** `[Integration]` — GIVEN el juego en **Pausa** THEN **no** se evalúan ausencias (nada corre fuera del `nuevo_dia`; en Pausa el reloj no avanza → no hay medianoche).
+- [x] *(PA7/States)* — GIVEN un ausente WHEN llega el `nuevo_dia` siguiente THEN se **reincorpora** (vuelve a su puesto → `&"asignado"`).
 
 ---
 
@@ -76,7 +76,7 @@
 
 **Story Type**: Integration
 **Required evidence**: `tests/integration/personal/personal_ausencias_test.gd` — debe existir y pasar (BLOCKING).
-**Status**: [ ] Not yet created
+**Status**: [x] Creado y en verde — 7/7 PASS (incluye test extra de prioridad 30 con espías 29/31).
 
 ---
 
@@ -84,3 +84,13 @@
 
 - Depends on: Story 003 (asignaciones y gate) — DONE antes de empezar.
 - Unlocks: Story 005 (el Oficial reacciona a las bajas).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal; test 7/7 a la primera. **2 micro-decisiones fuera de story,
+RATIFICADAS por el usuario: la baja del día no se "cura"** — (a) `asignar` rechaza a un ausente
+(rechazo de regla, silencioso) y (b) `desasignar` a un ausente le quita la plaza pero conserva
+`&"ausente"` hasta la reincorporación (cierran el exploit de re-dotar el puesto reasignando al
+enfermo). Enmienda del bus `incidencia_personal(texto, puesto)` aplicada.

@@ -1,12 +1,12 @@
 # Story 007: Personal en el mundo — tu equipo en el HUD 🎉 (HITO VISIBLE)
 
 > **Epic**: Personal / Agentes
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core (instanciación) + Presentation (HUD del esqueleto)
 > **Type**: UI
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-24 — cerrada con SIGN-OFF del usuario (ver Cierre)
 
 ## Context
 
@@ -28,10 +28,10 @@
 
 *(Historia de instanciación + presentación; evidencia ADVISORY con sign-off del usuario.)*
 
-- [ ] Personal instanciado en `Main` (name "Personal" = clave de save), cableado (bus/economía/config) y con los **puestos estándar registrados** (dotación del esqueleto).
-- [ ] **La plantilla provisional de Economía se sustituye por agentes REALES**: los "2 ag_doc + 1 ag_odac" del hook `PLANTILLA_INICIAL` pasan a ser 3 Agentes con nombre y atributos, y la nómina que cobra Economía sale de sus salarios efectivos (F1). **⚠️ Decisión propuesta (aprobar al implementar):** plantilla inicial = 3 agentes de atributos medios (3/3/3/3) → nómina 60+60+70 = **190 €/día, idéntica a la actual** (cero cambio de balance en el arranque).
-- [ ] El HUD muestra **"Plantilla: N · Nómina: X €/día"** y la **incidencia del día** si la hay ("Hoy falta: [nombre] ([puesto])" / "Plantilla al completo").
-- [ ] Suite completa en verde (sin regresiones — en particular los tests del HUD/mundo de Tiempo, Economía y Demanda).
+- [x] Personal instanciado en `Main` (name "Personal" = clave de save), cableado (bus/economía/config) y con los **puestos estándar registrados** (dotación del esqueleto).
+- [x] **La plantilla provisional de Economía se sustituye por agentes REALES**: los "2 ag_doc + 1 ag_odac" del hook `PLANTILLA_INICIAL` pasan a ser 3 Agentes con nombre y atributos, y la nómina que cobra Economía sale de sus salarios efectivos (F1). **✅ Decisión RATIFICADA (2026-07-24):** plantilla inicial = 3 agentes de atributos medios (3/3/3/3) → nómina 60+60+70 = **190 €/día, idéntica a la actual** (cero cambio de balance en el arranque).
+- [x] El HUD muestra **"Plantilla: N · Nómina: X €/día"** y la **incidencia del día** si la hay ("Hoy falta: [nombre] ([puesto])" / "Plantilla al completo").
+- [x] Suite completa en verde (sin regresiones — en particular los tests del HUD/mundo de Tiempo, Economía y Demanda).
 
 ---
 
@@ -76,7 +76,7 @@
 
 **Story Type**: UI (ADVISORY) — requiere **sign-off del usuario**.
 **Required evidence**: `production/qa/evidence/personal-hud-[fecha].md` + PNG + sign-off explícito.
-**Status**: [ ] Not yet created
+**Status**: [x] `personal-hud-2026-07-24.md` + PNG — **SIGN-OFF ✅ del usuario (2026-07-24)**.
 
 ---
 
@@ -84,3 +84,15 @@
 
 - Depends on: Story 006 (nómina real + persistencia) — DONE antes de empezar.
 - Unlocks: cierre del epic Personal → Sprint 2 (Construcción / Flujo).
+
+---
+
+## Cierre (2026-07-24)
+
+Implementada en hilo principal (headless limpio → suite 264/264 exit 0 → ventana abierta).
+`incorporar(agente)` añadido a Personal (API de arranque: entra libre sin gate + re-fija nómina);
+hook `PLANTILLA_INICIAL`/`fijar_plantilla` retirado de Main. HUD: pull por frame de plantilla/nómina/
+ausencias (patrón de los bloques anteriores; "Hoy falta(n)" en ámbar con texto además del color).
+**Sign-off ✅ del usuario con la ventana abierta.** Nota de expectativas (gestionada): el usuario
+preguntó por los NPCs visibles — son de **Flujo** (tras Construcción), como quedó registrado al
+cerrar Demanda; Personal es gestión (HUD), no presentación de personas.
