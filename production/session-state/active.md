@@ -386,8 +386,22 @@ engine-reference] → C2-5 implementar ~7-8 stories, NPCs VISIBLES + saldo SUBE,
 C2-6 cierre+demo) → C2-7 Nice: propagar erratas GDD (F6 ceil, AC-T26, tasa_base_odac, valle
 nocturno). Capacidad ~2,5 sesiones (velocidad ~7 stories/sesión). Personal quedó registrado como
 trabajo ENTRE sprints. **Decisión usuario: /qa-plan sprint ANTES de implementar** (como Sprint 1).
-**PRÓXIMO:** `/qa-plan sprint` → `/create-stories construccion` (C2-1) → implementar. SIN commit
-del plan aún.
+**✅ Sprint-2.md + qa-plan-sprint-2.md ESCRITOS Y COMMITEADOS (90bd27a, pusheado).** QA plan lean a
+nivel de epic citando AC-CO01..18 y AC-FL01..27; lógica de Flujo se testea SIN navegación (FL5);
+hitos visibles con sign-off + FPS ≥60.
+**✅ C2-1 `/create-stories construccion` HECHO (2026-07-24, aprobado por el usuario):** 7 stories en
+`production/epics/construccion/` (001 núcleo+config+validación F6 [Logic] · 002 construir+pagar F1/F2
+gate E4 [Int] · 003 puentes registrar_puesto→Personal + aforo F3 + F5 [Int] · 004 demoler/mover F4
+cascada 2 pasos [Int] · 005 pausa+persistencia layout [Int, ADR-0002] · 006 solar visible
+TileMapLayer+PackedScene+montaje inicial DE OFICIO [UI] · 007 modo construcción ratón+preview
+fantasma [UI, HITO VISIBLE+sign-off]). **17/18 AC; AC-CO13 (demoler atendiendo) DIFERIDO a Flujo**
+(patrón AC-PE10). Decisiones propuestas EN las stories (aprobar al implementar): tamaño del edificio
+en ConfigConstruccion · montaje inicial pagado DE OFICIO (saldo 3000/nómina 190 intactos) · mover
+solo puestos/objetos · ids doc_1/doc_2/odac_1 compat · **⚠️ Main reordenado: Construcción ANTES que
+Personal (invariante de carga de personal-006 — detectado al trocear)**. EPIC→In Progress, index
+actualizado, sprint-status.yaml expandido (C2-1 done; const-001..007 ready-for-dev). SIN commit aún.
+**PRÓXIMO INMEDIATO:** implementar **const-001** (validación F6) → 002 → ... → 007 (ventana+sign-off);
+patrón de las anteriores (hilo principal, test por story, suite completa, commit por hito).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del

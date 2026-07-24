@@ -26,19 +26,73 @@ stories:
     name: "Crear stories del epic Construcción"
     file: "production/epics/construccion/EPIC.md"
     priority: must-have
-    status: ready-for-dev
+    status: done
     owner: "Fable (hilo principal)"
     estimate_days: 0.2
     blocker: ""
-    completed: ""
-  - id: "C2-2"
-    name: "Implementar epic Construcción (~6-7 stories, HITO VISIBLE)"
-    file: "production/epics/construccion/EPIC.md"
+    completed: "2026-07-24"
+  - id: "const-001"
+    name: "Construcción: núcleo, config y validación F6"
+    file: "production/epics/construccion/story-001-nucleo-rejilla-validacion.md"
     priority: must-have
-    status: backlog
-    owner: "Fable (hilo principal)"
-    estimate_days: 0.8
-    blocker: "C2-1 + QA plan"
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: ""
+    completed: ""
+  - id: "const-002"
+    name: "Construcción: construir y pagar (F1/F2 + gate E4)"
+    file: "production/epics/construccion/story-002-construir-pagar.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "const-001"
+    completed: ""
+  - id: "const-003"
+    name: "Construcción: puentes a Personal + aforo F3 + F5"
+    file: "production/epics/construccion/story-003-puentes-personal-aforo.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "const-002"
+    completed: ""
+  - id: "const-004"
+    name: "Construcción: demoler y mover (F4, cascada)"
+    file: "production/epics/construccion/story-004-demoler-mover.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "const-003"
+    completed: ""
+  - id: "const-005"
+    name: "Construcción: pausa y persistencia del layout"
+    file: "production/epics/construccion/story-005-pausa-persistencia.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "const-004"
+    completed: ""
+  - id: "const-006"
+    name: "Construcción: solar visible + montaje inicial de oficio"
+    file: "production/epics/construccion/story-006-solar-visible-montaje-inicial.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "const-005"
+    completed: ""
+  - id: "const-007"
+    name: "Construcción: modo construcción con ratón (HITO VISIBLE)"
+    file: "production/epics/construccion/story-007-modo-construccion-raton.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.2
+    blocker: "const-006"
     completed: ""
   - id: "C2-3"
     name: "Cierre formal Construcción"

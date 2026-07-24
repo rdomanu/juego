@@ -3,8 +3,8 @@
 > **Layer**: Core
 > **GDD**: design/gdd/construction-layout.md
 > **Architecture Module**: Construcción #7
-> **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories construccion`
+> **Status**: In Progress (stories creadas 2026-07-24 — Sprint 2, C2-1)
+> **Stories**: 7 (ver tabla)
 
 ## Overview
 
@@ -51,6 +51,27 @@ This epic is complete when:
   celda↔ratón y round-trip de serialización del layout)
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/`
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | [El solar: núcleo, config y validación de colocación (F6)](story-001-nucleo-rejilla-validacion.md) | Logic | Ready | ADR-0004, ADR-0003 |
+| 002 | [Construir y pagar: F1/F2 con el gate E4](story-002-construir-pagar.md) | Integration | Ready | ADR-0004, ADR-0001 |
+| 003 | [Puentes: puestos → Personal, aforo F3, puestos útiles F5](story-003-puentes-personal-aforo.md) | Integration | Ready | ADR-0004, ADR-0001 |
+| 004 | [Demoler y mover: reembolso F4, cascada, reorganización](story-004-demoler-mover.md) | Integration | Ready | ADR-0004, ADR-0001 |
+| 005 | [Pausa y persistencia del layout](story-005-pausa-persistencia.md) | Integration | Ready | ADR-0002, ADR-0004 |
+| 006 | [El solar visible: TileMapLayer + escenas + montaje inicial](story-006-solar-visible-montaje-inicial.md) | UI | Ready | ADR-0004, ADR-0001 |
+| 007 | [Modo construcción con ratón: preview fantasma (HITO VISIBLE)](story-007-modo-construccion-raton.md) | UI | Ready | ADR-0004, ADR-0001 |
+
+Cobertura: **17/18 AC del GDD** — **AC-CO13 (demoler un puesto atendiendo) DIFERIDO al epic Flujo**
+explícitamente (no existe "atendiendo" aún — patrón AC-PE10). Orden secuencial estricto 001→007.
+**Decisiones propuestas EN las stories** (aprobar al implementar): tamaño del edificio en
+ConfigConstruccion (→ Escenario en multi-comisaría) · montaje inicial pagado "de oficio" (coste 0 al
+arranque; saldo 3000 y nómina 190 INTACTOS) · mover solo puestos/objetos (salas: demoler+redibujar;
+gesto de mover en UI diferido a UI/HUD #11) · ids `doc_1`/`doc_2`/`odac_1` conservados (compat) ·
+**Main reordenado: Construcción ANTES que Personal** (invariante de carga de personal-006).
+
 ## Next Step
 
-Run `/create-stories construccion` to break this epic into implementable stories.
+`/story-readiness production/epics/construccion/story-001-nucleo-rejilla-validacion.md` → implementar
+en orden. El QA plan del sprint (`production/qa/qa-plan-sprint-2.md`) ya define gates y casos.
