@@ -557,13 +557,24 @@ Llamada + referencia; sin dobles por construcción). Test `flujo_puestos_test.gd
 primera** (FL07 sin agente no atiende · FL08 llama · FL23 exactamente uno [el 1.º registrado] ·
 States B cerrar/reabrir/desasignar · **puente completo Construcción→Personal→Flujo** con puesto
 construido de verdad · registros inválidos). **Suite total: 312/312, exit 0.** Epic Flujo 3/8.
-**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** flujo-004 (LA GORDA: atención F1 [duracion_min del catálogo ×
-modificador_produccion_de de Personal, clamp ≥1] + usar_tiempo/usar_bus + suscripción al tick
-DESPUÉS de Demanda + `_al_tick`: Llamada→En atención [viaje NO descuenta trámite], restar delta,
-al llegar a 0 emitir `tramite_completado(tramite_id, agente)` UNA vez [señal YA en el bus, Economía
-ya cobra] + Resuelta + puesto Libre + re-emparejar EN EL MISMO tick → **E2E: EL SALDO SUBE**) →
-005 (aforo+F2-F5) → 006 (compromiso+caliente+AC-CO13) → 007 (save+AC-FL27) → 008 (NPCs,
-ventana+sign-off = **CORE 5/5 COMPLETO**). Guía completa en las stories de production/epics/flujo/.
+**✅ flujo-003 COMMITEADA (2cc5c58).**
+**🎉 flujo-004 IMPLEMENTADA + TEST EN VERDE (2026-07-24) — EL SALDO SUBE POR PRIMERA VEZ (en test):**
+en flujo.gd — `duracion_efectiva(servicio, tramite_id, puesto_id)` F1 (duracion_min del catálogo
+[TramiteDoc/DenunciaODAC según servicio — sin warnings cruzados] × modificador_produccion_de de
+Personal; **clamp maxf(1.0,...)**: id inexistente → base 0 → 1 min, AC-FL10) · usar_bus/usar_tiempo
++ `_suscribir_al_tick` (patrón Demanda; Flujo se suscribe DESPUÉS — Main lo garantiza en la 008) ·
+`_al_tick(delta)` ORDEN FIJO del contrato: (1) `_avanzar_atenciones` [restar delta; a 0 →
+`tramite_completado(tramite_id, agente REAL)` UNA vez → Resuelta → puesto Libre] → (2) `_emparejar`
+[el liberado llama EN el mismo tick] → (3) `_arrancar_llamadas` [Llamada→En atención + restante=F1;
+la atención ARRANCA el tick del emparejamiento — el viaje es cosmético]. Test
+`flujo_atencion_test.gd` **5/5 a la primera** (F1 12.0/9.12 crack · corrupto clamp 1 min · FL11
+emisión ÚNICA a los 12 min exactos + agente real en el evento + encadenado p2 en el mismo tick ·
+**E2E saldo 3000→3003.6 con Economía real** · Pausa con physics real congela restante).
+**Suite total: 317/317, exit 0.** Epic Flujo 4/8.
+**PRÓXIMO INMEDIATO:** flujo-005 (aforo F6 dentro/fuera por asientos de Construcción + F2-F5 puras
+con centinelas -1) → 006 (compromiso+gestión caliente+AC-CO13 vía callable puede_demoler) →
+007 (save+determinismo AC-FL27) → 008 (NPCs navegando, ventana+sign-off = **CORE 5/5 COMPLETO**).
+Guía completa en las stories de production/epics/flujo/.
 Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
 sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
