@@ -571,10 +571,50 @@ la atención ARRANCA el tick del emparejamiento — el viaje es cosmético]. Tes
 emisión ÚNICA a los 12 min exactos + agente real en el evento + encadenado p2 en el mismo tick ·
 **E2E saldo 3000→3003.6 con Economía real** · Pausa con physics real congela restante).
 **Suite total: 317/317, exit 0.** Epic Flujo 4/8.
-**PRÓXIMO INMEDIATO:** flujo-005 (aforo F6 dentro/fuera por asientos de Construcción + F2-F5 puras
-con centinelas -1) → 006 (compromiso+gestión caliente+AC-CO13 vía callable puede_demoler) →
-007 (save+determinismo AC-FL27) → 008 (NPCs navegando, ventana+sign-off = **CORE 5/5 COMPLETO**).
-Guía completa en las stories de production/epics/flujo/.
+**✅ flujo-004 COMMITEADA (703f1af). FIN DE SESIÓN 2026-07-24 (2ª).**
+**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** epic Flujo 4/8 — seguir con **flujo-005 (aforo + fórmulas)**:
+leer production/epics/flujo/story-005-aforo-formulas-colas.md e implementar en hilo principal
+(patrón de las anteriores). Claves de la 005: aforo F6 = al `encolar` (hoy siempre → dentro)
+clasificar dentro/fuera comparando `ocupacion_dentro(servicio)` vs el aforo REAL de Construcción
+(`aforo_de_sala` por ASIENTOS — falta resolver la sala de espera del servicio: añadir getter en
+Construcción `sala_de_espera_de(servicio)` por TipoSala.tipo=="espera"+servicio, o inyectar
+usar_construccion en Flujo); al liberar plaza (Llamada en _emparejar o abandono) entra el PRIMERO
+de fuera por turno; cola exterior SIN tope (FL7). F2-F5 = funciones PURAS con centinela -1.0
+(capacidad 0 / 0 puestos → "sin servicio", NUNCA ∞ ni división por cero): throughput(min_oper,
+dur_media) · capacidad(Σ) · factor_carga(tasa, cap) · espera_estimada(delante, puestos, dur_media).
+Valores exactos de test en la story (26 · 52/260 · 2→1 · 120/60/-1). Después:
+- **006 (compromiso+caliente)**: forzar_abandono API para Paciencia (señal `abandono` YA en el bus;
+  en Llamada/atención → false) · cierre_pendiente al cerrar_puesto con atención (pasa a Cerrado al
+  emitir) · reconfigurar_puesto solo si TipoPuesto.reconfigurable (override local de atenciones) ·
+  **AC-CO13**: enmienda a Construcción — callable `puede_demoler` cableado por Main (sin cableado →
+  demuele directo, compat tests) + demolición pendiente al terminar · cierre Doc cruce 870 (⚠️
+  decisión propuesta: provisional en Flujo hasta Documentación #8; patrón _detectar_cierre_doc de
+  Demanda; vaciar cola admitida con hook registrar_horas_extra de Economía) · Pausa exacta (FL15/25).
+- **007 (save+AC-FL27)**: save {personas[servicio,tramite,minuto,turno,estado], puestos[id,abierto,
+  cierre_pendiente,persona_turno,restante], turnos, reconfiguraciones}; colas/dentro-fuera SE
+  RE-DERIVAN de estados; orden de carga Construcción→Personal→Flujo (orden de hijos en Main);
+  determinismo A-vs-B con save a mitad (patrón personal/demanda-006); grupo Persist clave "Flujo".
+- **008 (HITO VISIBLE = CORE 5/5)**: Main instancia Flujo DESPUÉS de Demanda (orden del tick) +
+  usar_personal/usar_construccion/registrar los 3 puestos + conectar `persona_generada` del bus →
+  admitir+encolar; NPCs CharacterBody2D+NavigationAgent2D placeholder color por servicio
+  (⚠️ manifiesto: avoidance OFF, target tras `await get_tree().physics_frame` NUNCA en _ready,
+  re-bake SOLO al cambiar layout, `NavigationServer2D.bake_from_source_geometry_data` — patrón del
+  slice Escalón 1; verificar TODO contra docs/engine-reference/godot/modules/navigation.md); el NPC
+  OBSERVA su PersonaFlujo (estados → destinos; mouse_filter IGNORE); HUD bloque Flujo en la barra
+  inferior ("En cola: N · Atendiendo: N"); FPS ≥60 (spike QQ-02 margen); headless+suite → VENTANA
+  (guion: 3× hasta 07:55 → 1× ver la apertura, gente entrando y EL SALDO SUBIENDO) → sign-off →
+  cierre epic+C2-6 → C2-7 erratas GDD (F6 ceil staff-agents · AC-T26 time-system · tasa_base_odac
+  y valle nocturno demand-generation).
+Decisiones flujo ratificadas de facto (001-004): puestos nacen abiertos · el viaje NO descuenta
+trámite (la atención arranca el tick del emparejamiento) · orden del tick avanzar→emparejar→
+arrancar. ⚠️ Pendiente de ratificar: cierre Doc provisional en Flujo (006).
+**GOTCHAS NUEVOS de esta sesión (además de los del traspaso anterior):** barra UI anclada abajo →
+`grow_vertical = GROW_DIRECTION_BEGIN` o se dibuja fuera de pantalla · toolbars con textos del
+catálogo → HFlowContainer (nunca HBox fijo) · TODO Control decorativo del mundo (ColorRect de
+placeholders) → `mouse_filter = MOUSE_FILTER_IGNORE` o se traga los clics · HUD = barra inferior
+estilo tycoon (petición del usuario; POS_SUELO=(96,24); la barra de construcción se apoya encima
+con offset -84) · const Dictionary tipado con constantes de un preload funciona · ampliar salas =
+Rect2i.merge con chequeo de unión exacta (inclusión-exclusión), cobra SOLO celdas nuevas.
 Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
 sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
