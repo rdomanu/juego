@@ -544,8 +544,26 @@ máquina válida+inválida+camino fuera→dentro+compromiso-no-es-transición ·
 `flujo_colas_test.gd` **5/5** (FL03 FIFO puro con cola revuelta · FL04 viogen antes que estafa
 [catálogo real] · FL05 tie no llama · FL06 se salta la tie sin adelantarla · bordes).
 **Suite total: 306/306, exit 0.**
-**PRÓXIMO INMEDIATO:** flujo-003 (puestos+gate FL4+emparejamiento menor-id) → 004 (atención F1 +
-tramite_completado + E2E saldo SUBE) → 005-007 → 008 (NPCs, ventana+sign-off = CORE 5/5).
+**✅ flujo-001..002 COMMITEADAS (9cbfe56).**
+**✅ flujo-003 IMPLEMENTADA + TEST EN VERDE (2026-07-24):** en flujo.gd — constantes PUESTO_* ·
+`_puestos_flujo {puesto_id -> {tipo, abierto, persona, restante}}` (orden de inserción = desempate
+AC-FL23; `restante` para la 004) · `usar_personal` (gate FL4) · `registrar_puesto_flujo`/
+`quitar_puesto_flujo` (ids de Construcción + tipo del catálogo; NACEN abiertos — decisión MVP;
+idempotente; la retirada con atención es contrato de la 006) · `abrir_puesto`/`cerrar_puesto`
+(cierre en caliente → 006) · `estado_de_puesto` DERIVADO (cerrado → abierto_sin_agente [FL4
+`_personal.puesto_dotado`] → atendiendo [persona] → libre) · `_emparejar()` (puestos LIBRES en
+orden estable de registro → elegir_de_cola F7 con servicio+atenciones del TipoPuesto → retirar +
+Llamada + referencia; sin dobles por construcción). Test `flujo_puestos_test.gd` **6/6 a la
+primera** (FL07 sin agente no atiende · FL08 llama · FL23 exactamente uno [el 1.º registrado] ·
+States B cerrar/reabrir/desasignar · **puente completo Construcción→Personal→Flujo** con puesto
+construido de verdad · registros inválidos). **Suite total: 312/312, exit 0.** Epic Flujo 3/8.
+**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** flujo-004 (LA GORDA: atención F1 [duracion_min del catálogo ×
+modificador_produccion_de de Personal, clamp ≥1] + usar_tiempo/usar_bus + suscripción al tick
+DESPUÉS de Demanda + `_al_tick`: Llamada→En atención [viaje NO descuenta trámite], restar delta,
+al llegar a 0 emitir `tramite_completado(tramite_id, agente)` UNA vez [señal YA en el bus, Economía
+ya cobra] + Resuelta + puesto Libre + re-emparejar EN EL MISMO tick → **E2E: EL SALDO SUBE**) →
+005 (aforo+F2-F5) → 006 (compromiso+caliente+AC-CO13) → 007 (save+AC-FL27) → 008 (NPCs,
+ventana+sign-off = **CORE 5/5 COMPLETO**). Guía completa en las stories de production/epics/flujo/.
 Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
 sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/

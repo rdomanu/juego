@@ -12,6 +12,13 @@ class_name Flujo extends Node
 ## Prioritarias del catálogo (VioGén) antes que las Normales. Sin compatible → null (el puesto
 ## espera, no adelanta a una incompatible).
 ##
+## Story 003: los PUESTOS y el EMPAREJAMIENTO — el puesto de Flujo es ESTADO DERIVADO sobre el
+## puesto físico (Construcción) y su dotación (gate FL4 de Personal): Cerrado / Abierto-sin-agente /
+## Libre / Atendiendo. `_emparejar()` recorre los puestos LIBRES en orden estable de registro (el
+## primero registrado gana — AC-FL23: sin dobles asignaciones por construcción) y cada uno toma de
+## su cola la persona F7. Los puestos NACEN abiertos (decisión MVP; los horarios de Documentación #8
+## los gobernarán).
+##
 ## La LÓGICA jamás lee la posición de un sprite (FL5/ADR-0004): el movimiento es cosmético (008).
 ##
 ## Story: production/epics/flujo/story-001-persona-estados-turnos.md · TR-flow-001/002 · ADR-0001
@@ -46,8 +53,20 @@ var habilitar_aging_odac: bool = false
 var tope_cola_exterior: int = 0
 
 # ── El estado del flujo ──────────────────────────────────────────────────────────────────────
+## Estados del PUESTO (GDD §States B — derivados, nunca almacenados como verdad).
+const PUESTO_CERRADO := &"cerrado"
+const PUESTO_ABIERTO_SIN_AGENTE := &"abierto_sin_agente"
+const PUESTO_LIBRE := &"libre"
+const PUESTO_ATENDIENDO := &"atendiendo"
+
 ## Contador de turnos por servicio (FL2): único, creciente, NUNCA se reusa (se serializa en la 007).
 var _turnos: Dictionary[StringName, int] = {}
+## Puestos del flujo: `puesto_id (de Construcción) -> {tipo: StringName, abierto: bool,
+## persona: PersonaFlujo|null, restante: float}` (restante lo usa la atención — story 004).
+## El ORDEN DE INSERCIÓN es el desempate de AC-FL23 (el primero registrado llama primero).
+var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
+## Personal inyectado (gate FL4: `puesto_dotado`). En runtime lo enchufa Main (008).
+var _personal: Node = null
 ## Colas lógicas por servicio (FL2): personas en espera, en orden de inserción — el ORDEN de
 ## servicio lo impone la clave F7 al elegir, no la posición en el array (menos invariantes).
 var _colas: Dictionary[StringName, Array] = {}
@@ -136,6 +155,78 @@ func _rango_prioridad(persona: RefCounted) -> int:
 	if denuncia != null and denuncia.prioridad == "Prioritaria":
 		return 0
 	return 1
+
+
+# ── Puestos, gate FL4 y emparejamiento (Story 003 · TR-flow-003 · FL3/FL4, States B) ─────────
+
+## Inyecta Personal (dependency injection → testeable). Sin él, ningún puesto está dotado (FL4).
+func usar_personal(personal: Node) -> void:
+	_personal = personal
+
+
+## Registra un puesto del mundo en el flujo (id de Construcción + su tipo del catálogo). Nace
+## ABIERTO (decisión MVP — los horarios de Documentación #8 lo gobernarán). Idempotente por id.
+func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -> void:
+	if Datos.obtener(&"TipoPuesto", tipo_puesto_id) == null:
+		push_warning("Flujo: tipo de puesto '%s' no existe -> no registrado" % tipo_puesto_id)
+		return
+	if _puestos_flujo.has(puesto_id):
+		return
+	_puestos_flujo[puesto_id] = {"tipo": tipo_puesto_id, "abierto": true, "persona": null, "restante": 0.0}
+
+
+## Retira un puesto del flujo (demolición). La atención en curso es contrato de la story 006
+## (compromiso de servicio) — hoy retira directo; la 006 lo hará esperar al trámite.
+func quitar_puesto_flujo(puesto_id: StringName) -> void:
+	_puestos_flujo.erase(puesto_id)
+
+
+## Abre un puesto (FL10 — API del jugador/horarios).
+func abrir_puesto(puesto_id: StringName) -> void:
+	if _puestos_flujo.has(puesto_id):
+		_puestos_flujo[puesto_id]["abierto"] = true
+
+
+## Cierra un puesto: deja de llamar a nuevas. El cierre DURANTE una atención (terminarla primero)
+## es de la story 006.
+func cerrar_puesto(puesto_id: StringName) -> void:
+	if _puestos_flujo.has(puesto_id):
+		_puestos_flujo[puesto_id]["abierto"] = false
+
+
+## Estado DERIVADO del puesto (States B): Cerrado → Abierto-sin-agente (gate FL4 de Personal) →
+## Atendiendo (tiene persona) → Libre. Puesto no registrado → Cerrado con aviso.
+func estado_de_puesto(puesto_id: StringName) -> StringName:
+	if not _puestos_flujo.has(puesto_id):
+		push_warning("Flujo: estado de un puesto no registrado ('%s') -> cerrado" % puesto_id)
+		return PUESTO_CERRADO
+	var puesto: Dictionary = _puestos_flujo[puesto_id]
+	if not puesto["abierto"]:
+		return PUESTO_CERRADO
+	if _personal == null or not _personal.puesto_dotado(puesto_id):
+		return PUESTO_ABIERTO_SIN_AGENTE
+	if puesto["persona"] != null:
+		return PUESTO_ATENDIENDO
+	return PUESTO_LIBRE
+
+
+## El emparejamiento automático (FL3, anti-micromanejo): cada puesto LIBRE, en ORDEN ESTABLE de
+## registro (el primero gana — AC-FL23), toma de su cola la persona F7. Al tomarla: sale de la
+## cola, pasa a Llamada y el puesto la referencia (una persona solo puede estar en UN puesto —
+## la doble asignación es imposible por construcción). La transición a En atención y el avance
+## con delta son de la story 004.
+func _emparejar() -> void:
+	for puesto_id: StringName in _puestos_flujo:
+		if estado_de_puesto(puesto_id) != PUESTO_LIBRE:
+			continue
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+		var persona: RefCounted = elegir_de_cola(StringName(tipo.servicio), tipo.atenciones_admitidas)
+		if persona == null:
+			continue
+		retirar_de_cola(persona)
+		_transicionar(persona, PersonaFlujoScript.ESTADO_LLAMADA)
+		puesto["persona"] = persona
 
 
 # ── Config (patrón del proyecto: aplicar con clamp defensivo + carga con fallback) ───────────
