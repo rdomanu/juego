@@ -16,6 +16,13 @@ class_name Construccion extends Node
 ## Story 003: los PUENTES — construir un puesto lo registra en Personal (`registrar_puesto`, API de
 ## personal-003), el AFORO por asientos (F3: min(asientos, floor(área × densidad))) y F5
 ## `puestos_utiles` (informativo, sin tope duro — CO7). Getters read-only para Flujo.
+## Story 004: DEMOLER Y MOVER (CO8) — reembolso F4 (`coste_pagado × pct_reembolso` vía `abonar`),
+## demolición de sala EN CASCADA con API en 2 pasos (`contenido_de_sala` para que la UI confirme +
+## `demoler_sala`), y mover gratis con revalidación (el gesto no pasa por el gate si cuesta 0 — no es
+## gasto). AC-CO13 (puesto atendiendo) DIFERIDO a Flujo.
+## Story 005: PAUSA (CO12 — nada escucha el reloj: construir en Pausa funciona por construcción) y
+## PERSISTENCIA (ADR-0002: save/load del layout con Vector2i→[x,y]; "cargar sitúa" — 0 señales, sin
+## cobros; re-registra los puestos en Personal. ⚠️ ORDEN: Construcción carga ANTES que Personal).
 ##
 ## Story: production/epics/construccion/story-001-nucleo-rejilla-validacion.md · TR-construction-001/002 · ADR-0004
 
@@ -53,6 +60,8 @@ var _personal: Node = null
 
 func _ready() -> void:
 	_cargar_config()
+	# Contrato de persistencia (ADR-0002): el SaveManager recoge por el grupo, clave = node.name.
+	add_to_group("Persist")
 
 
 ## Inyecta Economía (dependency injection → testeable). Sin ella, construir avisa y no cobra.
@@ -84,19 +93,20 @@ func validar_sala(tipo_sala_id: StringName, rect: Rect2i) -> bool:
 
 ## F6 (elementos, CO4): la celda cae en una sala COMPATIBLE (puesto → su `puestos_admitidos`;
 ## asiento → sala de tipo "espera") y está libre de otros elementos. Id de catálogo inexistente →
-## inválido con aviso.
-func validar_elemento(id_catalogo: StringName, celda: Vector2i) -> bool:
+## inválido con aviso. `ignorar` excluye un elemento de los chequeos (mover_elemento se valida a sí
+## mismo sin contarse — story 004).
+func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringName = &"") -> bool:
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
 		return false   # fuera de toda sala (los elementos viven dentro de salas — CO4)
-	if _celda_ocupada(celda):
+	if _celda_ocupada(celda, ignorar):
 		return false   # no solapan (CO4)
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
 	if id_catalogo == ASIENTO_BASICO:
 		if tipo_sala.tipo != "espera":
 			return false
 		# F3 (story 003): el asiento por encima del tope físico por área NO cabe — se rechaza.
-		return _asientos_en(sala_id) < _plazas_max_de(sala_id)
+		return _asientos_en(sala_id, ignorar) < _plazas_max_de(sala_id)
 	var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", id_catalogo)
 	if tipo_puesto == null:
 		return false   # Datos ya avisó
@@ -111,10 +121,10 @@ func sala_en(celda: Vector2i) -> StringName:
 	return &""
 
 
-## ¿Hay ya un elemento en esta celda?
-func _celda_ocupada(celda: Vector2i) -> bool:
-	for elemento: Dictionary in _elementos.values():
-		if elemento["celda"] == celda:
+## ¿Hay ya un elemento en esta celda? (`ignorar` excluye a uno — para revalidar al moverlo).
+func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
+	for elemento_id: StringName in _elementos:
+		if elemento_id != ignorar and _elementos[elemento_id]["celda"] == celda:
 			return true
 	return false
 
@@ -129,11 +139,13 @@ func _dentro_del_edificio(rect: Rect2i) -> bool:
 
 # ── Registro directo en el modelo (SIN validar ni cobrar — lo usan la story 002 y los tests) ──
 
-## Da de alta una sala YA validada y pagada. Devuelve su id. `id_forzado` permite ids compat
-## (`doc_1`... los usará el montaje inicial de la 006).
-func _crear_sala(tipo_sala_id: StringName, rect: Rect2i, id_forzado: StringName = &"") -> StringName:
+## Da de alta una sala YA validada y pagada (guarda `coste_pagado` — reembolso F4). Devuelve su id.
+## `id_forzado` permite ids compat (`doc_1`... los usará el montaje inicial de la 006).
+func _crear_sala(
+	tipo_sala_id: StringName, rect: Rect2i, coste_pagado: float = 0.0, id_forzado: StringName = &""
+) -> StringName:
 	var sala_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(&"sala")
-	_salas[sala_id] = {"tipo": tipo_sala_id, "rect": rect}
+	_salas[sala_id] = {"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado}
 	return sala_id
 
 
@@ -181,9 +193,10 @@ func coste_elemento(id_catalogo: StringName) -> float:
 func construir_sala(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
 	if not validar_sala(tipo_sala_id, rect):
 		return &""
-	if not _pagar(coste_sala(tipo_sala_id, rect)):
+	var coste: float = coste_sala(tipo_sala_id, rect)
+	if not _pagar(coste):
 		return &""
-	return _crear_sala(tipo_sala_id, rect)
+	return _crear_sala(tipo_sala_id, rect, coste)
 
 
 ## Construye un elemento (CO4/CO6/CO9): valida → cobra → alta guardando `coste_pagado` (F4). Si es
@@ -231,11 +244,12 @@ func aforo_de_sala(sala_id: StringName) -> int:
 	return mini(_asientos_en(sala_id), _plazas_max_de(sala_id))
 
 
-## Asientos colocados en una sala.
-func _asientos_en(sala_id: StringName) -> int:
+## Asientos colocados en una sala (`ignorar` excluye a uno — para revalidar al moverlo).
+func _asientos_en(sala_id: StringName, ignorar: StringName = &"") -> int:
 	var total: int = 0
-	for elemento: Dictionary in _elementos.values():
-		if elemento["catalogo"] == ASIENTO_BASICO and elemento["sala"] == sala_id:
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		if elemento_id != ignorar and elemento["catalogo"] == ASIENTO_BASICO and elemento["sala"] == sala_id:
 			total += 1
 	return total
 
@@ -275,6 +289,153 @@ func puestos_de_servicio(servicio: String) -> Array[StringName]:
 		if tipo != null and tipo.servicio == servicio:
 			resultado.append(elemento_id)
 	return resultado
+
+
+# ── Demoler y mover (Story 004 · TR-construction-004 · GDD CO8, F4) ──────────────────────────
+
+## Demuele un elemento (CO8): abona el reembolso F4 (`coste_pagado × pct_reembolso`), libera su
+## celda y, si era un puesto, lo retira de Personal (`quitar_puesto` — su agente al banquillo).
+## AC-CO13 (terminar la atención en curso) es contrato con Flujo al integrar — DIFERIDO.
+func demoler_elemento(elemento_id: StringName) -> bool:
+	if not _elementos.has(elemento_id):
+		push_warning("Construccion: demoler un elemento inexistente ('%s') -> ignorado" % elemento_id)
+		return false
+	var elemento: Dictionary = _elementos[elemento_id]
+	_abonar(float(elemento["coste_pagado"]) * pct_reembolso)
+	if elemento["catalogo"] != ASIENTO_BASICO and _personal != null:
+		_personal.quitar_puesto(elemento_id)
+	_elementos.erase(elemento_id)
+	return true
+
+
+## El contenido de una sala (ids de sus elementos, orden estable de construcción). Es el paso 1 de
+## la demolición en cascada: la UI lo lista y CONFIRMA antes de llamar a `demoler_sala` (la API no
+## pregunta — Edge "cascada con confirmación").
+func contenido_de_sala(sala_id: StringName) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for elemento_id: StringName in _elementos:
+		if _elementos[elemento_id]["sala"] == sala_id:
+			resultado.append(elemento_id)
+	return resultado
+
+
+## Paso 2 de la cascada: demuele el contenido (reembolsando CADA elemento por su `coste_pagado`) y
+## después la sala (reembolsando el suyo). Libera todas sus celdas.
+func demoler_sala(sala_id: StringName) -> bool:
+	if not _salas.has(sala_id):
+		push_warning("Construccion: demoler una sala inexistente ('%s') -> ignorado" % sala_id)
+		return false
+	for elemento_id: StringName in contenido_de_sala(sala_id):
+		demoler_elemento(elemento_id)
+	_abonar(float(_salas[sala_id]["coste_pagado"]) * pct_reembolso)
+	_salas.erase(sala_id)
+	return true
+
+
+## Mueve un elemento a otra celda (CO8): revalida SIN contarse a sí mismo (misma regla CO4 — un
+## `odac` no se muda a la oficina de Doc) y conserva id y `coste_pagado`. Con `coste_mover` 0 el
+## gesto es gratis y NO pasa por el gate (no es gasto — reorganizar no penaliza, Pilar 4); con coste
+## > 0 sí se cobra. Personal ni se entera: el registro del puesto no cambia.
+func mover_elemento(elemento_id: StringName, celda_destino: Vector2i) -> bool:
+	if not _elementos.has(elemento_id):
+		push_warning("Construccion: mover un elemento inexistente ('%s') -> ignorado" % elemento_id)
+		return false
+	var elemento: Dictionary = _elementos[elemento_id]
+	if not validar_elemento(elemento["catalogo"], celda_destino, elemento_id):
+		return false
+	if coste_mover > 0.0 and not _pagar(coste_mover):
+		return false
+	elemento["celda"] = celda_destino
+	elemento["sala"] = sala_en(celda_destino)
+	return true
+
+
+## Abona un reembolso vía Economía (F4). Sin Economía inyectada (tests unitarios) → no-op con aviso.
+func _abonar(cantidad: float) -> void:
+	if _economia == null:
+		push_warning("Construccion: reembolso SIN Economia inyectada -> se pierde")
+		return
+	_economia.abonar(cantidad)
+
+
+# ── Persistencia (Story 005 · TR-construction-004 · ADR-0002) ────────────────────────────────
+
+## Estado serializable del layout (contrato `Persist`; clave = node.name). SOLO estado no derivado:
+## la sala de cada elemento se re-deriva de su celda, los aforos de los asientos, y los costes de
+## catálogo/config no se guardan (solo `coste_pagado`, que es histórico). Vector2i/Rect2i → arrays
+## de ints (limitación JSON — ADR-0002).
+func save() -> Dictionary:
+	var salas: Array = []
+	for sala_id: StringName in _salas:
+		var sala: Dictionary = _salas[sala_id]
+		var rect: Rect2i = sala["rect"]
+		salas.append({
+			"id": String(sala_id), "tipo": String(sala["tipo"]),
+			"rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y],
+			"coste_pagado": sala["coste_pagado"],
+		})
+	var elementos: Array = []
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		elementos.append({
+			"id": String(elemento_id), "catalogo": String(elemento["catalogo"]),
+			"celda": [elemento["celda"].x, elemento["celda"].y],
+			"coste_pagado": elemento["coste_pagado"],
+		})
+	return {"salas": salas, "elementos": elementos, "contador_ids": _contador_ids}
+
+
+## Restaura el layout desde un Dictionary (p. ej. parseado de JSON). Defensivo (ADR-0002: la entrada
+## corrupta se DESCARTA con aviso, nunca invalida el save) y SIN señales ni dinero ("cargar sitúa"):
+## ni cobros ni reembolsos — el saldo ya viene en el save de Economía. Re-registra los puestos en
+## Personal (retirando antes los del estado anterior — el puente no acumula huérfanos).
+## ⚠️ ORDEN: Construcción debe cargar ANTES que Personal (sus asignaciones referencian estos puestos).
+func load_state(d: Dictionary) -> void:
+	if _personal != null:
+		for elemento_id: StringName in _elementos:
+			if _elementos[elemento_id]["catalogo"] != ASIENTO_BASICO:
+				_personal.quitar_puesto(elemento_id)
+	_salas.clear()
+	_elementos.clear()
+	for datos: Variant in d.get("salas", []):
+		if not (datos is Dictionary):
+			push_warning("Construccion: sala corrupta en el save -> descartada")
+			continue
+		var tipo_sala: StringName = StringName(String(datos.get("tipo", "")))
+		var rect_datos: Variant = datos.get("rect", [])
+		if Datos.obtener(&"TipoSala", tipo_sala) == null \
+				or not (rect_datos is Array) or rect_datos.size() != 4:
+			push_warning("Construccion: sala '%s' invalida en el save -> descartada" % datos.get("id", "?"))
+			continue
+		var rect := Rect2i(
+			int(rect_datos[0]), int(rect_datos[1]), int(rect_datos[2]), int(rect_datos[3])
+		)
+		_salas[StringName(String(datos.get("id", "")))] = {
+			"tipo": tipo_sala, "rect": rect, "coste_pagado": float(datos.get("coste_pagado", 0.0)),
+		}
+	for datos: Variant in d.get("elementos", []):
+		if not (datos is Dictionary):
+			push_warning("Construccion: elemento corrupto en el save -> descartado")
+			continue
+		var catalogo: StringName = StringName(String(datos.get("catalogo", "")))
+		var celda_datos: Variant = datos.get("celda", [])
+		var es_asiento: bool = catalogo == ASIENTO_BASICO
+		if (not es_asiento and Datos.obtener(&"TipoPuesto", catalogo) == null) \
+				or not (celda_datos is Array) or celda_datos.size() != 2:
+			push_warning("Construccion: elemento '%s' invalido en el save -> descartado" % datos.get("id", "?"))
+			continue
+		var elemento_id: StringName = StringName(String(datos.get("id", "")))
+		var celda := Vector2i(int(celda_datos[0]), int(celda_datos[1]))
+		_elementos[elemento_id] = {
+			"catalogo": catalogo, "celda": celda, "sala": sala_en(celda),
+			"coste_pagado": float(datos.get("coste_pagado", 0.0)),
+		}
+		if not es_asiento:
+			if _personal != null:
+				_personal.registrar_puesto(elemento_id, catalogo)
+			else:
+				push_warning("Construccion: puesto '%s' cargado SIN Personal inyectado" % elemento_id)
+	_contador_ids = maxi(int(d.get("contador_ids", 0)), 0)
 
 
 # ── Config (patrón Economía/Demanda/Personal: aplicar con clamp defensivo + fallback) ────────

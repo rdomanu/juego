@@ -429,11 +429,28 @@ verá rojo) · `puestos_utiles` F5 puro (throughput ≤0 → 0 aviso) · getters
 registra + inválida no cobra · clamp) y `construccion_puentes_test.gd` **6/6** (CO15 asignar+gate
 FL4 real · CO07 aforo 10→14→15.º rechazado sin cobrar · CO08 aforo 0 · CO09 10 puestos sin tope
 1000 € restantes · CO10 F5 · posicion_de). **Suite total: 282/282, exit 0** (Construcción 18/18).
-**PRÓXIMO INMEDIATO:** const-004 (demoler/mover: F4 reembolso sobre coste_pagado vía abonar ·
-cascada 2 pasos contenido_de_sala+demoler_sala · mover_elemento gratis con revalidación · liberar
-celda + quitar_puesto) → 005 (pausa+persistencia; ⚠️ orden de carga Construcción ANTES que
-Personal) → 006 (solar visible + montaje inicial de oficio + Main reordenado) → 007 (ratón+preview,
-HITO VISIBLE+sign-off).
+**✅ const-004 + const-005 IMPLEMENTADAS + TEST EN VERDE (2026-07-24):** en construccion.gd —
+004: `demoler_elemento` (F4 abona coste_pagado×pct vía `_abonar`; libera celda; `quitar_puesto` si
+era puesto) · cascada en 2 pasos `contenido_de_sala` (UI confirma) + `demoler_sala` (reembolsa cada
+elemento + la sala; _crear_sala AHORA guarda coste_pagado — construir_sala se lo pasa) ·
+`mover_elemento` (revalida con param `ignorar` NUEVO en validar_elemento/_celda_ocupada/_asientos_en
+— no se cuenta a sí mismo, arregla mover asiento en sala a tope; gratis NO pasa por el gate [con
+coste_mover>0 sí — en deuda cobrar(0) daría false]; conserva id/coste_pagado; Personal ni se
+entera). 005: grupo Persist en _ready · `save()` {salas[id,tipo,rect[x,y,w,h],coste_pagado],
+elementos[id,catalogo,celda[x,y],coste_pagado], contador_ids} (sala del elemento SE RE-DERIVA de la
+celda) · `load_state` defensivo (corrupto descartado con aviso; ANTES de limpiar retira del puente
+los puestos del estado anterior — sin huérfanos en Personal._puestos; re-registra los cargados;
+contador restaurado anti-colisión). Tests `construccion_demoler_test.gd` **7/7** (CO11 2750 ·
+CO12 cascada 660 → 2340 · CO14 mover gratis+agente intacto · mover incompatible · reembolso sobre
+lo PAGADO · mover asiento a tope [ignorar] · ids inexistentes) y `construccion_save_test.gd` **6/6**
+(CO17 campo a campo + contador fresco · re-registro · **combinado Construcción→Personal en ORDEN** ·
+sin dinero/señales · corrupto · CO16 Pausa con physics real). **Suite total: 295/295, exit 0**
+(Construcción 31/31). Motor completo 5/7 — quedan las visibles.
+**PRÓXIMO INMEDIATO:** const-006 (solar visible: TileMapLayer "Salas" con TileSet por código color
+por servicio + etiquetas · puestos/asientos PackedScene placeholder por código con map_to_local ·
+montaje inicial DE OFICIO construido por la API real con flag gratis + ids compat doc_1/doc_2/odac_1
+· **Main reordenado Construcción ANTES que Personal** y retirar registrar_puesto a mano; captura,
+sign-off conjunto con 007) → 007 (modo construcción ratón+preview fantasma, HITO VISIBLE+sign-off).
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/
 usar_tiempo (patrón Economía), `_suscribir_al_tick` (Tiempo.suscribir_tick, idempotente; Demanda 1º —
 Flujo/Paciencia se suscribirán DESPUÉS), `_al_tick` (min_dia de tiempo.minutos_juego al FINAL del
