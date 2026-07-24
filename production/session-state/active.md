@@ -527,8 +527,25 @@ VISIBLE+sign-off [Visual]). **27/27 AC + AC-CO13.** Interfaces provisionales doc
 stub · cierre Doc → Documentación #8 · minutos_operativos → Horarios · puestos nacen abiertos).
 EPIC→In Progress, index, sprint-status expandido (C2-4 done; flujo-001..008 ready-for-dev). SIN
 commit aún.
-**PRÓXIMO INMEDIATO:** implementar flujo-001 → ... → 008 (ventana+sign-off = CORE 5/5 COMPLETO);
-patrón de siempre (hilo principal, test por story, suite completa, commit por hito).
+**✅ Stories de Flujo COMMITEADAS (dc578dc, pusheado).**
+**✅ flujo-001 + flujo-002 IMPLEMENTADAS + TEST EN VERDE (2026-07-24):** `src/core/flujo/` —
+`persona_flujo.gd` (PersonaFlujo RefCounted: ENVUELVE la ficha de Demanda por referencia +
+numero_turno + estado [7 constantes] + paciencia stub null + atajos servicio()/tramite_id()) ·
+`flujo.gd` (nodo class_name Flujo: TRANSICIONES_VALIDAS const Dictionary tipado [tabla States A;
+inválida → aviso sin cambio] · `admitir(ficha)` turnos por servicio crecientes sin reuso ·
+`encolar` [Llegando→Esperando dentro; la 005 refinará fuera] · **F7 `elegir_de_cola(servicio,
+admitidas)`** PURA: clave mínima (rango_prioridad, numero_turno), solo ESPERANDO_DENTRO elegibles;
+`_rango_prioridad`: Doc siempre 1, ODAC por DenunciaODAC.prioridad del catálogo ["Prioritaria"→0] ·
+`retirar_de_cola`/`personas_en_cola`) · `config_flujo.gd` (3 knobs propios del GDD:
+duracion_desplazamiento_seg 1.5 clamp[0,5] cosmético · habilitar_aging_odac false ·
+tope_cola_exterior 0=∞) + `tools/build_config_flujo.gd` → `datos/config/flujo.tres`. Tests
+`flujo_persona_turnos_test.gd` **4/4** (FL01 misma referencia · FL02 turnos Doc 1,2,3/ODAC 1,2 ·
+máquina válida+inválida+camino fuera→dentro+compromiso-no-es-transición · clamps+.tres) y
+`flujo_colas_test.gd` **5/5** (FL03 FIFO puro con cola revuelta · FL04 viogen antes que estafa
+[catálogo real] · FL05 tie no llama · FL06 se salta la tie sin adelantarla · bordes).
+**Suite total: 306/306, exit 0.**
+**PRÓXIMO INMEDIATO:** flujo-003 (puestos+gate FL4+emparejamiento menor-id) → 004 (atención F1 +
+tramite_completado + E2E saldo SUBE) → 005-007 → 008 (NPCs, ventana+sign-off = CORE 5/5).
 Tras sign-off: cerrar epic Construcción 7/7 (stories→Complete con Cierres, EPIC, index,
 sprint-status C2-2/C2-3+const-00X→done), commit, y PRÓXIMO: C2-4 `/create-stories flujo`.
 **✅ demanda-003 IMPLEMENTADA + TEST EN VERDE (2026-07-23):** cableado en demanda.gd — usar_bus/

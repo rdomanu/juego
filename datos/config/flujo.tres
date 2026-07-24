@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="ConfigFlujo" format=3]
+
+[ext_resource type="Script" path="res://src/core/flujo/config_flujo.gd" id="1_d34gj"]
+
+[resource]
+script = ExtResource("1_d34gj")
