@@ -4,7 +4,7 @@
 > **GDD**: design/gdd/patience-satisfaction.md
 > **Architecture Module**: Paciencia #10 (dueño de la escala `sat` 0–100)
 > **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories paciencia`
+> **Stories**: 8 (ver tabla) — creadas 2026-07-25 (C3-2)
 > **Manifest Version**: 2026-07-22
 
 ## Overview
@@ -66,6 +66,30 @@ This epic is complete when:
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/`
 - El determinismo A-vs-B sigue pasando **con abandonos y reclamaciones activos**
 
+## Stories
+
+| # | Story | Type | Status | AC del GDD |
+|---|-------|------|--------|------------|
+| 001 | [El núcleo, la config y F1 — la barra que baja](story-001-nucleo-config-drenaje.md) | Logic | Ready | PS01, PS02, PS03, PS05 |
+| 002 | [El tick, la Pausa y EL ABANDONO](story-002-tick-pausa-abandono.md) | Integration | Ready | PS04, PS19, PS22 |
+| 003 | [F2 — cuánto puntúa cada visita](story-003-puntuacion-visita.md) | Logic | Ready | PS06, PS07, PS08, PS09 |
+| 004 | [F3 — la satisfacción del día y su cierre](story-004-media-jornada-cierre.md) | Integration | Ready | PS10, PS11, PS12, PS13 |
+| 005 | [La reputación se convierte en dinero](story-005-sat-a-ingresos.md) | Integration | Ready | PS14 |
+| 006 | [Reclamaciones — quien se va cabreado te da trabajo](story-006-reclamaciones.md) | Integration | Ready | PS15, PS16, PS17, PS18, PS20 |
+| 007 | [Persistencia y el determinismo con abandonos](story-007-persistencia-determinismo.md) | Integration | Ready | PS21, PS23 |
+| 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | Ready | demo (M1-M5) |
+
+**Cobertura: 23/23 AC del GDD.** Orden secuencial estricto 001→008. Cada story trae sus casos de test
+escritos (QA Lead omitido — modo LEAN, patrón de los epics anteriores).
+
+**Aclaración registrada al crear las stories (no era errata):** los umbrales de ánimo son **66/33**
+(`ui-hud.md` F2 + registro); el AC-PS05 (*"80 → 🟢, 50 → 🟡, 20 → 🔴"*) no define umbrales distintos, sino
+**tres casos de prueba** que los verifican. Queda escrito en la story 001 para que nadie implemente 80/50/20.
+
+**Riesgo vivo del epic:** el determinismo. Meter abandonos en el bucle puede romper la prueba A-vs-B →
+el test de la 007 se corre en CADA story, no solo al final.
+
 ## Next Step
 
-Run `/create-stories paciencia` to break this epic into implementable stories.
+Run `/story-readiness production/epics/paciencia/story-001-nucleo-config-drenaje.md` o directamente
+`/dev-story` sobre la 001.

@@ -9,8 +9,8 @@
 #   done           ↔  Complete
 #   blocked        ↔  Blocked
 #
-# NOTA: las tareas C3-3 / C3-7 se expandiran a stories concretas tras /create-stories
-# (se refinara este yaml con los archivos reales — /sprint-plan update).
+# NOTA: C3-3 ya esta expandida en las 8 stories pac-001..pac-008 (creadas 2026-07-25).
+# C3-7 (Documentacion) se expandira tras su /create-stories.
 # Sprint 1 (100 %, 2026-07-24) y Sprint 2 (100 %, 2026-07-25) cerrados; sus planes viven en
 # production/sprints/ y el estado detallado del Sprint 2 en sprint-2-status-archivado.yaml.
 
@@ -35,11 +35,11 @@ stories:
     name: "Crear stories del epic Paciencia"
     file: "production/epics/paciencia/EPIC.md"
     priority: must-have
-    status: ready-for-dev
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.2
     blocker: ""
-    completed: ""
+    completed: "2026-07-25"
   - id: "C3-3"
     name: "Implementar epic Paciencia (barra que drena, hacinamiento, abandono, sat 0-100, cierre al nuevo_dia, reclamaciones)"
     file: "production/epics/paciencia/EPIC.md"
@@ -48,6 +48,78 @@ stories:
     owner: "Opus 5 (hilo principal)"
     estimate_days: 1.0
     blocker: "C3-2"
+    completed: ""
+  - id: "pac-001"
+    name: "Paciencia: nucleo, config y F1 (la barra que baja)"
+    file: "production/epics/paciencia/story-001-nucleo-config-drenaje.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: ""
+    completed: ""
+  - id: "pac-002"
+    name: "Paciencia: tick, Pausa y EL ABANDONO"
+    file: "production/epics/paciencia/story-002-tick-pausa-abandono.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.2
+    blocker: "pac-001"
+    completed: ""
+  - id: "pac-003"
+    name: "Paciencia: F2 puntuacion de la visita"
+    file: "production/epics/paciencia/story-003-puntuacion-visita.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "pac-002"
+    completed: ""
+  - id: "pac-004"
+    name: "Paciencia: F3 media de jornada y cierre al nuevo_dia"
+    file: "production/epics/paciencia/story-004-media-jornada-cierre.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "pac-003"
+    completed: ""
+  - id: "pac-005"
+    name: "Paciencia: la reputacion se convierte en dinero (retorno DGP)"
+    file: "production/epics/paciencia/story-005-sat-a-ingresos.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "pac-004"
+    completed: ""
+  - id: "pac-006"
+    name: "Paciencia: reclamaciones a ODAC (RNG, sin recursion)"
+    file: "production/epics/paciencia/story-006-reclamaciones.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "pac-005"
+    completed: ""
+  - id: "pac-007"
+    name: "Paciencia: persistencia y determinismo con abandonos"
+    file: "production/epics/paciencia/story-007-persistencia-determinismo.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.1
+    blocker: "pac-006"
+    completed: ""
+  - id: "pac-008"
+    name: "Paciencia: HITO VISIBLE — animo, medidor y la marcha"
+    file: "production/epics/paciencia/story-008-animo-visible-demo.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: ""
+    estimate_days: 0.15
+    blocker: "pac-007"
     completed: ""
   - id: "C3-4"
     name: "Rondas de demo y ajustes de Paciencia (ventana + sign-off; calibrar el drenaje CON el usuario)"

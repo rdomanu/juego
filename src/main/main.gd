@@ -461,8 +461,17 @@ func _resaltar_boton(indice: int) -> void:
 func _programar_captura_evidencia() -> void:
 	if not OS.has_feature("editor"):
 		return
+	# Sin servidor gráfico real (--headless, CI, scripts de diagnóstico) el viewport no tiene textura:
+	# `get_image()` devuelve null y el `save_png` reventaba con SCRIPT ERROR. La evidencia es ADVISORY:
+	# si no se puede capturar, se avisa y se sigue — nunca peta el arranque.
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
+		if DisplayServer.get_name() == "headless":
+			return
+		var textura: ViewportTexture = get_viewport().get_texture()
+		var img: Image = textura.get_image() if textura != null else null
+		if img == null:
+			push_warning("Main: no se pudo capturar la evidencia (sin textura de viewport)")
+			return
 		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
-		var img: Image = get_viewport().get_texture().get_image()
 		img.save_png("res://production/qa/evidence/flujo-demo-2026-07-24.png")
 	)
