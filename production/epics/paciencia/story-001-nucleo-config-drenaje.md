@@ -1,12 +1,12 @@
 # Story 001: El núcleo, la config y F1 — la barra que baja
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — implementada + test 17/17 en verde
 
 ## Context
 
@@ -31,11 +31,11 @@ paciencia resultante); los knobs vienen de un `ConfigPaciencia` (`.tres`), nunca
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS01** `[Unit]` — GIVEN una persona coge turno THEN `paciencia = 100`.
-- [ ] **AC-PS02** `[Unit]` — GIVEN condiciones neutras (`tolerancia_base_min=30`, multiplicadores 1.0)
+- [x] **AC-PS01** `[Unit]` — GIVEN una persona coge turno THEN `paciencia = 100`.
+- [x] **AC-PS02** `[Unit]` — GIVEN condiciones neutras (`tolerancia_base_min=30`, multiplicadores 1.0)
       WHEN espera 30 min sin ser llamada THEN `paciencia = 0` (lista para abandonar).
-- [ ] **AC-PS03** `[Unit]` — GIVEN hacinamiento ×1.5 WHEN espera THEN llega a 0 en **~20 min**.
-- [ ] **AC-PS05** `[Unit]` — ánimo derivado de la paciencia: **80 → 🟢 · 50 → 🟡 · 20 → 🔴**.
+- [x] **AC-PS03** `[Unit]` — GIVEN hacinamiento ×1.5 WHEN espera THEN llega a 0 en **~20 min**.
+- [x] **AC-PS05** `[Unit]` — ánimo derivado de la paciencia: **80 → 🟢 · 50 → 🟡 · 20 → 🔴**.
 
 ---
 
@@ -74,3 +74,26 @@ paciencia resultante); los knobs vienen de un `ConfigPaciencia` (`.tres`), nunca
 
 - El drenaje real con el tick y el abandono (002).
 - La puntuación de la visita (003) y la `sat` agregada (004).
+
+## Cierre (2026-07-25)
+
+Implementada en hilo principal (Opus 5). **Ruta nueva: `src/feature/paciencia/`** — es el primer
+sistema de la capa Feature y no había convención escrita; se sigue el patrón de capas de la
+arquitectura (`foundation/` → `core/` → **`feature/`**).
+
+- `paciencia.gd` (`class_name Paciencia`): alta/baja por persona, F1 (`tasa_drenaje`,
+  `mult_hacinamiento`, `minutos_hasta_agotar`, `drenar`) y el ánimo derivado (`animo_de`).
+- `config_paciencia.gd` + `tools/build_config_paciencia.gd` → `datos/config/paciencia.tres`
+  (6 knobs; `tolerancia_base_min` 30 es el número a calibrar con el usuario en la demo).
+- Test `tests/unit/paciencia/paciencia_drenaje_test.gd` **17/17 a la primera**. **Suite total:
+  359/359, exit 0** (+42 respecto a los 342 del cierre de Flujo). Arranque headless limpio.
+
+**Decisiones de implementación (más allá de los AC):**
+- `registrar` es **idempotente**: un re-registro accidental no le regala paciencia a quien ya lleva
+  esperando (sería un bug invisible y muy difícil de cazar en partida).
+- La paciencia **no baja de 0** (una barra vacía no se vacía más) y `tolerancia_base_min = 0` no
+  divide por cero: devuelve tasa 0 y el centinela **-1.0** para "no se agota" — misma convención que
+  las fórmulas de Flujo (nunca ∞).
+- Umbrales de ánimo **cruzados** en el `.tres` → se ordenan con aviso en vez de dejar una franja
+  imposible donde el ánimo no se pudiera calcular.
+- Sin sala medible (aforo ≤ 0) → sin castigo de hacinamiento: el drenaje base ya penaliza la espera.

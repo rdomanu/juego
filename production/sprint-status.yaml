@@ -53,11 +53,11 @@ stories:
     name: "Paciencia: nucleo, config y F1 (la barra que baja)"
     file: "production/epics/paciencia/story-001-nucleo-config-drenaje.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.15
     blocker: ""
-    completed: ""
+    completed: "2026-07-25"
   - id: "pac-002"
     name: "Paciencia: tick, Pausa y EL ABANDONO"
     file: "production/epics/paciencia/story-002-tick-pausa-abandono.md"

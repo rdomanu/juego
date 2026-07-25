@@ -70,7 +70,7 @@ This epic is complete when:
 
 | # | Story | Type | Status | AC del GDD |
 |---|-------|------|--------|------------|
-| 001 | [El núcleo, la config y F1 — la barra que baja](story-001-nucleo-config-drenaje.md) | Logic | Ready | PS01, PS02, PS03, PS05 |
+| 001 | [El núcleo, la config y F1 — la barra que baja](story-001-nucleo-config-drenaje.md) | Logic | **Complete** | PS01, PS02, PS03, PS05 |
 | 002 | [El tick, la Pausa y EL ABANDONO](story-002-tick-pausa-abandono.md) | Integration | Ready | PS04, PS19, PS22 |
 | 003 | [F2 — cuánto puntúa cada visita](story-003-puntuacion-visita.md) | Logic | Ready | PS06, PS07, PS08, PS09 |
 | 004 | [F3 — la satisfacción del día y su cierre](story-004-media-jornada-cierre.md) | Integration | Ready | PS10, PS11, PS12, PS13 |
