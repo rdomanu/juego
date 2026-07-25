@@ -1,12 +1,12 @@
 # Story 005: La sala respira — aforo y cola exterior (F6) + matemáticas de colas (F2-F5)
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic *(mixta con Integration — el aforo viene de Construcción)*
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -90,3 +90,15 @@ el aforo real viene de los ASIENTOS de Construcción (no del `aforo_espera` de r
 
 - Depends on: Story 004 (ciclo completo — liberar plaza al llamar) — DONE antes de empezar.
 - Unlocks: Story 006 (gestión en caliente sobre el flujo completo).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`39dd478`): aforo F6 (con la **enmienda de-pie** ratificada por el usuario:
+sin asientos se entra igual, de pie; lo que no cabe espera FUERA) + fórmulas F2-F5 (nunca ∞ ni división
+por cero). **⚠️ Errata GDD cazada: F6 usa `ceil(Mando/2)`, no `floor`** (el texto y su tabla se
+contradecían; manda la tabla) → propagar en C2-7.
+
+Nota visual descubierta en la demo (2026-07-25, corregida en la capa cosmética, no en el modelo): el
+aforo F3 admite hasta ~1,2 personas por celda, así que la sala puede estar más llena que celdas tiene;
+los NPCs se apretujan con desvío sub-celda en vez de superponerse. Cerrada formalmente con el sign-off
+del epic (2026-07-25).

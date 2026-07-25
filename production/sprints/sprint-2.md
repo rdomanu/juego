@@ -36,6 +36,14 @@ real de trámites, **el saldo del HUD sube por primera vez**.
 | C2-5 | Implementar epic **Flujo** (~7-8 stories: ficha `Persona` → NPC navegando (ADR-0004), cola, atención en puesto con gate FL4 + `modificador_produccion`, `tramite_completado` → Economía cobra, salida; orden de tick Tiempo→Demanda→Flujo) | Fable | 1,2 ses. | C2-4 | Determinismo en la lógica; 60 FPS con el volumen del spike QQ-02; **HITO VISIBLE: gente entrando y saldo subiendo** |
 | C2-6 | Cierre formal Flujo + demo integradora con sign-off | Fable | 0,1 ses. | C2-5 | EPIC Complete; evidencia + sign-off |
 
+> **✅ C2-4 · C2-5 · C2-6 COMPLETADAS (2026-07-25)** — epic **Flujo 8/8** con sign-off del usuario
+> tras 4 rondas de feedback en ventana (evidencia `production/qa/evidence/flujo-demo-2026-07-24.md`).
+> Suite 342/342, exit 0. 🎉 **CORE 5/5 COMPLETO** (Economía · Demanda · Personal · Construcción ·
+> Flujo) — el Sprint Goal queda cumplido con 6 días de margen. Extras no planificados entregados en
+> C2-5: panel de personal (tecla P), ventanilla TIE inicial y 2 **enmiendas de diseño** del usuario
+> ("EN CAMINO no se tramita" y horario provisional de Documentación) — ver Cierres de flujo-004/006.
+> Queda C2-7 (Nice to Have) para cerrar el sprint al 100 %.
+
 ### Nice to Have
 | ID | Task | Agent/Owner | Est. | Dependencies | Acceptance Criteria |
 |----|------|-------------|------|-------------|---------------------|

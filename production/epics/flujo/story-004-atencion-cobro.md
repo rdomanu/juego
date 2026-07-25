@@ -1,12 +1,12 @@
 # Story 004: La atención y el cobro — F1 + `tramite_completado` (el saldo SUBE)
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -93,3 +93,26 @@ entran antes de mover el flujo). La atención es un contador de minutos de juego
 
 - Depends on: Story 003 (emparejamiento) — DONE antes de empezar.
 - Unlocks: Story 005 (aforo con el ciclo completo) y el HITO económico del MVP.
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`703f1af`): la atención avanza con el tick, aplica F1 (duración efectiva
+modulada por el agente) y emite `tramite_completado` — **EL SALDO SUBE**, el primer bucle económico
+visible del juego.
+
+**⚠️ ENMIENDA DE DISEÑO del usuario (2026-07-25) — SUSTITUYE la decisión original "el viaje no
+descuenta trámite":** el trámite **arranca cuando la persona LLEGA** al puesto, no al ser llamada.
+- Camino = distancia REAL del **modelo** (centro de la sala de espera más cercana → celda del puesto,
+  euclídea en celdas) ÷ knob nuevo `velocidad_camino_celdas_min` (**0.375** tras 3 calibraciones con
+  la ventana abierta = exactamente el paso cosmético de 90 px/s a 1×). Sustituye a
+  `duracion_desplazamiento_seg`. `0` = instantáneo (compatibilidad de los tests viejos).
+- **La regla sagrada FL5 sigue intacta**: la distancia se mide en el PLANO, nunca en el sprite. El
+  muñeco es quien se adapta a la verdad lógica (paso adaptativo acotado a ±50%).
+- Estado derivado NUEVO del puesto: **`en_camino`** (States B +1 → propagar al GDD en C2-7).
+  `atendiendo_total` cuenta solo `en_atencion`. `camino_restante` va en el dict y en el save.
+- Origen ENTRADA (`CELDA_ENTRADA`) si la persona aún no tuvo tiempo material de llegar a su sala
+  (caso "ODAC libre te llama nada más entrar").
+- Tests: `flujo_camino_test.gd` (2/2, minutos calculados a mano); fixtures con Construcción aislados
+  a `0.0`; el determinismo A-vs-B sobrevive CON camino real.
+
+Cerrada formalmente con el sign-off del epic (2026-07-25).

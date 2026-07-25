@@ -1,12 +1,12 @@
 # Story 007: Persistencia y el AC rey del determinismo
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -87,3 +87,12 @@ serializa por sus campos).
 
 - Depends on: Story 006 (estado completo con cierres pendientes) — DONE antes de empezar.
 - Unlocks: Story 008 (el cierre visible del epic y del Core).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`68ed442`): serialización de colas, puestos y personas (estado lógico, turno,
+tiempo restante — la "posición" del GDD es la LÓGICA, no el píxel: FL5) y **AC-FL27, la prueba reina**:
+partida A guardada/cargada vs partida B continua → **misma secuencia de eventos**. Sobrevivió a las dos
+enmiendas posteriores (camino real y horario), incluida la re-calibración del camino: el sanity del test
+cuenta TIPOS de evento, no cantidad (caminos más largos = menos trámites en los mismos 40 ticks), y
+**A == B pasó en todas las calibraciones**. Cerrada formalmente con el sign-off del epic (2026-07-25).

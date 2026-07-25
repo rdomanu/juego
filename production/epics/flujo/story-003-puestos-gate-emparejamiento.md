@@ -1,12 +1,12 @@
 # Story 003: Los puestos — estados, gate FL4 y emparejamiento sin dobles
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -92,3 +92,10 @@ las dos cosas.
 
 - Depends on: Story 002 (selección F7) — DONE antes de empezar.
 - Unlocks: Story 004 (la atención avanza y cobra).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`2cc5c58`): estados de puesto, gate FL4 (sin agente dotado no se atiende) y
+emparejamiento **sin dobles** (un puesto, una persona). Decisiones ratificadas de facto: los puestos
+nacen ABIERTOS y el orden del tick es avanzar → emparejar → arrancar. Cerrada formalmente con el
+sign-off del epic (2026-07-25).

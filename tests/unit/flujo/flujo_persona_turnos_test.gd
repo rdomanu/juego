@@ -85,15 +85,15 @@ func test_maquina_de_estados_valida_e_invalida() -> void:
 func test_config_clamps_y_tres_real() -> void:
 	# Arrange — knobs corruptos (push_warning esperado por el config inválido no aplica: es válido).
 	var corrupto: Resource = ConfigFlujoScript.new()
-	corrupto.duracion_desplazamiento_seg = 99.0
+	corrupto.velocidad_camino_celdas_min = 999.0   # enmienda 2026-07-25: knob del camino
 	corrupto.tope_cola_exterior = -5
 	var flujo: Node = _flujo()
 
 	# Act
 	flujo.aplicar_config(corrupto)
 
-	# Assert — clamps a rangos del GDD ([0,5] y ≥0).
-	assert_float(flujo.duracion_desplazamiento_seg).is_equal_approx(5.0, 0.0001)
+	# Assert — clamps a rangos ([0,100] y ≥0).
+	assert_float(flujo.velocidad_camino_celdas_min).is_equal_approx(100.0, 0.0001)
 	assert_int(flujo.tope_cola_exterior).is_equal(0)
 
 	# El .tres real generado por la herramienta carga con los valores semilla.
@@ -101,6 +101,6 @@ func test_config_clamps_y_tres_real() -> void:
 	assert_object(real).is_not_null()
 	var con_real: Node = _flujo()
 	con_real.aplicar_config(real)
-	assert_float(con_real.duracion_desplazamiento_seg).is_equal_approx(1.5, 0.0001)
+	assert_float(con_real.velocidad_camino_celdas_min).is_equal_approx(0.375, 0.0001)   # calibración 3ª
 	assert_bool(con_real.habilitar_aging_odac).is_false()
 	assert_int(con_real.tope_cola_exterior).is_equal(0)

@@ -3,7 +3,7 @@
 > **Layer**: Core
 > **GDD**: design/gdd/flow-queues.md
 > **Architecture Module**: Flujo #4
-> **Status**: In Progress (stories creadas 2026-07-24 — Sprint 2, C2-4)
+> **Status**: Complete (2026-07-25 — 8/8 stories, sign-off del usuario tras 4 rondas de feedback)
 > **Stories**: 8 (ver tabla)
 
 ## Overview
@@ -61,14 +61,14 @@ This epic is complete when:
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | [La Persona en el flujo: 7 estados + turnos](story-001-persona-estados-turnos.md) | Logic | Ready | ADR-0001, ADR-0003 |
-| 002 | [Las colas: FIFO + prioridad ODAC + compatibilidad (F7)](story-002-colas-seleccion-f7.md) | Logic | Ready | ADR-0001, ADR-0003 |
-| 003 | [Los puestos: estados, gate FL4 y emparejamiento sin dobles](story-003-puestos-gate-emparejamiento.md) | Integration | Ready | ADR-0001 |
-| 004 | [La atención y el cobro: F1 + tramite_completado (saldo SUBE)](story-004-atencion-cobro.md) | Integration | Ready | ADR-0001 |
-| 005 | [La sala respira: aforo + cola exterior (F6) y F2-F5](story-005-aforo-formulas-colas.md) | Logic | Ready | ADR-0001 |
-| 006 | [Compromiso de servicio y gestión en caliente (+AC-CO13)](story-006-compromiso-gestion-caliente.md) | Integration | Ready | ADR-0001 |
-| 007 | [Persistencia y determinismo (AC-FL27)](story-007-persistencia-determinismo.md) | Integration | Ready | ADR-0002, ADR-0001 |
-| 008 | [🎉 La comisaría VIVE: NPCs navegando + demo (HITO VISIBLE)](story-008-comisaria-viva-npcs.md) | Visual/Feel | Ready | ADR-0004, ADR-0001 |
+| 001 | [La Persona en el flujo: 7 estados + turnos](story-001-persona-estados-turnos.md) | Logic | Complete | ADR-0001, ADR-0003 |
+| 002 | [Las colas: FIFO + prioridad ODAC + compatibilidad (F7)](story-002-colas-seleccion-f7.md) | Logic | Complete | ADR-0001, ADR-0003 |
+| 003 | [Los puestos: estados, gate FL4 y emparejamiento sin dobles](story-003-puestos-gate-emparejamiento.md) | Integration | Complete | ADR-0001 |
+| 004 | [La atención y el cobro: F1 + tramite_completado (saldo SUBE)](story-004-atencion-cobro.md) | Integration | Complete | ADR-0001 |
+| 005 | [La sala respira: aforo + cola exterior (F6) y F2-F5](story-005-aforo-formulas-colas.md) | Logic | Complete | ADR-0001 |
+| 006 | [Compromiso de servicio y gestión en caliente (+AC-CO13)](story-006-compromiso-gestion-caliente.md) | Integration | Complete | ADR-0001 |
+| 007 | [Persistencia y determinismo (AC-FL27)](story-007-persistencia-determinismo.md) | Integration | Complete | ADR-0002, ADR-0001 |
+| 008 | [🎉 La comisaría VIVE: NPCs navegando + demo (HITO VISIBLE)](story-008-comisaria-viva-npcs.md) | Visual/Feel | Complete | ADR-0004, ADR-0001 |
 
 Cobertura: **27/27 AC del GDD + AC-CO13** (el diferido de Construcción se cierra en la 006). Orden
 secuencial estricto 001→008; la nav (post-cutoff, riesgo del epic) queda AISLADA en la 008 con la

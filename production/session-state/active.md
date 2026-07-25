@@ -1,6 +1,12 @@
 # Estado de sesión — activo
 
-*Última actualización: 2026-07-22*
+*Última actualización: 2026-07-25*
+
+<!-- STATUS -->
+Epic: Flujo de Personas y Colas — COMPLETO 8/8 (CORE 5/5)
+Feature: Cierre del epic + erratas del GDD
+Task: C2-7 propagar erratas anotadas a los GDD
+<!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
 `/gate-check pre-production→production` → **Veredicto CONCERNS → usuario decide AVANZAR con condiciones.**
@@ -572,28 +578,178 @@ emisión ÚNICA a los 12 min exactos + agente real en el evento + encadenado p2 
 **E2E saldo 3000→3003.6 con Economía real** · Pausa con physics real congela restante).
 **Suite total: 317/317, exit 0.** Epic Flujo 4/8.
 **✅ flujo-004 COMMITEADA (703f1af). FIN DE SESIÓN 2026-07-24 (2ª).**
-**PRÓXIMO INMEDIATO (SESIÓN NUEVA):** epic Flujo 4/8 — seguir con **flujo-005 (aforo + fórmulas)**:
-leer production/epics/flujo/story-005-aforo-formulas-colas.md e implementar en hilo principal
-(patrón de las anteriores). Claves de la 005: aforo F6 = al `encolar` (hoy siempre → dentro)
-clasificar dentro/fuera comparando `ocupacion_dentro(servicio)` vs el aforo REAL de Construcción
-(`aforo_de_sala` por ASIENTOS — falta resolver la sala de espera del servicio: añadir getter en
-Construcción `sala_de_espera_de(servicio)` por TipoSala.tipo=="espera"+servicio, o inyectar
-usar_construccion en Flujo); al liberar plaza (Llamada en _emparejar o abandono) entra el PRIMERO
-de fuera por turno; cola exterior SIN tope (FL7). F2-F5 = funciones PURAS con centinela -1.0
-(capacidad 0 / 0 puestos → "sin servicio", NUNCA ∞ ni división por cero): throughput(min_oper,
-dur_media) · capacidad(Σ) · factor_carga(tasa, cap) · espera_estimada(delante, puestos, dur_media).
-Valores exactos de test en la story (26 · 52/260 · 2→1 · 120/60/-1). Después:
-- **006 (compromiso+caliente)**: forzar_abandono API para Paciencia (señal `abandono` YA en el bus;
-  en Llamada/atención → false) · cierre_pendiente al cerrar_puesto con atención (pasa a Cerrado al
-  emitir) · reconfigurar_puesto solo si TipoPuesto.reconfigurable (override local de atenciones) ·
-  **AC-CO13**: enmienda a Construcción — callable `puede_demoler` cableado por Main (sin cableado →
-  demuele directo, compat tests) + demolición pendiente al terminar · cierre Doc cruce 870 (⚠️
-  decisión propuesta: provisional en Flujo hasta Documentación #8; patrón _detectar_cierre_doc de
-  Demanda; vaciar cola admitida con hook registrar_horas_extra de Economía) · Pausa exacta (FL15/25).
-- **007 (save+AC-FL27)**: save {personas[servicio,tramite,minuto,turno,estado], puestos[id,abierto,
-  cierre_pendiente,persona_turno,restante], turnos, reconfiguraciones}; colas/dentro-fuera SE
-  RE-DERIVAN de estados; orden de carga Construcción→Personal→Flujo (orden de hijos en Main);
-  determinismo A-vs-B con save a mitad (patrón personal/demanda-006); grupo Persist clave "Flujo".
+**✅ flujo-005 IMPLEMENTADA + TEST EN VERDE (2026-07-24, 3ª sesión, hilo principal):** aforo F6 +
+fórmulas F2-F5 — Construcción gana **`aforo_de_servicio(servicio)`** (suma `aforo_de_sala` de
+TODAS las salas de espera del servicio; una "Comun" cuenta para ambos — **decisión de impl.
+pendiente de ratificar**: agregado en vez del getter `sala_de_espera_de` porque el jugador puede
+construir VARIAS esperas del mismo servicio) · Flujo gana `usar_construccion` + `_aforo_de` (sin
+Construcción → -1 "sin límite" = comportamiento de los tests 001-004, cero regresiones) ·
+`encolar` clasifica dentro/fuera con `hay_plaza_dentro` PURA (AC-FL12 boundary 39/40 vs 40/40) +
+`ocupacion_dentro` (solo ESPERANDO_DENTRO ocupa asiento; Llamada/atención no) · `retirar_de_cola`
+→ `_promover_de_fuera` (entra la de MENOR turno; bucle por si se liberan varias plazas; servirá
+también al abandono de la 006) · F2-F5 PURAS con centinela -1.0 (F2 floor, dur≤0 → 0 con aviso ·
+F3 producto · F4 ρ · F5 espera estimada — NUNCA ∞ ni división por cero). **⚠️ Edge documentado:
+con Construcción y 0 asientos NADIE entra ni es llamado** (comisaría sin sala de espera no
+atiende — visible vía UI/R5 futuro).
+**🔧 ENMIENDA F3 "DE PIE" (petición del usuario en la 1ª pasada, APLICADA):** una sala de espera
+SIN asientos no deja a la gente en la calle — `aforo_de_sala` = SENTADOS (min(asientos,
+floor(área×densidad_asientos)), como antes) **+ DE PIE (floor(área × `densidad_de_pie`))**, knob
+NUEVO en ConfigConstruccion (**semilla 0.5** = 1 de pie por cada 2 celdas — número pendiente de
+ratificar; .tres regenerado). El tope físico de ASIENTOS (CO7, 15.º rechazado) no cambia; los
+asientos serán confort cuando llegue Paciencia #10. Tests actualizados a la fórmula: CO7 20/24 ·
+CO8 → `test_sala_sin_asientos_aforo_de_pie` (9 celdas → 4 de pie) · demoler/mover a tope 10 ·
+fixture flujo 2×2+1 asiento = aforo 3 · **test nuevo `test_sin_asientos_entran_de_pie`** (0
+asientos → 2 de pie dentro + 1 fuera). Propagar F3 al GDD construction-layout con C2-7. **Idea
+apuntada (backlog, no MVP): editor de fila/cola de personas** (tipo Planet Coaster).
+Tests de la 005: `flujo_formulas_test.gd` **5/5** (FL12/19/20/21/22, valores exactos 26 · 52/260 ·
+2→1 · 120/60/-1) + `flujo_aforo_test.gd` **5/5** (FL13 6 personas/aforo 3 real con entrada por
+turno tras _emparejar · de pie · FL14 20 admisiones sin tope ni freno con atención real 2 ciclos ·
+aforo agregado Doc 3+3 / ODAC 3). **Suite total: 326/326, exit 0.** SIN commit aún. Epic Flujo 5/8.
+**✅ flujo-006 IMPLEMENTADA + TEST EN VERDE (2026-07-24, 3ª sesión):** compromiso de servicio y
+gestión en caliente — puesto gana `cierre_pendiente`/`retirada_pendiente`/`override` (FL9):
+`cerrar_puesto` con atención NO interrumpe (Cerrado AL emitir; `abrir_puesto` CANCELA el
+pendiente) · `quitar_puesto_flujo` ahora devuelve bool y con atención espera al trámite (cierra
+el contrato de la 003) · `reconfigurar_puesto` solo tipos `reconfigurable` (ids no admitidos
+descartados con aviso; ninguno válido → false; [] limpia; PRÓXIMA llamada) · `forzar_abandono`
+API para Paciencia (Esperando → Abandonando + señal `abandono` + libera plaza [entra el de
+fuera]; Llamada/atención → false — REGLA dura) · **AC-CO13 en Construcción**: gate callable
+`fijar_puede_demoler` (Main → `flujo.puede_demoler_puesto`; sin cablear → directo, compat) +
+`_demoliciones_pendientes` + `reintentar_demoliciones_pendientes()` (Flujo las reintenta en el
+tick TRAS avanzar atenciones y ANTES de emparejar; retira del registro las que caen) · **cascada
+`demoler_sala` con puesto atendiendo → RECHAZADA entera con aviso** (decisión impl.: sin salas a
+medio demoler; el jugador reintenta) · **cierre Doc AC-FL24 DERIVADO del reloj** (sin cruce con
+estado: `puerta_doc_abierta()` = min_dia < `cierre_doc_min`, knob NUEVO en ConfigFlujo semilla
+870 ⚠️ cross-fact duplicado de `ventana_doc_fin_min` de Demanda — registrar al propagar; .tres
+regenerado): `admitir` Doc → null con puerta cerrada (caller descarta; ODAC 24 h); cola admitida
+se atiende hasta vaciarse; minutos Doc trabajados con puerta cerrada → `fijar_hook_horas_extra`
+(HORAS; Main lo cableará a `Economia.registrar_horas_extra`; sin cablear no-op) · Pausa FL15/25
+por construcción. Tests `flujo_gestion_caliente_test.gd` **8/8** (FL17 cerrar+reabrir · FL16
+viogen 60 min no interrumpida y salta a estafa con viogen2 Prioritaria esperando · rechazos FL9 ·
+FL18 compromiso con señal y promoción de fuera · FL24 puerta+peonada 0.6 h exactas en Economía
+real · CO13 e2e con reembolso 250 y agente al banquillo · retirada pendiente · FL15/25 pausa
+exacta 5.0 y reanudar continúa 2 puestos). **1 bug de FIXTURE cazado por la suite** (mundo CO13
+sin sala de espera → aforo 0 → nadie entraba: recordatorio de que con Construcción inyectada el
+aforo MANDA). **Suite total: 334/334, exit 0.** SIN commit aún. Epic Flujo 6/8.
+**⚠️ Decisiones impl. 006 pendientes de ratificar:** cierre Doc provisional EN FLUJO (la story lo
+proponía) · knob `cierre_doc_min` duplicando el 870 · cascada de sala rechazada si atiende ·
+reabrir cancela cierre pendiente.
+**✅ flujo-007 IMPLEMENTADA + TEST EN VERDE (2026-07-24, 3ª sesión):** persistencia ADR-0002 +
+grupo Persist en _ready (clave = node.name "Flujo" — Main debe nombrarlo así en la 008) —
+`save()` = {personas [servicio/tramite/minuto_llegada/turno/estado — las colas y el dentro/fuera
+se RE-DERIVAN del estado], puestos [id/abierto/cierre_pendiente/**retirada_pendiente** (no
+estaba en la story, la 006 lo exige)/override/persona_turno/restante — el REGISTRO lo hace el
+mundo ANTES de cargar, patrón Personal], turnos por servicio}; `load_state` defensivo (persona
+con trámite fuera de catálogo / servicio raro / estado inválido → descartada con aviso; puesto
+no registrado → descartado; atendida sin puesto → descartada; re-atado de atención por
+SERVICIO+turno [los turnos van por servicio — un "3" de Doc no es el "3" de ODAC]; contador de
+turnos reforzado a ≥ max turno visto [FL2 sin reuso]; 0 señales). Flujo gana preload de la ficha
+Persona de Demanda (reconstrucción). Tests `flujo_save_determinismo_test.gd` **3/3 a la
+primera** (AC-FL26 round-trip JSON full_precision campo a campo con cierre_pendiente vivo,
+restante 7.5 exacto, turnos fuera [5,6], contador→7, 0 señales al cargar y el tick siguiente
+completa+cierra · **AC-FL27 prueba reina**: guion 40 ticks [6 admisiones mixtas + reconfigurar +
+forzar_abandono + cerrar/reabrir] en mundo A vs mundo B con SAVE en t15 y carga en B2 → eventos
+(orden+payload) Y save() final IDÉNTICOS · corruptos descartados con aviso y el resto carga).
+**Suite total: 337/337, exit 0.** Epic Flujo 7/8.
+**✅ flujo-007 COMMITEADA (68ed442, pusheada).**
+**🔨 flujo-008 IMPLEMENTADA — VENTANA ABIERTA, SIGN-OFF PENDIENTE (2026-07-24, 3ª sesión):**
+Main cablea Flujo (name "Flujo", tras Demanda [tick] y tras Personal [orden de carga];
+`persona_generada` → admitir [null si puerta Doc cerrada] → encolar → NPC; hooks 006:
+fijar_puede_demoler + fijar_hook_horas_extra→Economía) + `_sincronizar_puestos_flujo()` (fuente
+única Construcción: registra nuevos / quita demolidos) enganchado al **hook de layout NUEVO de
+Construcción** (`fijar_hook_layout`, disparado en _refrescar_visual — también re-bakea la nav,
+coalescido 1/frame). NUEVOS: `src/main/npc_ciudadano.gd` (CharacterBody2D fantasma +
+NavigationAgent2D avoidance OFF + muñeco ColorRect mouse-IGNORE; target SOLO tras 1er physics
+frame; destino recalculado SOLO al cambiar el estado de SU PersonaFlujo; velocidad × mult del
+reloj [Pausa congela; 2×/3× corren]) y `src/main/npcs_flujo.gd` (manager: NavigationRegion2D +
+bake_from_source_geometry_data del layout real [suelo + 2 celdas de CALLE a la izquierda
+transitables; PUESTOS recortados como obstáculos — el NPC se para al borde del mostrador;
+asientos NO recortados = sentarse]; asientos cosméticos ocupados/liberados; hueco de pie
+determinista por turno; calle = spawn/cola exterior/salida). Getters nuevos: Flujo
+`atendiendo_total`/`puesto_de(persona)`/`puestos_registrados` · Construcción `catalogo_de`/
+`salas_de_espera_de`/`rect_de_sala`/`asientos_de_sala` · ConfigFlujo knob `velocidad_npc_px_s`
+90 [10,600] (.tres regenerado). HUD bloque flujo: "En cola: N Doc · N ODAC" + "Atendiendo: N ·
+FPS n" (guardrail 60). Captura evidencia → flujo-demo-2026-07-24.png. **Suite 337/337 exit 0 +
+arranque headless limpio.** Evidencia `production/qa/evidence/flujo-demo-2026-07-24.md` escrita
+(M1-M4 ⬜, sign-off ⬜). VENTANA ABIERTA (task bk4anv8n1). SIN commit aún.
+**🔧 RONDAS DE FEEDBACK EN VENTANA (2026-07-24/25) — MODO NUEVO ordenado por el usuario: OPUS 4.8
+implementa, FABLE coordina/supervisa/remata** (los agentes se atascan pidiendo aprobación por el
+protocolo colaborativo → patrón que funciona: relanzar con "plan YA APROBADO, no pidas
+aprobación"; si agotan turno, Fable remata lo mecánico — regla de rescate):
+- **z_index NPCs** (gotcha NUEVO: capas visuales bajo un nodo NO-CanvasItem = raíces de canvas
+  aparte que pintan DESPUÉS del bloque de Main → NPCs debajo de las salas; fix z_index=1).
+- **Policías visibles** (muñeco azul marino + nombre tras cada mostrador dotado, DIFF por metas)
+  + **rótulo de estado por puesto** (CERRADO/SIN AGENTE/LIBRE/EN CAMINO/ATENDIENDO, texto+color)
+  + **HUD puerta Doc** ("Doc: ABIERTA (cierra 14:30)"/CERRADA).
+- **Ventanilla TIE inicial** (decisión usuario: tie_1 en (6,2) + 4º agente ag_doc — los TIE solo
+  los atiende puesto_tie; sin ella esperaban PARA SIEMPRE [el "misterio de las 22:00"]; nómina
+  inicial ~255 €). **TIE azul claro** (COLOR_TIE) distinguible de dni/pasaporte.
+- **PANEL DE PERSONAL** (`src/main/panel_personal.gd`, tecla P, opera en Pausa): PLANTILLA
+  (asignar a puestos libres compatibles/desasignar/despedir) + MERCADO (contratar gate E4;
+  generar_mercado() al arranque de Main — decisión andamio). 2ª pasada legibilidad: atributos
+  "Rapidez 3/5 · ..." con autowrap; aviso "Sin puestos libres compatibles — este perfil opera:
+  X"; "Opera: X" en candidatos.
+- **ENMIENDA "EN CAMINO no se tramita" (usuario, 2026-07-25 — SUSTITUYE la decisión de la 004):**
+  el trámite arranca cuando la persona LLEGA. Camino = distancia REAL del MODELO (centro de la
+  sala de espera más cercana → celda del puesto, euclídea en celdas) / knob NUEVO
+  `velocidad_camino_celdas_min` (2.0; 0=instantáneo compat; SUSTITUYE a
+  duracion_desplazamiento_seg) — la regla sagrada FL5 intacta (del plano, no del sprite).
+  `_arrancar_llamadas`→`_avanzar_caminos(delta)`; `camino_restante` en dict+save; estado derivado
+  NUEVO del puesto **&"en_camino"** (States B +1 — propagar GDD en C2-7); atendiendo_total solo
+  en_atencion; muñeco sincronizado (`velocidad_camino_px_s()` = misma velocidad lógica). Tests:
+  camino 0 sin Construcción → tests viejos intactos; fixtures con Construcción aislados a 0.0;
+  `flujo_camino_test.gd` 2/2 (2.0 min exactos calculados a mano); determinismo A-vs-B sobrevive
+  CON camino real.
+- **HORARIO PROVISIONAL Doc (usuario: "los funcionarios se van al cierre"; hasta Documentación
+  #8):** knob `apertura_doc_min` 480 (cross-fact ventana_doc_inicio Demanda); flag
+  `cierre_horario` en dict+save; `_gestionar_horario_doc()` al final del tick: fuera de horario +
+  libre + cola admitida vacía → cierra (AC-FL24 intacto: primero vacía la peonada); en horario +
+  cierre_horario → reabre solo; el cierre MANUAL del jugador NO se reabre. Policía OCULTO si
+  puesto cerrado ("se van"; caminar a casa = juice futuro). `flujo_horario_test.gd` 3 tests
+  (no-cierra-con-cola→cierra-al-vaciar · reabre a las 480 · manual no reabre · ODAC 24h);
+  pausa-test a las 500 (en horario). FL24 test asserta "cerrado" final.
+- **RESPUESTA AL USUARIO (fase):** estamos en PRODUCCIÓN, no diseño; feedback de COMPORTAMIENTO
+  → ahora (barato); feedback ESTÉTICO → anotar para UI/HUD #11 + art bible (todo el visual
+  actual es andamio que se rehará). El usuario cazó 3 reglas de diseño reales en demo.
+- **CALIBRACIONES del camino (2ª y 3ª, tras demo):** (2ª) quitado un ÷60 espurio en la velocidad
+  visual y knob 2.0→0.5 (con 2.0 el EN CAMINO duraba un parpadeo); (3ª — la BUENA): knob
+  **0.375** = EXACTAMENTE el paso cosmético 90 px/s a 1× (90÷40÷6) · **paso ADAPTATIVO** del
+  muñeco EN CAMINO acotado a ±50% del normal (feedback "esprintaba": cubre los px restantes en
+  los minutos LÓGICOS restantes, getter `camino_restante_de(puesto)` — lo cosmético se ajusta a
+  la verdad, FL5) · **origen ENTRADA**: `_minutos_de_camino(servicio, puesto, persona)` usa la
+  const `CELDA_ENTRADA (0,6)` como origen si la persona AÚN no tuvo tiempo de llegar a su sala
+  (derivado de minuto_llegada + reloj — el caso "ODAC libre te llama al entrar en la calle").
+  Sanity del test A-vs-B ajustado (cuenta TIPOS de evento, no cantidad — caminos más largos = 
+  menos trámites en 40 ticks; LA PRUEBA REINA A==B pasó en todas las calibraciones).
+**Suite tras todo: 342/342, exit 0** (+arranque headless limpio; .tres de flujo regenerado 4×).
+**🎉🎉🎉 SIGN-OFF CONCEDIDO (2026-07-25) — EPIC FLUJO 8/8 CERRADO = CORE 5/5 COMPLETO.**
+2 rondas más de feedback en ventana ANTES del sign-off, ambas corregidas (Opus 5 en hilo principal,
+sin subagentes — orden del usuario 2026-07-25: *"no uses fable para coordinar, coordina con opus 5"*):
+- **BUG REAL — dos ciudadanos en el mismo asiento**: el hueco "de pie" se calculaba por turno sobre el
+  rect de la sala, que **INCLUYE las celdas de los bancos** → un de-pie se plantaba sobre un sentado; y
+  los de-pie tampoco se reservaban sitio entre ellos. Fix en `npcs_flujo.gd` (cosmético puro, FL5):
+  **una celda, una persona** — `_plaza_de` (celda→NPC) reserva banco O hueco; los huecos de pie
+  EXCLUYEN celdas de banco y barren el rect desde un origen determinista por turno (con vuelta);
+  `_liberar_plaza` suelta TODAS las entradas del NPC y purga las de NPCs muertos (antes: asientos
+  fantasma bloqueados para siempre); `_sitio_en_espera` idempotente. Sala a reventar (F3 admite ~1,2
+  pers./celda) → se comparte celda con **desvío sub-celda determinista**, nunca superposición exacta.
+- **Panel de personal ilegible de un vistazo**: añadido resumen (nómina €/día junto al saldo; línea
+  "Plantilla: N (en puesto · banquillo · de baja) — Ventanillas cubiertas: X de Y", verde sin vacantes
+  / ámbar con ellas; **un chip por ventanilla** con quién la cubre o VACANTE; contadores PLANTILLA (N)
+  / MERCADO (N); panel 860×520). **El chip respeta el gate FL4**: titular DE BAJA sin cobertura → gris
+  y NO cuenta como cubierta (si no, el panel diría "cubierta" y el juego no atendería ahí);
+  cubridor → "(cubriendo)" azul. Verificado con un script headless temporal sobre Main REAL (patrón
+  útil: montar Main en SceneTree, `await process_frame` ×10, llamar al `_reconstruir()` del panel).
+**Cierre formal APLICADO (2026-07-25):** evidencia firmada (M1-M4 ✅) · 8 stories → **Complete** con
+sección **Cierre** (la 004 documenta la enmienda del camino; la 006 el horario provisional + ratifica
+el cierre Doc en Flujo) · `EPIC.md` Flujo → Complete 8/8 · `epics/index.md` → Complete · `sprint-2.md`
+nota C2-4/C2-5/C2-6 ✅ · `sprint-status.yaml` flujo-001..008 + C2-6 → done.
+**PRÓXIMO: C2-7** (erratas GDD) — última tarea del Sprint 2.
+**[HISTÓRICO — resuelto] Tras sign-off:** COMMIT del paquete (008 + panel + enmiendas) → cerrar epic Flujo 8/8
+(stories→Complete con Cierres [en la 004: enmienda camino; en la 006: horario provisional];
+EPIC/index/sprint-status C2-4..C2-6 + flujo-001..008 → done) = **CORE 5/5 COMPLETO** → C2-7
+erratas GDD (F6 ceil staff-agents · AC-T26 time-system · tasa_base_odac y valle nocturno
+demand-generation · F3 aforo de-pie construction-layout · cross-facts cierre_doc_min 870 y
+apertura_doc_min 480 al registro · enmienda camino/States B a flow-queues).
 - **008 (HITO VISIBLE = CORE 5/5)**: Main instancia Flujo DESPUÉS de Demanda (orden del tick) +
   usar_personal/usar_construccion/registrar los 3 puestos + conectar `persona_generada` del bus →
   admitir+encolar; NPCs CharacterBody2D+NavigationAgent2D placeholder color por servicio

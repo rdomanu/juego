@@ -68,10 +68,10 @@ func test_con_agente_llama() -> void:
 	# Act
 	flujo._emparejar()
 
-	# Assert
+	# Assert — enmienda 2026-07-25: tras la llamada (sin tick) la persona va EN CAMINO al puesto.
 	assert_str(String(persona.estado)).is_equal("llamada")
 	assert_int(flujo.personas_en_cola(&"Documentacion")).is_equal(0)
-	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("atendiendo")
+	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("en_camino")
 
 
 # ── AC-FL23: dos puestos libres y UNA persona → la toma exactamente uno (el 1.º registrado) ─
@@ -87,7 +87,7 @@ func test_una_persona_dos_puestos_sin_dobles() -> void:
 	flujo._emparejar()
 
 	# Assert — doc_1 (primero en orden estable de registro) la tiene; doc_2 sigue Libre.
-	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("atendiendo")
+	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("en_camino")   # enmienda 2026-07-25
 	assert_str(String(flujo.estado_de_puesto(&"doc_2"))).is_equal("libre")
 
 
@@ -106,10 +106,10 @@ func test_estados_del_puesto() -> void:
 	_dni_en_cola(flujo)
 	flujo._emparejar()
 	assert_int(flujo.personas_en_cola(&"Documentacion")).is_equal(1)
-	# Reabrir → llama.
+	# Reabrir → llama (la persona queda en camino — enmienda 2026-07-25).
 	flujo.abrir_puesto(&"doc_1")
 	flujo._emparejar()
-	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("atendiendo")
+	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("en_camino")
 	# Quitar el agente de un puesto libre → abierto_sin_agente.
 	personal.desasignar(agente)
 	assert_str(String(flujo.estado_de_puesto(&"doc_2"))).is_equal("cerrado")
@@ -137,8 +137,8 @@ func test_puente_construccion_personal_flujo() -> void:
 	# Act
 	flujo._emparejar()
 
-	# Assert — el hilo entero: construido → dotado → atendiendo.
-	assert_str(String(flujo.estado_de_puesto(id_puesto))).is_equal("atendiendo")
+	# Assert — el hilo entero: construido → dotado → llamada en camino (enmienda 2026-07-25).
+	assert_str(String(flujo.estado_de_puesto(id_puesto))).is_equal("en_camino")
 	assert_str(String(persona.estado)).is_equal("llamada")
 
 

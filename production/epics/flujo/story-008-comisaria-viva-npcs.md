@@ -1,12 +1,12 @@
 # Story 008: 🎉 LA COMISARÍA VIVE — NPCs navegando y demo integradora (HITO VISIBLE)
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core (instanciación) + Presentation (NPCs cosméticos + HUD)
 > **Type**: Visual/Feel (+UI)
 > **Estimate**: M-L (~4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -111,3 +111,31 @@ el spike QQ-02 (150 NPCs ≈ 145 FPS, plan B AStarGrid2D innecesario)
 
 - Depends on: Story 007 (lógica completa y persistente) — DONE antes de empezar.
 - Unlocks: cierre del epic Flujo → **CORE 5/5 COMPLETO** → C2-6/C2-7 y el sprint.
+
+## Cierre (2026-07-25) — 🎉 HITO VISIBLE, sign-off del usuario
+
+Implementada en hilo principal + subagentes Opus. **Evidencia**:
+`production/qa/evidence/flujo-demo-2026-07-24.md` (checklist M1-M4 ✅ + captura + sign-off).
+
+Flujo cableado en Main (tras Demanda — orden del tick), NPCs cosméticos con `NavigationAgent2D` sobre
+una malla **bakeada del layout real** (re-bake SOLO al cambiar el layout), HUD de colas/atendiendo/FPS
+y sincronización Construcción→Flujo. **FL5 respetado**: los muñecos LEEN el modelo y jamás lo mutan.
+
+**4 rondas de feedback con la ventana abierta, todas corregidas antes del sign-off:**
+1. **z_index** — gotcha NUEVO: las capas visuales que cuelgan de un nodo NO-CanvasItem son raíces de
+   canvas aparte y se pintan DESPUÉS del bloque de Main → los NPCs salían debajo de las salas.
+2. **"No veo quién atiende ni cómo contratar"** → policías visibles con nombre, rótulo de estado por
+   puesto (CERRADO/SIN AGENTE/LIBRE/EN CAMINO/ATENDIENDO), HUD de la puerta de Doc, **ventanilla TIE
+   inicial** (`tie_1` + 4º agente — sin ella los TIE esperaban PARA SIEMPRE: el "misterio de las
+   22:00") y **panel de personal** (tecla P, opera en Pausa).
+3. **Dos ciudadanos en el mismo asiento** (bug real, 2026-07-25): el hueco "de pie" se calculaba por
+   turno sobre el rect de la sala, que **incluye las celdas de los bancos**. Fix: **una celda, una
+   persona** — plazas reservadas, huecos de pie que excluyen bancos y se reparten desde un origen por
+   turno, purga de plazas fantasma, y apretujamiento con desvío sub-celda solo cuando la sala está
+   físicamente a tope (F3 admite ~1,2 pers./celda).
+4. **El panel de personal no se leía de un vistazo**: resumen "Plantilla: N (en puesto · banquillo ·
+   de baja) — Ventanillas cubiertas: X de Y" + nómina diaria + un chip por ventanilla con quién la
+   cubre o VACANTE. El chip respeta el gate FL4 (titular de baja sin cobertura → gris, NO cuenta).
+
+**Suite final: 342/342, exit 0** + arranque headless limpio. Pulido visual pendiente → UI/HUD #11 +
+art bible (todo el visual actual es andamio declarado).

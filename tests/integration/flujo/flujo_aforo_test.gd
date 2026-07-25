@@ -100,6 +100,7 @@ func test_cola_exterior_sin_tope_ni_freno() -> void:
 	# Arrange — aforo 3, doc_1 dotado; 20 admisiones de golpe (sin cita — FL7).
 	var mundo: Array = _mundo_con_espera()
 	var flujo: Node = mundo[0]
+	flujo.velocidad_camino_celdas_min = 0.0   # aísla la variable: el camino se testea en flujo_camino_test
 	_asignar_agente(mundo[1], &"doc_1")
 	for i: int in range(20):
 		_dni_admitido(flujo)

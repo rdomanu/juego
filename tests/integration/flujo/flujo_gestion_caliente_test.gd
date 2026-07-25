@@ -169,6 +169,7 @@ func test_abandono_compromiso_de_servicio() -> void:
 	bus.abandono.connect(func(persona: RefCounted) -> void: abandonos.append(persona))
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())
+	flujo.velocidad_camino_celdas_min = 0.0   # aísla la variable: el camino se testea en flujo_camino_test
 	flujo.usar_personal(personal)
 	flujo.usar_construccion(construccion)
 	flujo.usar_bus(bus)
@@ -189,8 +190,8 @@ func test_abandono_compromiso_de_servicio() -> void:
 	flujo._emparejar()
 	assert_str(String(personas[0].estado)).is_equal("llamada")
 	assert_bool(flujo.forzar_abandono(personas[0])).is_false()
-	# En ATENCIÓN → igual: false y la atención sigue.
-	flujo._arrancar_llamadas()
+	# En ATENCIÓN → igual: false y la atención sigue (camino 0 → llega al instante — enmienda).
+	flujo._avanzar_caminos(0.0)
 	assert_str(String(personas[0].estado)).is_equal("en_atencion")
 	assert_bool(flujo.forzar_abandono(personas[0])).is_false()
 	assert_int(abandonos.size()).is_equal(1)
@@ -224,6 +225,8 @@ func test_cierre_doc_puerta_y_peonada() -> void:
 	assert_int(emisiones.size()).is_equal(3)
 	assert_int(flujo.personas_en_cola(&"Documentacion")).is_equal(0)
 	assert_float(eco._horas_extra_dia).is_equal_approx(0.6, 0.0001)
+	# horario provisional 2026-07-25: vaciada la cola fuera de horario, los funcionarios se van.
+	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("cerrado")
 
 
 # ── AC-CO13: demoler un puesto ATENDIENDO espera al trámite; luego demuele + reembolsa ────
@@ -247,6 +250,7 @@ func test_demolicion_pendiente_espera_al_tramite() -> void:
 	var emisiones: Array = _espia_completados(bus)
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())
+	flujo.velocidad_camino_celdas_min = 0.0   # aísla la variable: el camino se testea en flujo_camino_test
 	flujo.usar_personal(personal)
 	flujo.usar_bus(bus)
 	flujo.usar_construccion(construccion)
@@ -300,6 +304,8 @@ func test_pausa_congela_y_reanuda_exacto() -> void:
 	var flujo: Node = mundo[0]
 	var emisiones: Array = _espia_completados(mundo[2])
 	var tiempo: Node = auto_free(TiempoScript.new())
+	# horario provisional: el test corre en horario laboral (a las 00:00 doc_2 cerraría).
+	tiempo.minutos_juego = 500.0
 	flujo.usar_tiempo(tiempo)
 	add_child(tiempo)
 	add_child(flujo)

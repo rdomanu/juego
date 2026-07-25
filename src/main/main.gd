@@ -1,10 +1,11 @@
 extends Node2D
-## Main — ESQUELETO VISIBLE del juego de producción (Story 009 del epic Tiempo).
+## Main — la escena principal del juego de producción (nació como esqueleto en tiempo-009; desde
+## flujo-008 la comisaría VIVE: Core 5/5 cableado).
 ##
-## Primera escena del juego: un suelo de rejilla (`TileMapLayer`) + un HUD provisional que hace VISIBLE
-## el reloj (hora, fecha "Mes · Semana N", turno) con controles de velocidad (Pausa/1×/2×/3× + atajos
-## Espacio/1/2/3). NO ES JUGABLE: sin construcción, sin ciudadanos, sin economía — es el andamio para
-## ver latir el pulso del juego. Este HUD NO es el de UX (design/ux/hud.md se diseñará aparte).
+## Suelo de rejilla (`TileMapLayer`) + mundo Core instanciado (Economía, Demanda, Construcción,
+## Personal, Flujo — en ese orden: tick y carga dependen de él) + capa cosmética de NPCs navegando
+## + HUD provisional de barra inferior (reloj/velocidad/saldo/demanda/personal/colas). Este HUD NO
+## es el de UX (design/ux/hud.md se diseñará aparte).
 ##
 ## Reglas (control-manifest, Presentation): el HUD LEE el reloj (fuente única) y ORDENA la velocidad por
 ## la API pública (`Tiempo.fijar_velocidad`/`reanudar`); NUNCA muta su estado. El dibujo corre en
@@ -37,8 +38,14 @@ const PersonalScript := preload("res://src/core/personal/personal.gd")
 const AgenteScript := preload("res://src/core/personal/agente.gd")
 ## Construcción (story const-006): el layout REAL — los puestos ya no se registran a mano.
 const ConstruccionScript := preload("res://src/core/construccion/construccion.gd")
+## Flujo (story flujo-008): el motor de colas — CIERRA el Core: la gente entra y el saldo sube.
+const FlujoScript := preload("res://src/core/flujo/flujo.gd")
+## La capa cosmética de NPCs navegando (story flujo-008).
+const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
 ## El andamio de interacción del modo construcción (story const-007).
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
+## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
+const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
 ## Y arriba: el HUD vive ABAJO (estilo tycoon — petición del usuario 2026-07-24), el mundo despejado.
 const POS_SUELO := Vector2(96, 24)
@@ -66,6 +73,11 @@ var _personal: Node
 var _lbl_plantilla: Label
 var _lbl_incidencia: Label
 var _construccion: Node
+var _flujo: Node
+var _npcs: Node2D
+var _lbl_flujo: Label
+var _lbl_atendiendo: Label
+var _lbl_puerta_doc: Label
 
 
 func _ready() -> void:
@@ -78,6 +90,12 @@ func _ready() -> void:
 	modo_construccion.name = "ModoConstruccion"
 	modo_construccion.configurar(_construccion, TAM_CELDA)
 	add_child(modo_construccion)
+	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
+	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
+	var panel_personal: CanvasLayer = PanelPersonalScript.new()
+	panel_personal.name = "PanelPersonal"
+	add_child(panel_personal)
+	panel_personal.configurar(_personal, _economia, _construccion, _flujo)
 	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
 	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
@@ -145,6 +163,61 @@ func _instanciar_mundo() -> void:
 	_construccion.usar_personal(_personal)
 	_montar_comisaria_inicial()
 	_dotar_plantilla_inicial()
+	# Mercado disponible desde el día 1 (decisión de andamio aprobada): el panel de personal necesita
+	# candidatos que contratar de arranque; el refresco cada 3 jornadas ya lo hace la lógica de Personal.
+	_personal.generar_mercado()
+	# Flujo (story flujo-008): el motor de colas. DESPUÉS de Demanda en el árbol (el tick se
+	# empuja en orden de suscripción — ADR-0001) y DESPUÉS de Personal (orden de carga del
+	# SaveManager: Construcción → Personal → Flujo). Su name es su clave de save.
+	_flujo = FlujoScript.new()
+	_flujo.name = "Flujo"
+	_flujo.usar_personal(_personal)
+	_flujo.usar_construccion(_construccion)
+	add_child(_flujo)
+	_flujo.fijar_hook_horas_extra(_economia.registrar_horas_extra)   # peonada AC-FL24
+	_construccion.fijar_puede_demoler(_flujo.puede_demoler_puesto)   # gate AC-CO13
+	# La capa cosmética: NPCs + navegación bakeada del layout real.
+	_npcs = NPCsFlujoScript.new()
+	_npcs.name = "NPCs"
+	_npcs.configurar(_flujo, _construccion, _personal, TAM_CELDA, POS_SUELO, COLUMNAS, FILAS)
+	add_child(_npcs)
+	_sincronizar_puestos_flujo()
+	_construccion.fijar_hook_layout(_al_cambiar_layout)
+	EventBus.persona_generada.connect(_al_llegar_persona)
+
+
+## Una ficha de Demanda llega a la puerta: Flujo la admite (turno + aforo) y nace su NPC visible.
+## Con la puerta de Doc cerrada (AC-FL24) `admitir` devuelve null y la ficha "en camino" se va.
+func _al_llegar_persona(ficha: RefCounted) -> void:
+	var persona: RefCounted = _flujo.admitir(ficha)
+	if persona == null:
+		return
+	_flujo.encolar(persona)
+	_npcs.spawn(persona)
+
+
+## Cambio de layout (hook de Construcción — se dispara al construir/demoler/mover/cargar, nunca
+## por frame): re-bake de la navegación + re-sincronización de los puestos del flujo.
+func _al_cambiar_layout() -> void:
+	if _npcs != null:
+		_npcs.solicitar_rebake()
+	_sincronizar_puestos_flujo()
+
+
+## Los puestos del flujo = los CONSTRUIDOS (fuente única: Construcción). Registra los nuevos
+## (idempotente) y retira los demolidos (una demolición con atención en curso ya la frena el gate
+## AC-CO13, así que aquí la retirada es siempre limpia).
+func _sincronizar_puestos_flujo() -> void:
+	if _flujo == null:
+		return
+	var construidos: Dictionary = {}
+	for servicio: String in ["Documentacion", "ODAC"]:
+		for puesto_id: StringName in _construccion.puestos_de_servicio(servicio):
+			construidos[puesto_id] = true
+			_flujo.registrar_puesto_flujo(puesto_id, _construccion.catalogo_de(puesto_id))
+	for puesto_id: StringName in _flujo.puestos_registrados():
+		if not construidos.has(puesto_id):
+			_flujo.quitar_puesto_flujo(puesto_id)
 
 
 ## El montaje inicial "DE OFICIO" (const-006, decisión ratificada): la DGP entrega la comisaría
@@ -158,6 +231,8 @@ func _montar_comisaria_inicial() -> void:
 	_construccion.construir_de_oficio_sala(&"sala_espera_odac", Rect2i(9, 5, 3, 3))
 	_construccion.construir_de_oficio_elemento(&"puesto_doc_general", Vector2i(2, 2), &"doc_1")
 	_construccion.construir_de_oficio_elemento(&"puesto_doc_general", Vector2i(4, 2), &"doc_2")
+	# Ventanilla TIE inicial (feedback flujo-008, ratificada): (6,2) libre dentro de sala_documentacion.
+	_construccion.construir_de_oficio_elemento(&"puesto_tie", Vector2i(6, 2), &"tie_1")
 	_construccion.construir_de_oficio_elemento(&"puesto_odac", Vector2i(10, 2), &"odac_1")
 	for x: int in range(2, 6):
 		_construccion.construir_de_oficio_elemento(_construccion.ASIENTO_BASICO, Vector2i(x, 7))
@@ -169,7 +244,9 @@ func _montar_comisaria_inicial() -> void:
 ## La plantilla inicial (personal-007, decisión ratificada): 3 agentes de atributos medios asignados
 ## a los puestos del layout real.
 func _dotar_plantilla_inicial() -> void:
-	var dotacion: Array = [[&"ag_doc", &"doc_1"], [&"ag_doc", &"doc_2"], [&"ag_odac", &"odac_1"]]
+	var dotacion: Array = [
+		[&"ag_doc", &"doc_1"], [&"ag_doc", &"doc_2"], [&"ag_doc", &"tie_1"], [&"ag_odac", &"odac_1"]
+	]
 	for i: int in dotacion.size():
 		var nombre: String = _personal.pool_nombres[i % _personal.pool_nombres.size()]
 		var agente: RefCounted = AgenteScript.new(nombre, dotacion[i][0])
@@ -250,7 +327,7 @@ func _crear_hud() -> void:
 		fila_botones.add_child(boton)
 		_botones.append(boton)
 	var nota := Label.new()
-	nota.text = "Espacio pausa · 1/2/3 velocidad · B construcción (HUD provisional)"
+	nota.text = "Espacio pausa · 1/2/3 velocidad · B construcción · P personal (HUD provisional)"
 	nota.add_theme_font_size_override("font_size", 10)
 	nota.modulate = Color(1, 1, 1, 0.55)
 	caja_velocidad.add_child(nota)
@@ -281,6 +358,19 @@ func _crear_hud() -> void:
 	_lbl_incidencia = Label.new()
 	_lbl_incidencia.add_theme_font_size_override("font_size", 11)
 	caja_personal.add_child(_lbl_incidencia)
+
+	# Bloque de flujo (story flujo-008): colas por servicio + atenciones en curso + FPS, pull.
+	var caja_flujo := _seccion(fila)
+	_lbl_flujo = Label.new()
+	_lbl_flujo.add_theme_font_size_override("font_size", 13)
+	caja_flujo.add_child(_lbl_flujo)
+	_lbl_atendiendo = Label.new()
+	_lbl_atendiendo.add_theme_font_size_override("font_size", 11)
+	caja_flujo.add_child(_lbl_atendiendo)
+	# Puerta de Documentación (feedback flujo-008): abierta/cerrada + hora, texto SIEMPRE + color.
+	_lbl_puerta_doc = Label.new()
+	_lbl_puerta_doc.add_theme_font_size_override("font_size", 11)
+	caja_flujo.add_child(_lbl_puerta_doc)
 
 
 ## Una sección vertical de la barra inferior (con separador a partir de la segunda).
@@ -339,6 +429,23 @@ func _refrescar_etiquetas() -> void:
 		var verbo: String = "falta" if ausencias.size() == 1 else "faltan"
 		_lbl_incidencia.text = "Hoy %s: %s" % [verbo, ", ".join(ausencias)]
 		_lbl_incidencia.modulate = COLOR_JUSTO
+	if _flujo == null or _lbl_flujo == null:
+		return
+	# Flujo (story flujo-008): colas y atenciones por pull de getters; FPS para el guardrail 60.
+	_lbl_flujo.text = "En cola: %d Doc · %d ODAC" % [
+		_flujo.personas_en_cola(&"Documentacion"), _flujo.personas_en_cola(&"ODAC"),
+	]
+	_lbl_atendiendo.text = "Atendiendo: %d · FPS %d" % [
+		_flujo.atendiendo_total(), Engine.get_frames_per_second(),
+	]
+	# Puerta de Documentación (AC-FL24): abierta hasta cierre_doc_min; cerrada el resto del día.
+	var hora_cierre: String = Tiempo.hhmm(float(_flujo.cierre_doc_min))
+	if _flujo.puerta_doc_abierta():
+		_lbl_puerta_doc.text = "Doc: ABIERTA (cierra %s)" % hora_cierre
+		_lbl_puerta_doc.modulate = COLOR_HOLGADO
+	else:
+		_lbl_puerta_doc.text = "Doc: CERRADA (admisión hasta %s)" % hora_cierre
+		_lbl_puerta_doc.modulate = Color(0.6, 0.6, 0.6)
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.
@@ -357,5 +464,5 @@ func _programar_captura_evidencia() -> void:
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
 		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
 		var img: Image = get_viewport().get_texture().get_image()
-		img.save_png("res://production/qa/evidence/construccion-hud-2026-07-24.png")
+		img.save_png("res://production/qa/evidence/flujo-demo-2026-07-24.png")
 	)

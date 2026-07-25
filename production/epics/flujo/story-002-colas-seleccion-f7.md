@@ -1,12 +1,12 @@
 # Story 002: Las colas — FIFO, prioridad ODAC y compatibilidad (F7)
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -86,3 +86,9 @@ es determinista por reglas).
 
 - Depends on: Story 001 (PersonaFlujo y turnos) — DONE antes de empezar.
 - Unlocks: Story 003 (el puesto tira de la cola).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`9cbfe56`, stories 001-002): colas por servicio con FIFO + prioridad ODAC y
+selección F7 **determinista** (desempate por menor turno; sin RNG). Cerrada formalmente con el sign-off
+del epic (2026-07-25).

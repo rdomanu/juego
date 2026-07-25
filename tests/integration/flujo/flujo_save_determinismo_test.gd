@@ -97,6 +97,7 @@ func test_round_trip_restaura_campo_a_campo() -> void:
 	# Arrange — mundo A: 6 dni (3 dentro / 3 fuera), p1 en atención a 7.5 y cierre pendiente.
 	var mundo_a: Array = _mundo()
 	var flujo_a: Node = mundo_a[0]
+	flujo_a.velocidad_camino_celdas_min = 0.0   # aísla la variable: el camino se testea en flujo_camino_test
 	for i: int in range(6):
 		_admitir(flujo_a, &"Documentacion", &"dni")
 	flujo_a._al_tick(1.0)    # p1 → atención (12.0); la 4.ª entra de fuera
@@ -164,8 +165,10 @@ func test_determinismo_a_vs_b_con_save_a_mitad() -> void:
 	# Assert — la prueba reina: eventos (orden y payload) y estado final IDÉNTICOS.
 	assert_bool(eventos_a == eventos_b).is_true()
 	assert_bool(flujo_a.save() == flujo_b2.save()).is_true()
-	# Sanity de que el guion ejercitó de verdad: hubo completados Y un abandono.
-	assert_bool(eventos_a.size() >= 3).is_true()
+	# Sanity de que el guion ejercitó de verdad: hubo al menos UN completado y UN abandono.
+	# (Calibración 3ª del camino: con 0.375 celdas/min los caminos son más largos y en 40 ticks
+	# caben menos trámites que antes — el umbral cuenta TIPOS de evento, no cantidad.)
+	assert_bool(eventos_a.any(func(e: Array) -> bool: return e[0] == "completado")).is_true()
 	assert_bool(eventos_a.any(func(e: Array) -> bool: return e[0] == "abandono")).is_true()
 
 

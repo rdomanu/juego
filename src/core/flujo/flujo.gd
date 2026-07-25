@@ -42,7 +42,11 @@ class_name Flujo extends Node
 ## el filtro para la PRÓXIMA llamada. Cierre Doc (AC-FL24, PROVISIONAL hasta Documentación #8):
 ## pasada la hora (`cierre_doc_min`) la puerta no admite NUEVAS personas Doc, la cola admitida se
 ## atiende hasta vaciarse y esos minutos van al hook de peonada (`fijar_hook_horas_extra` →
-## Economía F4, en horas). La Pausa congela por construcción (Tiempo no empuja el tick — FL8).
+## Economía F4, en horas). Horario provisional 2026-07-25 (etiqueta homónima, PROVISIONAL hasta
+## Documentación #8, `_gestionar_horario_doc`): tras `cierre_doc_min` los puestos Doc cierran solos
+## AL VACIAR su cola admitida ("los funcionarios se van") y REABREN solos en `apertura_doc_min`; el
+## cierre MANUAL del jugador (`cerrar_puesto`) NO se reabre solo — el jugador manda. La Pausa congela
+## por construcción (Tiempo no empuja el tick — FL8).
 ##
 ## Story 007: PERSISTENCIA (ADR-0002) — `save()`/`load_state()` + grupo Persist (clave "Flujo"):
 ## personas por campos + turno + estado (las colas y el dentro/fuera se RE-DERIVAN del estado),
@@ -65,6 +69,11 @@ const PersonaScript := preload("res://src/core/demanda/persona.gd")
 const SERVICIO_DOC := &"Documentacion"
 const SERVICIO_ODAC := &"ODAC"
 
+## Punto FIJO de entrada del edificio en celdas (CO11 — borde izquierdo a media altura, el lado por
+## el que entra la gente). Lo usa el cálculo del camino cuando la persona AÚN no llegó a su sala
+## (3ª calibración). Provisional aquí; migrará a Escenario/Construcción con la multi-comisaría.
+const CELDA_ENTRADA := Vector2i(0, 6)
+
 ## Transiciones VÁLIDAS de la máquina de estados (GDD §States A). Lo que no está aquí, se rechaza.
 const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 	PersonaFlujoScript.ESTADO_LLEGANDO:
@@ -80,22 +89,30 @@ const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 }
 
 # ── Tuning knobs (copiados del config con clamp; ver aplicar_config) ─────────────────────────
-var duracion_desplazamiento_seg: float = 1.5
+## Velocidad del camino Llamada→puesto en CELDAS de juego por MINUTO de juego (enmienda 2026-07-25
+## "en camino no se tramita"). 0 = camino instantáneo (compat). Ver `_minutos_de_camino`.
+var velocidad_camino_celdas_min: float = 0.375
 var habilitar_aging_odac: bool = false
 var tope_cola_exterior: int = 0
 var cierre_doc_min: int = 870
+## Minuto del día en que los puestos Doc reabren solos (horario provisional 2026-07-25). Ver
+## `apertura_doc_min` de ConfigFlujo. PROVISIONAL en Flujo hasta Documentación #8.
+var apertura_doc_min: int = 480
+var velocidad_npc_px_s: float = 90.0
 
 # ── El estado del flujo ──────────────────────────────────────────────────────────────────────
 ## Estados del PUESTO (GDD §States B — derivados, nunca almacenados como verdad).
 const PUESTO_CERRADO := &"cerrado"
 const PUESTO_ABIERTO_SIN_AGENTE := &"abierto_sin_agente"
 const PUESTO_LIBRE := &"libre"
+const PUESTO_EN_CAMINO := &"en_camino"   # enmienda 2026-07-25: llamada emitida, la persona aún camina
 const PUESTO_ATENDIENDO := &"atendiendo"
 
 ## Contador de turnos por servicio (FL2): único, creciente, NUNCA se reusa (se serializa en la 007).
 var _turnos: Dictionary[StringName, int] = {}
 ## Puestos del flujo: `puesto_id (de Construcción) -> {tipo: StringName, abierto: bool,
-## persona: PersonaFlujo|null, restante: float}` (restante lo usa la atención — story 004).
+## persona: PersonaFlujo|null, restante: float, camino_restante: float}` (restante lo usa la
+## atención — story 004; camino_restante los minutos que la persona aún camina — enmienda 2026-07-25).
 ## El ORDEN DE INSERCIÓN es el desempate de AC-FL23 (el primero registrado llama primero).
 var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
 ## Personal inyectado (gate FL4: `puesto_dotado`). En runtime lo enchufa Main (008).
@@ -236,6 +253,27 @@ func personas_en_cola(servicio: StringName) -> int:
 	return _colas.get(servicio, []).size()
 
 
+## Atenciones EN CURSO ahora mismo (getter para el HUD — pull, story 008). Cuenta SOLO personas en
+## `en_atencion`: el rótulo del HUD dice "Atendiendo" y una persona aún de camino (`llamada`) no lo
+## está (enmienda 2026-07-25 "en camino no se tramita").
+func atendiendo_total() -> int:
+	var total: int = 0
+	for puesto_id: StringName in _puestos_flujo:
+		var persona: RefCounted = _puestos_flujo[puesto_id]["persona"]
+		if persona != null and persona.estado == PersonaFlujoScript.ESTADO_EN_ATENCION:
+			total += 1
+	return total
+
+
+## El puesto que tiene a esta persona (en Llamada o En atención); `&""` si ninguno. Lo usa el NPC
+## visible (story 008) para saber A QUÉ ventanilla caminar — lectura cosmética, jamás decide (FL5).
+func puesto_de(persona: RefCounted) -> StringName:
+	for puesto_id: StringName in _puestos_flujo:
+		if _puestos_flujo[puesto_id]["persona"] == persona:
+			return puesto_id
+	return &""
+
+
 ## F7 — rango de prioridad: Documentación no tiene prioridad (todas 1, FIFO puro); en ODAC la
 ## `DenunciaODAC.prioridad` del catálogo manda ("Prioritaria" = 0 antes que "Normal" = 1).
 func _rango_prioridad(persona: RefCounted) -> int:
@@ -317,10 +355,29 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 		"abierto": true,
 		"persona": null,
 		"restante": 0.0,
+		"camino_restante": 0.0,        # enmienda 2026-07-25: minutos que la persona aún camina al puesto
 		"cierre_pendiente": false,     # story 006: cerrar espera al fin de la atención
 		"retirada_pendiente": false,   # story 006: retirar (demoler) espera al fin de la atención
 		"override": sin_override,      # story 006: reconfiguración FL9 (vacío = catálogo)
+		"cierre_horario": false,       # horario provisional 2026-07-25: cerrado por HORARIO (se reabre
+		                               # solo en apertura_doc_min); el cierre MANUAL del jugador NO
 	}
+
+
+## Minutos de camino que le quedan a la persona de un puesto (getter read-only para que el NPC
+## visible ADAPTE su paso y llegue a la mesa justo al agotarse — enmienda 2026-07-25, 2ª calibración).
+func camino_restante_de(puesto_id: StringName) -> float:
+	if not _puestos_flujo.has(puesto_id):
+		return 0.0
+	return float(_puestos_flujo[puesto_id]["camino_restante"])
+
+
+## Ids de los puestos registrados en el flujo (getter para sincronizar con Construcción — 008).
+func puestos_registrados() -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for puesto_id: StringName in _puestos_flujo:
+		resultado.append(puesto_id)
+	return resultado
 
 
 ## Retira un puesto del flujo (demolición). COMPROMISO (story 006): con atención en curso queda
@@ -335,11 +392,13 @@ func quitar_puesto_flujo(puesto_id: StringName) -> bool:
 	return true
 
 
-## Abre un puesto (FL10 — API del jugador/horarios). Reabrir CANCELA un cierre pendiente.
+## Abre un puesto (FL10 — API del jugador/horarios). Reabrir CANCELA un cierre pendiente y, por si
+## venía de un cierre por horario (provisional 2026-07-25), limpia también esa marca.
 func abrir_puesto(puesto_id: StringName) -> void:
 	if _puestos_flujo.has(puesto_id):
 		_puestos_flujo[puesto_id]["abierto"] = true
 		_puestos_flujo[puesto_id]["cierre_pendiente"] = false
+		_puestos_flujo[puesto_id]["cierre_horario"] = false
 
 
 ## Cierra un puesto: deja de llamar a nuevas. AC-FL17 (story 006): con una atención EN CURSO no se
@@ -414,7 +473,10 @@ func fijar_hook_horas_extra(hook: Callable) -> void:
 
 
 ## Estado DERIVADO del puesto (States B): Cerrado → Abierto-sin-agente (gate FL4 de Personal) →
-## Atendiendo (tiene persona) → Libre. Puesto no registrado → Cerrado con aviso.
+## En camino (persona llamada, aún caminando) / Atendiendo (persona en atención) → Libre. Puesto no
+## registrado → Cerrado con aviso. States B gana el valor "En camino" con la enmienda 2026-07-25
+## "en camino no se tramita" (el GDD se propaga en C2-7): una persona en `llamada` está de camino;
+## solo `en_atencion` es "Atendiendo" de verdad.
 func estado_de_puesto(puesto_id: StringName) -> StringName:
 	if not _puestos_flujo.has(puesto_id):
 		push_warning("Flujo: estado de un puesto no registrado ('%s') -> cerrado" % puesto_id)
@@ -424,16 +486,20 @@ func estado_de_puesto(puesto_id: StringName) -> StringName:
 		return PUESTO_CERRADO
 	if _personal == null or not _personal.puesto_dotado(puesto_id):
 		return PUESTO_ABIERTO_SIN_AGENTE
-	if puesto["persona"] != null:
+	var persona: RefCounted = puesto["persona"]
+	if persona != null:
+		if persona.estado == PersonaFlujoScript.ESTADO_LLAMADA:
+			return PUESTO_EN_CAMINO
 		return PUESTO_ATENDIENDO
 	return PUESTO_LIBRE
 
 
 ## El emparejamiento automático (FL3, anti-micromanejo): cada puesto LIBRE, en ORDEN ESTABLE de
 ## registro (el primero gana — AC-FL23), toma de su cola la persona F7. Al tomarla: sale de la
-## cola, pasa a Llamada y el puesto la referencia (una persona solo puede estar en UN puesto —
-## la doble asignación es imposible por construcción). La transición a En atención y el avance
-## con delta son de la story 004.
+## cola, pasa a Llamada, el puesto la referencia (una persona solo puede estar en UN puesto — la
+## doble asignación es imposible por construcción) y se cronometra su CAMINO al puesto (enmienda
+## 2026-07-25: mientras camina la atención aún no arranca). La transición a En atención y el avance
+## con delta son de la story 004 / `_avanzar_caminos`.
 func _emparejar() -> void:
 	for puesto_id: StringName in _puestos_flujo:
 		if estado_de_puesto(puesto_id) != PUESTO_LIBRE:
@@ -449,6 +515,41 @@ func _emparejar() -> void:
 		retirar_de_cola(persona)
 		_transicionar(persona, PersonaFlujoScript.ESTADO_LLAMADA)
 		puesto["persona"] = persona
+		puesto["camino_restante"] = _minutos_de_camino(StringName(tipo.servicio), puesto_id, persona)
+
+
+## Minutos de JUEGO que la persona tarda en llegar al puesto tras la Llamada (enmienda 2026-07-25
+## "en camino no se tramita"). DETERMINISTA y del MODELO, JAMÁS del sprite (FL5/ADR-0001): el origen
+## es el CENTRO GEOMÉTRICO del rect de la sala de espera del servicio MÁS CERCANA al puesto — o la
+## ENTRADA del edificio si la persona AÚN no tuvo tiempo de llegar a sentarse (3ª calibración: se
+## deriva de su minuto de llegada y el reloj, ambos datos lógicos; el caso "ODAC libre te llama al
+## entrar"). La distancia euclídea en celdas / la velocidad da los minutos. Devuelve 0.0 (camino
+## instantáneo) si: no hay Construcción inyectada (tests de lógica pura), la velocidad es ≤ 0
+## (knob "teleport"), o el servicio no tiene ninguna sala de espera (sin origen del que partir).
+func _minutos_de_camino(servicio: StringName, puesto_id: StringName, persona: RefCounted) -> float:
+	if _construccion == null or velocidad_camino_celdas_min <= 0.0:
+		return 0.0
+	var salas: Array[StringName] = _construccion.salas_de_espera_de(servicio)
+	if salas.is_empty():
+		return 0.0
+	var destino: Vector2 = Vector2(_construccion.posicion_de(puesto_id))
+	var origen: Vector2 = Vector2.ZERO
+	var mejor_dist: float = -1.0
+	for sala_id: StringName in salas:
+		var rect: Rect2i = _construccion.rect_de_sala(sala_id)
+		var centro: Vector2 = Vector2(rect.position) + Vector2(rect.size) / 2.0
+		var dist: float = centro.distance_to(destino)
+		if mejor_dist < 0.0 or dist < mejor_dist:
+			mejor_dist = dist
+			origen = centro
+	if _tiempo != null:
+		var min_dia: float = fposmod(_tiempo.minutos_juego, 1440.0)
+		var esperado: float = fposmod(min_dia - float(persona.ficha.minuto_llegada), 1440.0)
+		var entrada: Vector2 = Vector2(CELDA_ENTRADA)
+		var camino_a_sala: float = entrada.distance_to(origen) / velocidad_camino_celdas_min
+		if esperado < camino_a_sala:
+			origen = entrada   # recién llegada/promovida: viene aún de la ENTRADA, no de la sala
+	return origen.distance_to(destino) / velocidad_camino_celdas_min
 
 
 # ── El ciclo de atención (Story 004 · TR-flow-003/004 · FL5, F1) ─────────────────────────────
@@ -470,13 +571,15 @@ func duracion_efectiva(servicio: StringName, tramite_id: StringName, puesto_id: 
 ## ORDEN FIJO del contrato determinista: (1) avanzar/completar atenciones — el puesto liberado
 ## queda Libre (o Cerrado/retirado si tenía un pendiente, story 006); (2) reintentar demoliciones
 ## pendientes de Construcción (AC-CO13 — antes de emparejar: un puesto demolido no llama);
-## (3) emparejar — los libres llaman EN el mismo tick; (4) arrancar llamadas — la atención
-## empieza el mismo tick del emparejamiento (el viaje es cosmético, no descuenta).
+## (3) emparejar — los libres llaman EN el mismo tick; (4) avanzar caminos — la persona recorre el
+## trayecto al puesto (enmienda 2026-07-25 "en camino no se tramita") y, al llegar, arranca la
+## atención; con camino 0 (knob 0 / sin Construcción) arranca ese mismo tick (compat).
 func _al_tick(delta_juego_min: float) -> void:
 	_avanzar_atenciones(delta_juego_min)
 	_reintentar_demoliciones()
 	_emparejar()
-	_arrancar_llamadas()
+	_avanzar_caminos(delta_juego_min)
+	_gestionar_horario_doc()
 
 
 ## Resta delta a cada atención en curso; al cumplirse la duración: emite `tramite_completado`
@@ -527,16 +630,55 @@ func _reintentar_demoliciones() -> void:
 		_puestos_flujo.erase(puesto_id)
 
 
-## Las personas en Llamada empiezan su atención (F1): mismo tick del emparejamiento — FL5: el
-## desplazamiento visible no descuenta trámite (cosmético, story 008).
-func _arrancar_llamadas() -> void:
+## Avanza el CAMINO de las personas en Llamada (enmienda 2026-07-25 "en camino no se tramita"): resta
+## `delta_min` a `camino_restante` y, al agotarse (≤ 0), la persona LLEGA → pasa a En atención con su
+## `duracion_efectiva` (F1). El camino descuenta EN el mismo tick de la Llamada (se llama tras
+## `_emparejar` dentro del tick): con `camino_restante == 0.0` (knob 0, sin Construcción o sin sala)
+## la atención arranca ese mismo tick — el comportamiento previo a la enmienda, compat total. El
+## viaje NO descuenta trámite: el `restante` de la atención solo empieza a bajar al LLEGAR.
+func _avanzar_caminos(delta_min: float) -> void:
 	for puesto_id: StringName in _puestos_flujo:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_LLAMADA:
 			continue
+		puesto["camino_restante"] = float(puesto["camino_restante"]) - delta_min
+		if puesto["camino_restante"] > 0.0:
+			continue
 		_transicionar(persona, PersonaFlujoScript.ESTADO_EN_ATENCION)
 		puesto["restante"] = duracion_efectiva(persona.servicio(), persona.tramite_id(), puesto_id)
+		puesto["camino_restante"] = 0.0
+
+
+## Horario provisional 2026-07-25 (PROVISIONAL en Flujo hasta Documentación #8): "los funcionarios se
+## van al cierre". Corre AL FINAL de `_al_tick` (tras `_avanzar_caminos`) para que la cola admitida se
+## haya podido vaciar ANTES de cerrar (AC-FL24: nada se interrumpe a medias). Reglas:
+##   • EN horario [apertura_doc_min, cierre_doc_min) y el puesto está cerrado POR HORARIO → reabre solo.
+##   • FUERA de horario, el puesto Doc está abierto, LIBRE (sin persona en curso) y ya NO le queda
+##     nadie admitido en su cola (mismo criterio que `_emparejar`) → cierra por HORARIO.
+## Solo toca puestos de servicio Documentación (ODAC es 24 h). NUNCA reabre un cierre MANUAL del
+## jugador (`cierre_horario == false`): esa marca distingue "cerró la persiana el horario" de "lo cerró
+## el jugador". Sin reloj inyectado (tests unitarios sin hora) → no-op.
+func _gestionar_horario_doc() -> void:
+	if _tiempo == null:
+		return
+	var min_dia: float = fposmod(_tiempo.minutos_juego, 1440.0)
+	var en_horario: bool = min_dia >= float(apertura_doc_min) and min_dia < float(cierre_doc_min)
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+		if tipo == null or tipo.servicio != String(SERVICIO_DOC):
+			continue
+		if en_horario and puesto["cierre_horario"]:
+			puesto["abierto"] = true
+			puesto["cierre_horario"] = false
+		elif not en_horario and puesto["abierto"] and puesto["persona"] == null:
+			var admitidas: Array[StringName] = puesto["override"]   # mismo criterio que _emparejar
+			if admitidas.is_empty():
+				admitidas = tipo.atenciones_admitidas
+			if elegir_de_cola(SERVICIO_DOC, admitidas) == null:
+				puesto["abierto"] = false
+				puesto["cierre_horario"] = true
 
 
 # ── Matemáticas de colas F2-F5 (Story 005 · PURAS — las llama la UI/R5 bajo demanda, NO el tick) ──
@@ -600,8 +742,10 @@ func save() -> Dictionary:
 			"cierre_pendiente": puesto["cierre_pendiente"],
 			"retirada_pendiente": puesto["retirada_pendiente"],   # no estaba en la story: el
 			"override": override_json,                            # diseño de la 006 lo exige
+			"cierre_horario": puesto["cierre_horario"],            # horario provisional 2026-07-25
 			"persona_turno": persona_turno,
 			"restante": float(puesto["restante"]),
+			"camino_restante": float(puesto["camino_restante"]),   # enmienda 2026-07-25 (en camino)
 		})
 	var turnos: Dictionary = {}
 	for servicio: StringName in _turnos:
@@ -634,8 +778,10 @@ func load_state(d: Dictionary) -> void:
 		puesto["abierto"] = true
 		puesto["persona"] = null
 		puesto["restante"] = 0.0
+		puesto["camino_restante"] = 0.0   # enmienda 2026-07-25 (en camino): default limpio
 		puesto["cierre_pendiente"] = false
 		puesto["retirada_pendiente"] = false
+		puesto["cierre_horario"] = false   # horario provisional 2026-07-25: default limpio
 		var sin_override: Array[StringName] = []
 		puesto["override"] = sin_override
 	# 2) Contadores de turno (el paso 3 los refuerza: jamás por debajo de un turno visto — FL2).
@@ -679,7 +825,10 @@ func load_state(d: Dictionary) -> void:
 		puesto["abierto"] = bool(entrada.get("abierto", true))
 		puesto["cierre_pendiente"] = bool(entrada.get("cierre_pendiente", false))
 		puesto["retirada_pendiente"] = bool(entrada.get("retirada_pendiente", false))
+		puesto["cierre_horario"] = bool(entrada.get("cierre_horario", false))   # horario provisional 2026-07-25
 		puesto["restante"] = maxf(float(entrada.get("restante", 0.0)), 0.0)
+		# enmienda 2026-07-25 (en camino): los minutos de camino que faltaban al guardar.
+		puesto["camino_restante"] = maxf(float(entrada.get("camino_restante", 0.0)), 0.0)
 		var override_cargado: Array[StringName] = []
 		for atencion: Variant in entrada.get("override", []):
 			override_cargado.append(StringName(String(atencion)))
@@ -697,6 +846,7 @@ func load_state(d: Dictionary) -> void:
 					% [puesto_id, persona_turno]
 				)
 				puesto["restante"] = 0.0
+				puesto["camino_restante"] = 0.0   # sin persona no hay camino en curso (enmienda 2026-07-25)
 	# 5) Atendidas que ningún puesto reclamó → descartadas con aviso (no hay dónde situarlas).
 	for clave: String in atendidas:
 		push_warning("Flujo: persona en atencion sin puesto en el save ('%s') -> descartada" % clave)
@@ -737,10 +887,12 @@ func aplicar_config(config: Resource) -> void:
 	if config == null or not (config is ConfigFlujoScript):
 		push_warning("Flujo: config invalido -> defaults")
 		config = ConfigFlujoScript.new()
-	duracion_desplazamiento_seg = clampf(config.duracion_desplazamiento_seg, 0.0, 5.0)
+	velocidad_camino_celdas_min = clampf(config.velocidad_camino_celdas_min, 0.0, 100.0)
 	habilitar_aging_odac = config.habilitar_aging_odac
 	tope_cola_exterior = maxi(config.tope_cola_exterior, 0)
 	cierre_doc_min = clampi(config.cierre_doc_min, 0, 1439)
+	apertura_doc_min = clampi(config.apertura_doc_min, 0, 1439)
+	velocidad_npc_px_s = clampf(config.velocidad_npc_px_s, 10.0, 600.0)
 
 
 ## Carga el `.tres` real con fallback seguro (falta/inválido → defaults con aviso; no peta).

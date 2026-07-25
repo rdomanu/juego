@@ -1,12 +1,12 @@
 # Story 001: La Persona en el flujo — máquina de 7 estados y turnos por servicio
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Logic
 > **Estimate**: S-M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -83,3 +83,10 @@ de juego — nunca lee posiciones de sprites ni depende de la navegación (story
 
 - Depends on: None (primera del epic; Demanda/Personal/Construcción completos).
 - Unlocks: Story 002 (las colas ordenan PersonasFlujo).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`9cbfe56`, stories 001-002): `src/core/flujo/persona_flujo.gd` (7 estados
++ transiciones legales) y el contador de turnos POR SERVICIO. **2 erratas del GDD cazadas** durante la
+implementación (anotadas para la propagación C2-7). Tests unitarios en verde desde el primer día;
+integradas después en toda la suite del epic. Cerrada formalmente con el sign-off del epic (2026-07-25).

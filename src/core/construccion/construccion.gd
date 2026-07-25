@@ -68,6 +68,14 @@ var _puede_demoler: Callable = Callable()
 ## Puestos cuya demolición ESPERA al fin de su atención (compromiso de servicio — Flujo reintenta
 ## vía `reintentar_demoliciones_pendientes` al completar cada atención).
 var _demoliciones_pendientes: Array[StringName] = []
+## Hook de cambio de layout (story flujo-008): Main lo cablea para re-bakear la navegación de los
+## NPCs y re-sincronizar los puestos de Flujo. Sin cablear → no-op (tests).
+var _hook_layout: Callable = Callable()
+
+
+## Cablea el hook de cambio de layout (se dispara en cada mutación del modelo, nunca por frame).
+func fijar_hook_layout(hook: Callable) -> void:
+	_hook_layout = hook
 
 
 func _ready() -> void:
@@ -430,6 +438,45 @@ func puestos_de_servicio(servicio: String) -> Array[StringName]:
 	return resultado
 
 
+## El id de catálogo de un elemento construido (`&""` si no existe) — para re-registrar puestos
+## en Flujo tras un cambio de layout (story flujo-008).
+func catalogo_de(elemento_id: StringName) -> StringName:
+	if not _elementos.has(elemento_id):
+		return &""
+	return _elementos[elemento_id]["catalogo"]
+
+
+## Las salas de espera que sirven a un servicio (propias + "Comun"), en orden estable — los NPCs
+## visibles (story flujo-008) buscan asiento/hueco en ellas.
+func salas_de_espera_de(servicio: StringName) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for sala_id: StringName in _salas:
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala == null or tipo_sala.tipo != "espera":
+			continue
+		if tipo_sala.servicio == String(servicio) or tipo_sala.servicio == "Comun":
+			resultado.append(sala_id)
+	return resultado
+
+
+## El rectángulo de una sala (celdas). Inexistente → Rect2i() vacío con aviso.
+func rect_de_sala(sala_id: StringName) -> Rect2i:
+	if not _salas.has(sala_id):
+		push_warning("Construccion: rect de una sala inexistente ('%s')" % sala_id)
+		return Rect2i()
+	return _salas[sala_id]["rect"]
+
+
+## Los asientos colocados en una sala, en orden estable de construcción (para sentar NPCs).
+func asientos_de_sala(sala_id: StringName) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		if elemento["catalogo"] == ASIENTO_BASICO and elemento["sala"] == sala_id:
+			resultado.append(elemento_id)
+	return resultado
+
+
 # ── Demoler y mover (Story 004 · TR-construction-004 · GDD CO8, F4) ──────────────────────────
 
 ## Demuele un elemento (CO8): abona el reembolso F4 (`coste_pagado × pct_reembolso`), libera su
@@ -684,6 +731,10 @@ func centro_de_celda(celda: Vector2i) -> Vector2:
 ## Redibuja TODO el visual desde el modelo (se llama en cada cambio de layout, nunca por frame —
 ## el layout cambia por acciones puntuales del jugador, no en el tick).
 func _refrescar_visual() -> void:
+	# Hook de cambio de layout (story flujo-008): Main re-bakea la navegación y re-sincroniza los
+	# puestos de Flujo SOLO aquí (nunca por frame). Se avisa aunque no haya capa visual montada.
+	if _hook_layout.is_valid():
+		_hook_layout.call()
 	if _capa_salas == null:
 		return
 	_capa_salas.clear()

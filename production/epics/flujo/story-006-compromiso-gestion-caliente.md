@@ -1,12 +1,12 @@
 # Story 006: Compromiso de servicio y gestión en caliente
 
 > **Epic**: Flujo de Personas y Colas
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Core
 > **Type**: Integration
 > **Estimate**: M (~3-4 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — cerrada con el sign-off del epic Flujo (8/8)
 
 ## Context
 
@@ -103,3 +103,25 @@ la atención en curso. La Pausa no necesita código (Tiempo no empuja el tick).
 
 - Depends on: Story 005 (flujo completo con aforo) — DONE antes de empezar.
 - Unlocks: Story 007 (persistencia del estado completo).
+
+## Cierre (2026-07-25)
+
+Implementada y commiteada (`1a9f9c6`): compromiso de servicio (a quien ya está en Llamada/En atención
+no se le echa) y gestión en caliente — cerrar/abrir puestos y demoler con AC-CO13 sin romper el flujo;
+la peonada de cierre paga horas extra.
+
+**Decisión RATIFICADA (pendiente desde la implementación):** el cierre de Documentación vive
+**provisionalmente en Flujo** hasta que exista el sistema de Documentación #8.
+
+**⚠️ ENMIENDA DE DISEÑO del usuario (2026-07-25) — HORARIO PROVISIONAL de Documentación**
+("los funcionarios se van al cierre"):
+- Knob `apertura_doc_min` **480** (08:00 — cross-fact `ventana_doc_inicio` de Demanda; el cierre 870
+  ya existía). Flag `cierre_horario` en el dict y en el save.
+- `_gestionar_horario_doc()` al final del tick: fuera de horario + puesto libre + cola admitida vacía
+  → **cierra** (AC-FL24 intacto: primero se vacía la peonada); dentro de horario + `cierre_horario`
+  → **reabre solo**. El cierre **manual** del jugador NO se reabre nunca.
+- El policía se **oculta** con el puesto cerrado ("se van a casa"; caminar hasta la puerta = juice futuro).
+- Tests: `flujo_horario_test.gd` (no cierra con cola → cierra al vaciar · reabre a las 480 · el manual
+  no se reabre · ODAC sigue 24 h). El test de FL24 asserta "cerrado" al final.
+
+Cerrada formalmente con el sign-off del epic (2026-07-25).
