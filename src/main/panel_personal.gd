@@ -27,6 +27,10 @@ const COLOR_TITULO := Color(1.0, 0.85, 0.35)
 const COLOR_TENUE := Color(1, 1, 1, 0.6)
 ## Separación entre tarjetas y borde de tarjeta (estética sobria del andamio).
 const COLOR_BORDE_TARJETA := Color(1, 1, 1, 0.12)
+## Escala de los atributos del agente (1-5, GDD staff-agents) — el MÁXIMO que dibuja la barra.
+const ESCALA_ATRIBUTOS := 5
+const COLOR_BARRA_LLENA := Color(0.85, 0.85, 0.92)
+const COLOR_BARRA_VACIA := Color(1, 1, 1, 0.14)
 
 # ── Refs a los sistemas Core (inyectadas por Main; la UI solo lee y ordena — ADR-0001) ───────
 var _personal: Node = null
@@ -76,7 +80,7 @@ func _unhandled_input(evento: InputEvent) -> void:
 func _crear_ui() -> void:
 	_panel = PanelContainer.new()
 	_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(860, 520)
+	_panel.custom_minimum_size = Vector2(880, 600)
 	# Anclado al centro, el preset deja el tamaño en 0×0 y crece por el minimum → recentrar el pivote.
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -138,7 +142,7 @@ func _crear_columna(padre: HBoxContainer, titulo: String) -> VBoxContainer:
 	_cabecera_de[titulo] = cabecera   # `_reconstruir` le añade su contador ("PLANTILLA (4)")
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 330)
+	scroll.custom_minimum_size = Vector2(0, 400)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columna.add_child(scroll)
@@ -363,19 +367,57 @@ func _linea_identidad(agente: RefCounted, tam: int) -> Label:
 	return lbl
 
 
-## Línea 2 (font 10): atributos legibles + Mando (si Oficial) + salario diario.
-func _linea_atributos(agente: RefCounted) -> Label:
-	var lbl := Label.new()
-	lbl.add_theme_font_size_override("font_size", 10)
-	lbl.modulate = COLOR_TENUE
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var mando: String = " · Mando %d/5" % agente.mando if agente.rango == AgenteScript.RANGO_OFICIAL else ""
-	lbl.text = "Rapidez %d/5 · Trato %d/5 · Salud %d/5 · Motivación %d/5%s — %.0f €/día" % [
-		agente.rapidez, agente.trato, agente.salud, agente.motivacion, mando,
-		_personal.salario_dia(agente),
-	]
-	return lbl
+## Bloque de atributos: una BARRA por atributo (5 casillas = la escala 1-5 del GDD) + su número, y el
+## salario debajo. Feedback del usuario 2026-07-25: *"las skills deben ser como una barra para ver dónde
+## está el máximo y el mínimo; no sé si 4 es mucho o poco, si es sobre 5 o sobre 100"*. El número solo
+## no dice nada si no ves la escala — y ese panel existe para decidir a quién contratar.
+func _linea_atributos(agente: RefCounted) -> VBoxContainer:
+	var caja := VBoxContainer.new()
+	caja.add_theme_constant_override("separation", 1)
+	caja.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	caja.add_child(_barra_atributo("Rapidez", agente.rapidez))
+	caja.add_child(_barra_atributo("Trato", agente.trato))
+	caja.add_child(_barra_atributo("Salud", agente.salud))
+	caja.add_child(_barra_atributo("Motivación", agente.motivacion))
+	if agente.rango == AgenteScript.RANGO_OFICIAL:
+		caja.add_child(_barra_atributo("Mando", agente.mando))
+	var salario := Label.new()
+	salario.add_theme_font_size_override("font_size", 10)
+	salario.modulate = COLOR_TENUE
+	salario.text = "%.0f €/día" % _personal.salario_dia(agente)
+	caja.add_child(salario)
+	return caja
+
+
+## Una fila "Nombre [▮▮▮▮▯] 4/5": casillas llenas hasta el valor, vacías hasta el máximo. El número va
+## SIEMPRE al lado (la barra sola no es accesible: texto + forma, nunca solo color).
+func _barra_atributo(nombre: String, valor: int) -> HBoxContainer:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 4)
+
+	var etiqueta := Label.new()
+	etiqueta.text = nombre
+	etiqueta.add_theme_font_size_override("font_size", 10)
+	etiqueta.modulate = COLOR_TENUE
+	etiqueta.custom_minimum_size = Vector2(66, 0)   # columna fija: las barras quedan alineadas
+	fila.add_child(etiqueta)
+
+	var casillas := HBoxContainer.new()
+	casillas.add_theme_constant_override("separation", 2)
+	for i: int in ESCALA_ATRIBUTOS:
+		var casilla := ColorRect.new()
+		casilla.custom_minimum_size = Vector2(11, 8)
+		casilla.color = COLOR_BARRA_LLENA if i < valor else COLOR_BARRA_VACIA
+		casilla.mouse_filter = Control.MOUSE_FILTER_IGNORE   # gotcha: decorativo → no se traga clics
+		casillas.add_child(casilla)
+	fila.add_child(casillas)
+
+	var cifra := Label.new()
+	cifra.text = "%d/%d" % [valor, ESCALA_ATRIBUTOS]
+	cifra.add_theme_font_size_override("font_size", 10)
+	cifra.modulate = COLOR_TENUE
+	fila.add_child(cifra)
+	return fila
 
 
 ## Línea 3 (font 10): estado legible con su color (SIEMPRE texto + color — daltónicos).

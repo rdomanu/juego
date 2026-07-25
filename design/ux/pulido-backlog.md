@@ -13,10 +13,28 @@
 
 ---
 
-## Pendiente de recoger del usuario
+## Feedback del usuario — 2026-07-25 (desglose de "hay que pulir cosas de diseño")
 
-- [ ] **"Hay que pulir cosas de diseño"** (2026-07-25, al firmar el sign-off de flujo-008). Sin
-      detallar todavía → **preguntar y desglosar aquí** antes de arrancar `/ux-design`.
+Sus palabras: *"son los paneles de construcción, de empleados, el panel de abajo que tiene que ser
+intuitivo como los tycoon, las skills que aparecen deben ser como una barra para ver dónde está el
+máximo y el mínimo, ahora no sé si 4 es mucho o es poco, si es sobre 5 puntos o sobre 100"*.
+
+| # | Petición | Tipo | Estado |
+|---|----------|------|--------|
+| **U1** | **Atributos del personal como BARRA**, no como número: que se vea de un vistazo dónde está el mínimo y el máximo. *"No sé si 4 es mucho o poco, si es sobre 5 o sobre 100"* | **Legibilidad — funcional** | ✅ **Resuelto 2026-07-25** (barra de 5 casillas llenas/vacías + el número; ver nota abajo) |
+| **U2** | **Panel de construcción** más intuitivo | Estética + UX | ⬜ Para `/ux-design` |
+| **U3** | **Panel de empleados** (plantilla/mercado) más intuitivo | Estética + UX | ⬜ Para `/ux-design` |
+| **U4** | **La barra de abajo (HUD) tiene que ser intuitiva "como los tycoon"** | Estética + UX | ⬜ Para `/ux-design` — es la petición marco: referencia clara al género |
+| **U5** | *(implícito en U1)* Toda cifra que el jugador tenga que juzgar necesita su **escala visible**: no basta el número, hace falta saber respecto a qué | **Principio de UX** | ⬜ Aplicar en `/ux-design` a TODO indicador |
+
+> **Nota sobre U1 (resuelto en caliente):** el dato ya decía "4/5", pero en texto pequeño y gris no se
+> leía como escala. Se sustituyó por una **barra de 5 casillas** (llenas/vacías) con el número al lado —
+> el máximo se ve sin leer. Es **legibilidad funcional**, no adorno: sin saber la escala no se puede
+> decidir a quién contratar, que es la decisión que ese panel existe para tomar. El resto (U2-U4) sí es
+> rediseño y espera a `/ux-design`.
+
+> **U5 como criterio de aceptación de `/ux-design`:** ningún indicador numérico del HUD o de los paneles
+> se da por bueno si el jugador no puede saber, mirándolo, si ese número es bueno o malo.
 
 ## Andamios conocidos que hay que sustituir
 
