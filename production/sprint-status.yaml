@@ -62,11 +62,11 @@ stories:
     name: "Paciencia: tick, Pausa y EL ABANDONO"
     file: "production/epics/paciencia/story-002-tick-pausa-abandono.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.2
     blocker: "pac-001"
-    completed: ""
+    completed: "2026-07-25"
   - id: "pac-003"
     name: "Paciencia: F2 puntuacion de la visita"
     file: "production/epics/paciencia/story-003-puntuacion-visita.md"

@@ -16,6 +16,11 @@ class_name Paciencia extends Node
 
 const RUTA_CONFIG := "res://datos/config/paciencia.tres"
 const ConfigPacienciaScript := preload("res://src/feature/paciencia/config_paciencia.gd")
+## La persona del flujo — preload por RUTA (gotcha del headless en frío) para leer sus estados.
+const PersonaFlujoScript := preload("res://src/core/flujo/persona_flujo.gd")
+
+## Los servicios que vigila (las mismas claves que Flujo y el catálogo).
+const SERVICIOS: Array[StringName] = [&"Documentacion", &"ODAC"]
 
 ## Paciencia con la que se entra a la cola (PS1: la barra empieza LLENA al coger turno).
 const PACIENCIA_INICIAL := 100.0
@@ -38,9 +43,132 @@ var umbral_animo_bajo: float = 33.0
 ## Flujo la referencie, y Paciencia la suelta al resolverse o marcharse (`olvidar`).
 var _paciencia_de: Dictionary = {}
 
+# ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
+var _flujo: Node = null
+var _construccion: Node = null
+var _tiempo: Node = null
+var _suscrito_al_tick: bool = false
+
+## Buffers REUTILIZADOS entre ticks (regla del proyecto: cero allocs en el bucle de simulación —
+## esto corre en cada tick con toda la sala dentro). Se limpian, no se recrean.
+var _a_abandonar: Array[RefCounted] = []
+
 
 func _ready() -> void:
+	# Auto-resuelve el reloj real cuando corre en el juego (patrón de Flujo/Economía); en los tests
+	# se inyecta uno de mentira con `usar_tiempo` y este get_node no encuentra nada.
+	if _tiempo == null:
+		usar_tiempo(get_node_or_null("/root/Tiempo"))
 	_cargar_config()
+
+
+# ── Inyección de dependencias (ADR-0001: se ORDENA por API, jamás se muta a otro sistema) ────
+
+## Inyecta Flujo: de él se leen las colas y a él se le ORDENA el abandono (`forzar_abandono`).
+## Sin Flujo, Paciencia no hace nada en el tick (las funciones puras de la 001 siguen valiendo).
+func usar_flujo(flujo: Node) -> void:
+	_flujo = flujo
+
+
+## Inyecta Construcción para conocer el AFORO de cada servicio (hacinamiento, F1). Sin ella no hay
+## sala que medir → multiplicador 1.0 (el drenaje base ya castiga la espera).
+func usar_construccion(construccion: Node) -> void:
+	_construccion = construccion
+
+
+## Inyecta el reloj y se suscribe a su tick (idempotente).
+## ⚠️ ORDEN DEL ADR-0001: Paciencia se suscribe SIEMPRE DESPUÉS de Flujo (Tiempo → Demanda → Flujo →
+## Paciencia). Así, dentro de un mismo tick, Flujo ya ha llamado a quien tocaba ANTES de que
+## Paciencia mire quién se harta: por eso el empate llamada-vs-abandono lo gana la llamada (AC-PS19)
+## sin necesidad de ninguna regla especial.
+func usar_tiempo(tiempo: Node) -> void:
+	_tiempo = tiempo
+	if _suscrito_al_tick or tiempo == null:
+		return
+	tiempo.suscribir_tick(_al_tick)
+	_suscrito_al_tick = true
+
+
+# ── El tick: drenar, hartarse y marcharse ────────────────────────────────────────────────────
+
+## Un paso de simulación: `delta_min` son MINUTOS DE JUEGO (en Pausa el reloj no llama — AC-PS22:
+## la paciencia no drena sola, no hace falta lógica de pausa aquí).
+##
+## Orden dentro del tick (determinista):
+##   1. recorrer cada servicio, en orden de turno, drenando a quien ESPERA;
+##   2. anotar a quien llegó a 0 (nunca abandonar DENTRO del bucle — gotcha ya visto en Flujo);
+##   3. ordenar los abandonos por turno y ordenárselos a Flujo uno a uno;
+##   4. soltar a quien ya no espera (atendida o marchada).
+func _al_tick(delta_min: float) -> void:
+	if _flujo == null or delta_min <= 0.0:
+		return
+	_a_abandonar.clear()
+	for servicio: StringName in SERVICIOS:
+		_drenar_servicio(servicio, delta_min)
+	_a_abandonar.sort_custom(func(a: RefCounted, b: RefCounted) -> bool:
+		return a.numero_turno < b.numero_turno
+	)
+	for persona: RefCounted in _a_abandonar:
+		# `forzar_abandono` devuelve FALSE si a esa persona ya la han llamado (regla dura de Flujo):
+		# en ese caso NO se va y NO cuenta como abandono — la llamada le ganó la carrera (AC-PS19).
+		if _flujo.forzar_abandono(persona):
+			olvidar(persona)
+	_purgar_terminadas()
+
+
+## Drena la barra de todos los que esperan un servicio. Los que ya han sido LLAMADOS o están EN
+## ATENCIÓN quedan CONGELADOS (AC-PS04): su espera terminó, aunque aún estén cruzando la sala hacia
+## la ventanilla (enmienda 2026-07-25 "en camino no se tramita" — un caso que el GDD no preveía).
+func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
+	var personas: Array = _flujo.personas_de_cola(servicio)
+	if personas.is_empty():
+		return
+	# El hacinamiento se mide con la sala: se aplica a TODOS los de ese servicio (quien no cupo está
+	# esperando en la calle por culpa de la misma sala desbordada — su experiencia no es mejor).
+	var mult: float = mult_hacinamiento(_flujo.ocupacion_dentro(servicio), _aforo_de(servicio))
+	personas.sort_custom(func(a: RefCounted, b: RefCounted) -> bool:
+		return a.numero_turno < b.numero_turno
+	)
+	for persona: RefCounted in personas:
+		registrar(persona)
+		if not _espera(persona):
+			continue   # llamada / en atención: conserva su barra tal cual, congelada
+		if drenar(persona, delta_min, mult) <= 0.0:
+			_a_abandonar.append(persona)
+
+
+## ¿Esta persona está ESPERANDO (dentro o fuera)? Solo entonces drena su paciencia.
+func _espera(persona: RefCounted) -> bool:
+	return (
+		persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO
+		or persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_FUERA
+	)
+
+
+## El aforo del servicio según Construcción; sin ella inyectada → -1 ("sin sala que medir").
+func _aforo_de(servicio: StringName) -> int:
+	if _construccion == null:
+		return -1
+	return _construccion.aforo_de_servicio(servicio)
+
+
+## Suelta a quien ya TERMINÓ su visita (atendida o marchada). Sin esto el diccionario crecería para
+## siempre.
+##
+## ⚠️ Se mira el ESTADO de la persona, NO si sigue en la cola: al llamar a alguien, Flujo lo saca de
+## la cola (`retirar_de_cola` en el emparejamiento), así que "no está en la cola" NO significa "ya no
+## cuenta" — significa que está siendo atendido y su barra debe conservarse congelada (AC-PS04, y la
+## necesita la story 003 para puntuar la visita con la paciencia que gastó esperando).
+func _purgar_terminadas() -> void:
+	var terminadas: Array = []
+	for persona: RefCounted in _paciencia_de:
+		if (
+			persona.estado == PersonaFlujoScript.ESTADO_RESUELTA
+			or persona.estado == PersonaFlujoScript.ESTADO_ABANDONANDO
+		):
+			terminadas.append(persona)
+	for persona: RefCounted in terminadas:
+		_paciencia_de.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────

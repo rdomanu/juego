@@ -253,6 +253,13 @@ func personas_en_cola(servicio: StringName) -> int:
 	return _colas.get(servicio, []).size()
 
 
+## Las personas de la cola de un servicio, en el orden estable de la cola (getter de SOLO LECTURA
+## para Paciencia #10, que necesita recorrer a quien espera para drenar su barra). Devuelve una
+## COPIA: nadie muta la cola desde fuera — para eso está la API (`retirar_de_cola`, `forzar_abandono`).
+func personas_de_cola(servicio: StringName) -> Array:
+	return (_colas.get(servicio, []) as Array).duplicate()
+
+
 ## Atenciones EN CURSO ahora mismo (getter para el HUD — pull, story 008). Cuenta SOLO personas en
 ## `en_atencion`: el rótulo del HUD dice "Atendiendo" y una persona aún de camino (`llamada`) no lo
 ## está (enmienda 2026-07-25 "en camino no se tramita").

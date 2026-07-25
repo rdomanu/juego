@@ -42,6 +42,7 @@ const ConstruccionScript := preload("res://src/core/construccion/construccion.gd
 const FlujoScript := preload("res://src/core/flujo/flujo.gd")
 ## La capa cosmética de NPCs navegando (story flujo-008).
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
+const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 ## El andamio de interacción del modo construcción (story const-007).
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 ## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
@@ -74,6 +75,7 @@ var _lbl_plantilla: Label
 var _lbl_incidencia: Label
 var _construccion: Node
 var _flujo: Node
+var _paciencia: Node
 var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
@@ -176,6 +178,15 @@ func _instanciar_mundo() -> void:
 	add_child(_flujo)
 	_flujo.fijar_hook_horas_extra(_economia.registrar_horas_extra)   # peonada AC-FL24
 	_construccion.fijar_puede_demoler(_flujo.puede_demoler_puesto)   # gate AC-CO13
+	# Paciencia (story paciencia-002): la espera pasa a tener consecuencias — la gente se cansa y se
+	# marcha. ⚠️ ORDEN ADR-0001: DESPUÉS de Flujo en el árbol, para que su suscripción al tick sea
+	# posterior (Tiempo → Demanda → Flujo → Paciencia). Así, en el mismo tick, Flujo ya ha llamado a
+	# quien tocaba antes de que Paciencia mire quién se harta (el empate lo gana la llamada).
+	_paciencia = PacienciaScript.new()
+	_paciencia.name = "Paciencia"
+	_paciencia.usar_flujo(_flujo)
+	_paciencia.usar_construccion(_construccion)
+	add_child(_paciencia)
 	# La capa cosmética: NPCs + navegación bakeada del layout real.
 	_npcs = NPCsFlujoScript.new()
 	_npcs.name = "NPCs"

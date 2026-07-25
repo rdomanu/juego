@@ -1,12 +1,12 @@
 # Story 002: El tick, la Pausa y EL ABANDONO — la gente se va
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-25 — implementada + test 11/11 en verde
 
 ## Context
 
@@ -32,11 +32,11 @@ simulación; aquí es donde se puede romper el determinismo.
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS04** `[Integration]` — GIVEN una persona esperando WHEN es **llamada a puesto** THEN su
+- [x] **AC-PS04** `[Integration]` — GIVEN una persona esperando WHEN es **llamada a puesto** THEN su
       paciencia se **congela** (no drena ni abandona) hasta que termina el trámite.
-- [ ] **AC-PS19** `[Integration]` — GIVEN empate llamada-vs-abandono en el mismo tick THEN gana la
+- [x] **AC-PS19** `[Integration]` — GIVEN empate llamada-vs-abandono en el mismo tick THEN gana la
       **llamada** y **no** hay hoja de reclamación.
-- [ ] **AC-PS22** `[Unit]` — GIVEN Pausa WHEN pasa tiempo real THEN la paciencia **no** drena.
+- [x] **AC-PS22** `[Unit]` — GIVEN Pausa WHEN pasa tiempo real THEN la paciencia **no** drena.
 
 ---
 
@@ -74,3 +74,34 @@ simulación; aquí es donde se puede romper el determinismo.
 
 - Contar reclamaciones y generarlas en ODAC (006) — aquí el abandono ocurre, pero no genera papeleo.
 - La puntuación de la visita abandonada (003).
+
+## Cierre (2026-07-25)
+
+Implementada en hilo principal (Opus 5) **y cableada en Main**: desde ahora, en la partida real, la
+gente que espera demasiado **se marcha**. Es el primer cambio del juego que puede hacer PERDER.
+
+- `paciencia.gd`: inyección (`usar_flujo` / `usar_construccion` / `usar_tiempo`, con auto-resolución
+  del reloj real en `_ready` como Flujo) + `_al_tick`: drena por servicio en orden de turno → anota a
+  quien llega a 0 → ordena los abandonos por turno → se los ORDENA a Flujo (`forzar_abandono`).
+- `flujo.gd`: getter nuevo `personas_de_cola(servicio)` (SOLO LECTURA, devuelve copia — nadie muta la
+  cola desde fuera).
+- `main.gd`: Paciencia instanciada **DESPUÉS de Flujo** (orden del tick, ADR-0001).
+- Test `tests/integration/paciencia/paciencia_tick_abandono_test.gd` **11/11**. **Suite total:
+  370/370, exit 0.** Arranque headless limpio.
+
+**Dos cosas que el GDD no preveía y se resolvieron aquí:**
+1. **La purga NO puede basarse en "sigue en la cola".** Al llamar a alguien, Flujo lo saca de la cola
+   (`retirar_de_cola` en el emparejamiento) — si Paciencia purgara por ausencia de la cola, borraría
+   la barra de quien está siendo atendido. Se purga por **ESTADO** (resuelta / abandonando). Lo cazó
+   el test de AC-PS04, que devolvía el centinela -1 en vez de la barra congelada. Esto era un bug
+   silencioso de cara a la story 003, que necesita esa barra para puntuar la visita.
+2. **En camino tampoco drena**: con la enmienda del usuario, `llamada` puede durar minutos mientras la
+   persona cruza la sala. Su espera ya terminó → congelada. Cubierto por el mismo bloque de AC-PS04.
+
+**El empate llamada-vs-abandono (AC-PS19) salió gratis**, como se previó al escribir la story: Flujo
+ya devuelve `false` en `forzar_abandono` para quien está llamado o en atención, y Paciencia respeta ese
+`false` (no cuenta abandono ni, en la 006, generará reclamación).
+
+**Gotcha de test registrado:** un fixture de Flujo SIN reloj inyectado cree que son las 00:00 → con el
+horario provisional, Documentación está cerrada y **nadie llama a nadie**. Todo test que necesite que
+un puesto Doc atienda debe inyectar un reloj con `minutos_juego` dentro del horario (aquí, 500 = 08:20).
