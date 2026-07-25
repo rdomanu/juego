@@ -479,7 +479,8 @@ llega a un sistema oyente).
 - **AC-T23** `[Unit]` — GIVEN `1379.0` (22:59, Tarde) WHEN un `delta_real` grande lleva el acumulador a `1441.0` (cruza 23:00 y 00:00 en el mismo frame) THEN se disparan en orden `cambio_de_turno(NOCHE)` → `cambio_dia_noche(noche)` → `nuevo_dia`, una vez cada uno.
 - **AC-T24** `[Unit]` — GIVEN el escenario de AC-T23 WHEN se recogen las señales THEN ninguna se omite ni se duplica (sin duplicados por jitter de float).
 - **AC-T25** `[Unit]` — GIVEN `delta_max_por_frame=0.5 s`, 1× (`escala=4`) WHEN el motor entrega `delta_real=30.0 s` (alt-tab) THEN el reloj solo avanza `4×1×0.5=2.0` min, no 120,0 min.
-- **AC-T26** `[Unit]` — GIVEN partida guardada a las 14:30, día 5, turno Tarde WHEN se carga THEN muestra 14:30, día 5, Tarde, sin emitir señales de cambio de turno/día-noche/nuevo_dia.
+- **AC-T26** `[Unit]` — GIVEN partida guardada a las 15:30, día 5, turno Tarde WHEN se carga THEN muestra 15:30, día 5, Tarde, sin emitir señales de cambio de turno/día-noche/nuevo_dia.
+  > *Corregido 2026-07-25 (C2-7): el ejemplo original decía "14:30 → Tarde", pero 14:30 es **Mañana** según la tabla de turnos de este mismo GDD (confundía el horario laboral de Documentación, que cierra a las 14:30, con el turno del reloj). El test `tiempo_persistencia_test` ya usaba 15:30.*
 - **AC-T27** `[Unit]` — GIVEN partida guardada con velocidad 3× WHEN se carga THEN la velocidad activa es **Pausa (0×)**, sea cual sea la guardada; el reloj no avanza hasta que el jugador elija velocidad.
 - **AC-T28** `[Unit]` — GIVEN se configura `escala_tiempo=0` (o ≤0) WHEN se procesa THEN queda en `3.0` (mínimo) y se registra aviso en el log.
 - **AC-T29** `[Unit]` — GIVEN se configura `escala_tiempo=15` (fuera de 3–12) WHEN se procesa THEN queda en `12.0` (máximo) y se registra aviso.

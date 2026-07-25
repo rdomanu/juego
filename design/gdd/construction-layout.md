@@ -188,19 +188,30 @@ los puestos que contienen).
 Doc (base 0) + 2×`doc_general` (1000) + sala espera 3×3 (380) + 8 asientos (200) ≈ **1580€** de una oficina
 básica.
 
-### F3 · Aforo de una sala de espera (por asientos)
+### F3 · Aforo de una sala de espera (sentados + de pie)
 
-`aforo_sala = min( plazas_asientos_colocadas , plazas_max_por_area )`
+`aforo_sala = sentados + de_pie`
+`sentados = min( plazas_asientos_colocadas , plazas_max_por_area )`
+`de_pie   = floor( area_celdas × densidad_de_pie )`
 
 | Variable | Tipo | Rango | Descripción |
 |----------|------|-------|-------------|
 | `plazas_asientos_colocadas` | int | ≥ 0 | Suma de plazas de los asientos puestos (MVP: asiento básico = 1) |
-| `plazas_max_por_area` | int | ≥ 0 | `floor(area_celdas × densidad_asientos)` — cuántas plazas caben |
-| `densidad_asientos` | float | 0.7 (tuning) | Plazas por celda (deja hueco para pasillos) |
+| `plazas_max_por_area` | int | ≥ 0 | `floor(area_celdas × densidad_asientos)` — cuántos asientos caben |
+| `densidad_asientos` | float | 0.7 (tuning) | Asientos por celda (deja hueco para pasillos) |
+| `densidad_de_pie` | float | 0.5 (tuning) | Plazas DE PIE por celda (1 por cada 2 celdas) |
 
-**Salida:** sala 5×4 (20 celdas), densidad 0.7 → caben `floor(20×0.7)=14` plazas; si colocas 10 asientos →
-aforo **10**; si intentas 20 → tope **14**. *(El `aforo_espera` 40/10 de Datos es la referencia del aforo
-típico a tope de construcción histórico.)*
+**Salida:** sala 5×4 (20 celdas), densidad 0.7 → caben `floor(20×0.7)=14` asientos; con 10 asientos
+colocados → 10 sentados **+ `floor(20×0.5)=10` de pie = aforo 24**; si intentas 20 asientos → tope 14
+sentados + 10 de pie. Sala **sin ningún asiento** → aforo = solo de pie (9 celdas → 4). *(El
+`aforo_espera` 40/10 de Datos es la referencia del aforo típico a tope de construcción histórico.)*
+
+> **🔧 ENMIENDA DE DISEÑO (usuario, 2026-07-24 — aplicada en código y aquí en C2-7):** una sala de espera
+> **sin asientos NO deja a la gente en la calle** — se entra igual, **de pie**. Antes `aforo_sala` era solo
+> los asientos, así que una sala recién construida tenía aforo 0 y nadie entraba, lo que no se parecía a
+> ninguna sala de espera real. Los asientos pasan a ser **confort** (su valor se cobrará cuando llegue
+> Paciencia #10), no el permiso para entrar. El tope físico de ASIENTOS (CO7) no cambia. El valor semilla
+> `densidad_de_pie` **0.5 está pendiente de ratificar en playtest** (ver Open Questions).
 
 ### F4 · Reembolso al demoler
 
@@ -307,6 +318,7 @@ ambigüedad.*
 | `coste_por_celda` (sala, F1) | 20 | ≥ 0 | ↑ sobredimensionar sale caro (salas ajustadas) / ↓ salas grandes casi gratis | Construcción |
 | `coste_base_sala` (F1) | 200 (Datos) | ≥ 0 | ↑ abrir cualquier sala cuesta más / ↓ más barato | Construcción / Economía |
 | `densidad_asientos` (F3) | 0.7 | 0 – 1 | ↑ caben más asientos por celda (salas más eficientes) / ↓ necesitas más espacio por plaza | Construcción |
+| `densidad_de_pie` (F3) | 0.5 | 0 – 1 | ↑ más gente de pie por celda (salas más aguantadoras, peor confort) / ↓ la sala se llena antes y la cola sale a la calle | Construcción |
 | `pct_reembolso` (demoler, F4) | 0.5 | 0 – 1 | ↑ reorganizar casi gratis (más libertad) / ↓ demoler duele (más planificación) | Construcción / Economía |
 | `area_min_sala` (CO3) | ~2×2 | ≥ 1 celda | ↑ salas mínimas mayores / ↓ permite salas diminutas | Construcción |
 | `coste_asiento_basico` (F2) | 25 | ≥ 0 | ↑ el aforo cuesta más / ↓ más barato *(afina Comodidades #15)* | Construcción / #15 |
@@ -324,14 +336,14 @@ ambigüedad.*
 **Interacciones entre knobs (clave):**
 - **`coste_por_celda` × `tamaño_edificio`** definen la **presión espacial y económica**: un edificio
   pequeño con celdas caras = reto de optimización (Theme Hospital).
-- **`densidad_asientos` × área de sala** definen el **aforo** (F3): salas eficientes vs. amplias.
+- **`densidad_asientos` y `densidad_de_pie` × área de sala** definen el **aforo** (F3): salas eficientes vs. amplias; los asientos son confort, el aforo de pie es lo que evita la cola en la calle.
 - **`pct_reembolso` × `coste_mover`** definen **cuánto cuesta reorganizar**: bajos = libertad total (Pilar
   4); altos = planificar bien de entrada.
 - **`tamaño_edificio` es el nuevo "tope"**: debe caber ≥ `puestos_utiles` (F5) para cumplir R5; encogerlo
   es la palanca de dificultad espacial por comisaría (#26).
 
 **Restricciones:** `coste_por_celda, coste_base_sala, coste_asiento_basico, coste_mover ≥ 0`; `pct_reembolso
-∈ [0,1]`; `densidad_asientos ∈ (0,1]`; `tamaño_edificio` ≥ caber `puestos_utiles` (R5).
+∈ [0,1]`; `densidad_asientos ∈ (0,1]`; `densidad_de_pie ∈ [0,1]`; `tamaño_edificio` ≥ caber `puestos_utiles` (R5).
 
 ## Visual/Audio Requirements
 
@@ -409,7 +421,7 @@ destaca, respaldo daltónico (icono/texto además del color).*
 
 | # | Pregunta | Dueño | Plazo | Estado |
 |---|----------|-------|-------|--------|
-| 1 | **Valores semilla** (`coste_por_celda 20`, `densidad_asientos 0.7`, `pct_reembolso 0.5`, `coste_asiento 25`) | Balance / playtest | 1er playtest MVP | Abierta |
+| 1 | **Valores semilla** (`coste_por_celda 20`, `densidad_asientos 0.7`, **`densidad_de_pie 0.5`**, `pct_reembolso 0.5`, `coste_asiento 25`) | Balance / playtest | 1er playtest MVP | Abierta |
 | 2 | **Tamaño del edificio de Pozuelo** (celdas): dimensionar para R5 (caber `puestos_utiles` + esperas + entrada) | Datos + Construcción | 1er playtest | Abierta |
 | 3 | **Reconciliación con Datos** — `tope_construible` → referencia de dimensionado (no cupo); `aforo_espera` 40/10 → referencia (aforo real por asientos). **APLICADA** en Datos F7/F4 (verificado en `/consistency-check` 5ª, 2026-07-21). | Datos | — | ✅ Resuelta |
 | 4 | **Catálogo de objetos** (`TipoObjeto`) y su detalle (calidad/deterioro/limpieza) | Datos + Comodidades #15 | GDD #15 | Abierta |

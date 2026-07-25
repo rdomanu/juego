@@ -49,6 +49,17 @@ real de trámites, **el saldo del HUD sube por primera vez**.
 |----|------|-------------|------|-------------|---------------------|
 | C2-7 | Propagar erratas anotadas al GDD (F6 floor→ceil en staff-agents; ejemplo 14:30 AC-T26 en time-system; tasa_base_odac 0.4/0.5 y "≈10 nocturnas" en demand-generation) | Fable | 0,1 ses. | — | GDDs corregidos; `/consistency-check` limpio |
 
+> **✅ C2-7 COMPLETADA (2026-07-25)** — 7 correcciones propagadas a 5 GDD + el registro: F6 `ceil`
+> (staff-agents, 2 sitios) · AC-T26 14:30→15:30 (time-system) · `tasa_base_odac` 0.4 en la tabla Tuning
+> (demand-generation) · valle nocturno ≈10→**≈5** con su derivación (demand-generation, 4 sitios) · **F3
+> aforo = sentados + de pie** (construction-layout) · **enmienda del camino + estado `En camino`**
+> (flow-queues, States B ahora 5 estados) · **enmienda del horario provisional de Doc** (flow-queues
+> AC-FL24). Registro: **+4 cross-facts** (`apertura_doc_min` 480, `cierre_doc_min` 870,
+> `velocidad_camino_celdas_min` 0.375, `densidad_de_pie` 0.5). Verificación cruzada GDD ↔ registro ↔
+> código: los 4 valores coinciden; 0 restos de los valores viejos.
+>
+> 🏁 **SPRINT 2 COMPLETO AL 100 %** (7/7 tareas) con 6 días de margen — Core 5/5 cerrado.
+
 ## Carryover from Previous Sprint
 
 | Task | Reason | New Estimate |

@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-22"
+last_updated: "2026-07-25"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -775,7 +775,7 @@ constants:
       - design/gdd/construction-layout.md
     value: 0.7
     unit: plazas_por_celda
-    notes: "Construccion #7 F3. Plazas de asiento por celda (deja hueco para pasillos). aforo = min(asientos_colocados, floor(area x densidad_asientos)). Tuning: Construccion."
+    notes: "Construccion #7 F3. Plazas de asiento por celda (deja hueco para pasillos). sentados = min(asientos_colocados, floor(area x densidad_asientos)); desde la enmienda de 2026-07-24 el aforo total suma ademas las plazas DE PIE (ver densidad_de_pie). Tuning: Construccion."
     added: 2026-07-21
     revised: ""
   # --- Calendario (time-system.md) ---
@@ -836,6 +836,53 @@ constants:
     unit: multiplicador_peso
     notes: "ODAC #9 F1. Peso relativo de una denuncia Prioritaria (VioGen/Desaparecidos/Agresion sexual/Robo con violencia) frente a Normal (1.0) en la MEDIA de satisfaccion de ODAC (la calcula Paciencia #10 F3). RECONCILIACION 2026-07-22 (decision usuario al revisar ODAC #9): ODAC ya NO calcula reputacion propia -> se RETIRARON las formulas reputacion_aporte/reputacion_penalizacion y los knobs base_reputacion/base_abandono (eran un modelo paralelo). Paciencia posee la escala 0-100 (que penaliza la espera); ODAC solo aporta este peso. Rango seguro 1.0-5.0. Tuning: ODAC."
     added: 2026-07-22
+    revised: ""
+  # --- Horario de Documentacion y camino (registrados en C2-7, 2026-07-25) ---
+  - name: apertura_doc_min
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/flow-queues.md
+      - design/gdd/documentation.md
+    value: 480
+    unit: minutos_desde_medianoche
+    notes: "08:00. MISMO HECHO que ventana_doc_inicio de Demanda #5 (que lo posee): la hora a la que abre Documentacion. Flujo #4 lo implementa como knob apertura_doc_min para el HORARIO PROVISIONAL (enmienda usuario 2026-07-25): fuera de horario y sin cola admitida el puesto Doc se cierra solo y a esta hora reabre solo; el cierre MANUAL del jugador NO se reabre. Provisional en Flujo hasta que exista Documentacion #8. ODAC es 24 h."
+    added: 2026-07-25
+    revised: ""
+  - name: cierre_doc_min
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/flow-queues.md
+      - design/gdd/documentation.md
+    value: 870
+    unit: minutos_desde_medianoche
+    notes: "14:30. MISMO HECHO que ventana_doc_fin de Demanda #5 (que lo posee): la hora a la que cierra Documentacion. Flujo #4 lo implementa como knob cierre_doc_min: puerta_doc_abierta() = min_dia < cierre_doc_min -> admitir Doc devuelve null con la puerta cerrada (AC-FL24: la cola YA admitida se atiende hasta vaciarse, con peonada). Si se cambia uno hay que cambiar el otro: son el mismo minuto del reloj."
+    added: 2026-07-25
+    revised: ""
+  - name: velocidad_camino_celdas_min
+    status: active
+    source: design/gdd/flow-queues.md
+    referenced_by:
+      - design/gdd/flow-queues.md
+      - design/gdd/construction-layout.md
+    value: 0.375
+    unit: celdas_por_minuto_de_juego
+    notes: "Flujo #4 FL5, ENMIENDA usuario 2026-07-25 ('EN CAMINO no se tramita'): el tramite arranca cuando la persona LLEGA al puesto. minutos_camino = distancia_celdas (medida en el PLANO: centro de la sala de espera mas cercana -> celda del puesto; origen entrada si aun no le dio tiempo a llegar a su sala) / esta velocidad. 0.375 = el paso visible de 90 px/s a velocidad 1x (calibrado con el usuario en ventana). 0 = llegada instantanea (compatibilidad de tests). SUSTITUYE a duracion_desplazamiento_seg (cosmetico, retirado). Efecto de diseno: la distribucion de la comisaria pasa a importar. Tuning: Flujo."
+    added: 2026-07-25
+    revised: ""
+  - name: densidad_de_pie
+    status: active
+    source: design/gdd/construction-layout.md
+    referenced_by:
+      - design/gdd/construction-layout.md
+      - design/gdd/flow-queues.md
+    value: 0.5
+    unit: plazas_por_celda
+    notes: "Construccion #7 F3, ENMIENDA usuario 2026-07-24: una sala de espera SIN asientos no deja a la gente en la calle -> aforo_sala = sentados + DE PIE, con de_pie = floor(area x densidad_de_pie). 0.5 = una plaza de pie por cada 2 celdas. Los asientos pasan a ser CONFORT (su valor lo cobrara Paciencia #10), no el permiso para entrar. Valor semilla PENDIENTE de ratificar en playtest (Open Question 1 de construction-layout). Tuning: Construccion."
+    added: 2026-07-25
     revised: ""
 
 # Example:

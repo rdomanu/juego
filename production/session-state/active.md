@@ -3,9 +3,9 @@
 *Última actualización: 2026-07-25*
 
 <!-- STATUS -->
-Epic: Flujo de Personas y Colas — COMPLETO 8/8 (CORE 5/5)
-Feature: Cierre del epic + erratas del GDD
-Task: C2-7 propagar erratas anotadas a los GDD
+Epic: CORE 5/5 COMPLETO — Sprint 2 cerrado al 100%
+Feature: —
+Task: decidir el siguiente paso (retrospectiva S2 / Sprint 3: capa Feature)
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -743,7 +743,33 @@ sin subagentes — orden del usuario 2026-07-25: *"no uses fable para coordinar,
 sección **Cierre** (la 004 documenta la enmienda del camino; la 006 el horario provisional + ratifica
 el cierre Doc en Flujo) · `EPIC.md` Flujo → Complete 8/8 · `epics/index.md` → Complete · `sprint-2.md`
 nota C2-4/C2-5/C2-6 ✅ · `sprint-status.yaml` flujo-001..008 + C2-6 → done.
-**PRÓXIMO: C2-7** (erratas GDD) — última tarea del Sprint 2.
+**✅ C2-7 HECHA (2026-07-25) — 🏁 SPRINT 2 AL 100 % (7/7).** Commit del paquete: **`11f704e`** (29
+archivos). 7 correcciones propagadas a 5 GDD + registro, cada una con nota de por qué era errata:
+- `staff-agents.md` **F6 `floor`→`ceil(Mando/2)`** (2 sitios: fórmula + tabla Tuning; manda la TABLA
+  de salida 1-2→1 · 3-4→2 · 5→3, que es lo implementado y lo que dice AC-PE14).
+- `time-system.md` **AC-T26 14:30→15:30** (14:30 es turno MAÑANA en la tabla del propio GDD; el
+  ejemplo mezclaba el horario laboral de Doc con el turno del reloj. El test ya usaba 15:30).
+- `demand-generation.md` **`tasa_base_odac` 0.5→0.4** en la tabla Tuning (F1/AC-DM02/OpenQ ya decían
+  0.4 = 36/día, y 0.4 es lo implementado) + **valle nocturno ≈10→≈5** en 4 sitios (el derivado real es
+  **5,25** = 36 × 7/24 × 0,5; el "≈10" era una estimación a ojo que nunca cuadró con la fórmula).
+- `construction-layout.md` **F3 = sentados + DE PIE** (`de_pie = floor(área × densidad_de_pie)`, knob
+  0.5 en Tuning + invariantes + OpenQ 1) con la enmienda explicada: sin asientos NO se queda la gente
+  en la calle; los asientos pasan a ser CONFORT (los cobrará Paciencia #10).
+- `flow-queues.md` **FL5 = "EN CAMINO no se tramita"** (el trámite arranca al LLEGAR; distancia del
+  PLANO ÷ `velocidad_camino_celdas_min`; el viejo `duracion_desplazamiento_seg` marcado como retirado;
+  OpenQ 9 reescrita) + **States B: estado nuevo `En camino`** (5 estados: Cerrado · Abierto sin agente
+  · Libre · **En camino** · Atendiendo) + **enmienda del horario provisional de Doc en AC-FL24**.
+- `design/registry/entities.yaml`: **+4 cross-facts** — `apertura_doc_min` 480 y `cierre_doc_min` 870
+  (marcados como EL MISMO HECHO que `ventana_doc_inicio/fin` de Demanda: si cambia uno, cambia el otro),
+  `velocidad_camino_celdas_min` 0.375, `densidad_de_pie` 0.5; `densidad_asientos` con notes corregidas;
+  `last_updated` 2026-07-25. YAML validado (52 constantes).
+**Verificación cruzada GDD ↔ registro ↔ código:** los 4 valores coinciden (`config_flujo.gd` 0.375/870/
+480, `config_construccion.gd` 0.5, `config_demanda.gd` 480/870/0.4) y **0 restos** de los valores viejos
+(greps de floor(Mando, AC-T26 14:30, tasa 0.5, ≈10, duracion_desplazamiento_seg). `/consistency-check`
+completo NO ejecutado (LEAN): verificación dirigida por grep, suficiente para erratas ya conocidas.
+**PRÓXIMO (a decidir con el usuario):** retrospectiva del Sprint 2 / `/sprint-plan` del Sprint 3 —
+capa **Feature** (Documentación #8, ODAC #9, Paciencia #10) o **Presentation** (UI/HUD #11 tras
+`/ux-design`, que es donde va TODO el pulido visual pendiente del andamio).
 **[HISTÓRICO — resuelto] Tras sign-off:** COMMIT del paquete (008 + panel + enmiendas) → cerrar epic Flujo 8/8
 (stories→Complete con Cierres [en la 004: enmienda camino; en la 006: horario provisional];
 EPIC/index/sprint-status C2-4..C2-6 + flujo-001..008 → done) = **CORE 5/5 COMPLETO** → C2-7

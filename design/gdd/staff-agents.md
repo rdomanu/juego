@@ -258,7 +258,7 @@ semilla (reproducible).*
 
 ### F6 · Cobertura del Oficial (Mando)
 
-`bajas_cubiertas_dia = floor(Mando / 2)` reasignando agentes disponibles (libres primero; si no, mueve de
+`bajas_cubiertas_dia = ceil(Mando / 2)` reasignando agentes disponibles (libres primero; si no, mueve de
 otro puesto menos crítico).
 
 **Salida:** Mando 1–2 → cubre **1** baja/día; Mando 3–4 → **2**; Mando 5 → **3**. *Sin Oficial → 0
@@ -359,7 +359,7 @@ modificadores, ausencias, Mando) lo posee Personal.
 | `base_ausencia` · `k_salud` (F4) | 0.03 · 0.02 | ≥ 0 | ↑ más bajas (más presión de cobertura) / ↓ plantilla más fiable | Personal |
 | `n_candidatos` · `refresco_mercado` (F5) | 3–5 · cada X días | ≥ 1 | ↑ más donde elegir (fichar fácil) / ↓ mercado escaso (fichar difícil) | Personal |
 | `sesgo_candidatos` (rareza de cracks, F5) | centrado | — | ↑ cracks más raros (encontrar al bueno cuesta) / ↓ candidatos buenos comunes | Personal |
-| `mando_cobertura` (F6: `floor(Mando/2)`) | ver F6 | — | ↑ el Oficial cubre más bajas (más valioso) / ↓ menos | Personal |
+| `mando_cobertura` (F6: `ceil(Mando/2)`) | ver F6 | — | ↑ el Oficial cubre más bajas (más valioso) / ↓ menos | Personal |
 | `coste_despido` | **0** (MVP) | ≥ 0 | ↑ despedir penaliza (menos rotación) / ↓ despido libre | Personal |
 
 ### Knobs referenciados (dueño externo — no se duplican)

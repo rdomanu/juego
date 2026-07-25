@@ -194,11 +194,11 @@ stories:
     blocker: "C2-5"
     completed: "2026-07-25"
   - id: "C2-7"
-    name: "Propagar erratas anotadas al GDD (F6 ceil, AC-T26, tasa_base_odac, valle nocturno)"
+    name: "Propagar erratas anotadas al GDD (F6 ceil, AC-T26, tasa_base_odac, valle nocturno, F3 de-pie, cross-facts, enmienda camino/horario)"
     file: "design/gdd/staff-agents.md"
     priority: nice-to-have
-    status: backlog
-    owner: "Fable (hilo principal)"
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: ""
-    completed: ""
+    completed: "2026-07-25"

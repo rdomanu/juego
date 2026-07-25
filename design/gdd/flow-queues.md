@@ -96,12 +96,28 @@ automático (anti-micromanejo, Pilar 4).
 está **abierto**, (c) tiene un **agente asignado** capaz de operarlo (`puestos_operables`, Personal), y (d)
 hay una Persona compatible en cola. Sin agente, no atiende aunque esté abierto.
 
-**FL5 · Ciclo de atención.** Al tomar a una Persona: esta va al puesto (desplazamiento **breve y visible**,
-no relevante para el balance) y empieza la **atención**, que dura la **duración efectiva**:
+**FL5 · Ciclo de atención.** Al tomar a una Persona: esta **camina hasta el puesto** y, **cuando llega**,
+empieza la **atención**, que dura la **duración efectiva**:
 `duracion_efectiva = duracion_min (Datos) × modificador_produccion(agente)` (lo computa **Personal** desde ⚡Rapidez; Formación #29 lo mejora; default 1.0). Al
 terminar, Flujo **emite `"trámite completado"`** con el trámite y el agente (Economía cobra; Satisfacción
 aplica el bonus de atención); la Persona pasa a **Resuelta** y **sale**; el puesto queda **libre** y llama al
 siguiente.
+
+> **🔧 ENMIENDA DE DISEÑO (usuario, 2026-07-25 — aplicada en código y aquí en C2-7): "EN CAMINO no se
+> tramita".** Antes el desplazamiento era puro adorno y el trámite arrancaba en el mismo instante de la
+> llamada; ver a alguien todavía cruzando la sala mientras su gestión ya corría resultaba falso. Ahora el
+> reloj del trámite **arranca cuando la persona llega a la ventanilla**:
+> - `minutos_camino = distancia_celdas ÷ velocidad_camino_celdas_min`, donde `distancia_celdas` es la
+>   distancia **en el plano** (centro de la sala de espera más cercana → celda del puesto; si acaba de
+>   entrar y aún no le dio tiempo a llegar a su sala, se mide desde la **celda de entrada**).
+> - **La regla de oro de FL5 sigue en pie**: el tiempo lo manda el **modelo**, no el sprite. Se mide sobre
+>   el plano, nunca sobre la posición del muñeco; el muñeco es quien ajusta su paso (±50%) para llegar
+>   cuando la lógica dice. Determinismo intacto: dos partidas con los mismos datos dan el mismo resultado.
+> - Knob nuevo **`velocidad_camino_celdas_min`** (0.375 tras calibrar con la ventana abierta = el paso
+>   visible de 90 px/s a velocidad 1×). **`0` = llegada instantánea** (compatibilidad).
+> - Sustituye al viejo `duracion_desplazamiento_seg` (que era cosmético y no afectaba a nada).
+> - Efecto de diseño: **la distribución de la comisaría ahora importa** — salas de espera lejos de las
+>   ventanillas cuestan minutos reales de trámite. Es una palanca de construcción, no solo decoración.
 
 **FL6 · Salas de espera: aforo interior + cola exterior.** Cada servicio tiene su **sala de espera** con
 `aforo_espera` (Datos: Doc **40**, ODAC **10**). Las Personas esperan **dentro** hasta el aforo. Si la sala
@@ -157,7 +173,8 @@ abierto/cerrado.)*
 |--------|-------------|--------------|
 | **Cerrado** | No operativo (jugador u horario) | → Abierto sin agente (abrir) |
 | **Abierto sin agente** | Abierto pero sin agente → **no atiende** (FL4) | → Libre (asignar agente) · → Cerrado |
-| **Libre** | Abierto + agente, sin Persona | → Atendiendo (toma Persona compatible) · → Abierto sin agente (quitar agente) · → Cerrado |
+| **Libre** | Abierto + agente, sin Persona | → **En camino** (toma Persona compatible) · → Abierto sin agente (quitar agente) · → Cerrado |
+| **En camino** | Persona llamada, **caminando** hacia el puesto (FL5): el puesto está comprometido pero **aún no tramita** | → Atendiendo (al llegar) |
 | **Atendiendo** | Procesando un trámite (`duracion_efectiva`) | → Libre (al terminar y emitir `"trámite completado"`) |
 
 **Notas:**
@@ -440,7 +457,8 @@ diseñado; *(provisional)* = sin GDD aún, contrato definido aquí.*
 
 | Knob | Default | Rango seguro | Si ↑ / Si ↓ | Owner |
 |------|---------|--------------|-------------|-------|
-| `duracion_desplazamiento_seg` (caminar a coger número / al puesto / salir) | ~1–2 s de juego | 0 – 5 s | **Cosmético** (no cuenta para el balance, FL5). ↑ se ve más "vivo" pero más lento / ↓ más ágil; 0 = teleport | Flujo |
+| `velocidad_camino_celdas_min` (a qué ritmo cruza la sala hacia la ventanilla) | 0.375 celdas/min | 0 – 10 | **SÍ cuenta** (FL5, enmienda 2026-07-25): el trámite no arranca hasta que llega. ↑ llegan antes (más throughput) / ↓ la mala distribución se paga; **0 = llegada instantánea** | Flujo |
+| ~~`duracion_desplazamiento_seg`~~ *(retirado 2026-07-25)* | — | — | Sustituido por `velocidad_camino_celdas_min`: era cosmético y no afectaba al balance | Flujo |
 | `habilitar_aging_odac` (anti-inanición de Normales tras Prioritarias) | **false** (MVP) | {false, true} | true = las Normales suben de prioridad al esperar mucho (evita inanición); MVP off (Edge Cases) | Flujo / ODAC |
 | `tope_cola_exterior` | **0 = sin tope** (MVP) | 0 (∞) – N | >0 pondría un muro a la afluencia; MVP sin tope (la válvula es paciencia, FL7). La cita #14 es el tope "de verdad" | Flujo / Demanda |
 
@@ -473,7 +491,7 @@ Persona es siempre por **menor `id` de puesto** (Edge Cases). No se expone como 
   VioGén es inerte.
 
 **Restricción:** los knobs referenciados mantienen su rango en el GDD dueño; Flujo no los
-sobrescribe. `duracion_desplazamiento_seg ≥ 0`; `tope_cola_exterior ≥ 0` (0 = sin tope).
+sobrescribe. `velocidad_camino_celdas_min ≥ 0` (0 = llegada instantánea); `tope_cola_exterior ≥ 0` (0 = sin tope).
 
 ## Visual/Audio Requirements
 
@@ -566,6 +584,16 @@ actúa sobre puestos/agentes, nunca sobre individuos en cola.
 **Edge cases críticos y determinismo**
 - **AC-FL23** `[Integration]` — GIVEN dos puestos Libres simultáneos y **una** sola Persona compatible WHEN ambos evalúan THEN la toma **exactamente uno** (menor `id`); el otro sigue Libre (sin doble asignación).
 - **AC-FL24** `[Integration]` — GIVEN Documentación en su hora de cierre con cola ya admitida WHEN cierra THEN **vacía la cola admitida** (genera peonada) y **cierra la puerta a nuevas** (última admisión).
+  > **🔧 ENMIENDA DE DISEÑO (usuario, 2026-07-25 — aplicada en código y aquí en C2-7): HORARIO PROVISIONAL
+  > de Documentación, "los funcionarios se van al cierre".** Antes las ventanillas de Doc seguían abiertas
+  > (y su policía en pantalla) toda la noche aunque no entrase nadie. Ahora, **cuando ya ha pasado la hora
+  > de cierre y el puesto se queda sin cola admitida, el puesto se cierra solo** y su agente desaparece de
+  > la vista; **a la hora de apertura vuelve a abrirse solo**. AC-FL24 no cambia: primero se atiende a
+  > quien ya estaba dentro (peonada incluida), y solo después se cierra.
+  > - Knobs: **`apertura_doc_min` 480** (08:00) y `cierre_doc_min` 870 (14:30). ODAC sigue 24 h.
+  > - **El cierre MANUAL del jugador se respeta**: si tú cierras un puesto, el horario no te lo reabre.
+  > - **Provisional**: esta lógica vive hoy en Flujo y se mudará a **Documentación #8** cuando exista;
+  >   caminar hasta la puerta al irse (en vez de desaparecer) queda para el pase de juice.
 - **AC-FL25** `[Unit]` — GIVEN una atención con 5 min restantes WHEN se pausa y luego se reanuda THEN continúa con **5 min exactos** (sin reinicio ni pérdida).
 - **AC-FL26** `[Unit]` — GIVEN un save con una cola de N y una atención con `t` restante WHEN se carga THEN se restauran N, estados y `t`, y arranca en **Pausa**; sin eventos retroactivos.
 - **AC-FL27** `[Unit]` — GIVEN la misma secuencia de llegadas/acciones desde idéntico estado WHEN se ejecuta dos veces THEN colas, asignaciones y eventos son **idénticos** (determinismo; sin dependencia de reloj real ni semillas).
@@ -582,4 +610,4 @@ actúa sobre puestos/agentes, nunca sobre individuos en cola.
 | 6 | **`minutos_operativos` por puesto**: ventana real de servicio (Doc **08:00–14:30 = 390 min**; ODAC ~16 h supuesto en Datos F8) — confirmar con la dotación por turno | Documentación/ODAC + Horarios + Tiempo | GDDs respectivos | Abierta |
 | 7 | **Peonadas en el MVP**: ¿el mecanismo de hora extra (que dispara la última admisión y el cierre en caliente) existe ya en el MVP o solo con Horarios #13? Comparte con Economía Open Q#8 | Horarios/Personal + Economía | GDD Documentación/Horarios | Abierta |
 | 8 | **Persona en Llamada si su puesto se cae**: se decidió "completa la llamada" (no re-encola, Edge Cases); validar que se siente bien vs re-encolar | Diseño + playtest | 1er playtest MVP | Abierta |
-| 9 | **Duración del desplazamiento cosmético** (`duracion_desplazamiento_seg`): valor que se ve "vivo" sin ralentizar; no afecta al balance (FL5) | Feedback/UX + playtest | 1er playtest MVP | Abierta |
+| 9 | **Velocidad del camino a la ventanilla** (`velocidad_camino_celdas_min`, 0.375 tras la 1ª calibración con el usuario): ¿el "EN CAMINO" se lee como un paseo creíble sin ralentizar la partida? Ahora **SÍ afecta al balance** (el trámite arranca al llegar), así que también hay que ver si penaliza demasiado las salas de espera lejanas | Feedback/UX + balance + playtest | 1er playtest MVP | Abierta |

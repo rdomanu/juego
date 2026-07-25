@@ -20,7 +20,7 @@ supera la capacidad máxima construible, así que nunca hay un **colapso irresol
 exigen buena gestión. Lee de *Datos* (población, catálogo de trámites/denuncias con su `prioridad` y
 `requiere/admite_cita`, y los topes) y de *Tiempo* (hora, turno, `es_de_noche`, `nuevo_dia`, día de
 semana); de noche **baja** la afluencia de Documentación (cerrada) y ODAC mantiene un **goteo** (franja 00:00–07:00 reducida por `mult_nocturno_odac`;
-≈10 denunciantes en Pozuelo, escalable con la población).
+≈5 denunciantes en Pozuelo, escalable con la población).
 
 A nivel de diseño, **Demanda es el motor de la presión que el jugador siente** (Pilares 2 y 4): la
 **hora punta** que llena la sala de espera, la **noche** que la vacía, y el **crecimiento** que —al
@@ -163,7 +163,7 @@ derivado de la hora:
 | **Apertura / hora punta** | 08:00–~10:00 | **Pico** (cola acumulada esperando a abrir) | Normal | El momento del Player Fantasy |
 | **Mañana** | ~10:00–14:30 | Alta, decreciendo hacia el cierre | Normal | |
 | **Documentación cerrada (día)** | 14:30–23:00 | **0** (fuera de ventana, DG6) | Normal | Solo ODAC genera |
-| **Noche** | 23:00–07:00 (`es_de_noche`) | **0** | Tarde-noche aguanta hasta ~00:00; **valle 00:00–07:00** (× `mult_nocturno_odac`; ≈10 en Pozuelo) | ODAC 24 h; la "noche muerta" la da que Doc cierra |
+| **Noche** | 23:00–07:00 (`es_de_noche`) | **0** | Tarde-noche aguanta hasta ~00:00; **valle 00:00–07:00** (× `mult_nocturno_odac`; ≈5 en Pozuelo) | ODAC 24 h; la "noche muerta" la da que Doc cierra |
 
 - Las transiciones de régimen las **dispara el reloj** (`cambio_de_turno`, cruces de hora); Demanda
   solo **lee** la hora y aplica el multiplicador correspondiente.
@@ -224,8 +224,11 @@ donde `Σ peso_hora(t)` sobre las horas de apertura del servicio = **1.0** (dist
 390 min**; ampliar el cierre más allá de 14:30 —hasta 20:00— es decisión de Documentación con **peonada**.)*
 **Perfil semilla ODAC** (bajo y bastante estable; la **tarde/noche temprana aguanta** —21:00 ≈ 20:00— y
 decae hacia 00:00): el grueso se reparte 07:00–00:00; en la franja **00:00–07:00** el peso horario se
-**reduce por `mult_nocturno_odac`** (default 0.5, tuning) → **≈ 10 atenciones en Pozuelo** *(consecuencia
+**reduce por `mult_nocturno_odac`** (default 0.5, tuning) → **≈ 5 atenciones en Pozuelo** *(consecuencia
 derivada, no un número fijo: con otra `poblacion` el mismo multiplicador da proporcionalmente más/menos)*.
+> *Corregido 2026-07-25 (C2-7): el GDD decía "≈10", pero el valor que se deriva de sus propios números es
+> **≈5,25** = 36 denuncias/día × (7 h nocturnas ÷ 24 h) × 0,5. El test `demanda_volumen_test` ya asserta el
+> valor derivado; el "≈10" era una estimación a ojo que nunca cuadró con la fórmula.*
 *La sensación de "noche muerta" la da sobre todo que **Documentación cierra** (Doc = 0 de noche), no que
 ODAC pare.*
 
@@ -373,9 +376,9 @@ sube `tasa_base` o `poblacion`, revalidar contra los topes — ver Tuning.)*
 | Knob | Default (semilla) | Rango seguro | Si ↑ / Si ↓ | Owner |
 |------|-------------------|--------------|-------------|-------|
 | `tasa_base_doc` (llegadas/1000 hab·día) | 0.5 | 0 – 2.0, **sujeto a R5** | ↑ más ciudadanos de Documentación (más presión e ingreso potencial) / ↓ menos | Demanda |
-| `tasa_base_odac` (llegadas/1000 hab·día) | 0.5 | 0 – 2.0, **sujeto a R5** | ↑ más denuncias (más carga ODAC, sin ingreso) / ↓ menos | Demanda |
+| `tasa_base_odac` (llegadas/1000 hab·día) | 0.4 | 0 – 2.0, **sujeto a R5** | ↑ más denuncias (más carga ODAC, sin ingreso) / ↓ menos | Demanda |
 | `perfil_hora[servicio]` (pesos por hora) | F2 (Doc front-loaded; ODAC plano+valle) | Σ = 1.0 por servicio | Concentra el pico (↑ pico apertura = más tensión) o lo aplana (manguera monótona) | Demanda |
-| `mult_nocturno_odac` | 0.5 | 0.2 – 1.0 | Reduce el peso horario de ODAC en 00:00–07:00. ↑ noche más viva (≈ día) / ↓ valle más profundo. **Escala con la población** (reutilizable en otros escenarios); ≈10 en Pozuelo es la salida derivada, no el input | Demanda |
+| `mult_nocturno_odac` | 0.5 | 0.2 – 1.0 | Reduce el peso horario de ODAC en 00:00–07:00. ↑ noche más viva (≈ día) / ↓ valle más profundo. **Escala con la población** (reutilizable en otros escenarios); ≈5 en Pozuelo es la salida derivada, no el input | Demanda |
 | `mult_dia_semana[jornada]` | 1.0 | 0.5 – 1.5 | Variación de carga **entre jornadas** (con el calendario semanal cada jornada = 1 semana; la variación gruesa la llevan la estacionalidad DG13 y los eventos DG11). ↑ jornada más cargada / ↓ más floja | Demanda |
 | `mezcla[servicio]` = `P(tramite)` | F3 (DNI 0.45…; ODAC 13 tipos, Prioritarias 0.13) | Σ = 1.0 por servicio | Cambia la carga por tipo (↑ Prioritarias = más urgencias en ODAC; ↑ Pasaporte = trámites más largos) | Demanda |
 | `max_llegadas_por_tick` | 3 | 1 – 10 | ↑ ráfagas más bruscas (riesgo de avalancha) / ↓ llegadas más suavizadas | Demanda |
@@ -477,7 +480,7 @@ Demanda **no tiene pantalla propia**; alimenta el HUD (la UI la posee **UI/HUD #
 | 2 | **Perfil intradía** (cuánto pico a la apertura) y **multiplicadores de día de semana** (¿lunes ×1.3?) | Demanda + playtest | 1er playtest MVP | Abierta |
 | 3 | **Mezcla de trámites/denuncias**: ¿DNI 0.45 / Pas 0.35 / TIE 0.20 refleja bien la realidad? ¿VioGén 5% da suficientes Prioritarias sin saturar las Normales de ODAC? | Demanda + ODAC | GDD ODAC / playtest | Abierta |
 | 4 | **Curva de crecimiento por nivel** (`factor_crecimiento_nivel`): cómo escala la demanda al ascender de escenario | Demanda + Ascensos #18 | GDD Ascensos | Abierta |
-| 5 | **¿La demanda nocturna de ODAC (`mult_nocturno_odac`, ≈10 en Pozuelo) se siente viva o muerta? ¿Qué default de multiplicador?** Comparte con la Open Question de Tiempo sobre la noche | Diseño / playtest | 1er playtest MVP | Abierta |
+| 5 | **¿La demanda nocturna de ODAC (`mult_nocturno_odac`, ≈5 en Pozuelo) se siente viva o muerta? ¿Qué default de multiplicador?** Comparte con la Open Question de Tiempo sobre la noche | Diseño / playtest | 1er playtest MVP | Abierta |
 | 6 | **Fuente y serialización de la semilla RNG** (aleatoria por partida vs. fija; cómo se guarda) — parte del ADR de arquitectura/guardado | Arquitectura (technical-director) | Fase de arquitectura (ADR) | Abierta |
 | 7 | **Ventana de apertura de Documentación**: base **08:00–14:30**, ampliable a 20:00 con peonada (advisory de Tiempo 08:00 aplicado) — horas exactas a validar | Documentación + Tiempo | GDD Documentación | ✅ Resuelta |
 | 8 | **Catálogo de eventos estacionales (DG11)**: cuáles (vacaciones → Pasaporte/permiso_viaje…), cuántos días duran y cuánto suben cada tipo; ¿cuánto pueden saturar ODAC sin volverse injustos? | Demanda + ODAC + playtest | 1er playtest MVP | Abierta |
