@@ -15,7 +15,7 @@
 # production/sprints/ y el estado detallado del Sprint 2 en sprint-2-status-archivado.yaml.
 
 sprint: 3
-goal: "El jefe eres tu: horarios de Documentacion (con peonada) y prioridades/reconfiguracion de ODAC"
+goal: "Que la espera duela: Paciencia #10 (la gente se cansa, se va y hunde la satisfaccion). Luego Documentacion #8"
 start: "2026-07-25"
 end: "2026-08-01"
 generated: "2026-07-25"
@@ -32,8 +32,8 @@ stories:
     blocker: ""
     completed: ""
   - id: "C3-2"
-    name: "Crear stories del epic Documentacion"
-    file: "production/epics/documentacion/EPIC.md"
+    name: "Crear stories del epic Paciencia"
+    file: "production/epics/paciencia/EPIC.md"
     priority: must-have
     status: ready-for-dev
     owner: "Opus 5 (hilo principal)"
@@ -41,16 +41,16 @@ stories:
     blocker: ""
     completed: ""
   - id: "C3-3"
-    name: "Implementar epic Documentacion (horario + peonada + ultima admision + eventos; MIGRAR horario desde Flujo)"
-    file: "production/epics/documentacion/EPIC.md"
+    name: "Implementar epic Paciencia (barra que drena, hacinamiento, abandono, sat 0-100, cierre al nuevo_dia, reclamaciones)"
+    file: "production/epics/paciencia/EPIC.md"
     priority: must-have
     status: backlog
     owner: "Opus 5 (hilo principal)"
-    estimate_days: 0.8
+    estimate_days: 1.0
     blocker: "C3-2"
     completed: ""
   - id: "C3-4"
-    name: "Rondas de demo y ajustes de Documentacion (ventana + sign-off)"
+    name: "Rondas de demo y ajustes de Paciencia (ventana + sign-off; calibrar el drenaje CON el usuario)"
     file: "production/qa/evidence/"
     priority: must-have
     status: backlog
@@ -59,8 +59,8 @@ stories:
     blocker: "C3-3"
     completed: ""
   - id: "C3-5"
-    name: "Cierre formal Documentacion"
-    file: "production/epics/documentacion/EPIC.md"
+    name: "Cierre formal Paciencia"
+    file: "production/epics/paciencia/EPIC.md"
     priority: must-have
     status: backlog
     owner: "Opus 5 (hilo principal)"
@@ -68,8 +68,8 @@ stories:
     blocker: "C3-4"
     completed: ""
   - id: "C3-6"
-    name: "Crear stories del epic ODAC"
-    file: "production/epics/odac/EPIC.md"
+    name: "Crear stories del epic Documentacion"
+    file: "production/epics/documentacion/EPIC.md"
     priority: should-have
     status: backlog
     owner: "Opus 5 (hilo principal)"
@@ -77,8 +77,8 @@ stories:
     blocker: "C3-5"
     completed: ""
   - id: "C3-7"
-    name: "Implementar epic ODAC (prioridad F7 + 4 modos de reconfiguracion + peso_prioridad)"
-    file: "production/epics/odac/EPIC.md"
+    name: "Implementar epic Documentacion (horario + peonada + ultima admision; MIGRAR horario desde Flujo)"
+    file: "production/epics/documentacion/EPIC.md"
     priority: should-have
     status: backlog
     owner: "Opus 5 (hilo principal)"
@@ -86,7 +86,7 @@ stories:
     blocker: "C3-6"
     completed: ""
   - id: "C3-8"
-    name: "Rondas de demo y ajustes de ODAC (ventana + sign-off)"
+    name: "Rondas de demo y ajustes de Documentacion (ventana + sign-off)"
     file: "production/qa/evidence/"
     priority: should-have
     status: backlog
@@ -95,8 +95,8 @@ stories:
     blocker: "C3-7"
     completed: ""
   - id: "C3-9"
-    name: "Cierre formal ODAC"
-    file: "production/epics/odac/EPIC.md"
+    name: "Cierre formal Documentacion"
+    file: "production/epics/documentacion/EPIC.md"
     priority: should-have
     status: backlog
     owner: "Opus 5 (hilo principal)"
@@ -125,8 +125,17 @@ stories:
     name: "Desglosar el feedback estetico del usuario en el backlog de pulido (accion #3 del retro)"
     file: "design/ux/pulido-backlog.md"
     priority: nice-to-have
-    status: backlog
+    status: done
     owner: "Opus 5 + usuario"
     estimate_days: 0.05
     blocker: ""
+    completed: "2026-07-25"
+  - id: "C3-13"
+    name: "Epic ODAC #9 completo (stories + implementacion + demo + cierre) — probable Sprint 4"
+    file: "production/epics/odac/EPIC.md"
+    priority: nice-to-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 1.4
+    blocker: "C3-9"
     completed: ""
