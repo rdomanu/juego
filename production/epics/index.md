@@ -1,6 +1,6 @@
 # Epics Index
 
-Last Updated: 2026-07-22
+Last Updated: 2026-07-25
 Engine: Godot 4.6
 Manifest: control-manifest 2026-07-22
 
@@ -33,7 +33,21 @@ spike QQ-02 del vertical slice (150 NPCs → ~145 FPS; plan B `AStarGrid2D` no n
 
 ## Feature (depende de Core)
 
-*Pendiente.* Módulos previstos (MVP): Documentación #8 · ODAC #9 · Paciencia #10.
+| Epic | Layer | System | GDD | Governing ADRs | Engine Risk | Stories | Status |
+|------|-------|--------|-----|----------------|-------------|---------|--------|
+| [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
+| [ODAC / Denuncias](odac/EPIC.md) | Feature | ODAC #9 | odac.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
+| [Paciencia y Satisfacción](paciencia/EPIC.md) | Feature | Paciencia #10 | patience-satisfaction.md | ADR-0001, ADR-0002, ADR-0003 | LOW | Not yet created | Ready |
+
+**Trazabilidad Feature:** los 8 TR de la capa (TR-doc-001/002, TR-odac-001/002, TR-patience-001..004)
+están **100 % cubiertos** por ADR aceptados — 0 huérfanos. **Riesgo de motor LOW en los tres**: no
+estrenan ninguna API de Godot, son lógica de simulación, configuración y eventos sobre los cimientos ya
+rodados. El riesgo real de esta capa es de **diseño y balance** (¿cuánto aguanta la gente?, ¿cuánto
+cuesta la peonada?), que se resuelve en playtest, no en arquitectura.
+
+**Nota de deuda:** el epic **Documentación** se lleva el horario que hoy vive provisionalmente en Flujo
+(enmienda del 2026-07-25), y el epic **ODAC** da dueño a `Flujo.reconfigurar_puesto`, ya implementado y
+testeado pero aún sin sistema que lo gobierne.
 
 ## Presentation (envuelve el juego — depende de Feature/Core)
 
@@ -41,9 +55,9 @@ spike QQ-02 del vertical slice (150 NPCs → ~145 FPS; plan B `AStarGrid2D` no n
 
 ---
 
-**Progreso:** 10 epics MVP creados (5 Foundation + 5 Core). Faltan las capas Feature (Documentación #8 ·
-ODAC #9 · Paciencia #10) y Presentation (UI/HUD #11 · Feedback #12) — se crearán con `/create-epics
-layer: feature` / `layer: presentation` cuando se aproxime su desarrollo.
+**Progreso:** **13 epics MVP creados** (5 Foundation + 5 Core + 3 Feature). **Foundation 5/5 y Core 5/5
+COMPLETOS** (2026-07-25). Falta la capa Presentation (UI/HUD #11 · Feedback #12) — se creará con
+`/create-epics layer: presentation` cuando se aproxime, después de `/ux-design` (condición 3 del gate).
 
 **Trazabilidad Foundation + Core:** los ~37 requisitos técnicos de ambas capas (TR-time-*, TR-data-*,
 TR-bus-*, TR-save-*, TR-economy-*, TR-flow-*, TR-demand-*, TR-staff-*, TR-construction-*) están **100 %

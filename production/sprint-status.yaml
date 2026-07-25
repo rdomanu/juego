@@ -9,196 +9,124 @@
 #   done           ↔  Complete
 #   blocked        ↔  Blocked
 #
-# NOTA: las tareas C2-2/C2-5 se expandirán a stories concretas tras /create-stories
-# (se refinará este yaml con los archivos reales — /sprint-plan update).
-# Sprint 1 (cerrado 100 %, 2026-07-24) archivado en production/sprints/sprint-1.md.
-# El epic Personal (7/7 + sign-off) se implementó ENTRE sprints — no figura aquí.
+# NOTA: las tareas C3-3 / C3-7 se expandiran a stories concretas tras /create-stories
+# (se refinara este yaml con los archivos reales — /sprint-plan update).
+# Sprint 1 (100 %, 2026-07-24) y Sprint 2 (100 %, 2026-07-25) cerrados; sus planes viven en
+# production/sprints/ y el estado detallado del Sprint 2 en sprint-2-status-archivado.yaml.
 
-sprint: 2
-goal: "Cerrar la capa Core: Construcción con el ratón y Flujo con ciudadanos visibles — el saldo sube por primera vez"
-start: "2026-07-24"
-end: "2026-07-31"
-generated: "2026-07-24"
+sprint: 3
+goal: "El jefe eres tu: horarios de Documentacion (con peonada) y prioridades/reconfiguracion de ODAC"
+start: "2026-07-25"
+end: "2026-08-01"
+generated: "2026-07-25"
 updated: "2026-07-25"
 
 stories:
-  - id: "C2-1"
-    name: "Crear stories del epic Construcción"
-    file: "production/epics/construccion/EPIC.md"
+  - id: "C3-1"
+    name: "QA plan del Sprint 3"
+    file: "production/qa/qa-plan-sprint-3.md"
     priority: must-have
-    status: done
-    owner: "Fable (hilo principal)"
-    estimate_days: 0.2
-    blocker: ""
-    completed: "2026-07-24"
-  - id: "const-001"
-    name: "Construcción: núcleo, config y validación F6"
-    file: "production/epics/construccion/story-001-nucleo-rejilla-validacion.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: ""
-    completed: "2026-07-24"
-  - id: "const-002"
-    name: "Construcción: construir y pagar (F1/F2 + gate E4)"
-    file: "production/epics/construccion/story-002-construir-pagar.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "const-001"
-    completed: "2026-07-24"
-  - id: "const-003"
-    name: "Construcción: puentes a Personal + aforo F3 + F5"
-    file: "production/epics/construccion/story-003-puentes-personal-aforo.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "const-002"
-    completed: "2026-07-24"
-  - id: "const-004"
-    name: "Construcción: demoler y mover (F4, cascada)"
-    file: "production/epics/construccion/story-004-demoler-mover.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "const-003"
-    completed: "2026-07-24"
-  - id: "const-005"
-    name: "Construcción: pausa y persistencia del layout"
-    file: "production/epics/construccion/story-005-pausa-persistencia.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "const-004"
-    completed: "2026-07-24"
-  - id: "const-006"
-    name: "Construcción: solar visible + montaje inicial de oficio"
-    file: "production/epics/construccion/story-006-solar-visible-montaje-inicial.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "const-005"
-    completed: "2026-07-24"
-  - id: "const-007"
-    name: "Construcción: modo construcción con ratón (HITO VISIBLE)"
-    file: "production/epics/construccion/story-007-modo-construccion-raton.md"
-    priority: must-have
-    status: done
-    owner: ""
-    estimate_days: 0.2
-    blocker: "const-006"
-    completed: "2026-07-24"
-  - id: "C2-3"
-    name: "Cierre formal Construcción"
-    file: "production/epics/construccion/EPIC.md"
-    priority: must-have
-    status: done
-    owner: "Fable (hilo principal)"
-    estimate_days: 0.1
-    blocker: "C2-2"
-    completed: "2026-07-24"
-  - id: "C2-4"
-    name: "Crear stories del epic Flujo"
-    file: "production/epics/flujo/EPIC.md"
-    priority: should-have
-    status: done
-    owner: "Fable (hilo principal)"
-    estimate_days: 0.2
-    blocker: ""
-    completed: "2026-07-24"
-  - id: "flujo-001"
-    name: "Flujo: PersonaFlujo, 7 estados y turnos"
-    file: "production/epics/flujo/story-001-persona-estados-turnos.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: ""
-    completed: "2026-07-25"
-  - id: "flujo-002"
-    name: "Flujo: colas FIFO + prioridad + compatibilidad (F7)"
-    file: "production/epics/flujo/story-002-colas-seleccion-f7.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.1
-    blocker: "flujo-001"
-    completed: "2026-07-25"
-  - id: "flujo-003"
-    name: "Flujo: puestos, gate FL4 y emparejamiento"
-    file: "production/epics/flujo/story-003-puestos-gate-emparejamiento.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "flujo-002"
-    completed: "2026-07-25"
-  - id: "flujo-004"
-    name: "Flujo: atención F1 + tramite_completado (saldo SUBE)"
-    file: "production/epics/flujo/story-004-atencion-cobro.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "flujo-003"
-    completed: "2026-07-25"
-  - id: "flujo-005"
-    name: "Flujo: aforo + cola exterior + fórmulas F2-F5"
-    file: "production/epics/flujo/story-005-aforo-formulas-colas.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "flujo-004"
-    completed: "2026-07-25"
-  - id: "flujo-006"
-    name: "Flujo: compromiso de servicio + gestión en caliente (+AC-CO13)"
-    file: "production/epics/flujo/story-006-compromiso-gestion-caliente.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.2
-    blocker: "flujo-005"
-    completed: "2026-07-25"
-  - id: "flujo-007"
-    name: "Flujo: persistencia + determinismo (AC-FL27)"
-    file: "production/epics/flujo/story-007-persistencia-determinismo.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.15
-    blocker: "flujo-006"
-    completed: "2026-07-25"
-  - id: "flujo-008"
-    name: "Flujo: NPCs navegando + demo integradora (HITO VISIBLE)"
-    file: "production/epics/flujo/story-008-comisaria-viva-npcs.md"
-    priority: should-have
-    status: done
-    owner: ""
-    estimate_days: 0.25
-    blocker: "flujo-007"
-    completed: "2026-07-25"
-  - id: "C2-6"
-    name: "Cierre formal Flujo + demo integradora con sign-off"
-    file: "production/epics/flujo/EPIC.md"
-    priority: should-have
-    status: done
-    owner: "Fable (hilo principal)"
-    estimate_days: 0.1
-    blocker: "C2-5"
-    completed: "2026-07-25"
-  - id: "C2-7"
-    name: "Propagar erratas anotadas al GDD (F6 ceil, AC-T26, tasa_base_odac, valle nocturno, F3 de-pie, cross-facts, enmienda camino/horario)"
-    file: "design/gdd/staff-agents.md"
-    priority: nice-to-have
-    status: done
+    status: ready-for-dev
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: ""
-    completed: "2026-07-25"
+    completed: ""
+  - id: "C3-2"
+    name: "Crear stories del epic Documentacion"
+    file: "production/epics/documentacion/EPIC.md"
+    priority: must-have
+    status: ready-for-dev
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.2
+    blocker: ""
+    completed: ""
+  - id: "C3-3"
+    name: "Implementar epic Documentacion (horario + peonada + ultima admision + eventos; MIGRAR horario desde Flujo)"
+    file: "production/epics/documentacion/EPIC.md"
+    priority: must-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.8
+    blocker: "C3-2"
+    completed: ""
+  - id: "C3-4"
+    name: "Rondas de demo y ajustes de Documentacion (ventana + sign-off)"
+    file: "production/qa/evidence/"
+    priority: must-have
+    status: backlog
+    owner: "Opus 5 + usuario"
+    estimate_days: 0.3
+    blocker: "C3-3"
+    completed: ""
+  - id: "C3-5"
+    name: "Cierre formal Documentacion"
+    file: "production/epics/documentacion/EPIC.md"
+    priority: must-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.1
+    blocker: "C3-4"
+    completed: ""
+  - id: "C3-6"
+    name: "Crear stories del epic ODAC"
+    file: "production/epics/odac/EPIC.md"
+    priority: should-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.2
+    blocker: "C3-5"
+    completed: ""
+  - id: "C3-7"
+    name: "Implementar epic ODAC (prioridad F7 + 4 modos de reconfiguracion + peso_prioridad)"
+    file: "production/epics/odac/EPIC.md"
+    priority: should-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.8
+    blocker: "C3-6"
+    completed: ""
+  - id: "C3-8"
+    name: "Rondas de demo y ajustes de ODAC (ventana + sign-off)"
+    file: "production/qa/evidence/"
+    priority: should-have
+    status: backlog
+    owner: "Opus 5 + usuario"
+    estimate_days: 0.3
+    blocker: "C3-7"
+    completed: ""
+  - id: "C3-9"
+    name: "Cierre formal ODAC"
+    file: "production/epics/odac/EPIC.md"
+    priority: should-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.1
+    blocker: "C3-8"
+    completed: ""
+  - id: "C3-10"
+    name: "Aviso de demanda sin servicio capaz (accion #2 del retro)"
+    file: "production/retrospectives/retro-sprint-2-2026-07-25.md"
+    priority: nice-to-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.1
+    blocker: ""
+    completed: ""
+  - id: "C3-11"
+    name: "Regla escrita de capas en el control manifest (accion #5 del retro)"
+    file: "docs/architecture/control-manifest.md"
+    priority: nice-to-have
+    status: backlog
+    owner: "Opus 5 (hilo principal)"
+    estimate_days: 0.05
+    blocker: ""
+    completed: ""
+  - id: "C3-12"
+    name: "Desglosar el feedback estetico del usuario en el backlog de pulido (accion #3 del retro)"
+    file: "design/ux/pulido-backlog.md"
+    priority: nice-to-have
+    status: backlog
+    owner: "Opus 5 + usuario"
+    estimate_days: 0.05
+    blocker: ""
+    completed: ""

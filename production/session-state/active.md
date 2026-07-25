@@ -3,9 +3,9 @@
 *Última actualización: 2026-07-25*
 
 <!-- STATUS -->
-Epic: CORE 5/5 COMPLETO — Sprint 2 cerrado al 100%
-Feature: —
-Task: decidir el siguiente paso (retrospectiva S2 / Sprint 3: capa Feature)
+Epic: Documentación #8 (capa Feature — Sprint 3)
+Feature: Horario configurable + peonada
+Task: C3-1 QA plan → C3-2 crear stories de Documentación
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -767,9 +767,34 @@ archivos). 7 correcciones propagadas a 5 GDD + registro, cada una con nota de po
 480, `config_construccion.gd` 0.5, `config_demanda.gd` 480/870/0.4) y **0 restos** de los valores viejos
 (greps de floor(Mando, AC-T26 14:30, tasa 0.5, ≈10, duracion_desplazamiento_seg). `/consistency-check`
 completo NO ejecutado (LEAN): verificación dirigida por grep, suficiente para erratas ya conocidas.
-**PRÓXIMO (a decidir con el usuario):** retrospectiva del Sprint 2 / `/sprint-plan` del Sprint 3 —
-capa **Feature** (Documentación #8, ODAC #9, Paciencia #10) o **Presentation** (UI/HUD #11 tras
-`/ux-design`, que es donde va TODO el pulido visual pendiente del andamio).
+**✅ CIERRE DE SPRINT 2 Y ARRANQUE DEL 3 (2026-07-25) — commits `f3a8f79` + siguiente, pusheados:**
+- **Push a GitHub hecho** (`68ed442..a24e5bf` y siguientes). Nada pendiente en el working tree.
+- **1ª RETROSPECTIVA del proyecto** (`production/retrospectives/retro-sprint-2-2026-07-25.md`, línea
+  base): 7/7 tareas, 15 stories, 264→342 tests, 15 commits, 8 bugs (todos cazados en ventana, 0
+  escapados), 6 entregables no planificados, 0 carryover. **Hallazgo principal: el trabajo no
+  planificado fue ~30 % del epic Flujo y entró sin renegociar el plan** — no es un problema de estimar
+  mejor, es una partida presupuestaria que faltaba. **5 acciones**: (1) presupuestar las rondas de demo
+  como tarea propia · (2) aviso de "demanda sin servicio capaz" (el misterio de las 22:00 no debe
+  repetirse) · (3) backlog de pulido visual · (4) erratas del GDD al momento, no al final · (5) regla
+  escrita de capas (los 2 bugs repetidos: z_index y clics tragados).
+- **`design/ux/pulido-backlog.md` CREADO** (acción 3): 9 andamios conocidos + 4 apuntes de juice +
+  restricciones. **⚠️ Pendiente de que el usuario desglose su "hay que pulir cosas de diseño"** (C3-12).
+- **MEMORIAS actualizadas**: (a) *no ofrecer "parar por hoy"* — orden explícita del usuario; (b) el modo
+  de trabajo vigente es **Opus 5 coordina E implementa en hilo principal, sin subagentes** (supera la
+  orden anterior de "Opus 4.8 vía subagentes + Fable coordina").
+- **`/create-epics layer: feature` HECHO**: 3 epics nuevos (`documentacion`, `odac`, `paciencia`) con
+  ADRs gobernantes, tabla de TR (8/8 trazados, **0 huérfanos**, riesgo de motor **LOW** en los tres) y
+  las interfaces que ya heredan de Core. `epics/index.md` → **13 epics** (5+5+3).
+- **DECISIÓN DEL USUARIO (2026-07-25): Sprint 3 = Documentación #8 + ODAC #9** (los configuradores);
+  **Paciencia #10 al Sprint 4** (la opción que se le recomendó, no elegida — anotar por si cambia).
+- **`/sprint-plan new` HECHO** → `production/sprints/sprint-3.md` + `sprint-status.yaml` regenerado
+  (12 tareas: 5 must / 4 should / 3 nice; el del Sprint 2 archivado en
+  `production/sprints/sprint-2-status-archivado.yaml`). **Las rondas de demo YA van presupuestadas**
+  (C3-4 y C3-8, 0,3 ses. cada una) — acción 1 del retro aplicada.
+**PRÓXIMO INMEDIATO: C3-1 `/qa-plan sprint`** (antes de implementar nada, patrón de los sprints 1-2) →
+**C3-2 `/create-stories documentacion`** → C3-3 implementar. **Deuda que salda este sprint: el horario
+de Doc deja de vivir prestado en Flujo** (los tests de `flujo_horario_test.gd` son la red de seguridad
+de esa migración).
 **[HISTÓRICO — resuelto] Tras sign-off:** COMMIT del paquete (008 + panel + enmiendas) → cerrar epic Flujo 8/8
 (stories→Complete con Cierres [en la 004: enmienda camino; en la 006: horario provisional];
 EPIC/index/sprint-status C2-4..C2-6 + flujo-001..008 → done) = **CORE 5/5 COMPLETO** → C2-7
