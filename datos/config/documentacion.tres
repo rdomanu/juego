@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="ConfigDocumentacion" format=3]
+
+[ext_resource type="Script" path="res://src/feature/documentacion/config_documentacion.gd" id="1_v2tmr"]
+
+[resource]
+script = ExtResource("1_v2tmr")

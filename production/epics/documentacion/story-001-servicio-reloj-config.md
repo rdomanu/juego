@@ -1,7 +1,7 @@
 # Story 001: El servicio y su reloj — núcleo, config y F3
 
 > **Epic**: Documentación
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: M (~2-3 h)
@@ -35,15 +35,15 @@ Documentación es un nodo de la capa Feature que no muta a nadie — solo calcul
 
 *De `design/gdd/documentation.md`, acotados a esta story:*
 
-- [ ] **AC-DC01** `[Unit]` — GIVEN el catálogo THEN los trámites de Doc son **DNI**(12/12), **Pasaporte**(15/30),
+- [x] **AC-DC01** `[Unit]` — GIVEN el catálogo THEN los trámites de Doc son **DNI**(12/12), **Pasaporte**(15/30),
       **TIE**(15/18) leídos de Datos (no inventados aquí).
-- [ ] **AC-DC07** `[Unit]` — GIVEN cierre 14:30 y `margen_ultima_admision_min = 15` THEN
+- [x] **AC-DC07** `[Unit]` — GIVEN cierre 14:30 y `margen_ultima_admision_min = 15` THEN
       `hora_ultima_admision = 14:15` (F3).
-- [ ] **AC-DC10** `[Unit]` — GIVEN **sin** evento de la División activo WHEN se pide cerrar más tarde de
+- [x] **AC-DC10** `[Unit]` — GIVEN **sin** evento de la División activo WHEN se pide cerrar más tarde de
       las **20:00** THEN se limita a 20:00 (el rango lo fija la División).
-- [ ] `[Unit]` — GIVEN cierre 18:00 THEN `horas_extra() = 3.5`; GIVEN cierre 14:30 THEN `horas_extra() = 0.0`
+- [x] `[Unit]` — GIVEN cierre 18:00 THEN `horas_extra() = 3.5`; GIVEN cierre 14:30 THEN `horas_extra() = 0.0`
       (F1, parte pura — el coste en euros es la 003).
-- [ ] `[Unit]` — GIVEN una hora del día THEN `estado_servicio(min_dia)` devuelve
+- [x] `[Unit]` — GIVEN una hora del día THEN `estado_servicio(min_dia)` devuelve
       **Cerrado / Abierto / Cerrando** según las transiciones del GDD.
 
 ---
@@ -130,3 +130,34 @@ Documentación es un nodo de la capa Feature que no muta a nadie — solo calcul
 
 - Depends on: None (Core completo)
 - Unlocks: Story 002
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **Suite 445/445, exit 0** (+22 respecto a los 423 del cierre
+de Paciencia); test propio **22/22**.
+
+- `src/feature/documentacion/documentacion.gd` (`class_name Documentacion`): `tope_autorizado()`,
+  `fijar_hora_cierre` / `fijar_margen_ultima_admision` (clamp + aviso + señal `horario_cambiado`),
+  **F3** `hora_ultima_admision()`, **F1 pura** `horas_extra()` / `hay_horas_extra()`,
+  `estado_servicio()` + `admite_a_esa_hora()`, y los trámites/cita leídos del catálogo.
+- `config_documentacion.gd` + `tools/build_config_documentacion.gd` → `datos/config/documentacion.tres`
+  (6 knobs de la División).
+- Test `tests/unit/documentacion/documentacion_horario_test.gd` **22/22**.
+
+**Decisiones de implementación (más allá de los AC):**
+- **La señal `horario_cambiado` se emite solo si el horario cambia de verdad** (guarda anti-duplicado,
+  patrón `nivel_demanda_cambiado` de Demanda): en la 002 la escucharán Flujo y Demanda, y un slider
+  arrastrado emite decenas de valores intermedios — sin la guarda, cada píxel del ratón reconfiguraría
+  dos sistemas.
+- **El cierre base nunca puede caer antes de la apertura** (`clamp` con mínimo `apertura + 1`): una
+  jornada de 0 minutos no es un horario, es un bug silencioso que dejaría la comisaría sin ingresos.
+- **`hora_ultima_admision()` nunca cae antes de la apertura**: un margen absurdo no puede cerrar la
+  puerta antes de abrirla.
+- **`estado_servicio` normaliza la hora con `fposmod`**: el reloj del juego acumula minutos sin parar
+  (el día 3 a las 10:00 son 4.920 min), y la función se usará desde la UI con el valor crudo.
+- **Cita (DO8)**: `requiere_cita()` devuelve **false** siempre en el MVP y **avisa** si el catálogo
+  pidiera cita — el hueco de #14 queda marcado sin que nadie pueda quedarse sin atender por una cita
+  que el juego todavía no sabe dar.
+- 🐛 *El test cazó una expectativa mía mal calculada* (no un fallo del código): al sanearse el cierre
+  base a 481, un `slider_max` de 600 ya era válido. El caso se reescribió con 400 para que compruebe
+  de verdad la restricción `slider_max ≥ cierre_base`.
