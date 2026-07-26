@@ -81,6 +81,35 @@ func animo_de(persona: RefCounted) -> StringName:
 	return _paciencia.animo_de_persona(persona)
 
 
+## El ciudadano ESPERANDO más cercano a un punto del mundo (para el clic derecho de "colar"), o null
+## si no hay ninguno a tiro. Radio generoso: los muñecos son pequeños y el jugador no tiene por qué
+## clavar el píxel.
+func ciudadano_en(punto: Vector2, radio: float = 22.0) -> Node:
+	var mejor: Node = null
+	var mejor_dist: float = radio
+	for hijo: Node in get_children():
+		if not (hijo is CharacterBody2D) or hijo.get("persona") == null:
+			continue
+		if animo_de(hijo.persona) == &"":
+			continue   # solo se puede colar a quien está esperando (a quien ya llamaron, no)
+		var dist: float = (hijo as Node2D).global_position.distance_to(punto)
+		if dist < mejor_dist:
+			mejor_dist = dist
+			mejor = hijo
+	return mejor
+
+
+## Qué fracción de su paciencia le queda [0, 1] — el ANCHO de su barra. Sin dato → llena (no se
+## enseña una barra medio vacía a quien no estamos midiendo).
+func fraccion_paciencia(persona: RefCounted) -> float:
+	if _paciencia == null or persona == null:
+		return 1.0
+	var valor: float = _paciencia.paciencia_de(persona)
+	if valor < 0.0:
+		return 1.0
+	return clampf(valor / _paciencia.PACIENCIA_INICIAL, 0.0, 1.0)
+
+
 ## Color del aro de ánimo (texto+forma no aplican a un indicador de 3 px: el respaldo daltónico de
 ## esta información vive en el HUD, que da los números de satisfacción y colas).
 func color_de_animo(animo: StringName) -> Color:

@@ -17,6 +17,12 @@ const ESTADO_EN_ATENCION := &"en_atencion"
 const ESTADO_RESUELTA := &"resuelta"
 const ESTADO_ABANDONANDO := &"abandonando"
 
+## ¿El jugador la ha COLADO? (mecánica pedida por el usuario 2026-07-26). Le da la máxima prioridad
+## en la selección F7 de su cola: será la siguiente a la que llamen. Se paga en paciencia del resto
+## (lo cobra Paciencia #10). Se serializa con la persona: colar es una decisión del jugador y debe
+## sobrevivir a guardar la partida.
+var colado: bool = false
+
 ## La ficha de Demanda (Persona: servicio / tramite_id / minuto_llegada) — REFERENCIA compartida.
 var ficha: RefCounted = null
 ## Número de turno (FL2): único y creciente por servicio; lo asigna Flujo al admitir. Nunca se reusa.

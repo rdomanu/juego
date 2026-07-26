@@ -222,3 +222,58 @@ func test_sin_velocidad_de_paseo_se_espera_desde_el_primer_minuto() -> void:
 	assert_float(mundo["paciencia"].minutos_hasta_su_sitio(persona)).is_equal(0.0)
 	mundo["paciencia"]._al_tick(3.0)
 	assert_float(mundo["paciencia"].paciencia_de(persona)).is_equal_approx(90.0, 0.1)
+
+
+# ── COLARSE (mecánica del usuario, 2026-07-26): el favor que pagan los demás ─────────────
+func test_colar_pone_a_esa_persona_la_primera() -> void:
+	var mundo: Dictionary = _mundo(true)
+	var primera: RefCounted = _encolar(mundo["flujo"], 480)
+	var segunda: RefCounted = _encolar(mundo["flujo"], 481)
+	var tercera: RefCounted = _encolar(mundo["flujo"], 482)
+	assert_bool(mundo["flujo"].colar(tercera)).is_true()
+	mundo["flujo"]._al_tick(0.1)             # el puesto llama a alguien
+	# Sin colar habría llamado a la de menor turno (la primera); con el favor, va la tercera.
+	assert_str(tercera.estado).is_not_equal(PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO)
+	assert_str(primera.estado).is_equal(PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO)
+
+
+func test_colar_cabrea_al_resto_de_la_cola() -> void:
+	var mundo: Dictionary = _mundo()
+	mundo["paciencia"].usar_personal(mundo["personal"])
+	var favorecida: RefCounted = _encolar(mundo["flujo"], 480)
+	var otra: RefCounted = _encolar(mundo["flujo"], 481)
+	var tercera: RefCounted = _encolar(mundo["flujo"], 482)
+	mundo["paciencia"]._al_tick(3.0)         # todas con 90 de paciencia
+	mundo["flujo"].colar(favorecida)
+	var molestos: int = mundo["paciencia"].penalizar_por_colado(favorecida)
+	assert_int(molestos).is_equal(2)         # las otras dos, no la favorecida
+	assert_float(mundo["paciencia"].paciencia_de(favorecida)).is_equal_approx(90.0, 0.1)
+	assert_float(mundo["paciencia"].paciencia_de(otra)).is_equal_approx(80.0, 0.1)
+	assert_float(mundo["paciencia"].paciencia_de(tercera)).is_equal_approx(80.0, 0.1)
+
+
+func test_no_se_cuela_dos_veces_a_la_misma_persona() -> void:
+	var mundo: Dictionary = _mundo()
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	assert_bool(mundo["flujo"].colar(persona)).is_true()
+	assert_bool(mundo["flujo"].colar(persona)).is_false()   # ni se cuela ni se cobra otra vez
+
+
+func test_no_se_puede_colar_a_quien_ya_han_llamado() -> void:
+	var mundo: Dictionary = _mundo(true)
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	mundo["flujo"]._al_tick(0.1)             # la llaman
+	assert_bool(mundo["flujo"].colar(persona)).is_false()
+
+
+func test_colar_puede_provocar_una_espantada() -> void:
+	var mundo: Dictionary = _mundo()
+	var avisos: Array = []
+	(mundo["bus"] as Node).abandono.connect(func(p: RefCounted) -> void: avisos.append(1))
+	var favorecida: RefCounted = _encolar(mundo["flujo"], 480)
+	var alborde: RefCounted = _encolar(mundo["flujo"], 481)
+	mundo["paciencia"]._al_tick(29.0)        # la sala entera al límite (paciencia ~3)
+	mundo["flujo"].colar(favorecida)
+	mundo["paciencia"].penalizar_por_colado(favorecida)   # el resto pierde 10 → a 0
+	mundo["paciencia"]._al_tick(0.1)         # el siguiente tick los echa
+	assert_int(avisos.size()).is_greater(0)  # colar en mal momento tiene consecuencias

@@ -46,3 +46,7 @@ class_name ConfigPaciencia extends Resource
 ## no todo el que se va se queja, pero 4 de cada 10 sí — y esa queja es trabajo real para ODAC que
 ## además no paga nada. Es el castigo con dientes de la mala gestión.
 @export var prob_reclamacion: float = 0.4
+## Puntos de paciencia que pierde CADA UNO de los que esperan cuando el jugador cuela a alguien
+## (mecánica del 2026-07-26). Es el precio social del favor: colar arregla un caso y empeora el
+## resto de la sala. Semilla 10 = un octavo de la barra, notable pero no fulminante.
+@export var penalizacion_colado: float = 10.0

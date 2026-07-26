@@ -23,11 +23,41 @@ var _paciencia: Node = null
 var _demanda: Node = null
 var _flujo: Node = null
 var _construccion: Node = null
+var _tiempo: Node = null
+var _economia: Node = null
+var _personal: Node = null
+
+## Dónde vive el `.tres` de cada sistema y qué clase de config usa — para poder FIJAR lo calibrado.
+const CONFIGS: Dictionary[String, Dictionary] = {
+	"paciencia": {
+		"ruta": "res://datos/config/paciencia.tres",
+		"script": "res://src/feature/paciencia/config_paciencia.gd",
+	},
+	"demanda": {
+		"ruta": "res://datos/config/demanda.tres",
+		"script": "res://src/core/demanda/config_demanda.gd",
+	},
+	"flujo": {
+		"ruta": "res://datos/config/flujo.tres",
+		"script": "res://src/core/flujo/config_flujo.gd",
+	},
+	"construccion": {
+		"ruta": "res://datos/config/construccion.tres",
+		"script": "res://src/core/construccion/config_construccion.gd",
+	},
+	"tiempo": {
+		"ruta": "res://datos/config/tiempo.tres",
+		"script": "res://src/foundation/tiempo/config_tiempo.gd",
+	},
+}
 
 var _panel: PanelContainer
 var _lista: VBoxContainer
 ## Etiquetas de valor por knob, para refrescarlas al mover su barra.
 var _valor_de: Dictionary[String, Label] = {}
+## Termómetro en vivo (arriba) y resultado de la última acción (abajo).
+var _lbl_metricas: Label = null
+var _lbl_resultado: Label = null
 
 
 ## Un knob calibrable: dónde vive, cómo se llama de cara al jugador, su rango y el paso de ajuste.
@@ -59,11 +89,17 @@ class Knob extends RefCounted:
 		return "%s.%s" % [sistema, propiedad]
 
 
-func configurar(paciencia: Node, demanda: Node, flujo: Node, construccion: Node) -> void:
+func configurar(
+	paciencia: Node, demanda: Node, flujo: Node, construccion: Node,
+	tiempo: Node = null, economia: Node = null, personal: Node = null
+) -> void:
 	_paciencia = paciencia
 	_demanda = demanda
 	_flujo = flujo
 	_construccion = construccion
+	_tiempo = tiempo
+	_economia = economia
+	_personal = personal
 	_crear_ui()
 	visible = false
 
@@ -103,6 +139,14 @@ func _grupos() -> Array:
 				"paciencia", "puntuacion_base", "Puntuación de una visita normal",
 				"Lo que puntúa una atención sin espera y con trato neutro (sobre 100)", 0.0, 100.0, 5.0, 0
 			),
+			Knob.new(
+				"paciencia", "k_espera", "Cuánto penaliza la espera al puntuar",
+				"0 = esperar no baja la nota · 0.5 = quien llega al límite puntúa la mitad", 0.0, 1.0, 0.05, 2
+			),
+			Knob.new(
+				"paciencia", "peso_prioridad_prioritaria", "Peso de una denuncia urgente",
+				"Cuánto cuenta una Prioritaria de ODAC frente a una normal en la satisfacción", 1.0, 5.0, 0.5
+			),
 		]],
 		["🚶 LAS VISITAS — cuánta gente viene", [
 			Knob.new(
@@ -116,6 +160,20 @@ func _grupos() -> Array:
 			Knob.new(
 				"demanda", "mult_nocturno_odac", "Goteo nocturno de ODAC",
 				"Cuánto se reduce la afluencia de 00:00 a 07:00 (0.5 = a la mitad)", 0.0, 1.0, 0.05, 2
+			),
+		]],
+		["🕐 EL HORARIO Y EL RELOJ", [
+			Knob.new(
+				"flujo", "apertura_doc_min", "Documentación abre (minuto del día)",
+				"480 = 08:00. Los puestos de Doc se abren solos a esta hora", 0.0, 1439.0, 30.0, 0
+			),
+			Knob.new(
+				"flujo", "cierre_doc_min", "Documentación cierra (minuto del día)",
+				"870 = 14:30. Deja de darse número; la cola admitida se termina de atender", 0.0, 1439.0, 30.0, 0
+			),
+			Knob.new(
+				"tiempo", "escala_tiempo", "Ritmo del reloj",
+				"Minutos de juego por segundo real a 1x (4 = una jornada en 6 minutos)", 1.0, 30.0, 1.0, 0
 			),
 		]],
 		["🏛 LA COMISARÍA — ritmo y espacio", [
@@ -139,7 +197,7 @@ func _grupos() -> Array:
 func _crear_ui() -> void:
 	_panel = PanelContainer.new()
 	_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(720, 640)
+	_panel.custom_minimum_size = Vector2(760, 680)
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_panel)
@@ -164,8 +222,15 @@ func _crear_ui() -> void:
 	aviso.autowrap_mode = TextServer.AUTOWRAP_WORD
 	caja.add_child(aviso)
 
+	# Termómetro en vivo: lo que está pasando AHORA, para ver el efecto de lo que se toca.
+	_lbl_metricas = Label.new()
+	_lbl_metricas.add_theme_font_size_override("font_size", 11)
+	_lbl_metricas.modulate = COLOR_SECCION
+	_lbl_metricas.autowrap_mode = TextServer.AUTOWRAP_WORD
+	caja.add_child(_lbl_metricas)
+
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 520)
+	scroll.custom_minimum_size = Vector2(0, 470)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	caja.add_child(scroll)
@@ -179,11 +244,116 @@ func _crear_ui() -> void:
 		for knob: Knob in grupo[1]:
 			_lista.add_child(_fila_knob(knob))
 
-	var cerrar := Button.new()
-	cerrar.text = "Cerrar (F1)"
-	cerrar.focus_mode = Control.FOCUS_NONE
-	cerrar.pressed.connect(func() -> void: visible = false)
-	caja.add_child(cerrar)
+	var acciones := HFlowContainer.new()
+	acciones.add_theme_constant_override("h_separation", 6)
+	caja.add_child(acciones)
+	acciones.add_child(_boton("💾 Fijar estos valores en el catálogo", _fijar_en_catalogo))
+	acciones.add_child(_boton("↩ Volver a los del catálogo", _restaurar_del_catalogo))
+	acciones.add_child(_boton("Cerrar (F1)", func() -> void: visible = false))
+	_lbl_resultado = Label.new()
+	_lbl_resultado.add_theme_font_size_override("font_size", 10)
+	_lbl_resultado.modulate = COLOR_TENUE
+	_lbl_resultado.autowrap_mode = TextServer.AUTOWRAP_WORD
+	caja.add_child(_lbl_resultado)
+
+
+func _boton(texto: String, accion: Callable) -> Button:
+	var boton := Button.new()
+	boton.text = texto
+	boton.add_theme_font_size_override("font_size", 11)
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.pressed.connect(accion)
+	return boton
+
+
+## Refresca el termómetro (solo con el panel abierto: cero coste mientras está cerrado).
+func _process(_delta: float) -> void:
+	if not visible or _lbl_metricas == null:
+		return
+	var partes: Array[String] = []
+	if _tiempo != null:
+		partes.append("🕐 %s · A%d M%02d S%d" % [
+			_tiempo.hhmm(_tiempo.minutos_juego), _tiempo.anio, _tiempo.mes, _tiempo.semana,
+		])
+	if _flujo != null:
+		partes.append("cola %d Doc / %d ODAC · atendiendo %d" % [
+			_flujo.personas_en_cola(&"Documentacion"), _flujo.personas_en_cola(&"ODAC"),
+			_flujo.atendiendo_total(),
+		])
+	if _paciencia != null:
+		partes.append("esperando %d · sat %d/100 (ayer %d) · quejas hoy %d" % [
+			_paciencia.personas_vigiladas(), roundi(_paciencia.sat_global()),
+			roundi(_paciencia.sat_cierre_de(&"Documentacion")), _paciencia.reclamaciones_jornada,
+		])
+	if _economia != null:
+		partes.append("saldo %.0f €" % _economia.saldo_eur)
+	partes.append("%d FPS" % Engine.get_frames_per_second())
+	_lbl_metricas.text = "  |  ".join(partes)
+
+
+# ── Fijar / restaurar: lo que cierra el bucle de calibración ─────────────────────────────────
+## Escribe los valores VIVOS de cada sistema en su `.tres`, para que sobrevivan al reinicio. Es la
+## operación que convierte "he encontrado el número bueno jugando" en una decisión del proyecto, sin
+## tener que dictar una lista de cifras a nadie.
+##
+## Solo en desarrollo (este panel no existe en un build exportado) y solo toca las propiedades que el
+## panel expone: el resto del `.tres` se conserva tal cual.
+func _fijar_en_catalogo() -> void:
+	var guardados: Array[String] = []
+	var fallos: Array[String] = []
+	for sistema: String in _sistemas_con_knobs():
+		if _guardar_config_de(sistema):
+			guardados.append(sistema)
+		else:
+			fallos.append(sistema)
+	if fallos.is_empty():
+		_lbl_resultado.text = "✅ Fijado en el catálogo: %s. Sobrevive al reinicio." % ", ".join(guardados)
+		_lbl_resultado.modulate = Color(0.55, 0.9, 0.55)
+	else:
+		_lbl_resultado.text = "⚠ No se pudo guardar: %s" % ", ".join(fallos)
+		_lbl_resultado.modulate = Color(0.95, 0.4, 0.4)
+
+
+## Recarga cada sistema desde su `.tres`: deshace la calibración de esta partida.
+func _restaurar_del_catalogo() -> void:
+	for sistema: String in _sistemas_con_knobs():
+		var nodo: Node = _sistema_de(Knob.new(sistema, "", "", "", 0.0, 1.0, 0.1))
+		if nodo == null or not nodo.has_method("aplicar_config"):
+			continue
+		var ruta: String = String(CONFIGS[sistema]["ruta"])
+		if ResourceLoader.exists(ruta):
+			nodo.aplicar_config(load(ruta))
+	_refrescar_valores()
+	_lbl_resultado.text = "↩ Valores del catálogo restaurados."
+	_lbl_resultado.modulate = COLOR_TENUE
+
+
+## Los sistemas que este panel calibra (los que aparecen en algún grupo de knobs).
+func _sistemas_con_knobs() -> Array[String]:
+	var sistemas: Array[String] = []
+	for grupo: Array in _grupos():
+		for knob: Knob in grupo[1]:
+			if not sistemas.has(knob.sistema) and CONFIGS.has(knob.sistema):
+				sistemas.append(knob.sistema)
+	return sistemas
+
+
+## Vuelca al `.tres` de un sistema los valores que este panel expone de él. Parte del `.tres` EXISTENTE
+## para no perder los knobs que el panel no toca.
+func _guardar_config_de(sistema: String) -> bool:
+	var nodo: Node = _sistema_de(Knob.new(sistema, "", "", "", 0.0, 1.0, 0.1))
+	if nodo == null:
+		return true   # ese sistema no está en la partida: nada que guardar, no es un fallo
+	var ruta: String = String(CONFIGS[sistema]["ruta"])
+	var config: Resource = load(ruta) if ResourceLoader.exists(ruta) else null
+	if config == null:
+		config = (load(String(CONFIGS[sistema]["script"])) as GDScript).new()
+	for grupo: Array in _grupos():
+		for knob: Knob in grupo[1]:
+			if knob.sistema != sistema:
+				continue
+			config.set(knob.propiedad, nodo.get(knob.propiedad))
+	return ResourceSaver.save(config, ruta) == OK
 
 
 func _cabecera_grupo(texto: String) -> Label:
@@ -267,6 +437,8 @@ func _sistema_de(knob: Knob) -> Node:
 			return _flujo
 		"construccion":
 			return _construccion
+		"tiempo":
+			return _tiempo
 		_:
 			return null
 

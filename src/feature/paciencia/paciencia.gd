@@ -49,6 +49,7 @@ var k_espera: float = 0.5
 var sat_inicial: float = 50.0
 var peso_prioridad_prioritaria: float = 2.5
 var prob_reclamacion: float = 0.4
+var penalizacion_colado: float = 10.0
 
 # ── Contadores de reclamaciones (story 006 · KPI de eficiencia) ──────────────────────────────
 ## Hojas de reclamaciones de la jornada en curso y del mes (las **graves** —urgencias de ODAC
@@ -564,6 +565,31 @@ func _al_nuevo_mes() -> void:
 	reclamaciones_graves_mes = 0
 
 
+# ── Colarse: el favor que pagan los demás (mecánica del usuario, 2026-07-26) ─────────────────
+
+## El jugador ha colado a `favorecida`: TODOS los demás que esperan ese servicio pierden
+## `penalizacion_colado` puntos de paciencia. Devuelve a cuántos les ha sentado mal.
+##
+## Es el precio de hacer un favor: arreglas un caso concreto (alguien que llevaba mucho esperando) y
+## empeoras la sala entera. Si el resto ya estaba al límite, colar puede provocar una espantada — y
+## esa consecuencia es EXACTAMENTE lo que hace interesante la decisión.
+##
+## Los que van de camino a su sitio no se enteran (aún no están esperando) y a quien ya han llamado
+## tampoco le afecta: su espera terminó.
+func penalizar_por_colado(favorecida: RefCounted) -> int:
+	if _flujo == null or favorecida == null or penalizacion_colado <= 0.0:
+		return 0
+	var afectados: int = 0
+	for persona: RefCounted in _flujo.personas_de_cola(favorecida.servicio()):
+		if persona == favorecida or not _espera(persona):
+			continue
+		if not _paciencia_de.has(persona) or _camino_a_su_sitio.has(persona):
+			continue
+		_paciencia_de[persona] = maxf(float(_paciencia_de[persona]) - penalizacion_colado, 0.0)
+		afectados += 1
+	return afectados
+
+
 # ── PS13 · Reclamaciones: quien se va cabreado deja trabajo (story 006) ──────────────────────
 
 ## Procesa el abandono de una persona: cuenta la hoja y, con probabilidad `prob_reclamacion`, genera
@@ -700,6 +726,7 @@ func aplicar_config(config: Resource) -> void:
 	sat_inicial = clampf(config.sat_inicial, 0.0, 100.0)
 	peso_prioridad_prioritaria = clampf(config.peso_prioridad_prioritaria, 1.0, 10.0)
 	prob_reclamacion = clampf(config.prob_reclamacion, 0.0, 1.0)
+	penalizacion_colado = clampf(config.penalizacion_colado, 0.0, 100.0)
 	# Invariante: el umbral bajo NUNCA por encima del alto (si el .tres viniera cruzado, se ordenan
 	# en vez de dejar una franja imposible donde el ánimo no se pudiera calcular).
 	if umbral_animo_bajo > umbral_animo_alto:

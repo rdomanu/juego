@@ -19,9 +19,17 @@ var _velocidad: float = 90.0
 var _estado_visto: StringName = &""
 ## El NavigationServer sincroniza en el 1er physics frame: hasta entonces ni target ni camino.
 var _nav_lista: bool = false
-## Barrita de ánimo sobre la cabeza y el último ánimo pintado (DIFF: solo se toca al cambiar de tramo).
+## Tamaño de la barra de paciencia (px). Ancha para leerse a distancia de cámara sin acercarse.
+const ANCHO_BARRA := 16.0
+const ALTO_BARRA := 3.0
+## Fondo de la barra: el hueco que deja ver cuánta paciencia le queda POR PERDER.
+const COLOR_BARRA_FONDO := Color(0, 0, 0, 0.45)
+## Barra de paciencia sobre la cabeza: relleno + fondo. Se refresca por DIFF (ancho y color solo
+## cambian cuando de verdad cambian).
 var _animo: ColorRect = null
+var _animo_fondo: ColorRect = null
 var _animo_visto: StringName = &""
+var _ancho_visto: float = -1.0
 
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
@@ -57,11 +65,21 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	cabeza.position = Vector2(-4, -14)
 	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(cabeza)
-	# Indicador de ÁNIMO (story paciencia-008): una barrita sobre la cabeza, legible a distancia de
-	# cámara y SIN hover (regla del proyecto). Nace oculta: solo se ve mientras la persona espera.
+	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
+	# 2026-07-26: *"debe ser algo más intuitivo: que cuando se vacía la barra se vayan"*). Son DOS
+	# piezas: un fondo oscuro fijo —el "hueco" de la barra, que dice cuánto cabía— y un relleno que se
+	# ENCOGE con la paciencia que queda. Al vaciarse del todo, la persona se marcha: lo que ves es
+	# exactamente lo que va a pasar. Sin hover (regla del proyecto).
+	_animo_fondo = ColorRect.new()
+	_animo_fondo.color = COLOR_BARRA_FONDO
+	_animo_fondo.size = Vector2(ANCHO_BARRA, ALTO_BARRA)
+	_animo_fondo.position = Vector2(-ANCHO_BARRA * 0.5, -20)
+	_animo_fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_animo_fondo.visible = false
+	add_child(_animo_fondo)
 	_animo = ColorRect.new()
-	_animo.size = Vector2(14, 3)
-	_animo.position = Vector2(-7, -20)
+	_animo.size = Vector2(ANCHO_BARRA, ALTO_BARRA)
+	_animo.position = Vector2(-ANCHO_BARRA * 0.5, -20)
 	_animo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo.visible = false
 	add_child(_animo)
@@ -112,18 +130,26 @@ func _velocidad_adaptativa() -> float:
 	)
 
 
-## Pinta el ánimo de esta persona (story paciencia-008). Por DIFF: solo toca el nodo cuando cambia de
-## tramo (contento → impaciente → al límite), nunca cada frame. Se oculta en cuanto deja de esperar:
-## una vez te llaman, tu cara ya no es asunto de nadie.
+## Pinta la barra de paciencia de esta persona. El ANCHO es lo que queda (se vacía a ojo) y el color
+## refuerza el tramo (verde → ámbar → rojo). Por DIFF: el nodo solo se toca cuando el ancho o el color
+## cambian de verdad. Se oculta en cuanto la llaman: una vez te atienden, tu espera ya no cuenta.
 func _refrescar_animo() -> void:
 	if _animo == null:
 		return
 	var animo: StringName = _manager.animo_de(persona)
-	if animo == _animo_visto:
+	if animo == &"":
+		if _animo_visto != &"":
+			_animo_visto = &""
+			_animo.visible = false
+			_animo_fondo.visible = false
+		return
+	var fraccion: float = _manager.fraccion_paciencia(persona)
+	var ancho: float = maxf(ANCHO_BARRA * fraccion, 1.0)
+	if animo == _animo_visto and is_equal_approx(ancho, _ancho_visto):
 		return
 	_animo_visto = animo
-	if animo == &"":
-		_animo.visible = false
-		return
+	_ancho_visto = ancho
 	_animo.visible = true
+	_animo_fondo.visible = true
+	_animo.size = Vector2(ancho, ALTO_BARRA)
 	_animo.color = _manager.color_de_animo(animo)

@@ -115,7 +115,9 @@ func _ready() -> void:
 		_panel_admin = PanelAdminScript.new()
 		_panel_admin.name = "PanelAdmin"
 		add_child(_panel_admin)
-		_panel_admin.configurar(_paciencia, _demanda, _flujo, _construccion)
+		_panel_admin.configurar(
+			_paciencia, _demanda, _flujo, _construccion, Tiempo, _economia, _personal
+		)
 	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
 	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
@@ -133,6 +135,14 @@ func _process(_delta: float) -> void:
 
 ## Atajos de teclado: Espacio = pausa/reanuda; 1/2/3 = velocidades. La UI solo ORDENA por la API pública.
 func _unhandled_input(evento: InputEvent) -> void:
+	# CLIC DERECHO sobre un ciudadano que espera = COLARLO (mecánica pedida por el usuario
+	# 2026-07-26). Llega aquí solo si nadie lo consumió antes (el modo construcción tiene prioridad).
+	if evento is InputEventMouseButton:
+		var raton := evento as InputEventMouseButton
+		if raton.pressed and raton.button_index == MOUSE_BUTTON_RIGHT:
+			_colar_bajo_el_cursor(get_global_mouse_position())
+			get_viewport().set_input_as_handled()
+		return
 	if not (evento is InputEventKey and evento.pressed and not evento.echo):
 		return
 	match (evento as InputEventKey).keycode:
@@ -220,6 +230,25 @@ func _instanciar_mundo() -> void:
 	_sincronizar_puestos_flujo()
 	_construccion.fijar_hook_layout(_al_cambiar_layout)
 	EventBus.persona_generada.connect(_al_llegar_persona)
+
+
+## Cuela al ciudadano que hay bajo el cursor: pasa a ser el siguiente al que llamen, y TODOS los
+## demás que esperan ese servicio pierden paciencia. El aviso dice a cuántos les ha sentado mal —
+## el jugador tiene que ver el precio de su favor, no solo el favor.
+func _colar_bajo_el_cursor(punto: Vector2) -> void:
+	var npc: Node = _npcs.ciudadano_en(punto)
+	if npc == null:
+		return
+	var persona: RefCounted = npc.persona
+	if not _flujo.colar(persona):
+		_lbl_guardado.text = "No se puede colar a esa persona"
+		_lbl_guardado.modulate = COLOR_TENUE_HUD
+		return
+	var molestos: int = _paciencia.penalizar_por_colado(persona)
+	_lbl_guardado.text = "Colado turno %d · %d esperando se han molestado" % [
+		persona.numero_turno, molestos,
+	]
+	_lbl_guardado.modulate = COLOR_JUSTO
 
 
 ## Una ficha de Demanda llega a la puerta: Flujo la admite (turno + aforo) y nace su NPC visible.

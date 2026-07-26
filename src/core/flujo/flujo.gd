@@ -260,6 +260,23 @@ func personas_de_cola(servicio: StringName) -> Array:
 	return (_colas.get(servicio, []) as Array).duplicate()
 
 
+## COLAR a alguien: lo pone el PRIMERO de su cola, para que sea el siguiente al que llamen (mecánica
+## pedida por el usuario 2026-07-26: *"con el botón derecho estaría bien colar a alguien que lleva
+## mucho tiempo esperando, pero eso afectaría a la paciencia del resto"*).
+##
+## Aquí solo se mueve el sitio en la cola —el precio social (el cabreo de los demás) lo cobra
+## Paciencia #10, que es quien posee esa escala—. Solo se puede colar a quien ESPERA: a quien ya han
+## llamado no hay que colarlo, y a quien está fuera por aforo no se le puede dar un sitio que no hay.
+## Devuelve false si no procede.
+func colar(persona: RefCounted) -> bool:
+	if persona == null or persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO:
+		return false
+	if persona.colado:
+		return false   # ya estaba colada: no se cuela dos veces (ni se cobra dos veces el cabreo)
+	persona.colado = true
+	return true
+
+
 ## Las personas que están AHORA en un puesto (llamadas o en atención). Ya NO están en ninguna cola
 ## —el emparejamiento las retira—, así que sin este getter serían invisibles para Paciencia #10, que
 ## necesita seguir reconociéndolas al recargar una partida. Solo lectura, en orden de puesto.
@@ -296,6 +313,10 @@ func puesto_de(persona: RefCounted) -> StringName:
 ## F7 — rango de prioridad: Documentación no tiene prioridad (todas 1, FIFO puro); en ODAC la
 ## `DenunciaODAC.prioridad` del catálogo manda ("Prioritaria" = 0 antes que "Normal" = 1).
 func _rango_prioridad(persona: RefCounted) -> int:
+	# A quien el jugador ha COLADO se le llama antes que a nadie, sea el servicio que sea: es una
+	# orden explícita suya y debe verse cumplida al instante (mecánica del 2026-07-26).
+	if persona.colado:
+		return -1
 	if persona.servicio() != SERVICIO_ODAC:
 		return 1
 	var denuncia: Resource = Datos.obtener(&"DenunciaODAC", persona.tramite_id())
@@ -781,6 +802,7 @@ func _persona_a_dict(persona: RefCounted) -> Dictionary:
 		"minuto_llegada": float(persona.ficha.minuto_llegada),
 		"turno": persona.numero_turno,
 		"estado": String(persona.estado),
+		"colado": persona.colado,
 	}
 
 
@@ -896,6 +918,7 @@ func _persona_desde_dict(entrada: Variant) -> RefCounted:
 	)
 	var persona: RefCounted = PersonaFlujoScript.new(ficha, turno)
 	persona.estado = estado
+	persona.colado = bool(entrada.get("colado", false))   # colar es decisión del jugador: sobrevive al save
 	return persona
 
 
