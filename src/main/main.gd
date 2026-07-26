@@ -50,6 +50,8 @@ const DocumentacionScript := preload("res://src/feature/documentacion/documentac
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 ## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
+## El panel del horario de Documentación (story doc-005): el slider que decide cuánto abres.
+const PanelHorarioScript := preload("res://src/main/panel_horario.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
@@ -88,6 +90,7 @@ var _construccion: Node
 var _flujo: Node
 var _paciencia: Node
 var _documentacion: Node
+var _panel_horario: CanvasLayer
 var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
@@ -119,6 +122,13 @@ func _ready() -> void:
 	_panel_personal.name = "PanelPersonal"
 	add_child(_panel_personal)
 	_panel_personal.configurar(_personal, _economia, _construccion, _flujo)
+	# Panel del horario (story doc-005): la decisión económica del jugador — cuánto abre y qué le
+	# cuesta. Solo LEE y ORDENA por la API de Documentación (ADR-0001); escucha los comunicados de la
+	# División por el bus. Se puede operar en Pausa (DO11).
+	_panel_horario = PanelHorarioScript.new()
+	_panel_horario.name = "PanelHorario"
+	add_child(_panel_horario)
+	_panel_horario.configurar(_documentacion, Tiempo, EventBus)
 	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
 	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
 	# ningún jugador puede abrirlo ni tocar los números del balance. Mismo patrón que la captura de
@@ -548,6 +558,7 @@ func _crear_hud() -> void:
 	botonera.add_theme_constant_override("v_separation", 4)
 	caja_acciones.add_child(botonera)
 	botonera.add_child(_boton_accion("👥 Personal (P)", func() -> void: _abrir_personal()))
+	botonera.add_child(_boton_accion("🕐 Horario (H)", func() -> void: _abrir_horario()))
 	botonera.add_child(_boton_accion("💾 Guardar (F5)", func() -> void: _guardar_partida()))
 	botonera.add_child(_boton_accion("📂 Cargar (F9)", func() -> void: _cargar_partida()))
 	# El botón de calibrar solo aparece en desarrollo (va con el panel: el jugador no lo ve nunca).
@@ -585,6 +596,12 @@ func _boton_accion(texto: String, accion: Callable) -> Button:
 func _abrir_personal() -> void:
 	_panel_personal.visible = true
 	_panel_personal._reconstruir()
+
+
+## Abre el panel del horario de Documentación (story doc-005). Se puede usar EN PAUSA (DO11).
+func _abrir_horario() -> void:
+	_panel_horario.visible = true
+	_panel_horario._refrescar()
 
 
 ## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que
