@@ -40,6 +40,8 @@ var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
 var puntuacion_base: float = 80.0
 var k_espera: float = 0.5
+var sat_inicial: float = 50.0
+var peso_prioridad_prioritaria: float = 2.5
 
 ## Persona (RefCounted de Flujo) → paciencia restante [0, 100]. La persona es la CLAVE: vive mientras
 ## Flujo la referencie, y Paciencia la suelta al resolverse o marcharse (`olvidar`).
@@ -53,18 +55,32 @@ var _flujo: Node = null
 var _construccion: Node = null
 var _personal: Node = null
 var _tiempo: Node = null
+var _bus: Node = null
 var _suscrito_al_tick: bool = false
 
 ## Buffers REUTILIZADOS entre ticks (regla del proyecto: cero allocs en el bucle de simulación —
 ## esto corre en cada tick con toda la sala dentro). Se limpian, no se recrean.
 var _a_abandonar: Array[RefCounted] = []
 
+# ── F3 · La satisfacción del día (story 004) ─────────────────────────────────────────────────
+## Acumuladores de la jornada EN CURSO por servicio: numerador y denominador de la media ponderada.
+## Se guardan como suma, no como lista de visitas → memoria constante aunque pasen 400 personas.
+var _suma_puntuaciones: Dictionary[StringName, float] = {}
+var _peso_total: Dictionary[StringName, float] = {}
+## `sat_cierre` de cada servicio: la media CERRADA de la jornada anterior. **Es la que manda en el
+## dinero** (Economía la usa para el retorno DGP), no la de hoy — así el ingreso no baila intradía.
+var _sat_cierre: Dictionary[StringName, float] = {}
+## Visitas cerradas por servicio en la jornada (para F5, la media global ponderada por volumen).
+var _visitas_jornada: Dictionary[StringName, int] = {}
+
 
 func _ready() -> void:
-	# Auto-resuelve el reloj real cuando corre en el juego (patrón de Flujo/Economía); en los tests
-	# se inyecta uno de mentira con `usar_tiempo` y este get_node no encuentra nada.
+	# Auto-resuelve los autoloads reales cuando corre en el juego (patrón de Flujo/Economía); en los
+	# tests se inyectan dobles y estos get_node no encuentran nada.
 	if _tiempo == null:
 		usar_tiempo(get_node_or_null("/root/Tiempo"))
+	if _bus == null:
+		usar_bus(get_node_or_null("/root/EventBus"))
 	_cargar_config()
 
 
@@ -80,6 +96,16 @@ func usar_flujo(flujo: Node) -> void:
 ## sala que medir → multiplicador 1.0 (el drenaje base ya castiga la espera).
 func usar_construccion(construccion: Node) -> void:
 	_construccion = construccion
+
+
+## Inyecta el EventBus y engancha el cierre de jornada como evento ORDENADO.
+## ⚠️ PRIORIDAD 10 en `nuevo_dia`: Paciencia cierra su media ANTES de que Economía cobre (prio 20),
+## porque el retorno DGP de hoy se calcula con el `sat_cierre` que acaba de fijarse. El orden estaba
+## previsto en el propio comentario de Economía: "Paciencia 10 · Economía 20".
+func usar_bus(bus: Node) -> void:
+	_bus = bus
+	if _bus != null and _bus.has_method("registrar_ordenado"):
+		_bus.registrar_ordenado(&"nuevo_dia", 10, _al_nuevo_dia)
 
 
 ## Inyecta Personal para leer el 🤝Trato del agente que atiende (F2). Sin él → trato neutro (1.0).
@@ -122,8 +148,10 @@ func _al_tick(delta_min: float) -> void:
 	for persona: RefCounted in _a_abandonar:
 		# `forzar_abandono` devuelve FALSE si a esa persona ya la han llamado (regla dura de Flujo):
 		# en ese caso NO se va y NO cuenta como abandono — la llamada le ganó la carrera (AC-PS19).
-		if _flujo.forzar_abandono(persona):
-			olvidar(persona)
+		# ⚠️ Si se va, NO se la olvida aquí: queda en estado Abandonando y la recoge `_purgar_terminadas`,
+		# que ANOTA su visita (puntuación 0) antes de soltarla. Olvidarla aquí borraría el peor dato de
+		# la jornada justo antes de contarlo — la satisfacción saldría inflada y nadie lo notaría.
+		_flujo.forzar_abandono(persona)
 	_anotar_llamadas()
 	_purgar_terminadas()
 
@@ -191,6 +219,7 @@ func _purgar_terminadas() -> void:
 		):
 			terminadas.append(persona)
 	for persona: RefCounted in terminadas:
+		anotar_visita(persona)   # story 004: su puntuación entra en la media del día ANTES de soltarla
 		_paciencia_de.erase(persona)
 		_paciencia_al_llamar.erase(persona)
 
@@ -331,6 +360,82 @@ func _factor_trato_de(persona: RefCounted) -> float:
 	return _personal.factor_trato_de(puesto_id)
 
 
+# ── F3 · La satisfacción del servicio: media de la jornada + cierre (story 004) ──────────────
+
+## Anota una visita TERMINADA en la media del día de su servicio. Ponderada: en ODAC una denuncia
+## Prioritaria pesa `peso_prioridad_prioritaria` (2.5) — atender bien una urgencia vale más, y fallarla
+## duele más. En Documentación todas pesan 1.0.
+func anotar_visita(persona: RefCounted) -> void:
+	var servicio: StringName = persona.servicio()
+	var peso: float = peso_de_visita(persona)
+	_suma_puntuaciones[servicio] = _suma_puntuaciones.get(servicio, 0.0) + puntuacion_de_visita(persona) * peso
+	_peso_total[servicio] = _peso_total.get(servicio, 0.0) + peso
+	_visitas_jornada[servicio] = _visitas_jornada.get(servicio, 0) + 1
+
+
+## El peso de una visita en la media de su servicio: 1.0 salvo denuncia PRIORITARIA de ODAC.
+## El tipo se resuelve por el catálogo (Datos); si no está, se asume Normal (nunca se infla el peso
+## por un dato que falta).
+func peso_de_visita(persona: RefCounted) -> float:
+	if persona.servicio() != &"ODAC":
+		return 1.0
+	var denuncia: Resource = Datos.obtener(&"DenunciaODAC", persona.tramite_id())
+	if denuncia == null or denuncia.prioridad != "Prioritaria":
+		return 1.0
+	return peso_prioridad_prioritaria
+
+
+## La media VIVA de la jornada en curso (lo que el HUD enseña "construyéndose"). Sin visitas todavía
+## → el cierre anterior: mientras no haya datos nuevos, lo que sabemos es lo de ayer.
+func sat_actual_de(servicio: StringName) -> float:
+	var peso: float = _peso_total.get(servicio, 0.0)
+	if peso <= 0.0:
+		return sat_cierre_de(servicio)
+	return float(_suma_puntuaciones.get(servicio, 0.0)) / peso
+
+
+## La satisfacción CERRADA de la jornada anterior — la que fija los ingresos de hoy (F4, Economía).
+## Antes de la primera jornada cerrada, `sat_inicial` (50).
+func sat_cierre_de(servicio: StringName) -> float:
+	return _sat_cierre.get(servicio, sat_inicial)
+
+
+## F5 — satisfacción GLOBAL: media de los servicios ponderada por su VOLUMEN de visitas del día. Solo
+## para el HUD y la futura valoración de jefes; Economía NO la usa (cobra por servicio). Sin visitas
+## en ningún servicio → media simple de los cierres (algo hay que enseñar, y es lo honesto).
+func sat_global() -> float:
+	var suma: float = 0.0
+	var visitas: int = 0
+	for servicio: StringName in SERVICIOS:
+		var n: int = _visitas_jornada.get(servicio, 0)
+		suma += sat_actual_de(servicio) * float(n)
+		visitas += n
+	if visitas <= 0:
+		var total: float = 0.0
+		for servicio: StringName in SERVICIOS:
+			total += sat_cierre_de(servicio)
+		return total / float(SERVICIOS.size())
+	return suma / float(visitas)
+
+
+## Cierre de la jornada (`nuevo_dia`, prioridad 10 — ANTES de que Economía cobre en la 20): la media
+## viva se convierte en el `sat_cierre` que manda mañana, y los acumuladores se resetean.
+## **Jornada sin visitas de un servicio → su cierre NO cambia** (AC-PS13): no se hereda un 0 por no
+## haber trabajado, ni se divide por cero.
+func cerrar_jornada() -> void:
+	for servicio: StringName in SERVICIOS:
+		if _peso_total.get(servicio, 0.0) > 0.0:
+			_sat_cierre[servicio] = sat_actual_de(servicio)
+	_suma_puntuaciones.clear()
+	_peso_total.clear()
+	_visitas_jornada.clear()
+
+
+## Handler del evento ordenado `nuevo_dia`.
+func _al_nuevo_dia() -> void:
+	cerrar_jornada()
+
+
 # ── Config (patrón del proyecto: fallback seguro + clamps con aviso) ─────────────────────────
 
 ## Aplica un `ConfigPaciencia` con clamps. Config nula o de otro tipo → defaults con aviso (no peta).
@@ -346,6 +451,8 @@ func aplicar_config(config: Resource) -> void:
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)
 	puntuacion_base = clampf(config.puntuacion_base, 0.0, 100.0)
 	k_espera = clampf(config.k_espera, 0.0, 1.0)
+	sat_inicial = clampf(config.sat_inicial, 0.0, 100.0)
+	peso_prioridad_prioritaria = clampf(config.peso_prioridad_prioritaria, 1.0, 10.0)
 	# Invariante: el umbral bajo NUNCA por encima del alto (si el .tres viniera cruzado, se ordenan
 	# en vez de dejar una franja imposible donde el ánimo no se pudiera calcular).
 	if umbral_animo_bajo > umbral_animo_alto:

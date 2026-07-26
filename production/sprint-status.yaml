@@ -80,11 +80,11 @@ stories:
     name: "Paciencia: F3 media de jornada y cierre al nuevo_dia"
     file: "production/epics/paciencia/story-004-media-jornada-cierre.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.15
     blocker: "pac-003"
-    completed: ""
+    completed: "2026-07-26"
   - id: "pac-005"
     name: "Paciencia: la reputacion se convierte en dinero (retorno DGP)"
     file: "production/epics/paciencia/story-005-sat-a-ingresos.md"

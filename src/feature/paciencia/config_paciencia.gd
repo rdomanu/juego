@@ -35,3 +35,10 @@ class_name ConfigPaciencia extends Resource
 ## Cuánto castiga la espera en la puntuación (F2: `factor_espera = 1 − k_espera × consumida/100`).
 ## Con 0.5, quien llega al límite de su paciencia puntúa la MITAD que quien no esperó nada. Semilla 0.5.
 @export var k_espera: float = 0.5
+## Satisfacción de partida, antes de que haya ninguna jornada cerrada (F3). Cross-fact 50 (registro):
+## se arranca en el punto medio — ni el jugador hereda una comisaría modélica ni una ruina.
+@export var sat_inicial: float = 50.0
+## Cuánto pesa una denuncia PRIORITARIA (VioGén, desaparecidos, agresión sexual, atraco) frente a una
+## Normal (1.0) en la media de ODAC. Cross-fact 2.5 (dueño: ODAC #9): fallarle a una urgencia hace
+## MUCHO más daño que fallarle a un papeleo — y atenderla bien vale más.
+@export var peso_prioridad_prioritaria: float = 2.5

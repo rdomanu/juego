@@ -1,12 +1,12 @@
 # Story 004: F3 — la satisfacción del día y su cierre
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada + test 10/10 en verde
 
 ## Context
 
@@ -29,12 +29,12 @@ cerrar su media **ANTES** de que Economía cobre, porque Economía usa `sat_cier
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS10** `[Unit]` — GIVEN 1.ª jornada sin datos THEN `sat_cierre_doc = sat_cierre_odac = 50`.
-- [ ] **AC-PS11** `[Integration]` — GIVEN varias visitas WHEN `nuevo_dia` THEN `sat_cierre` = media
+- [x] **AC-PS10** `[Unit]` — GIVEN 1.ª jornada sin datos THEN `sat_cierre_doc = sat_cierre_odac = 50`.
+- [x] **AC-PS11** `[Integration]` — GIVEN varias visitas WHEN `nuevo_dia` THEN `sat_cierre` = media
       ponderada de sus puntuaciones y el acumulador se **resetea**.
-- [ ] **AC-PS12** `[Unit]` — GIVEN ODAC con una VioGén (peso 2.5) y una Normal (1.0) THEN la media
+- [x] **AC-PS12** `[Unit]` — GIVEN ODAC con una VioGén (peso 2.5) y una Normal (1.0) THEN la media
       **pondera 2.5:1**.
-- [ ] **AC-PS13** `[Integration]` — GIVEN jornada sin visitas de ODAC WHEN `nuevo_dia` THEN
+- [x] **AC-PS13** `[Integration]` — GIVEN jornada sin visitas de ODAC WHEN `nuevo_dia` THEN
       `sat_cierre_odac` = el anterior (**sin división por cero**).
 
 ---
@@ -68,3 +68,28 @@ cerrar su media **ANTES** de que Economía cobre, porque Economía usa `sat_cier
 ## Out of Scope
 
 - Que ese `sat` mueva el dinero (005).
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5).
+
+- **F3**: acumuladores por servicio (suma ponderada + peso total → **memoria constante** aunque pasen
+  400 personas al día), `sat_actual_de` (la media viva de hoy), `sat_cierre_de` (la de ayer, la que
+  manda en el dinero) y `cerrar_jornada`.
+- **F5** `sat_global`: media ponderada por VOLUMEN de visitas — solo HUD; Economía cobra por servicio.
+- **Pesos**: Doc 1.0; ODAC lee la `prioridad` del catálogo real → Prioritaria pesa **2.5**. Tipo
+  desconocido → 1.0 (nunca se infla un peso por un dato que falta).
+- **Handler ordenado** `nuevo_dia` **prioridad 10**, por delante de Economía (20): el cierre fija el
+  `sat_cierre` ANTES de que se cobre con él. El orden ya estaba previsto en un comentario de Economía.
+- Knobs nuevos: `sat_inicial` 50 · `peso_prioridad_prioritaria` 2.5 (cross-facts del registro).
+- Test `paciencia_cierre_jornada_test.gd` **10/10**, incluido el del ORDEN (espías en prio 9/11/20).
+
+**🐛 Bug cazado al implementar (no estaba en ningún AC):** el bucle de abandonos llamaba a `olvidar()`
+nada más echar a la persona — es decir, **borraba el peor dato de la jornada justo antes de contarlo**.
+La satisfacción habría salido sistemáticamente inflada y ningún test de los AC lo habría visto. Ahora
+quien se marcha queda en estado Abandonando y la recoge `_purgar_terminadas`, que **anota su 0** en la
+media antes de soltarla.
+
+**Decisión más allá de los AC:** `sat_actual_de` de un servicio sin visitas hoy devuelve **el cierre de
+ayer**, no un 0 — mientras no haya datos nuevos, lo que sabemos es lo de ayer (y evita que el HUD
+enseñe un 0 alarmante cada amanecer).
