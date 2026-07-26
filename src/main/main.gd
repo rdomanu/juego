@@ -47,6 +47,8 @@ const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 ## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
+## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
+const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
 ## Y arriba: el HUD vive ABAJO (estilo tycoon — petición del usuario 2026-07-24), el mundo despejado.
 const POS_SUELO := Vector2(96, 24)
@@ -82,6 +84,9 @@ var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
 var _lbl_puerta_doc: Label
+var _panel_personal: CanvasLayer
+var _panel_admin: CanvasLayer
+var _lbl_guardado: Label
 var _lbl_satisfaccion: Label
 var _lbl_reclamaciones: Label
 
@@ -98,10 +103,19 @@ func _ready() -> void:
 	add_child(modo_construccion)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
-	var panel_personal: CanvasLayer = PanelPersonalScript.new()
-	panel_personal.name = "PanelPersonal"
-	add_child(panel_personal)
-	panel_personal.configurar(_personal, _economia, _construccion, _flujo)
+	_panel_personal = PanelPersonalScript.new()
+	_panel_personal.name = "PanelPersonal"
+	add_child(_panel_personal)
+	_panel_personal.configurar(_personal, _economia, _construccion, _flujo)
+	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
+	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
+	# ningún jugador puede abrirlo ni tocar los números del balance. Mismo patrón que la captura de
+	# evidencia. `OS.has_feature("editor")` es false en el juego exportado.
+	if OS.has_feature("editor"):
+		_panel_admin = PanelAdminScript.new()
+		_panel_admin.name = "PanelAdmin"
+		add_child(_panel_admin)
+		_panel_admin.configurar(_paciencia, _demanda, _flujo, _construccion)
 	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
 	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
@@ -133,6 +147,10 @@ func _unhandled_input(evento: InputEvent) -> void:
 			Tiempo.fijar_velocidad(Tiempo.Velocidad.X2)
 		KEY_3:
 			Tiempo.fijar_velocidad(Tiempo.Velocidad.X3)
+		KEY_F5:
+			_guardar_partida()
+		KEY_F9:
+			_cargar_partida()
 
 
 # ── El mundo (sistemas Core instanciados — arquitectura §3.4 paso 3) ─────────────────────────
@@ -390,6 +408,25 @@ func _crear_hud() -> void:
 	_lbl_puerta_doc.add_theme_font_size_override("font_size", 11)
 	caja_flujo.add_child(_lbl_puerta_doc)
 
+	# Acciones del jugador (feedback del usuario 2026-07-26: "no hay panel de guardado, ni de personal
+	# accesible como el de construir"). Todo lo que se puede hacer, VISIBLE y con su tecla al lado.
+	var caja_acciones := _seccion(fila)
+	var botonera := HFlowContainer.new()
+	botonera.add_theme_constant_override("h_separation", 6)
+	botonera.add_theme_constant_override("v_separation", 4)
+	caja_acciones.add_child(botonera)
+	botonera.add_child(_boton_accion("👥 Personal (P)", func() -> void: _abrir_personal()))
+	botonera.add_child(_boton_accion("💾 Guardar (F5)", func() -> void: _guardar_partida()))
+	botonera.add_child(_boton_accion("📂 Cargar (F9)", func() -> void: _cargar_partida()))
+	# El botón de calibrar solo aparece en desarrollo (va con el panel: el jugador no lo ve nunca).
+	if _panel_admin != null:
+		botonera.add_child(_boton_accion("⚙ Calibrar (F1) · DEV", func() -> void: _panel_admin.alternar()))
+	_lbl_guardado = Label.new()
+	_lbl_guardado.add_theme_font_size_override("font_size", 10)
+	_lbl_guardado.modulate = COLOR_TENUE_HUD
+	_lbl_guardado.text = "Partida sin guardar"
+	caja_acciones.add_child(_lbl_guardado)
+
 	# Bloque de satisfacción (story paciencia-008): la media de HOY construyéndose junto al cierre de
 	# AYER (el que fija el dinero de hoy) + las quejas. Con su escala SIEMPRE visible (principio U5
 	# del backlog de pulido: ningún número sin saber respecto a qué).
@@ -400,6 +437,42 @@ func _crear_hud() -> void:
 	_lbl_reclamaciones = Label.new()
 	_lbl_reclamaciones.add_theme_font_size_override("font_size", 11)
 	caja_sat.add_child(_lbl_reclamaciones)
+
+
+## Un botón de la barra de acciones (font pequeña, sin foco — gotcha: si no, Espacio lo "pulsa").
+func _boton_accion(texto: String, accion: Callable) -> Button:
+	var boton := Button.new()
+	boton.text = texto
+	boton.add_theme_font_size_override("font_size", 11)
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.pressed.connect(accion)
+	return boton
+
+
+## Abre el panel de personal (lo mismo que la tecla P, pero descubrible con el ratón).
+func _abrir_personal() -> void:
+	_panel_personal.visible = true
+	_panel_personal._reconstruir()
+
+
+## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que
+## no tener guardado (el jugador cree que su partida está a salvo y no lo está).
+func _guardar_partida() -> void:
+	var ok: bool = SaveManager.guardar_partida()
+	_lbl_guardado.text = (
+		"Guardado a las %s" % Tiempo.hhmm(Tiempo.minutos_juego) if ok else "⚠ No se pudo guardar"
+	)
+	_lbl_guardado.modulate = COLOR_TENUE_HUD if ok else COLOR_ROJOS
+
+
+## Carga la última partida guardada. Tras cargar, el juego queda EN PAUSA (contrato del ADR-0002:
+## "cargar sitúa" — nada se mueve hasta que el jugador reanuda).
+func _cargar_partida() -> void:
+	var ok: bool = SaveManager.cargar_partida()
+	_lbl_guardado.text = "Partida cargada (en pausa)" if ok else "⚠ No hay partida guardada"
+	_lbl_guardado.modulate = COLOR_TENUE_HUD if ok else COLOR_ROJOS
+	if ok:
+		_al_cambiar_layout()   # el layout cargado necesita re-bake de navegación y re-sincronizar
 
 
 ## Color de la satisfacción, con los MISMOS umbrales que el ánimo de la gente (66/33): lo que ve el

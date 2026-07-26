@@ -155,6 +155,27 @@ anterior— **aplicada** (Economía E7/F1, 2026-07-21).)*
 **Salida:** minutos hasta abandonar = `100 / tasa_drenaje_efectiva`. **Ejemplo:** neutro → `100/(100/30) = 30 min`;
 con hacinamiento ×1.5 → `100/(3.33×1.5) ≈ 20 min`.
 
+> **🔧 ENMIENDA DE DISEÑO (usuario, 2026-07-26 — aplicada en código): la paciencia empieza al LLEGAR
+> a su sitio.** *"Si están de camino a la sala de espera, ese camino no debe gastar paciencia."*
+> Antes la barra empezaba a bajar en cuanto la persona entraba en la cola, aunque todavía estuviera
+> cruzando el vestíbulo. Ahora los minutos del **paseo hasta su sitio** se descuentan primero y no
+> consumen nada: solo lo que sobra es espera de verdad.
+> - Se mide en el PLANO como el resto (FL5): de la celda de entrada al centro de su sala de espera,
+>   dividido por la MISMA `velocidad_camino_celdas_min` que usa Flujo para ir a la ventanilla.
+> - Es la hermana de la enmienda "EN CAMINO no se tramita" (flow-queues FL5): **el tiempo de tránsito
+>   no se le cobra a nadie**, ni al ciudadano en paciencia ni al jugador en trámite.
+> - Con velocidad 0 (llegada instantánea) el comportamiento es el de antes.
+> - Efecto de diseño: una sala de espera lejos de la entrada **regala** paciencia, pero retrasa a la
+>   gente. Otra palanca de distribución para el jugador.
+
+> **🔮 PENDIENTE DE DISEÑO — Comodidades (petición del usuario, 2026-07-26):** *"esa paciencia debe
+> subir en minutos con las distintas mejoras: mejores asientos, máquinas de vending, revistas,
+> televisiones... cosas que mejoren los tiempos de espera."*
+> **El hueco YA EXISTE en F1: `mult_comodidad`** (rango 0.6–1.0; <1 = la gente aguanta más), hoy fijo
+> en 1.0 "hasta Comodidades #15". Lo que falta no es la fórmula, sino el **contenido**: objetos
+> construibles con su coste y su aporte de confort, y que `mult_comodidad` se derive de lo que hay
+> puesto en cada sala. Ver `production/epics/comodidades/` (epic esbozado 2026-07-26).
+
 ### F2 · Puntuación de visita
 
 `puntuacion_atendida = clamp(puntuacion_base × factor_espera × factor_trato, 0, 100)`

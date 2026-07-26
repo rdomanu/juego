@@ -199,3 +199,26 @@ func test_quien_se_marcha_puntua_cero_aunque_hubiera_esperado_poco() -> void:
 	var persona: RefCounted = _encolar(mundo["flujo"])
 	mundo["paciencia"]._al_tick(30.0)      # se harta y se va
 	assert_float(mundo["paciencia"].puntuacion_de_visita(persona)).is_equal(0.0)
+
+
+# ── ENMIENDA 2026-07-26 · El camino hasta su sitio NO gasta paciencia ────────────────────
+func test_el_camino_hasta_su_sitio_no_gasta_paciencia() -> void:
+	var mundo: Dictionary = _mundo()
+	# Con velocidad de paseo real, llegar a la sala cuesta minutos: durante ellos NO se espera.
+	mundo["flujo"].velocidad_camino_celdas_min = 0.375
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	var camino: float = mundo["paciencia"].minutos_hasta_su_sitio(persona)
+	assert_float(camino).is_greater(0.0)
+	mundo["paciencia"]._al_tick(camino - 0.5)      # todavía andando
+	assert_float(mundo["paciencia"].paciencia_de(persona)).is_equal(100.0)
+	mundo["paciencia"]._al_tick(3.5)               # llega (0.5) y espera 3 min de verdad
+	# 3 min de espera real → 100 − 3.33×3 = 90 (los minutos de camino no cuentan).
+	assert_float(mundo["paciencia"].paciencia_de(persona)).is_equal_approx(90.0, 0.1)
+
+
+func test_sin_velocidad_de_paseo_se_espera_desde_el_primer_minuto() -> void:
+	var mundo: Dictionary = _mundo()   # el fixture usa velocidad 0.0 (llegada instantánea)
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	assert_float(mundo["paciencia"].minutos_hasta_su_sitio(persona)).is_equal(0.0)
+	mundo["paciencia"]._al_tick(3.0)
+	assert_float(mundo["paciencia"].paciencia_de(persona)).is_equal_approx(90.0, 0.1)

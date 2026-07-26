@@ -34,6 +34,8 @@ const SIN_PACIENCIA := -1.0
 const PersonaScript := preload("res://src/core/demanda/persona.gd")
 ## El trámite de la hoja de reclamaciones en el catálogo (30 min, Normal, ODAC, SIN tarifa).
 const TRAMITE_RECLAMACION := &"reclamacion"
+## La celda por la que se entra al edificio (misma que usa Flujo para medir el camino a la ventanilla).
+const CELDA_ENTRADA := Vector2i(0, 6)
 
 # ── Tuning (del `.tres`; ver ConfigPaciencia) ────────────────────────────────────────────────
 var tolerancia_base_min: float = 30.0
@@ -62,6 +64,9 @@ var _paciencia_de: Dictionary = {}
 ## Persona → paciencia que le quedaba **en el momento de ser LLAMADA** (story 003). Es el dato con el
 ## que se puntúa la visita: lo que molesta es la ESPERA, no lo que dure el trámite después.
 var _paciencia_al_llamar: Dictionary = {}
+## Persona → minutos que le quedan de CAMINO HASTA SU SITIO de espera (enmienda 2026-07-26). Mientras
+## camina no gasta paciencia: todavía no está esperando, está yendo.
+var _camino_a_su_sitio: Dictionary = {}
 
 # ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
 var _flujo: Node = null
@@ -215,8 +220,50 @@ func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
 		registrar(persona)
 		if not _espera(persona):
 			continue   # llamada / en atención: conserva su barra tal cual, congelada
-		if drenar(persona, delta_min, mult) <= 0.0:
+		# ENMIENDA 2026-07-26: el paseo hasta su sitio NO es espera. Los minutos se gastan primero en
+		# llegar; solo lo que sobra empieza a consumir paciencia (y normalmente no sobra nada en ese
+		# primer tramo, así que la barra no se mueve hasta que se sienta).
+		var minutos: float = _consumir_camino(persona, delta_min)
+		if minutos <= 0.0:
+			continue
+		if drenar(persona, minutos, mult) <= 0.0:
 			_a_abandonar.append(persona)
+
+
+## Gasta `delta_min` en el camino pendiente hasta su sitio y devuelve los minutos que SOBRAN (los que
+## ya cuentan como espera de verdad). Sin camino pendiente, devuelve el delta entero.
+func _consumir_camino(persona: RefCounted, delta_min: float) -> float:
+	var restante: float = float(_camino_a_su_sitio.get(persona, 0.0))
+	if restante <= 0.0:
+		return delta_min
+	if restante >= delta_min:
+		_camino_a_su_sitio[persona] = restante - delta_min
+		return 0.0
+	_camino_a_su_sitio.erase(persona)
+	return delta_min - restante
+
+
+## Minutos que tarda esta persona en llegar a su sitio de espera desde la entrada (enmienda
+## 2026-07-26: *"si están de camino a la sala de espera, ese camino no debe gastar paciencia"*).
+##
+## Se mide en el PLANO, como el camino a la ventanilla (FL5): distancia de la celda de entrada al
+## centro de su sala de espera, dividida por la MISMA velocidad de paseo que usa Flujo — así el
+## muñeco que ves cruzando la sala y el cronómetro lógico cuentan lo mismo. Sin Construcción, sin
+## sala o con velocidad 0 → 0 minutos (empieza a esperar al entrar, el comportamiento de antes).
+func minutos_hasta_su_sitio(persona: RefCounted) -> float:
+	if _construccion == null or _flujo == null:
+		return 0.0
+	var velocidad: float = float(_flujo.velocidad_camino_celdas_min)
+	if velocidad <= 0.0:
+		return 0.0
+	var salas: Array = _construccion.salas_de_espera_de(persona.servicio())
+	if salas.is_empty():
+		return 0.0
+	var rect: Rect2i = _construccion.rect_de_sala(salas[0])
+	if rect.size.x <= 0 or rect.size.y <= 0:
+		return 0.0
+	var centro := Vector2(rect.position) + Vector2(rect.size) * 0.5 - Vector2(0.5, 0.5)
+	return Vector2(CELDA_ENTRADA).distance_to(centro) / velocidad
 
 
 ## ¿Esta persona está ESPERANDO (dentro o fuera)? Solo entonces drena su paciencia.
@@ -264,6 +311,7 @@ func _purgar_terminadas() -> void:
 		anotar_visita(persona)   # story 004: su puntuación entra en la media del día ANTES de soltarla
 		_paciencia_de.erase(persona)
 		_paciencia_al_llamar.erase(persona)
+		_camino_a_su_sitio.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────
@@ -281,9 +329,14 @@ func registrar(persona: RefCounted) -> void:
 		_paciencia_de[persona] = float(guardado["valor"])
 		if float(guardado["al_llamar"]) >= 0.0:
 			_paciencia_al_llamar[persona] = float(guardado["al_llamar"])
+		if float(guardado.get("camino", 0.0)) > 0.0:
+			_camino_a_su_sitio[persona] = float(guardado["camino"])
 		_restaurables.erase(clave)
 		return
 	_paciencia_de[persona] = PACIENCIA_INICIAL
+	var camino: float = minutos_hasta_su_sitio(persona)
+	if camino > 0.0:
+		_camino_a_su_sitio[persona] = camino
 
 
 ## Clave ESTABLE de una persona entre guardado y carga: su servicio y su número de turno (los objetos
@@ -296,6 +349,7 @@ func _clave_de(persona: RefCounted) -> String:
 func olvidar(persona: RefCounted) -> void:
 	_paciencia_de.erase(persona)
 	_paciencia_al_llamar.erase(persona)
+	_camino_a_su_sitio.erase(persona)
 
 
 ## ¿Está esta persona esperando bajo el ojo de Paciencia?
@@ -572,6 +626,7 @@ func save() -> Dictionary:
 			"clave": _clave_de(persona),
 			"valor": float(_paciencia_de[persona]),
 			"al_llamar": float(_paciencia_al_llamar.get(persona, -1.0)),
+			"camino": float(_camino_a_su_sitio.get(persona, 0.0)),
 		})
 	var acumulado: Dictionary = {}
 	for servicio: StringName in SERVICIOS:
@@ -599,11 +654,13 @@ func save() -> Dictionary:
 func load_state(d: Dictionary) -> void:
 	_paciencia_de.clear()
 	_paciencia_al_llamar.clear()
+	_camino_a_su_sitio.clear()
 	_restaurables.clear()
 	for barra: Dictionary in d.get("barras", []):
 		_restaurables[String(barra.get("clave", ""))] = {
 			"valor": float(barra.get("valor", PACIENCIA_INICIAL)),
 			"al_llamar": float(barra.get("al_llamar", -1.0)),
+			"camino": float(barra.get("camino", 0.0)),
 		}
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
