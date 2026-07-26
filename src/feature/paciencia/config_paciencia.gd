@@ -29,3 +29,9 @@ class_name ConfigPaciencia extends Resource
 ## Umbral de ánimo AL LÍMITE (🔴): paciencia por DEBAJO de este valor; entre ambos, impaciente (🟡).
 ## Cross-fact 33 (ui-hud F2). La UI LEE estos umbrales — nunca los hardcodea.
 @export var umbral_animo_bajo: float = 33.0
+## Puntuación de una atención NEUTRA (sin espera consumida y con trato normal) — F2. Semilla 80: deja
+## margen arriba para premiar el buen trato (80 × 1.3 = 104 → clamp 100) sin que el techo sea gratis.
+@export var puntuacion_base: float = 80.0
+## Cuánto castiga la espera en la puntuación (F2: `factor_espera = 1 − k_espera × consumida/100`).
+## Con 0.5, quien llega al límite de su paciencia puntúa la MITAD que quien no esperó nada. Semilla 0.5.
+@export var k_espera: float = 0.5

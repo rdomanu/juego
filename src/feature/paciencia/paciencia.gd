@@ -1,9 +1,9 @@
 class_name Paciencia extends Node
 ## Paciencia y Satisfacción (#10) — el sistema que convierte la ESPERA en CONSECUENCIA.
 ##
-## Esta story (001) implementa el núcleo: la **barra individual** de cada persona que espera y la
-## fórmula **F1** que la drena. Es todo lógica pura + estado: aquí NADIE se marcha todavía (el
-## abandono real, enganchado al tick, es la story 002) y nadie puntúa nada (003).
+## Implementado hasta ahora: la **barra individual** de cada persona que espera y **F1** (drenaje, con
+## el hacinamiento acelerándolo) [001] · el enganche al **tick**, la congelación al ser llamada y el
+## **abandono** ordenado a Flujo [002] · **F2**, la puntuación de cada visita [003].
 ##
 ## Reparto de propiedad (arquitectura): la paciencia es estado de ESTE sistema, no de `PersonaFlujo`
 ## — Flujo no sabe qué es la paciencia, y cuando toque marcharse será Paciencia quien se lo ORDENE
@@ -12,7 +12,7 @@ class_name Paciencia extends Node
 ## Determinismo (ADR-0001): F1 es una función pura del estado y de los minutos transcurridos; no hay
 ## aleatoriedad en esta story (el RNG llega en la 006, y será SIEMPRE vía RNGService).
 ##
-## Story: production/epics/paciencia/story-001-nucleo-config-drenaje.md · TR-patience-001 · ADR-0003
+## Stories: paciencia 001 (núcleo+F1) · 002 (tick/abandono) · 003 (F2) · TR-patience-001..003 · ADR-0001/0003
 
 const RUTA_CONFIG := "res://datos/config/paciencia.tres"
 const ConfigPacienciaScript := preload("res://src/feature/paciencia/config_paciencia.gd")
@@ -38,14 +38,20 @@ var mult_comodidad: float = 1.0
 var mult_horapunta: float = 1.0
 var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
+var puntuacion_base: float = 80.0
+var k_espera: float = 0.5
 
 ## Persona (RefCounted de Flujo) → paciencia restante [0, 100]. La persona es la CLAVE: vive mientras
 ## Flujo la referencie, y Paciencia la suelta al resolverse o marcharse (`olvidar`).
 var _paciencia_de: Dictionary = {}
+## Persona → paciencia que le quedaba **en el momento de ser LLAMADA** (story 003). Es el dato con el
+## que se puntúa la visita: lo que molesta es la ESPERA, no lo que dure el trámite después.
+var _paciencia_al_llamar: Dictionary = {}
 
 # ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
 var _flujo: Node = null
 var _construccion: Node = null
+var _personal: Node = null
 var _tiempo: Node = null
 var _suscrito_al_tick: bool = false
 
@@ -74,6 +80,11 @@ func usar_flujo(flujo: Node) -> void:
 ## sala que medir → multiplicador 1.0 (el drenaje base ya castiga la espera).
 func usar_construccion(construccion: Node) -> void:
 	_construccion = construccion
+
+
+## Inyecta Personal para leer el 🤝Trato del agente que atiende (F2). Sin él → trato neutro (1.0).
+func usar_personal(personal: Node) -> void:
+	_personal = personal
 
 
 ## Inyecta el reloj y se suscribe a su tick (idempotente).
@@ -113,6 +124,7 @@ func _al_tick(delta_min: float) -> void:
 		# en ese caso NO se va y NO cuenta como abandono — la llamada le ganó la carrera (AC-PS19).
 		if _flujo.forzar_abandono(persona):
 			olvidar(persona)
+	_anotar_llamadas()
 	_purgar_terminadas()
 
 
@@ -152,6 +164,17 @@ func _aforo_de(servicio: StringName) -> int:
 	return _construccion.aforo_de_servicio(servicio)
 
 
+## Congela el "recibo" de la espera (story 003): la primera vez que se ve a alguien LLAMADO o EN
+## ATENCIÓN se apunta la paciencia que le quedaba. Ese es el dato que puntúa la visita — a partir de
+## ahí su barra ya no baja, así que el valor no cambiaría, pero anotarlo explícitamente deja claro
+## QUÉ se está midiendo (la espera) y sobrevive a que la barra se purgue al terminar.
+func _anotar_llamadas() -> void:
+	for persona: RefCounted in _paciencia_de:
+		if _espera(persona) or _paciencia_al_llamar.has(persona):
+			continue
+		_paciencia_al_llamar[persona] = _paciencia_de[persona]
+
+
 ## Suelta a quien ya TERMINÓ su visita (atendida o marchada). Sin esto el diccionario crecería para
 ## siempre.
 ##
@@ -169,6 +192,7 @@ func _purgar_terminadas() -> void:
 			terminadas.append(persona)
 	for persona: RefCounted in terminadas:
 		_paciencia_de.erase(persona)
+		_paciencia_al_llamar.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────
@@ -184,6 +208,7 @@ func registrar(persona: RefCounted) -> void:
 ## La persona sale del sistema (atendida o marchada): Paciencia la suelta.
 func olvidar(persona: RefCounted) -> void:
 	_paciencia_de.erase(persona)
+	_paciencia_al_llamar.erase(persona)
 
 
 ## ¿Está esta persona esperando bajo el ojo de Paciencia?
@@ -263,6 +288,49 @@ func animo_de_persona(persona: RefCounted) -> StringName:
 	return animo_de(valor)
 
 
+# ── F2 · Puntuación de la visita (story 003) ─────────────────────────────────────────────────
+
+## F2 — lo que puntúa una visita ATENDIDA [0, 100]: se parte de la puntuación base, se castiga por la
+## paciencia que gastó esperando y se modula por el 🤝Trato del agente. El clamp final evita que un
+## trato excelente dispare la escala por encima de 100.
+## Ejemplos del GDD: sin espera y trato neutro → 80 · al límite con trato 0.7 → 28 · 80×1.3 → 100.
+func puntuacion_atendida(paciencia_consumida: float, factor_trato: float = 1.0) -> float:
+	var consumida: float = clampf(paciencia_consumida, 0.0, 100.0)
+	var factor_espera: float = 1.0 - k_espera * (consumida / 100.0)
+	return clampf(puntuacion_base * factor_espera * factor_trato, 0.0, 100.0)
+
+
+## Paciencia que gastó esperando esta persona: 100 − la que le quedaba al ser llamada (o la que le
+## queda ahora si aún espera). Una persona desconocida cuenta como espera total (caso conservador).
+func paciencia_consumida_de(persona: RefCounted) -> float:
+	if _paciencia_al_llamar.has(persona):
+		return PACIENCIA_INICIAL - float(_paciencia_al_llamar[persona])
+	var actual: float = paciencia_de(persona)
+	if actual == SIN_PACIENCIA:
+		return PACIENCIA_INICIAL
+	return PACIENCIA_INICIAL - actual
+
+
+## La puntuación con la que esta visita entra en la media del día (F2 aplicado al caso real):
+## quien se marcha puntúa **0** (AC-PS08) — el abandono es el peor resultado posible, no un aprobado
+## raspado. Quien es atendida puntúa según su espera y el trato del agente que la atendió.
+func puntuacion_de_visita(persona: RefCounted) -> float:
+	if persona.estado == PersonaFlujoScript.ESTADO_ABANDONANDO:
+		return 0.0
+	return puntuacion_atendida(paciencia_consumida_de(persona), _factor_trato_de(persona))
+
+
+## El 🤝Trato del agente que la atiende (Personal F3). Sin Personal inyectado, sin puesto asignado o
+## sin agente → 1.0 neutro: la puntuación no se infla ni se hunde por falta de datos.
+func _factor_trato_de(persona: RefCounted) -> float:
+	if _personal == null or _flujo == null:
+		return 1.0
+	var puesto_id: StringName = _flujo.puesto_de(persona)
+	if puesto_id == &"":
+		return 1.0
+	return _personal.factor_trato_de(puesto_id)
+
+
 # ── Config (patrón del proyecto: fallback seguro + clamps con aviso) ─────────────────────────
 
 ## Aplica un `ConfigPaciencia` con clamps. Config nula o de otro tipo → defaults con aviso (no peta).
@@ -276,6 +344,8 @@ func aplicar_config(config: Resource) -> void:
 	mult_horapunta = clampf(config.mult_horapunta, 0.1, 3.0)
 	umbral_animo_alto = clampf(config.umbral_animo_alto, 0.0, 100.0)
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)
+	puntuacion_base = clampf(config.puntuacion_base, 0.0, 100.0)
+	k_espera = clampf(config.k_espera, 0.0, 1.0)
 	# Invariante: el umbral bajo NUNCA por encima del alto (si el .tres viniera cruzado, se ordenan
 	# en vez de dejar una franja imposible donde el ánimo no se pudiera calcular).
 	if umbral_animo_bajo > umbral_animo_alto:

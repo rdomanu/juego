@@ -178,3 +178,24 @@ func test_sin_flujo_el_tick_no_peta() -> void:
 	suelto.aplicar_config(ConfigPacienciaScript.new())
 	suelto._al_tick(30.0)
 	assert_int(suelto.personas_vigiladas()).is_equal(0)
+
+
+# ── Story 003 · La puntuación usa el trato del agente REAL que atendió ───────────────────
+func test_la_puntuacion_usa_el_trato_del_agente_que_atiende() -> void:
+	var mundo: Dictionary = _mundo(true)
+	mundo["paciencia"].usar_personal(mundo["personal"])
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	mundo["paciencia"]._al_tick(15.0)      # espera media: consume 50 de paciencia
+	mundo["flujo"]._al_tick(0.1)           # la llaman → su "recibo" de espera queda congelado
+	mundo["paciencia"]._al_tick(1.0)       # el tick anota la paciencia con la que fue llamada
+	assert_float(mundo["paciencia"].paciencia_consumida_de(persona)).is_equal_approx(50.0, 0.1)
+	# Trato del agente (3/5 → factor 1.0 neutro con los knobs semilla) → 80 × 0.75 × 1.0 = 60.
+	assert_float(mundo["paciencia"].puntuacion_de_visita(persona)).is_equal_approx(60.0, 0.5)
+
+
+func test_quien_se_marcha_puntua_cero_aunque_hubiera_esperado_poco() -> void:
+	var mundo: Dictionary = _mundo()
+	mundo["paciencia"].usar_personal(mundo["personal"])
+	var persona: RefCounted = _encolar(mundo["flujo"])
+	mundo["paciencia"]._al_tick(30.0)      # se harta y se va
+	assert_float(mundo["paciencia"].puntuacion_de_visita(persona)).is_equal(0.0)

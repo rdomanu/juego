@@ -71,11 +71,11 @@ stories:
     name: "Paciencia: F2 puntuacion de la visita"
     file: "production/epics/paciencia/story-003-puntuacion-visita.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: "pac-002"
-    completed: ""
+    completed: "2026-07-26"
   - id: "pac-004"
     name: "Paciencia: F3 media de jornada y cierre al nuevo_dia"
     file: "production/epics/paciencia/story-004-media-jornada-cierre.md"

@@ -1,12 +1,12 @@
 # Story 003: F2 — cuánto puntúa cada visita
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: S (~1-2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada + tests 9 unit + 2 integración
 
 ## Context
 
@@ -28,11 +28,11 @@ Paciencia lo consume, no lo recalcula.
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS06** `[Unit]` — GIVEN atendida sin espera y trato neutro (1.0) THEN `puntuacion = 80`.
-- [ ] **AC-PS07** `[Unit]` — GIVEN atendida al límite (consumió ~100 de paciencia) + trato 0.7 THEN
+- [x] **AC-PS06** `[Unit]` — GIVEN atendida sin espera y trato neutro (1.0) THEN `puntuacion = 80`.
+- [x] **AC-PS07** `[Unit]` — GIVEN atendida al límite (consumió ~100 de paciencia) + trato 0.7 THEN
       `puntuacion ≈ 28`.
-- [ ] **AC-PS08** `[Unit]` — GIVEN un abandono THEN `puntuacion_visita = 0`.
-- [ ] **AC-PS09** `[Unit]` — GIVEN `base × factores = 105` THEN **clamp → 100**.
+- [x] **AC-PS08** `[Unit]` — GIVEN un abandono THEN `puntuacion_visita = 0`.
+- [x] **AC-PS09** `[Unit]` — GIVEN `base × factores = 105` THEN **clamp → 100**.
 
 ---
 
@@ -64,3 +64,21 @@ Paciencia lo consume, no lo recalcula.
 ## Out of Scope
 
 - La media de la jornada y su cierre (004).
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5).
+
+- `paciencia.gd`: **F2** (`puntuacion_atendida`), `paciencia_consumida_de` y `puntuacion_de_visita`
+  (que decide por estado: abandono → 0, atendida → fórmula) + `usar_personal` para el 🤝Trato.
+- **El "recibo" de la espera** (`_paciencia_al_llamar`): la primera vez que se ve a alguien llamado se
+  anota la paciencia que le quedaba. Es lo que se puntúa — **lo que molesta es la espera, no lo que
+  dure el trámite**. Se apunta explícitamente (aunque la barra ya esté congelada) para que quede claro
+  QUÉ se mide y para que sobreviva a la purga al terminar la visita.
+- Knobs nuevos: `puntuacion_base` 80 · `k_espera` 0.5 (`.tres` regenerado).
+- Tests: `paciencia_puntuacion_test.gd` **9/9** (los cuatro ejemplos del GDD calculados a mano, más
+  los bordes: negativo, consumida fuera de rango, clamps de knobs) + **2 casos de integración** en
+  `paciencia_tick_abandono_test.gd` con Personal REAL (el trato del agente que de verdad atendió).
+
+**Decisión más allá de los AC:** sin Personal, sin puesto o sin agente → trato **1.0 neutro**. Nunca se
+infla ni se hunde una puntuación por falta de datos; el patrón de dependencias blandas del proyecto.
