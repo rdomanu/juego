@@ -99,9 +99,36 @@ y la biblioteca de motor. Para el *porqué* de cada regla, ver el ADR referencia
 - **UI ratón-first, sin interacciones hover-only**; contar con el **dual-focus de 4.6** (ratón separado de teclado). — `technical-preferences.md` / `current-best-practices.md`
 - **Referencias cacheadas `@onready var x = %Nodo`** (no `$Path` en `_process`). — `patterns.md`
 
+### Orden de dibujo y ratón (reglas nacidas de bugs REALES — acción #5 del retro del Sprint 2)
+
+Dos fallos del Sprint 2 se repitieron por no tener esto escrito. Son baratos de respetar y caros de
+diagnosticar: desde fuera parecen "el juego está roto", no "falta una propiedad".
+
+- **Toda capa visual que cuelgue de un nodo NO-CanvasItem es una raíz de canvas aparte** y se dibuja
+  DESPUÉS del bloque de su padre lógico, sin importar el orden en el árbol. Si una capa tiene que
+  verse por encima de otra, **fíjalo con `z_index` explícito**, no con el orden de los hijos.
+  *Bug real: los ciudadanos se dibujaban DEBAJO de las salas al cruzarlas (flujo-008).*
+- **Todo `Control` decorativo del mundo lleva `mouse_filter = MOUSE_FILTER_IGNORE`.** Un Control
+  cualquiera se traga los clics de su rectángulo aunque sea transparente y no haga nada.
+  *Bug real (dos veces): los placeholders de las salas se comían los clics del modo construcción, y
+  las casillas de las barras de atributos habrían hecho lo mismo.*
+- **Los `Button` de HUD y paneles llevan `focus_mode = FOCUS_NONE`.** Si no, el botón conserva el
+  foco y **la barra espaciadora lo vuelve a pulsar** en vez de pausar el juego.
+- **Para actuar sobre el mundo con el ratón, usa la posición DEL EVENTO** (`evento.position`,
+  convertida con `get_canvas_transform().affine_inverse()`), **nunca `get_global_mouse_position()`**:
+  esa lee el puntero del sistema en ese instante, no el punto donde se hizo clic.
+  *Bug real: el clic derecho para "colar" no hacía nada aunque la lógica funcionase (2026-07-26).*
+- **Las barras de toolbar con textos del catálogo van en `HFlowContainer`**, nunca en un `HBox` fijo:
+  los nombres los pone el catálogo y se salen de la pantalla.
+- **Una barra anclada abajo debe crecer HACIA ARRIBA** (`grow_vertical = GROW_DIRECTION_BEGIN`) o se
+  dibuja fuera de la pantalla. *Bug real: "el menú invisible" (const-007).*
+
 ### Forbidden Approaches
 - **La lógica NUNCA llama a la UI** — se comunican por el bus. — ADR-0001 (principio 3)
 - **Nunca guardar estado de juego en la UI** — solo preferencias de UI. — ADR-0002
+- **Nada de herramientas de desarrollo en el juego del jugador**: los paneles de calibración y demás
+  utilidades DEV se instancian solo bajo `OS.has_feature("editor")`, así que no existen en un build
+  exportado. — decisión del usuario 2026-07-26
 
 ---
 

@@ -179,20 +179,20 @@ stories:
     name: "Aviso de demanda sin servicio capaz (accion #2 del retro)"
     file: "production/retrospectives/retro-sprint-2-2026-07-25.md"
     priority: nice-to-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: ""
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-11"
     name: "Regla escrita de capas en el control manifest (accion #5 del retro)"
     file: "docs/architecture/control-manifest.md"
     priority: nice-to-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.05
     blocker: ""
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-12"
     name: "Desglosar el feedback estetico del usuario en el backlog de pulido (accion #3 del retro)"
     file: "design/ux/pulido-backlog.md"

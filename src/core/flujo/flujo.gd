@@ -284,6 +284,40 @@ func colar(persona: RefCounted) -> bool:
 	return true
 
 
+## Trámites que hay esperando y que **ningún puesto construido puede atender**: `tramite_id -> cuántos`
+## (acción #2 de la retrospectiva del Sprint 2).
+##
+## Nació de un fallo real de partida —el "misterio de las 22:00"—: había gente pidiendo el TIE y
+## ninguna ventanilla que lo tramitara, así que esperaban **para siempre** sin que nada lo dijera. Es
+## un estado perfectamente legal del juego (has construido mal), pero **tiene que verse**: un juego no
+## debe dejarte perder por algo que no puedes ni saber que está pasando.
+##
+## Se mira lo que cada puesto ADMITE de verdad: su override de reconfiguración (FL9) si lo tiene, o
+## sus atenciones del catálogo. Los puestos cerrados o sin agente **sí cuentan** como capaces: son un
+## problema distinto (y el rótulo del puesto ya lo grita) — aquí se avisa solo de lo que NADIE puede
+## atender, se ponga como se ponga.
+func tramites_sin_servicio() -> Dictionary:
+	var atendibles: Dictionary = {}
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+		if tipo == null:
+			continue
+		var admitidas: Array[StringName] = puesto["override"]
+		if admitidas.is_empty():
+			admitidas = tipo.atenciones_admitidas
+		for atencion: StringName in admitidas:
+			atendibles[atencion] = true
+	var huerfanos: Dictionary = {}
+	for servicio: StringName in _colas:
+		for persona: RefCounted in _colas[servicio]:
+			var tramite: StringName = persona.tramite_id()
+			if atendibles.has(tramite):
+				continue
+			huerfanos[tramite] = int(huerfanos.get(tramite, 0)) + 1
+	return huerfanos
+
+
 ## Las personas que están AHORA en un puesto (llamadas o en atención). Ya NO están en ninguna cola
 ## —el emparejamiento las retira—, así que sin este getter serían invisibles para Paciencia #10, que
 ## necesita seguir reconociéndolas al recargar una partida. Solo lectura, en orden de puesto.

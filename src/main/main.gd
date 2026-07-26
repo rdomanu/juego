@@ -88,6 +88,7 @@ var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
 var _lbl_puerta_doc: Label
+var _lbl_sin_servicio: Label
 var _panel_personal: CanvasLayer
 var _panel_admin: CanvasLayer
 ## Menú del clic derecho sobre un ciudadano (petición del usuario 2026-07-26) + a quién apunta.
@@ -507,6 +508,12 @@ func _crear_hud() -> void:
 	_lbl_puerta_doc = Label.new()
 	_lbl_puerta_doc.add_theme_font_size_override("font_size", 11)
 	caja_flujo.add_child(_lbl_puerta_doc)
+	# Aviso de "hay gente que NADIE puede atender" (acción #2 del retro del Sprint 2). Nace vacío:
+	# solo ocupa sitio cuando de verdad pasa algo.
+	_lbl_sin_servicio = Label.new()
+	_lbl_sin_servicio.add_theme_font_size_override("font_size", 11)
+	_lbl_sin_servicio.modulate = COLOR_ROJOS
+	caja_flujo.add_child(_lbl_sin_servicio)
 
 	# Acciones del jugador (feedback del usuario 2026-07-26: "no hay panel de guardado, ni de personal
 	# accesible como el de construir"). Todo lo que se puede hacer, VISIBLE y con su tecla al lado.
@@ -650,6 +657,16 @@ func _refrescar_etiquetas() -> void:
 	_lbl_atendiendo.text = "Atendiendo: %d · FPS %d" % [
 		_flujo.atendiendo_total(), Engine.get_frames_per_second(),
 	]
+	# ⚠ Gente esperando algo que ninguna ventanilla construida puede atender: si no se dice, esperan
+	# para siempre y el jugador no tiene forma de enterarse (el "misterio de las 22:00").
+	var huerfanos: Dictionary = _flujo.tramites_sin_servicio()
+	if huerfanos.is_empty():
+		_lbl_sin_servicio.text = ""
+	else:
+		var trozos: Array[String] = []
+		for tramite: StringName in huerfanos:
+			trozos.append("%s ×%d" % [tramite, huerfanos[tramite]])
+		_lbl_sin_servicio.text = "⚠ Nadie puede atender: %s" % ", ".join(trozos)
 	# Satisfacción (story paciencia-008): hoy / ayer, con la escala a la vista. El color del texto
 	# refuerza (verde/ámbar/rojo por los umbrales de ánimo), pero el número manda.
 	var sat_hoy: float = _paciencia.sat_global()

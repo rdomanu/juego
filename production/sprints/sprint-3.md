@@ -56,6 +56,20 @@ Paciencia por delante.
 | C3-11 | **Regla escrita de capas** en el control manifest (acción #5): orden de dibujo mundo/UI + `MOUSE_FILTER_IGNORE` en decorativos | Opus 5 | 0,05 ses. | — | Los dos bugs repetidos del Sprint 2 quedan documentados como regla |
 | C3-12 | **Desglosar el feedback estético del usuario** en `design/ux/pulido-backlog.md` (acción #3) | Opus 5 + usuario | 0,05 ses. | — | La línea "hay que pulir cosas de diseño" convertida en puntos concretos |
 
+> **✅ C3-10, C3-11 y C3-12 COMPLETADAS (2026-07-26)** — las tres acciones de la retrospectiva que
+> eran tarea de este sprint. **C3-10**: `Flujo.tramites_sin_servicio()` + aviso rojo en el HUD
+> ("⚠ Nadie puede atender: tie ×3") — el "misterio de las 22:00" ya no puede repetirse en silencio;
+> 5 tests. **C3-11**: reglas de orden de dibujo y ratón escritas en el control manifest, cada una con
+> el bug real que la originó (z_index de capas, `MOUSE_FILTER_IGNORE`, `focus_mode` de los botones,
+> posición del EVENTO y no del cursor, `HFlowContainer` en toolbars, barras que crecen hacia arriba)
+> + prohibido que las herramientas DEV existan en un build del jugador. **C3-12**: hecha el 25.
+>
+> **Extras no planificados entregados el 26** (peticiones del usuario en ventana): botonera de
+> acciones con **guardado jugable** (existía en código pero no había forma de invocarlo), **panel de
+> calibración F1 solo-DEV** con 13 knobs y botón de fijar en el catálogo, **barra de paciencia que se
+> vacía**, **mecánica de COLAR** con menú contextual y su precio en cabreo ajeno, y la **enmienda del
+> camino de entrada** (el paseo hasta el sitio no gasta paciencia).
+
 ## Carryover from Previous Sprint
 
 | Task | Reason | New Estimate |
