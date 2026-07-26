@@ -35,7 +35,7 @@ spike QQ-02 del vertical slice (150 NPCs → ~145 FPS; plan B `AStarGrid2D` no n
 
 | Epic | Layer | System | GDD | Governing ADRs | Engine Risk | Stories | Status |
 |------|-------|--------|-----|----------------|-------------|---------|--------|
-| [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
+| [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | 5 stories | In Progress |
 | [ODAC / Denuncias](odac/EPIC.md) | Feature | ODAC #9 | odac.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
 | [Paciencia y Satisfacción](paciencia/EPIC.md) | Feature | Paciencia #10 | patience-satisfaction.md | ADR-0001, ADR-0002, ADR-0003 | LOW | 8 stories | **Complete** (8/8, 2026-07-26) |
 

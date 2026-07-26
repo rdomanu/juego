@@ -143,16 +143,16 @@ stories:
     name: "Crear stories del epic Documentacion"
     file: "production/epics/documentacion/EPIC.md"
     priority: should-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.2
     blocker: "C3-5"
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-7"
     name: "Implementar epic Documentacion (horario + peonada + ultima admision; MIGRAR horario desde Flujo)"
     file: "production/epics/documentacion/EPIC.md"
     priority: should-have
-    status: backlog
+    status: in-progress
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.8
     blocker: "C3-6"

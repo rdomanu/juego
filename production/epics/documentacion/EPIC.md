@@ -3,8 +3,8 @@
 > **Layer**: Feature
 > **GDD**: design/gdd/documentation.md
 > **Architecture Module**: Documentación #8 (configurador de la operativa de Doc)
-> **Status**: Ready
-> **Stories**: Not yet created — run `/create-stories documentacion`
+> **Status**: In Progress
+> **Stories**: 5 — creadas el 2026-07-26
 > **Manifest Version**: 2026-07-22
 
 ## Overview
@@ -60,6 +60,30 @@ This epic is complete when:
 - **El horario provisional se ha retirado de Flujo** y los tests de Flujo siguen en verde
 - El registro de entidades refleja el nuevo dueño de los cross-facts de horario
 
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | El servicio y su reloj — núcleo, config y F3 | Logic | Ready | ADR-0003 |
+| 002 | La mudanza — el horario deja de vivir prestado en Flujo | Integration | Ready | ADR-0001 |
+| 003 | La peonada — alargar la tarde cuesta dinero (F1/F2) | Integration | Ready | ADR-0001 |
+| 004 | Los eventos de la División + guardar el servicio | Integration | Ready | ADR-0003 |
+| 005 | El panel del servicio — el slider de horario (HITO VISIBLE) | UI | Ready | ADR-0001 |
+
+**Cobertura de los 16 AC del GDD:** 001 → AC-DC01/07/10 · 002 → AC-DC02/03/13 · 003 → AC-DC04/05/06/08 ·
+004 → AC-DC09/10/11/16 · 005 → AC-DC14/15. **AC-DC12** (trámite → ingreso) ya está implementado y
+testeado por Economía/Flujo; se re-verifica en la demo de la 005.
+
+**Decisiones de diseño aprobadas por el usuario (2026-07-26), aplicadas en las stories:**
+1. **La peonada cambia de significado** (story 003): se cobra por **ampliar el horario** (DO4), no por los
+   minutos de rezagados; terminar a los rezagados pasa a costar **moral, no euros** (DO5). El hook
+   provisional de Flujo se retira.
+2. **"Desmotiva" en el MVP** = efecto ligero **real**: −1 de motivación (suelo 1, una vez por agente y día).
+   El modelo pleno sigue en Bienestar #13/#15.
+3. **Los eventos de la División son deterministas por mes** (no aleatorios): vacaciones (meses 7–8) y
+   colapso de extranjería (mes 2).
+
 ## Next Step
 
-Run `/create-stories documentacion` to break this epic into implementable stories.
+Run `/story-readiness production/epics/documentacion/story-001-servicio-reloj-config.md` →
+`/dev-story` para implementar. Las stories van **en orden**: cada una depende de la anterior.
