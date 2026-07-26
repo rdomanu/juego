@@ -44,6 +44,9 @@ const COLOR_ANIMO: Dictionary[StringName, Color] = {
 	&"impaciente": Color(0.95, 0.78, 0.30),
 	&"al_limite": Color(0.90, 0.35, 0.35),
 }
+## A quien el jugador ha COLADO se le pinta la barra en AZUL: se ve de un vistazo a quién le has
+## hecho el favor y por qué se le llama antes que al resto (mecánica del 2026-07-26).
+const COLOR_COLADO := Color(0.45, 0.75, 1.0)
 ## Sentinela de "sin celda" (fuera de todo rect de sala: las celdas del edificio son ≥ 0).
 const CELDA_NULA := Vector2i(-1, -1)
 
@@ -78,6 +81,8 @@ func animo_de(persona: RefCounted) -> StringName:
 		return &""
 	if not _paciencia.tiene(persona):
 		return &""
+	if persona.colado:
+		return &"colado"
 	return _paciencia.animo_de_persona(persona)
 
 
@@ -113,6 +118,8 @@ func fraccion_paciencia(persona: RefCounted) -> float:
 ## Color del aro de ánimo (texto+forma no aplican a un indicador de 3 px: el respaldo daltónico de
 ## esta información vive en el HUD, que da los números de satisfacción y colas).
 func color_de_animo(animo: StringName) -> Color:
+	if animo == &"colado":
+		return COLOR_COLADO
 	return COLOR_ANIMO.get(animo, Color(1, 1, 1, 0.5))
 
 

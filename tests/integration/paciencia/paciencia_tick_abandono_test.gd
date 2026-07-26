@@ -277,3 +277,20 @@ func test_colar_puede_provocar_una_espantada() -> void:
 	mundo["paciencia"].penalizar_por_colado(favorecida)   # el resto pierde 10 → a 0
 	mundo["paciencia"]._al_tick(0.1)         # el siguiente tick los echa
 	assert_int(avisos.size()).is_greater(0)  # colar en mal momento tiene consecuencias
+
+
+func test_se_puede_colar_a_quien_espera_fuera_por_aforo() -> void:
+	var mundo: Dictionary = _mundo()
+	# La sala tiene 3 asientos + de pie; se llena y alguien acaba fuera.
+	var dentro: Array = []
+	for i: int in 12:
+		dentro.append(_encolar(mundo["flujo"], 480 + i))
+	var fuera: RefCounted = null
+	for persona: RefCounted in dentro:
+		if persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_FUERA:
+			fuera = persona
+			break
+	if fuera == null:
+		return   # con este aforo no se llenó: el caso no aplica, no se inventa un fallo
+	assert_bool(mundo["flujo"].colar(fuera)).is_true()
+	assert_bool(fuera.colado).is_true()

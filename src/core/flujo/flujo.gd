@@ -269,11 +269,18 @@ func personas_de_cola(servicio: StringName) -> Array:
 ## llamado no hay que colarlo, y a quien está fuera por aforo no se le puede dar un sitio que no hay.
 ## Devuelve false si no procede.
 func colar(persona: RefCounted) -> bool:
-	if persona == null or persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO:
-		return false
-	if persona.colado:
+	if persona == null or persona.colado:
 		return false   # ya estaba colada: no se cuela dos veces (ni se cobra dos veces el cabreo)
+	# Vale tanto para quien espera DENTRO como para quien se quedó FUERA por aforo: colar a alguien
+	# de la calle es justamente el favor más útil (y el más caro en cabreo ajeno). Al que está fuera
+	# se le mete dentro en cuanto haya plaza, con prioridad sobre el orden de turno.
+	if (
+		persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO
+		and persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_FUERA
+	):
+		return false
 	persona.colado = true
+	_promover_de_fuera(persona.servicio())   # si hay hueco, el colado entra ya
 	return true
 
 
@@ -367,7 +374,13 @@ func _promover_de_fuera(servicio: StringName) -> void:
 		for persona: RefCounted in _colas.get(servicio, []):
 			if persona.estado != PersonaFlujoScript.ESTADO_ESPERANDO_FUERA:
 				continue
-			if candidata == null or persona.numero_turno < candidata.numero_turno:
+			# A quien el jugador ha COLADO se le hace sitio antes que a nadie; entre iguales, el
+			# menor turno (FL6 intacto: sigue siendo determinista, solo cambia la clave de orden).
+			if (
+				candidata == null
+				or (persona.colado and not candidata.colado)
+				or (persona.colado == candidata.colado and persona.numero_turno < candidata.numero_turno)
+			):
 				candidata = persona
 		if candidata == null:
 			return

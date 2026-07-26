@@ -140,7 +140,11 @@ func _unhandled_input(evento: InputEvent) -> void:
 	if evento is InputEventMouseButton:
 		var raton := evento as InputEventMouseButton
 		if raton.pressed and raton.button_index == MOUSE_BUTTON_RIGHT:
-			_colar_bajo_el_cursor(get_global_mouse_position())
+			# La posición se toma DEL EVENTO y se pasa a coordenadas del mundo con la transformada
+			# del canvas. Antes se usaba `get_global_mouse_position()`, que lee el ratón del sistema:
+			# funcionaba al llamarlo a mano pero no con el clic de verdad, y además ata la mecánica a
+			# dónde esté el puntero en ese instante en vez de a dónde se hizo clic.
+			_colar_bajo_el_cursor(get_canvas_transform().affine_inverse() * raton.position)
 			get_viewport().set_input_as_handled()
 		return
 	if not (evento is InputEventKey and evento.pressed and not evento.echo):
@@ -238,17 +242,26 @@ func _instanciar_mundo() -> void:
 func _colar_bajo_el_cursor(punto: Vector2) -> void:
 	var npc: Node = _npcs.ciudadano_en(punto)
 	if npc == null:
+		_avisar_accion("Clic derecho sobre alguien que espera para colarlo", COLOR_TENUE_HUD)
 		return
 	var persona: RefCounted = npc.persona
 	if not _flujo.colar(persona):
-		_lbl_guardado.text = "No se puede colar a esa persona"
-		_lbl_guardado.modulate = COLOR_TENUE_HUD
+		var motivo: String = (
+			"Ya estaba colado" if persona.colado else "A esa persona ya la han llamado"
+		)
+		_avisar_accion(motivo, COLOR_TENUE_HUD)
 		return
 	var molestos: int = _paciencia.penalizar_por_colado(persona)
-	_lbl_guardado.text = "Colado turno %d · %d esperando se han molestado" % [
-		persona.numero_turno, molestos,
-	]
-	_lbl_guardado.modulate = COLOR_JUSTO
+	_avisar_accion(
+		"⬆ Colado el turno %d · %d esperando se han molestado" % [persona.numero_turno, molestos],
+		COLOR_JUSTO
+	)
+
+
+## Aviso corto de una acción del jugador en la barra de acciones (se ve donde se mira al pulsar).
+func _avisar_accion(texto: String, color: Color) -> void:
+	_lbl_guardado.text = texto
+	_lbl_guardado.modulate = color
 
 
 ## Una ficha de Demanda llega a la puerta: Flujo la admite (turno + aforo) y nace su NPC visible.
