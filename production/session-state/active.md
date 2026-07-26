@@ -1,11 +1,11 @@
 # Estado de sesión — activo
 
-*Última actualización: 2026-07-25*
+*Última actualización: 2026-07-26*
 
 <!-- STATUS -->
 Epic: Documentación #8 (capa Feature — Sprint 3)
 Feature: Horario configurable + peonada
-Task: C3-6 crear stories → C3-7 implementar (migrar el horario desde Flujo)
+Task: C3-7 implementado 4/5 · falta sign-off del panel (005) → C3-8 demo → C3-9 cierre
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -1501,3 +1501,50 @@ Economía (regla propiedad/E7/F1/interacciones/deps/OpenQ1 actualizados). Nuevos
 <!-- CONSISTENCY-CHECK: 2026-07-21 | GDDs checked: 9 (+odac) | Conflicts found: 6 stale (propagados) | Verdict: PASS (tras propagar) -->
 ✅ `/consistency-check` (2026-07-21, 7ª): **PASS tras propagar**. Cerrado ODAC #9 (9/12). El cambio de ancla ODAC (dur. media 28→**29,75≈30**, throughput 34→**32**, cap 137→**128**) dejó **6 referencias obsoletas** que la skill cazó y se **propagaron**: Flujo F3 (4×32=128), Demanda F5 + AC-DM12 (128), ODAC Tuning (128), Datos F8 (960/30≈32) + AC-D12 (≈30→128). Nueva constante **`mult_nocturno_odac`** (0.5, escalable) registrada (source Demanda; ref Demanda/ODAC/Tiempo) y sustituye el "~10 fijo". Mezcla ODAC F3 = 13 tipos (Σ=1.0). Registro `last_updated`→2026-07-21. Grep final: 0 restos de 137/34/28 en GDD/registro. **9 GDD consistentes.**
 <!-- QA-PLAN: 2026-07-24 | System: sprint-2 (Construccion+Flujo) | Plan written: production/qa/qa-plan-sprint-2.md -->
+
+---
+
+## 🕐 EPIC DOCUMENTACIÓN #8 — 4/5 STORIES CERRADAS + PANEL EN VENTANA (2026-07-26, sesión Opus 5)
+
+**Suite 485/485, exit 0** (423 → 485, +62). Arranque headless limpio. Todo commiteado (`82c78b1`).
+**C3-6 HECHA** (5 stories escritas, commit `8d4fd2f`) · **C3-7 casi hecha** (falta el sign-off de la 005).
+
+- **001 · El servicio y su reloj** (commit `9039110`) — `src/feature/documentacion/` (2º sistema de la
+  capa Feature): F3 última admisión, F1 pura de horas extra, `estado_servicio` (abierto/cerrando/
+  cerrado), tope de la División y la política de cita (MVP sin cita). Config `.tres` con 6 knobs.
+  22 tests. *El test cazó una expectativa mía mal calculada, no un fallo del código.*
+- **002 · 🚚 LA MUDANZA** (commit `0879d28`) — **la deuda del Sprint 2 está saldada**: el horario ya no
+  vive prestado en Flujo. Documentación lo POSEE, Flujo lo EJECUTA (`fijar_horario_doc`) y Demanda lo
+  RESPETA (`fijar_ventana_doc`). Los knobs salieron de `ConfigFlujo`/`ConfigDemanda` (fuente única).
+  🚦 **La red de seguridad aguantó**: `flujo_horario_test` (3) y `demanda_tick_ventana_test` (6) verdes
+  **sin tocarlos**. 11 tests nuevos.
+  - **Decisión**: Demanda recibe la **última admisión** como fin de ventana (no el cierre): fabricar a
+    alguien que encontraría la puerta cerrada al llegar es demanda imposible de atender.
+  - **Agujero cerrado**: `puerta_doc_abierta()` ahora comprueba también la apertura (antes, a las
+    03:00, admitía trámites de Doc).
+  - 🐛 *Un test ajeno se rompió y era señal*: `flujo_atencion_test` creaba su reloj sin hora (00:00) y
+    dejó de poder admitir. El gotcha de siempre; arreglado poniendo el reloj a las 08:20.
+- **003 · La peonada** (commit `0093064`) — **la peonada cambió de significado** (aprobado por el
+  usuario): se paga por **ampliar el horario** (DO4), no por los rezagados; terminar fuera de hora
+  cuesta **moral** (−1 de motivación, suelo 1, una vez por agente y día). **Hook provisional de Flujo
+  RETIRADO**. Cierre del día en prioridad **15** (Paciencia 10 → **Doc 15** → Economía 20: si fuera
+  después, la peonada se cobraría un día tarde). `Personal.agentes_dotados_en_servicio()` nuevo.
+  16 tests.
+- **004 · Eventos de la División + guardado** (commit `0093064`+) — TR-doc-002 cerrado. Esquema nuevo
+  `EventoDivision` + `datos/eventos/` con 2 comunicados (**vacaciones** meses 7–8 → pasaporte 21:30;
+  **colapso_extranjeria** mes 2 → TIE 21:30), deterministas por mes. Señal `aviso_division` en el bus.
+  `save()`/`load_state()` + grupo Persist. **El save guarda las DECISIONES, no el marco** (el horario
+  base y los topes se releen del catálogo → un reequilibrado futuro llega a las partidas guardadas).
+  13 tests **a la primera**. Catálogo: **32 recursos** (antes 30).
+- **005 · Panel del horario (tecla H)** (commit `82c78b1`) — **IMPLEMENTADO, EN VENTANA, PENDIENTE DE
+  SIGN-OFF**: slider de cierre con la peonada en vivo, última admisión, semáforo de demanda con icono
+  + texto + consejo, bandeja de comunicados, estado ABIERTA/CERRANDO/CERRADA. Botón en la botonera.
+
+**⚠️ HALLAZGO DE DISEÑO ANOTADO (no resuelto — para la demo C3-8):** el perfil intradía de Demanda
+(`perfil_hora_doc`) solo tiene peso de 8 a 14 y **suma 1.0** (AC-DM03a). Es decir: **ampliar el
+horario no trae gente nueva por la tarde**; sirve para **vaciar la cola acumulada**, que es justo lo
+que dice el GDD (DO4). Si en la demo se ve que ni con demanda ALTA queda cola suficiente para que la
+peonada compense, la palanca es añadir franjas de tarde como demanda **extra** (sin renormalizar, para
+no tocar los 45/día calibrados) — es la Open Question nº1 del GDD.
+
+**PENDIENTE: sign-off de la 005 → C3-9 (cierre formal del epic) → C3-13 (epic ODAC #9, Sprint 4).**
