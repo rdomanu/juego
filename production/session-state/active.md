@@ -3,9 +3,9 @@
 *Última actualización: 2026-07-25*
 
 <!-- STATUS -->
-Epic: Documentación #8 (capa Feature — Sprint 3)
-Feature: Horario configurable + peonada
-Task: C3-1 QA plan → C3-2 crear stories de Documentación
+Epic: Paciencia #10 — 7/8 stories cerradas
+Feature: La espera duele (abandono, satisfacción, reclamaciones)
+Task: demo en ventana + CALIBRAR tolerancia_base_min con el usuario
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -791,7 +791,37 @@ completo NO ejecutado (LEAN): verificación dirigida por grep, suficiente para e
   (12 tareas: 5 must / 4 should / 3 nice; el del Sprint 2 archivado en
   `production/sprints/sprint-2-status-archivado.yaml`). **Las rondas de demo YA van presupuestadas**
   (C3-4 y C3-8, 0,3 ses. cada una) — acción 1 del retro aplicada.
-**PRÓXIMO INMEDIATO: C3-1 `/qa-plan sprint`** (antes de implementar nada, patrón de los sprints 1-2) →
+**🚀 EPIC PACIENCIA #10 — 7/8 STORIES IMPLEMENTADAS Y COMMITEADAS (2026-07-26, sesión larga sin
+interrupciones por orden del usuario: "continúa varias sesiones, no me preguntes salvo que sea
+importante, haz commit si quieres").** Suite **410/410**, todo pusheado.
+- **001** núcleo + F1 (barra 0-100, drenaje, hacinamiento, ánimo por umbrales 66/33) — 17 tests.
+- **002** tick + Pausa + **ABANDONO** (cableada en Main: la partida ya se puede perder) — 11 tests.
+  🐛 *Bug silencioso cazado por un test:* la purga no puede basarse en "ya no está en la cola" (Flujo
+  saca de la cola a quien llama) → se purga por ESTADO.
+- **003** F2 puntuación de visita + el "recibo" de la espera (`_paciencia_al_llamar`) — 9+2 tests.
+- **004** F3 media del día + cierre `nuevo_dia` **prio 10** (antes de Economía 20) — 10 tests.
+  🐛 *Bug cazado que ningún AC cubría:* el bucle de abandonos hacía `olvidar()` **antes** de contar la
+  visita → borraba el peor dato de la jornada justo antes de anotarlo; la satisfacción habría salido
+  inflada siempre.
+- **005** 🎉 **EL BUCLE ECONÓMICO CIERRA**: `sat_cierre` → `Economia.fijar_sat_cierre` → retorno DGP.
+  Atender bien hoy sube el retorno de 0.30 a 0.39 mañana — 5 tests.
+- **006** reclamaciones con RNGService (0.4), **corte de recursión por el propio trámite**, graves
+  aparte, reset mensual — 9 tests. 🐛 *El gotcha de las lambdas por valor volvió a morder* (un espía
+  con `int` daba 0 reclamaciones en 20 abandonos a p=0.4: 3 entre 100.000) → Array por referencia.
+- **007** persistencia + **LA PRUEBA REINA A-vs-B con abandonos: PASÓ A LA PRIMERA**. Reenganche por
+  clave estable `servicio#turno` (al cargar, Flujo crea PersonaFlujo nuevas) + getter nuevo de Flujo
+  `personas_en_puestos()` (quien está en ventanilla no está en ninguna cola: sin él perdía su barra).
+- **008 IMPLEMENTADA, EN REVIEW**: aro de ánimo sobre cada cabeza (verde/ámbar/rojo, oculto al ser
+  llamado, DIFF) + HUD "Satisfacción: N/100 (ayer N)" con su escala visible + contador de
+  reclamaciones (graves en rojo). **Falta el SIGN-OFF del usuario en ventana.**
+**⚠️ HALLAZGO DE BALANCE (evidencia `paciencia-demo-2026-07-26.md`): ~90 abandonos en 5 h de juego**,
+casi todos de ODAC antes de que abra Doc. Coherente con el diseño (ODAC 24 h con UNA ventanilla, ~36
+denuncias/día, paciencia semilla 30 min), pero hay que **calibrar `tolerancia_base_min` CON el usuario**
+(tarea C3-4). Palancas ordenadas y recomendación (empezar solo por el knob) en la evidencia.
+**Ruta nueva `src/feature/`** (1er sistema de la capa Feature; no había convención escrita).
+**PRÓXIMO: demo en ventana + calibración → cerrar 008 y el epic → luego Documentación #8 (C3-6..C3-9).**
+
+**[HISTÓRICO] C3-1 `/qa-plan sprint`** (antes de implementar nada, patrón de los sprints 1-2) →
 **C3-2 `/create-stories documentacion`** → C3-3 implementar. **Deuda que salda este sprint: el horario
 de Doc deja de vivir prestado en Flujo** (los tests de `flujo_horario_test.gd` son la red de seguridad
 de esa migración).
