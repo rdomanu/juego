@@ -260,6 +260,18 @@ func personas_de_cola(servicio: StringName) -> Array:
 	return (_colas.get(servicio, []) as Array).duplicate()
 
 
+## Las personas que están AHORA en un puesto (llamadas o en atención). Ya NO están en ninguna cola
+## —el emparejamiento las retira—, así que sin este getter serían invisibles para Paciencia #10, que
+## necesita seguir reconociéndolas al recargar una partida. Solo lectura, en orden de puesto.
+func personas_en_puestos() -> Array:
+	var resultado: Array = []
+	for puesto_id: StringName in _puestos_flujo:
+		var persona: RefCounted = _puestos_flujo[puesto_id]["persona"]
+		if persona != null:
+			resultado.append(persona)
+	return resultado
+
+
 ## Atenciones EN CURSO ahora mismo (getter para el HUD — pull, story 008). Cuenta SOLO personas en
 ## `en_atencion`: el rótulo del HUD dice "Atendiendo" y una persona aún de camino (`llamada`) no lo
 ## está (enmienda 2026-07-25 "en camino no se tramita").

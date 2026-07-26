@@ -6,6 +6,7 @@ extends GdUnitTestSuite
 const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 const ConfigPacienciaScript := preload("res://src/feature/paciencia/config_paciencia.gd")
 const PersonaScript := preload("res://src/core/demanda/persona.gd")
+const PersonaFlujoScript := preload("res://src/core/flujo/persona_flujo.gd")
 
 
 # ── Fixture ──────────────────────────────────────────────────────────────────────────────
@@ -16,9 +17,11 @@ func _paciencia() -> Node:
 	return sistema
 
 
-## Una ficha de persona cualquiera (Paciencia solo la usa como CLAVE — no lee sus campos).
-func _persona(turno_min: int = 480) -> RefCounted:
-	return PersonaScript.new(&"Documentacion", &"dni", turno_min)
+## Una persona DEL FLUJO (el contrato real de Paciencia: de ella lee servicio, turno y estado; la
+## ficha de Demanda suelta no vale como clave — desde la story 007 se necesita `servicio()`+turno
+## para poder reenganchar su barra al cargar una partida).
+func _persona(turno: int = 1) -> RefCounted:
+	return PersonaFlujoScript.new(PersonaScript.new(&"Documentacion", &"dni", 480), turno)
 
 
 # ── AC-PS01 · Entra con la barra llena ───────────────────────────────────────────────────
@@ -157,8 +160,8 @@ func test_olvidar_saca_a_la_persona_del_sistema() -> void:
 
 func test_el_drenaje_es_independiente_por_persona() -> void:
 	var sistema: Node = _paciencia()
-	var primera: RefCounted = _persona(480)
-	var segunda: RefCounted = _persona(500)
+	var primera: RefCounted = _persona(1)
+	var segunda: RefCounted = _persona(2)
 	sistema.registrar(primera)
 	sistema.registrar(segunda)
 	sistema.drenar(primera, 15.0)   # media espera: 100 − 3.33×15 = 50

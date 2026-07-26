@@ -88,6 +88,10 @@ var _sat_cierre: Dictionary[StringName, float] = {}
 ## Visitas cerradas por servicio en la jornada (para F5, la media global ponderada por volumen).
 var _visitas_jornada: Dictionary[StringName, int] = {}
 
+## Barras leídas de un guardado, a la espera de que Flujo reconstruya a sus dueños (story 007). La
+## clave es ESTABLE (`servicio#turno`), no el objeto: al cargar, las PersonaFlujo son objetos NUEVOS.
+var _restaurables: Dictionary[String, Dictionary] = {}
+
 
 func _ready() -> void:
 	# Auto-resuelve los autoloads reales cuando corre en el juego (patrón de Flujo/Economía); en los
@@ -99,6 +103,7 @@ func _ready() -> void:
 	if _rng == null:
 		_rng = get_node_or_null("/root/RNGService")
 	_cargar_config()
+	add_to_group("Persist")   # ADR-0002: el SaveManager recolecta por grupo; clave = node.name
 
 
 # ── Inyección de dependencias (ADR-0001: se ORDENA por API, jamás se muta a otro sistema) ────
@@ -174,6 +179,10 @@ func _al_tick(delta_min: float) -> void:
 	_a_abandonar.clear()
 	for servicio: StringName in SERVICIOS:
 		_drenar_servicio(servicio, delta_min)
+	# Las que ya están en ventanilla no salen en ninguna cola: se las reconoce aparte para que, tras
+	# cargar una partida, recuperen su barra en vez de aparecer como desconocidas (story 007).
+	for persona: RefCounted in _flujo.personas_en_puestos():
+		registrar(persona)
 	_a_abandonar.sort_custom(func(a: RefCounted, b: RefCounted) -> bool:
 		return a.numero_turno < b.numero_turno
 	)
@@ -264,7 +273,23 @@ func _purgar_terminadas() -> void:
 func registrar(persona: RefCounted) -> void:
 	if persona == null or _paciencia_de.has(persona):
 		return
+	# Al cargar una partida, Flujo crea PersonaFlujo NUEVAS: la barra guardada se reengancha aquí, por
+	# clave estable (servicio + turno). Si no hay nada guardado para ella, entra con la barra llena.
+	var clave: String = _clave_de(persona)
+	if _restaurables.has(clave):
+		var guardado: Dictionary = _restaurables[clave]
+		_paciencia_de[persona] = float(guardado["valor"])
+		if float(guardado["al_llamar"]) >= 0.0:
+			_paciencia_al_llamar[persona] = float(guardado["al_llamar"])
+		_restaurables.erase(clave)
+		return
 	_paciencia_de[persona] = PACIENCIA_INICIAL
+
+
+## Clave ESTABLE de una persona entre guardado y carga: su servicio y su número de turno (los objetos
+## no sobreviven; estos dos datos sí, y juntos son únicos — FL2 no repite turno dentro de un servicio).
+func _clave_de(persona: RefCounted) -> String:
+	return "%s#%d" % [persona.servicio(), persona.numero_turno]
 
 
 ## La persona sale del sistema (atendida o marchada): Paciencia la suelta.
@@ -533,6 +558,71 @@ func _generar_reclamacion() -> void:
 		return
 	var minuto: int = int(_tiempo.minutos_juego) if _tiempo != null else 0
 	_bus.persona_generada.emit(PersonaScript.new(&"ODAC", TRAMITE_RECLAMACION, minuto))
+
+
+# ── Persistencia (story 007 · ADR-0002 — "cargar sitúa": ni señales ni efectos) ──────────────
+
+## Estado serializable (contrato `Persist`; clave = node.name "Paciencia"). SOLO estado propio y no
+## derivado: las barras (por clave estable, NUNCA por referencia de objeto), los acumuladores del día,
+## los cierres y los contadores de quejas. El RNG **no** se duplica aquí: lo serializa RNGService.
+func save() -> Dictionary:
+	var barras: Array = []
+	for persona: RefCounted in _paciencia_de:
+		barras.append({
+			"clave": _clave_de(persona),
+			"valor": float(_paciencia_de[persona]),
+			"al_llamar": float(_paciencia_al_llamar.get(persona, -1.0)),
+		})
+	var acumulado: Dictionary = {}
+	for servicio: StringName in SERVICIOS:
+		acumulado[String(servicio)] = {
+			"suma": _suma_puntuaciones.get(servicio, 0.0),
+			"peso": _peso_total.get(servicio, 0.0),
+			"visitas": _visitas_jornada.get(servicio, 0),
+		}
+	var cierres: Dictionary = {}
+	for servicio: StringName in SERVICIOS:
+		cierres[String(servicio)] = sat_cierre_de(servicio)
+	return {
+		"barras": barras,
+		"acumulado": acumulado,
+		"sat_cierre": cierres,
+		"reclamaciones_jornada": reclamaciones_jornada,
+		"reclamaciones_mes": reclamaciones_mes,
+		"reclamaciones_graves_jornada": reclamaciones_graves_jornada,
+		"reclamaciones_graves_mes": reclamaciones_graves_mes,
+	}
+
+
+## Carga el estado. Las barras quedan en el buffer de reenganche: sus dueñas todavía no existen (las
+## reconstruye Flujo) y se recuperan en cuanto se las vuelve a ver, en `registrar`.
+func load_state(d: Dictionary) -> void:
+	_paciencia_de.clear()
+	_paciencia_al_llamar.clear()
+	_restaurables.clear()
+	for barra: Dictionary in d.get("barras", []):
+		_restaurables[String(barra.get("clave", ""))] = {
+			"valor": float(barra.get("valor", PACIENCIA_INICIAL)),
+			"al_llamar": float(barra.get("al_llamar", -1.0)),
+		}
+	_suma_puntuaciones.clear()
+	_peso_total.clear()
+	_visitas_jornada.clear()
+	var acumulado: Dictionary = d.get("acumulado", {})
+	for servicio_txt: String in acumulado:
+		var servicio: StringName = StringName(servicio_txt)
+		var datos: Dictionary = acumulado[servicio_txt]
+		_suma_puntuaciones[servicio] = float(datos.get("suma", 0.0))
+		_peso_total[servicio] = float(datos.get("peso", 0.0))
+		_visitas_jornada[servicio] = int(datos.get("visitas", 0))
+	_sat_cierre.clear()
+	var cierres: Dictionary = d.get("sat_cierre", {})
+	for servicio_txt: String in cierres:
+		_sat_cierre[StringName(servicio_txt)] = float(cierres[servicio_txt])
+	reclamaciones_jornada = int(d.get("reclamaciones_jornada", 0))
+	reclamaciones_mes = int(d.get("reclamaciones_mes", 0))
+	reclamaciones_graves_jornada = int(d.get("reclamaciones_graves_jornada", 0))
+	reclamaciones_graves_mes = int(d.get("reclamaciones_graves_mes", 0))
 
 
 # ── Config (patrón del proyecto: fallback seguro + clamps con aviso) ─────────────────────────

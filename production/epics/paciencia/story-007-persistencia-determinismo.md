@@ -1,12 +1,12 @@
 # Story 007: Persistencia y el determinismo con abandonos
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada + test 5/5, prueba reina incluida
 
 ## Context
 
@@ -29,9 +29,9 @@ y no emite señales.
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS21** `[Unit]` — GIVEN save a mitad de jornada WHEN se carga THEN paciencias, acumulador de
+- [x] **AC-PS21** `[Unit]` — GIVEN save a mitad de jornada WHEN se carga THEN paciencias, acumulador de
       satisfacción y contadores se **restauran**; arranca en Pausa.
-- [ ] **AC-PS23** `[Unit]` — GIVEN misma semilla + misma secuencia de esperas WHEN se ejecuta dos veces
+- [x] **AC-PS23** `[Unit]` — GIVEN misma semilla + misma secuencia de esperas WHEN se ejecuta dos veces
       THEN los abandonos son **idénticos**.
 
 ---
@@ -63,3 +63,25 @@ y no emite señales.
 ## Out of Scope
 
 - Lo visible (008).
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **La prueba reina pasó a la primera.**
+
+- `save()` / `load_state()` + grupo `Persist`: barras, acumuladores del día, cierres y contadores de
+  quejas. El RNG **no** se duplica (lo serializa RNGService — ADR-0002).
+- **Reenganche por clave estable** (`servicio#turno`): al cargar, Flujo crea `PersonaFlujo` NUEVAS, así
+  que guardar referencias a objetos no serviría de nada. Las barras esperan en un buffer y cada una
+  se reengancha en cuanto se vuelve a ver a su dueña, dentro de `registrar` (único punto de alta).
+- `flujo.gd`: getter nuevo **`personas_en_puestos()`**. Quien está en ventanilla ya no está en ninguna
+  cola, así que sin este getter era invisible para Paciencia y, tras cargar, habría perdido su barra —
+  y con ella el "recibo" de su espera, puntuando la visita como si hubiera esperado lo indecible.
+- Test `paciencia_save_determinismo_test.gd` **5/5**. Suite total **410/410, exit 0**.
+
+**AC-PS23, la prueba reina:** partida A (10 ticks → guardar → cargar en un mundo nuevo → 30 ticks) vs
+partida B (40 ticks del tirón) → **misma secuencia exacta de abandonos**. Es la garantía de que meter
+un sistema entero en el bucle de simulación no ha roto el determinismo del juego.
+
+**Efecto colateral bueno:** el test de la 001 usaba una ficha de Demanda suelta como clave. Al exigir
+ahora `servicio()` + turno, el test se alineó con el **contrato real** (una `PersonaFlujo`). Era una
+laxitud que habría escondido problemas más adelante.
