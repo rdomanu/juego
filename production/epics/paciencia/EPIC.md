@@ -3,7 +3,7 @@
 > **Layer**: Feature
 > **GDD**: design/gdd/patience-satisfaction.md
 > **Architecture Module**: Paciencia #10 (dueño de la escala `sat` 0–100)
-> **Status**: Ready
+> **Status**: Complete (2026-07-26 — 8/8 stories, sign-off del usuario)
 > **Stories**: 8 (ver tabla) — creadas 2026-07-25 (C3-2)
 > **Manifest Version**: 2026-07-22
 
@@ -77,7 +77,7 @@ This epic is complete when:
 | 005 | [La reputación se convierte en dinero](story-005-sat-a-ingresos.md) | Integration | **Complete** | PS14 |
 | 006 | [Reclamaciones — quien se va cabreado te da trabajo](story-006-reclamaciones.md) | Integration | **Complete** | PS15, PS16, PS17, PS18, PS20 |
 | 007 | [Persistencia y el determinismo con abandonos](story-007-persistencia-determinismo.md) | Integration | **Complete** | PS21, PS23 |
-| 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | **In Review** | demo (M1-M5) |
+| 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | **Complete** | demo (M1-M5) |
 
 **Cobertura: 23/23 AC del GDD.** Orden secuencial estricto 001→008. Cada story trae sus casos de test
 escritos (QA Lead omitido — modo LEAN, patrón de los epics anteriores).
@@ -89,7 +89,22 @@ escritos (QA Lead omitido — modo LEAN, patrón de los epics anteriores).
 **Riesgo vivo del epic:** el determinismo. Meter abandonos en el bucle puede romper la prueba A-vs-B →
 el test de la 007 se corre en CADA story, no solo al final.
 
-## Next Step
+## Cierre del epic (2026-07-26)
 
-Run `/story-readiness production/epics/paciencia/story-001-nucleo-config-drenaje.md` o directamente
-`/dev-story` sobre la 001.
+**8/8 stories completas con sign-off del usuario.** El juego pasó de "simulación correcta pero sin
+consecuencias" a **poder perderse**: la gente se cansa, se marcha, hunde la satisfacción y con ella
+los ingresos del día siguiente.
+
+**Lo que este epic dejó, más allá de sus 23 criterios:**
+- **El bucle económico cerrado**: atender bien hoy → cobrar más mañana (retorno DGP 0.30 → 0.39).
+- **Tres bugs silenciosos cazados por tests**, ninguno cubierto por un criterio del GDD: la purga que
+  borraba la barra de quien estaba siendo atendido; el `olvidar()` que borraba **el peor dato de la
+  jornada justo antes de contarlo** (la satisfacción habría salido inflada siempre); y un espía de
+  test que mentía por el gotcha de las lambdas por valor.
+- **La prueba reina A-vs-B pasó a la primera** con abandonos y reclamaciones activos.
+- **Dos enmiendas de diseño del usuario** (el camino de entrada no gasta paciencia) y **una mecánica
+  nueva** (colar con el botón derecho, pagada en cabreo ajeno).
+- **Herramienta de calibración (F1)** para ajustar el balance jugando, solo en desarrollo.
+
+**Deuda declarada:** el balance aprobado **cuenta con Comodidades #15**, que aún no existe (ver la
+nota de la evidencia). Todo el visual sigue siendo andamio hasta UI/HUD #11.

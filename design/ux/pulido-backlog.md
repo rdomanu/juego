@@ -27,6 +27,7 @@ máximo y el mínimo, ahora no sé si 4 es mucho o es poco, si es sobre 5 puntos
 | **U4** | **La barra de abajo (HUD) tiene que ser intuitiva "como los tycoon"** | Estética + UX | ⬜ Para `/ux-design` — es la petición marco: referencia clara al género |
 | **U5** | *(implícito en U1)* Toda cifra que el jugador tenga que juzgar necesita su **escala visible**: no basta el número, hace falta saber respecto a qué | **Principio de UX** | 🔸 Aplicado en el HUD de satisfacción y en el panel de calibración; pendiente el resto |
 | **U6** | *"No hay panel de guardado, ni de personal accesible como el de construir"* (2026-07-26) | **Funcional — faltaba acceso** | ✅ **Resuelto 2026-07-26**: barra de acciones con botones visibles **Personal (P)**, **Guardar (F5)**, **Cargar (F9)** + aviso del último guardado. El guardado EXISTÍA pero no había forma de invocarlo desde el juego |
+| **U8** | *"En el diseño habría que poner como un icono para saber a qué viene cada uno: documentación, TIE, sustracción, pérdida…"* (2026-07-26) | **Legibilidad — requisito de diseño** | ⬜ Para `/ux-design` + art bible. **Especificado abajo** |
 | **U7** | *"Lo de calibrar debe ser un menú interno solo para el desarrollador"* (2026-07-26) | Herramienta DEV | ✅ **Resuelto 2026-07-26**: panel de calibración (F1) que **solo se instancia en desarrollo** (`OS.has_feature("editor")`); en un build exportado no existe ni el botón |
 
 > **Nota sobre U1 (resuelto en caliente):** el dato ya decía "4/5", pero en texto pequeño y gris no se
@@ -37,6 +38,33 @@ máximo y el mínimo, ahora no sé si 4 es mucho o es poco, si es sobre 5 puntos
 
 > **U5 como criterio de aceptación de `/ux-design`:** ningún indicador numérico del HUD o de los paneles
 > se da por bueno si el jugador no puede saber, mirándolo, si ese número es bueno o malo.
+
+### U8 — Icono de "a qué viene" por ciudadano (requisito de diseño)
+
+Hoy el color del muñeco solo distingue **servicio** (azul Documentación / naranja ODAC / azul claro
+TIE): mirando la sala no se sabe si esa persona viene a renovar el DNI o a denunciar una agresión. El
+jugador necesita **leer la sala de un vistazo** para decidir a quién colar, qué ventanilla abrir o si
+una urgencia lleva demasiado esperando.
+
+**Los 17 tipos que hay que cubrir** (ids reales del catálogo — cualquier icono debe salir de ahí, no
+del código):
+
+| Servicio | Tipos |
+|---|---|
+| **Documentación** (3) | `dni` · `pasaporte` · `tie` |
+| **ODAC — Prioritarias** | `viogen` · `desaparecidos` · `agresion_sexual` · `robo_violencia` |
+| **ODAC — Normales** | `hurto_robo` · `estafa` · `ciberestafa` · `danos` · `amenazas` · `lesiones` · `okupacion` · `perdida_sustraccion` · `permiso_viaje` · `reclamacion` |
+
+**Criterios de aceptación para `/ux-design`:**
+- Legible **a distancia de cámara y sin pasar el ratón** (regla del proyecto: nada hover-only).
+- Debe distinguirse **la urgencia** además del tipo: una VioGén y un extravío de DNI no pueden pedir
+  la misma atención visual (el peso de prioridad ya existe en el modelo: 2.5 frente a 1.0).
+- **Convive con la barra de paciencia** que ya va sobre la cabeza: hay que resolver el conjunto
+  (¿icono al lado de la barra? ¿en el cuerpo? ¿ambos en una "chapa"?), no cada pieza por su cuenta.
+- Respaldo no-cromático (no basta el color) y nombre completo disponible en el **menú contextual**,
+  que ya lo muestra.
+- El `reclamacion` merece distinguirse: es trabajo que **generó el propio jugador** al dejar irse a
+  alguien; verlo acumularse en la sala es parte del castigo.
 
 ## Andamios conocidos que hay que sustituir
 

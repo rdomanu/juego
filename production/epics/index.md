@@ -37,7 +37,7 @@ spike QQ-02 del vertical slice (150 NPCs → ~145 FPS; plan B `AStarGrid2D` no n
 |------|-------|--------|-----|----------------|-------------|---------|--------|
 | [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
 | [ODAC / Denuncias](odac/EPIC.md) | Feature | ODAC #9 | odac.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
-| [Paciencia y Satisfacción](paciencia/EPIC.md) | Feature | Paciencia #10 | patience-satisfaction.md | ADR-0001, ADR-0002, ADR-0003 | LOW | **8 stories** | **In Progress** (Sprint 3) |
+| [Paciencia y Satisfacción](paciencia/EPIC.md) | Feature | Paciencia #10 | patience-satisfaction.md | ADR-0001, ADR-0002, ADR-0003 | LOW | 8 stories | **Complete** (8/8, 2026-07-26) |
 
 **Trazabilidad Feature:** los 8 TR de la capa (TR-doc-001/002, TR-odac-001/002, TR-patience-001..004)
 están **100 % cubiertos** por ADR aceptados — 0 huérfanos. **Riesgo de motor LOW en los tres**: no

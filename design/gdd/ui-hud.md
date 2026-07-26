@@ -146,6 +146,12 @@ las órdenes las valida el sistema dueño.)*
 
 `ánimo = 🟢 si paciencia>66 · 🟡 si 33≤paciencia≤66 · 🔴 si paciencia<33` — umbrales de **Paciencia PS5**.
 
+> **🆕 REQUISITO DE DISEÑO (usuario, 2026-07-26):** además del ánimo, cada persona debe llevar un
+> **icono de a qué viene** (`dni`, `pasaporte`, `tie`, `viogen`, `perdida_sustraccion`…) para poder
+> **leer la sala de un vistazo**. 17 tipos del catálogo, con la urgencia distinguible del tipo, sin
+> hover y conviviendo con la barra de paciencia que ya va sobre la cabeza. Detalle y criterios de
+> aceptación en `design/ux/pulido-backlog.md` §U8. **Pendiente de `/ux-design`; no implementado.**
+
 ### F3 · Banda de color de satisfacción *(umbrales propios de UI — accesibilidad)*
 
 `banda_sat = 🔴 si sat<umbral_sat_bajo · 🟡 si umbral_sat_bajo≤sat<umbral_sat_alto · 🟢 si sat≥umbral_sat_alto`

@@ -26,11 +26,11 @@ stories:
     name: "QA plan del Sprint 3"
     file: "production/qa/qa-plan-sprint-3.md"
     priority: must-have
-    status: ready-for-dev
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: ""
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-2"
     name: "Crear stories del epic Paciencia"
     file: "production/epics/paciencia/EPIC.md"
@@ -44,11 +44,11 @@ stories:
     name: "Implementar epic Paciencia (barra que drena, hacinamiento, abandono, sat 0-100, cierre al nuevo_dia, reclamaciones)"
     file: "production/epics/paciencia/EPIC.md"
     priority: must-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 1.0
     blocker: "C3-2"
-    completed: ""
+    completed: "2026-07-26"
   - id: "pac-001"
     name: "Paciencia: nucleo, config y F1 (la barra que baja)"
     file: "production/epics/paciencia/story-001-nucleo-config-drenaje.md"
@@ -116,29 +116,29 @@ stories:
     name: "Paciencia: HITO VISIBLE — animo, medidor y la marcha"
     file: "production/epics/paciencia/story-008-animo-visible-demo.md"
     priority: must-have
-    status: review
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.15
     blocker: "pac-007"
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-4"
     name: "Rondas de demo y ajustes de Paciencia (ventana + sign-off; calibrar el drenaje CON el usuario)"
     file: "production/qa/evidence/"
     priority: must-have
-    status: backlog
+    status: done
     owner: "Opus 5 + usuario"
     estimate_days: 0.3
     blocker: "C3-3"
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-5"
     name: "Cierre formal Paciencia"
     file: "production/epics/paciencia/EPIC.md"
     priority: must-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: "C3-4"
-    completed: ""
+    completed: "2026-07-26"
   - id: "C3-6"
     name: "Crear stories del epic Documentacion"
     file: "production/epics/documentacion/EPIC.md"

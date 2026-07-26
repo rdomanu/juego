@@ -1,12 +1,12 @@
 # Story 008: 🎉 HITO VISIBLE — se ve el cabreo (ánimo, medidor y la marcha)
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: In Review — implementada; pendiente del sign-off en ventana
+> **Status**: Complete
 > **Layer**: Feature (+ Presentation provisional)
 > **Type**: Visual/Feel *(ADVISORY — evidencia + sign-off)*
 > **Estimate**: M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: 2026-07-26 — implementada y verificada en headless; falta la demo con el usuario
+> **Last Updated**: 2026-07-26 — cerrada con el SIGN-OFF del usuario
 
 ## Context
 
@@ -73,7 +73,7 @@ automatiza). Sí automatizable y exigido antes de la demo:
 - La UI real (UI/HUD #11, tras `/ux-design`).
 - Audio del abandono (Feedback y Juice #12).
 
-## Estado (2026-07-26) — implementada, pendiente de sign-off
+## Cierre (2026-07-26) — 🎉 SIGN-OFF DEL USUARIO
 
 **Implementado:**
 - `npc_ciudadano.gd`: barrita de ánimo sobre la cabeza, oculta mientras no espera, refrescada por DIFF.
@@ -84,5 +84,20 @@ automatiza). Sí automatizable y exigido antes de la demo:
 - Verificación automática sobre Main real: los tres ánimos se pintan, la satisfacción se mueve y las
   quejas se acumulan. **Suite 410/410, exit 0.**
 
-**Pendiente:** la demo con el usuario (M1-M5) y, sobre todo, **calibrar `tolerancia_base_min`** —
-ver el hallazgo de balance en `production/qa/evidence/paciencia-demo-2026-07-26.md`.
+**Sign-off concedido (2026-07-26)**: *"paciencia está bien de momento, veo que baja mucho la barra
+pero entiendo que con mejoras en la sala podría subir la paciencia por lo que lo dejamos así"*.
+Checklist M1-M5 ✅. **`tolerancia_base_min` se queda en 30** por decisión del usuario.
+
+**5 rondas de feedback antes del sign-off**, todas corregidas (detalle en la evidencia):
+1. La barra **no se leía** (era de tamaño fijo y solo cambiaba de color) → rehecha como barra que
+   **se vacía**: al llegar a cero, la persona se va. Lo que ves es lo que va a pasar.
+2. **Faltaban accesos**: el guardado existía en el código pero no había forma de invocarlo desde el
+   juego → botonera visible (Personal / Guardar / Cargar) con sus teclas.
+3. **Panel de calibración F1**, solo para el desarrollador (no se instancia en un build exportado).
+4. **Enmienda**: el camino hasta el sitio de espera no gasta paciencia.
+5. **Mecánica nueva**: colar con el botón derecho (menú contextual) a costa del resto de la cola.
+
+**⚠️ El sign-off trae una condición implícita** que queda registrada en la evidencia: el usuario
+acepta este ritmo de cabreo **porque cuenta con que las mejoras de sala lo compensen**
+(Comodidades #15, que aún no existe). Si ese sistema no llega, hay que subir `tolerancia_base_min`;
+y cuando llegue, hay que revisar el número otra vez.
