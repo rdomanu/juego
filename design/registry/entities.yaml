@@ -873,6 +873,16 @@ constants:
     notes: "Flujo #4 FL5, ENMIENDA usuario 2026-07-25 ('EN CAMINO no se tramita'): el tramite arranca cuando la persona LLEGA al puesto. minutos_camino = distancia_celdas (medida en el PLANO: centro de la sala de espera mas cercana -> celda del puesto; origen entrada si aun no le dio tiempo a llegar a su sala) / esta velocidad. 0.375 = el paso visible de 90 px/s a velocidad 1x (calibrado con el usuario en ventana). 0 = llegada instantanea (compatibilidad de tests). SUSTITUYE a duracion_desplazamiento_seg (cosmetico, retirado). Efecto de diseno: la distribucion de la comisaria pasa a importar. Tuning: Flujo."
     added: 2026-07-25
     revised: ""
+  - name: penalizacion_colado
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+    value: 10.0
+    unit: puntos_de_paciencia
+    notes: "Paciencia #10, MECANICA NUEVA 2026-07-26 (peticion del usuario): al COLAR a alguien (clic derecho -> menu contextual), todos los demas que esperan ese servicio pierden estos puntos de paciencia. Es el precio social del favor: arreglas un caso y empeoras la sala. 10 = un decimo de la barra, notable sin ser fulminante. Los que van de camino a su sitio no se enteran; a quien ya llamaron no le afecta. Tuning: Paciencia."
+    added: 2026-07-26
+    revised: ""
   - name: densidad_de_pie
     status: active
     source: design/gdd/construction-layout.md

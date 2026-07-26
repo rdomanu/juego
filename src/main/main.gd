@@ -58,6 +58,10 @@ const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
 const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
 ## Gris tenue del HUD (texto secundario).
 const COLOR_TENUE_HUD := Color(1, 1, 1, 0.65)
+## Ids de las opciones del menú del clic derecho.
+const ID_MENU_TITULO := 0
+const ID_MENU_COLAR := 1
+const ID_MENU_CANCELAR := 2
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -86,6 +90,9 @@ var _lbl_atendiendo: Label
 var _lbl_puerta_doc: Label
 var _panel_personal: CanvasLayer
 var _panel_admin: CanvasLayer
+## Menú del clic derecho sobre un ciudadano (petición del usuario 2026-07-26) + a quién apunta.
+var _menu_ciudadano: PopupMenu
+var _persona_del_menu: RefCounted = null
 var _lbl_guardado: Label
 var _lbl_satisfaccion: Label
 var _lbl_reclamaciones: Label
@@ -123,6 +130,7 @@ func _ready() -> void:
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
 	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _refrescar_etiquetas())
 	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
+	_crear_menu_ciudadano()
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
 	_programar_captura_evidencia()
@@ -141,10 +149,11 @@ func _unhandled_input(evento: InputEvent) -> void:
 		var raton := evento as InputEventMouseButton
 		if raton.pressed and raton.button_index == MOUSE_BUTTON_RIGHT:
 			# La posición se toma DEL EVENTO y se pasa a coordenadas del mundo con la transformada
-			# del canvas. Antes se usaba `get_global_mouse_position()`, que lee el ratón del sistema:
-			# funcionaba al llamarlo a mano pero no con el clic de verdad, y además ata la mecánica a
-			# dónde esté el puntero en ese instante en vez de a dónde se hizo clic.
-			_colar_bajo_el_cursor(get_canvas_transform().affine_inverse() * raton.position)
+			# del canvas. Con `get_global_mouse_position()` se leía el ratón del sistema, no el punto
+			# donde se hizo clic: funcionaba llamándolo a mano pero no con el clic de verdad.
+			_abrir_menu_ciudadano(
+				get_canvas_transform().affine_inverse() * raton.position, raton.position
+			)
 			get_viewport().set_input_as_handled()
 		return
 	if not (evento is InputEventKey and evento.pressed and not evento.echo):
@@ -236,15 +245,64 @@ func _instanciar_mundo() -> void:
 	EventBus.persona_generada.connect(_al_llegar_persona)
 
 
+## Crea el menú del clic derecho. Una sola instancia que se repuebla al abrirse: los ciudadanos van
+## y vienen, el menú se queda.
+func _crear_menu_ciudadano() -> void:
+	_menu_ciudadano = PopupMenu.new()
+	_menu_ciudadano.name = "MenuCiudadano"
+	_menu_ciudadano.id_pressed.connect(_al_elegir_del_menu)
+	add_child(_menu_ciudadano)
+
+
+## Abre el menú sobre el ciudadano que haya en `punto_mundo` (o no lo abre, si no hay nadie).
+## `punto_pantalla` es dónde se pinta el menú: donde el jugador acaba de hacer clic.
+func _abrir_menu_ciudadano(punto_mundo: Vector2, punto_pantalla: Vector2) -> void:
+	var npc: Node = _npcs.ciudadano_en(punto_mundo)
+	if npc == null:
+		_persona_del_menu = null
+		_avisar_accion("Clic derecho sobre alguien que espera para ver sus opciones", COLOR_TENUE_HUD)
+		return
+	_persona_del_menu = npc.persona
+	_menu_ciudadano.clear()
+	# Cabecera informativa (deshabilitada: es contexto, no una acción) — quién es y cómo lleva la
+	# espera, que es justo lo que el jugador necesita para decidir si le hace el favor.
+	_menu_ciudadano.add_item(_titulo_de_persona(_persona_del_menu), ID_MENU_TITULO)
+	_menu_ciudadano.set_item_disabled(0, true)
+	_menu_ciudadano.add_separator()
+	if _persona_del_menu.colado:
+		_menu_ciudadano.add_item("Ya está colado", ID_MENU_COLAR)
+		_menu_ciudadano.set_item_disabled(2, true)
+	else:
+		_menu_ciudadano.add_item(
+			"⬆ Colar (el resto de la cola se molesta)", ID_MENU_COLAR
+		)
+	_menu_ciudadano.add_separator()
+	_menu_ciudadano.add_item("Cancelar", ID_MENU_CANCELAR)
+	_menu_ciudadano.reset_size()
+	_menu_ciudadano.popup(Rect2i(get_window().position + Vector2i(punto_pantalla), Vector2i.ZERO))
+
+
+## Línea de contexto del menú: turno, trámite y cuánta paciencia le queda.
+func _titulo_de_persona(persona: RefCounted) -> String:
+	var restante: float = _paciencia.paciencia_de(persona)
+	var estado: String = "en la calle" if persona.estado == &"esperando_fuera" else "esperando"
+	if restante < 0.0:
+		return "Turno %d · %s · %s" % [persona.numero_turno, persona.tramite_id(), estado]
+	return "Turno %d · %s · %s · paciencia %d%%" % [
+		persona.numero_turno, persona.tramite_id(), estado, roundi(restante),
+	]
+
+
+func _al_elegir_del_menu(id: int) -> void:
+	if id != ID_MENU_COLAR or _persona_del_menu == null:
+		return
+	_colar_a(_persona_del_menu)
+
+
 ## Cuela al ciudadano que hay bajo el cursor: pasa a ser el siguiente al que llamen, y TODOS los
 ## demás que esperan ese servicio pierden paciencia. El aviso dice a cuántos les ha sentado mal —
 ## el jugador tiene que ver el precio de su favor, no solo el favor.
-func _colar_bajo_el_cursor(punto: Vector2) -> void:
-	var npc: Node = _npcs.ciudadano_en(punto)
-	if npc == null:
-		_avisar_accion("Clic derecho sobre alguien que espera para colarlo", COLOR_TENUE_HUD)
-		return
-	var persona: RefCounted = npc.persona
+func _colar_a(persona: RefCounted) -> void:
 	if not _flujo.colar(persona):
 		var motivo: String = (
 			"Ya estaba colado" if persona.colado else "A esa persona ya la han llamado"

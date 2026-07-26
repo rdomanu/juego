@@ -168,6 +168,23 @@ con hacinamiento ×1.5 → `100/(3.33×1.5) ≈ 20 min`.
 > - Efecto de diseño: una sala de espera lejos de la entrada **regala** paciencia, pero retrasa a la
 >   gente. Otra palanca de distribución para el jugador.
 
+> **🆕 MECÁNICA NUEVA — COLAR A ALGUIEN (usuario, 2026-07-26; implementada):** *"con el botón derecho
+> estaría bien colar a alguien que lleva mucho tiempo esperando, pero eso afectaría a la paciencia del
+> resto"*.
+> - **Cómo**: clic derecho sobre un ciudadano que espera → **menú contextual** con su ficha (turno,
+>   trámite, si está dentro o en la calle, y su paciencia restante) y la opción **⬆ Colar**.
+> - **Efecto**: pasa a ser el siguiente al que llamen (rango de prioridad máximo en la selección F7 de
+>   Flujo) y su barra se pinta **azul** para que se vea a quién se le ha hecho el favor.
+> - **Precio**: **todos los demás que esperan ese servicio pierden `penalizacion_colado` puntos** de
+>   paciencia (semilla 10). Los que aún van de camino a su sitio no se enteran, y a quien ya han
+>   llamado no le afecta. Si la sala estaba al límite, colar **provoca una espantada** — y esa
+>   consecuencia es justo lo que hace interesante la decisión.
+> - **Vale también para la cola exterior**: colar a quien se quedó en la calle por aforo es el favor
+>   más útil (entra en cuanto haya plaza, por delante del orden de turno).
+> - **Determinismo intacto**: la clave de orden pasa a ser `(colado, prioridad, turno)`; no hay azar.
+>   La marca se **serializa** con la persona: es una decisión del jugador y sobrevive al guardado.
+> - No se puede colar dos veces a la misma persona (ni cobrar dos veces el cabreo).
+
 > **🔮 PENDIENTE DE DISEÑO — Comodidades (petición del usuario, 2026-07-26):** *"esa paciencia debe
 > subir en minutos con las distintas mejoras: mejores asientos, máquinas de vending, revistas,
 > televisiones... cosas que mejoren los tiempos de espera."*
