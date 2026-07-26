@@ -42,3 +42,7 @@ class_name ConfigPaciencia extends Resource
 ## Normal (1.0) en la media de ODAC. Cross-fact 2.5 (dueño: ODAC #9): fallarle a una urgencia hace
 ## MUCHO más daño que fallarle a un papeleo — y atenderla bien vale más.
 @export var peso_prioridad_prioritaria: float = 2.5
+## Probabilidad de que un abandono acabe en HOJA DE RECLAMACIONES (PS13). Cross-fact 0.4 (registro):
+## no todo el que se va se queja, pero 4 de cada 10 sí — y esa queja es trabajo real para ODAC que
+## además no paga nada. Es el castigo con dientes de la mala gestión.
+@export var prob_reclamacion: float = 0.4

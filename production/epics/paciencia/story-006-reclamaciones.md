@@ -1,12 +1,12 @@
 # Story 006: Reclamaciones — quien se va cabreado te da trabajo
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada + test 9/9 en verde
 
 ## Context
 
@@ -31,13 +31,13 @@ hay que cualificar con `self.`; aquí directamente **no se usa `randf`**.
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS15** `[Unit]` — GIVEN un abandono THEN `reclamaciones_jornada += 1` y `reclamaciones_mes += 1`.
-- [ ] **AC-PS16** `[Integration]` — GIVEN abandono de Documentación y `prob_reclamacion = 1.0` (test)
+- [x] **AC-PS15** `[Unit]` — GIVEN un abandono THEN `reclamaciones_jornada += 1` y `reclamaciones_mes += 1`.
+- [x] **AC-PS16** `[Integration]` — GIVEN abandono de Documentación y `prob_reclamacion = 1.0` (test)
       THEN aparece un trámite `reclamacion` (30 min, Normal) en la **cola de ODAC**.
-- [ ] **AC-PS17** `[Integration]` — GIVEN una `reclamacion` que abandona en ODAC THEN suma al contador
+- [x] **AC-PS17** `[Integration]` — GIVEN una `reclamacion` que abandona en ODAC THEN suma al contador
       pero **NO** genera otra (sin recursión).
-- [ ] **AC-PS18** `[Unit]` — GIVEN abandono de una **Prioritaria de ODAC** THEN la hoja se marca **grave**.
-- [ ] **AC-PS20** `[Unit]` — GIVEN `nuevo_mes` THEN `reclamaciones_mes` se **evalúa y resetea a 0**.
+- [x] **AC-PS18** `[Unit]` — GIVEN abandono de una **Prioritaria de ODAC** THEN la hoja se marca **grave**.
+- [x] **AC-PS20** `[Unit]` — GIVEN `nuevo_mes` THEN `reclamaciones_mes` se **evalúa y resetea a 0**.
 
 ---
 
@@ -70,3 +70,29 @@ hay que cualificar con `self.`; aquí directamente **no se usa `randf`**.
 
 - La reconfiguración de puestos de ODAC (epic ODAC #9).
 - El HUD de contadores (008).
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5).
+
+- `procesar_abandono`: cuenta la hoja (jornada + mes, y **graves** aparte si era una urgencia de ODAC)
+  y, con `prob_reclamacion` (0.4) tirada por **RNGService**, fabrica una reclamación.
+- **La reclamación entra por la puerta**, no por la ventana: se emite como `persona_generada` y es el
+  mundo quien la admite, encola y le da cuerpo visible — igual que a cualquier ciudadano. Paciencia no
+  se salta el aforo ni la puerta de nadie.
+- **Corte de recursión (AC-PS17)** por el propio trámite: si quien abandona ya es una `reclamacion`,
+  cuenta pero no engendra otra. Sin banderas ni estado extra. El test lo prueba con **probabilidad
+  1.0**: si hubiera recursión, sería infinita y el test no terminaría.
+- `nuevo_mes` prio 20 resetea el contador mensual; `cerrar_jornada` resetea el diario (son dos KPI
+  distintos: "cómo ha ido hoy" y "cómo va el mes por el que te evalúan").
+- Test `paciencia_reclamaciones_test.gd` **9/9**. Suite total **405/405, exit 0**.
+
+**🐛 Gotcha del proyecto que volvió a morder (y quedó cazado por un test):** las lambdas de GDScript
+capturan las locales **por valor**, así que el contador `int` de un espía nunca se actualiza fuera de
+la lambda. El test de determinismo pasaba "correctamente" con 0 reclamaciones en 20 abandonos a
+probabilidad 0.4 — algo que solo ocurre 3 veces de cada 100.000. Se usa un `Array` (por referencia),
+que es la regla ya registrada del proyecto.
+
+**Decisión más allá de los AC:** sin RNG inyectado **no** se generan reclamaciones (en vez de caer en
+un `randf` propio). Un generador paralelo rompería el determinismo del guardado, que es justo lo que
+protege ADR-0002.

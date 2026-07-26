@@ -30,6 +30,10 @@ const ANIMO_IMPACIENTE := &"impaciente"   # 🟡
 const ANIMO_AL_LIMITE := &"al_limite"     # 🔴
 ## Centinela de "esta persona no está en el sistema" (nunca se confunde con una paciencia real 0-100).
 const SIN_PACIENCIA := -1.0
+## La ficha de Demanda (para FABRICAR la reclamación que genera un abandono — story 006).
+const PersonaScript := preload("res://src/core/demanda/persona.gd")
+## El trámite de la hoja de reclamaciones en el catálogo (30 min, Normal, ODAC, SIN tarifa).
+const TRAMITE_RECLAMACION := &"reclamacion"
 
 # ── Tuning (del `.tres`; ver ConfigPaciencia) ────────────────────────────────────────────────
 var tolerancia_base_min: float = 30.0
@@ -42,6 +46,15 @@ var puntuacion_base: float = 80.0
 var k_espera: float = 0.5
 var sat_inicial: float = 50.0
 var peso_prioridad_prioritaria: float = 2.5
+var prob_reclamacion: float = 0.4
+
+# ── Contadores de reclamaciones (story 006 · KPI de eficiencia) ──────────────────────────────
+## Hojas de reclamaciones de la jornada en curso y del mes (las **graves** —urgencias de ODAC
+## abandonadas— se cuentan aparte: no es lo mismo perder un DNI que perder una denuncia por VioGén).
+var reclamaciones_jornada: int = 0
+var reclamaciones_mes: int = 0
+var reclamaciones_graves_jornada: int = 0
+var reclamaciones_graves_mes: int = 0
 
 ## Persona (RefCounted de Flujo) → paciencia restante [0, 100]. La persona es la CLAVE: vive mientras
 ## Flujo la referencie, y Paciencia la suelta al resolverse o marcharse (`olvidar`).
@@ -57,6 +70,7 @@ var _personal: Node = null
 var _tiempo: Node = null
 var _bus: Node = null
 var _economia: Node = null
+var _rng: Node = null
 var _suscrito_al_tick: bool = false
 
 ## Buffers REUTILIZADOS entre ticks (regla del proyecto: cero allocs en el bucle de simulación —
@@ -82,6 +96,8 @@ func _ready() -> void:
 		usar_tiempo(get_node_or_null("/root/Tiempo"))
 	if _bus == null:
 		usar_bus(get_node_or_null("/root/EventBus"))
+	if _rng == null:
+		_rng = get_node_or_null("/root/RNGService")
 	_cargar_config()
 
 
@@ -107,6 +123,8 @@ func usar_bus(bus: Node) -> void:
 	_bus = bus
 	if _bus != null and _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 10, _al_nuevo_dia)
+		# nuevo_mes: Economía 10 · Paciencia 20 (el orden previsto en el comentario de Economía).
+		_bus.registrar_ordenado(&"nuevo_mes", 20, _al_nuevo_mes)
 
 
 ## Inyecta Economía: al cerrar la jornada se le pasa el `sat_cierre` de Documentación, que es con el
@@ -114,6 +132,12 @@ func usar_bus(bus: Node) -> void:
 ## Sin Economía inyectada, Paciencia funciona igual: el dinero simplemente no se entera (story 005).
 func usar_economia(economia: Node) -> void:
 	_economia = economia
+
+
+## Inyecta el RNG determinista (ADR-0002). **Nunca** se usa `randf` propio: el generador es único y su
+## estado lo serializa RNGService, para que la misma semilla dé exactamente las mismas reclamaciones.
+func usar_rng(rng: Node) -> void:
+	_rng = rng
 
 
 ## Inyecta Personal para leer el 🤝Trato del agente que atiende (F2). Sin él → trato neutro (1.0).
@@ -159,7 +183,8 @@ func _al_tick(delta_min: float) -> void:
 		# ⚠️ Si se va, NO se la olvida aquí: queda en estado Abandonando y la recoge `_purgar_terminadas`,
 		# que ANOTA su visita (puntuación 0) antes de soltarla. Olvidarla aquí borraría el peor dato de
 		# la jornada justo antes de contarlo — la satisfacción saldría inflada y nadie lo notaría.
-		_flujo.forzar_abandono(persona)
+		if _flujo.forzar_abandono(persona):
+			procesar_abandono(persona)   # story 006: cuenta la hoja y quizá genere una reclamación
 	_anotar_llamadas()
 	_purgar_terminadas()
 
@@ -437,6 +462,10 @@ func cerrar_jornada() -> void:
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
 	_visitas_jornada.clear()
+	# Las quejas del día se archivan con la jornada; las del MES siguen sumando hasta el `nuevo_mes`
+	# (son dos KPI distintos: "cómo ha ido hoy" y "cómo va el mes por el que te evalúan").
+	reclamaciones_jornada = 0
+	reclamaciones_graves_jornada = 0
 	# Story 005: la reputación se convierte en dinero. Economía cobrará TODA la jornada de mañana con
 	# este número — por eso se le pasa AQUÍ, al cerrar, y no cada vez que alguien sale por la puerta:
 	# si el retorno cambiara a media mañana, el jugador no podría planificar nada.
@@ -447,6 +476,63 @@ func cerrar_jornada() -> void:
 ## Handler del evento ordenado `nuevo_dia`.
 func _al_nuevo_dia() -> void:
 	cerrar_jornada()
+
+
+## Handler del evento ordenado `nuevo_mes`: el contador mensual se evalúa (lo leerá la valoración de
+## jefes #28) y se resetea. El de la jornada lo resetea `cerrar_jornada`.
+func _al_nuevo_mes() -> void:
+	reclamaciones_mes = 0
+	reclamaciones_graves_mes = 0
+
+
+# ── PS13 · Reclamaciones: quien se va cabreado deja trabajo (story 006) ──────────────────────
+
+## Procesa el abandono de una persona: cuenta la hoja y, con probabilidad `prob_reclamacion`, genera
+## una RECLAMACIÓN que entra en ODAC como un trámite más — 30 minutos de ventanilla que no paga nadie.
+##
+## ⚠️ CORTE DE RECURSIÓN (AC-PS17): si quien abandona es YA una reclamación, cuenta pero **no engendra
+## otra**. Sin esto, una comisaría saturada entraría en bola de nieve infinita: cada queja abandonada
+## generaría otra queja, que a su vez... El corte se detecta por el propio trámite, sin banderas extra.
+func procesar_abandono(persona: RefCounted) -> void:
+	reclamaciones_jornada += 1
+	reclamaciones_mes += 1
+	if _es_grave(persona):
+		reclamaciones_graves_jornada += 1
+		reclamaciones_graves_mes += 1
+	if persona.tramite_id() == TRAMITE_RECLAMACION:
+		return
+	if not _toca_reclamacion():
+		return
+	_generar_reclamacion()
+
+
+## ¿Este abandono es GRAVE? Solo si era una denuncia PRIORITARIA de ODAC (VioGén, desaparecidos,
+## agresión sexual, atraco): dejar tirada una urgencia no es lo mismo que perder un papeleo.
+func _es_grave(persona: RefCounted) -> bool:
+	if persona.servicio() != &"ODAC":
+		return false
+	var denuncia: Resource = Datos.obtener(&"DenunciaODAC", persona.tramite_id())
+	return denuncia != null and denuncia.prioridad == "Prioritaria"
+
+
+## La tirada de si el cabreo llega a hoja oficial. SIEMPRE por RNGService (determinismo, ADR-0002).
+## Sin RNG inyectado no se generan reclamaciones (los tests puros no dependen del azar).
+func _toca_reclamacion() -> bool:
+	if prob_reclamacion <= 0.0 or _rng == null:
+		return false
+	if prob_reclamacion >= 1.0:
+		return true
+	return _rng.randf() < prob_reclamacion
+
+
+## Fabrica la ficha de la reclamación y la suelta por el bus como una llegada más: quien la admite,
+## encola y le da cuerpo visible es el mundo (Main), igual que con cualquier ciudadano — Paciencia no
+## se salta la puerta de entrada de nadie.
+func _generar_reclamacion() -> void:
+	if _bus == null:
+		return
+	var minuto: int = int(_tiempo.minutos_juego) if _tiempo != null else 0
+	_bus.persona_generada.emit(PersonaScript.new(&"ODAC", TRAMITE_RECLAMACION, minuto))
 
 
 # ── Config (patrón del proyecto: fallback seguro + clamps con aviso) ─────────────────────────
@@ -466,6 +552,7 @@ func aplicar_config(config: Resource) -> void:
 	k_espera = clampf(config.k_espera, 0.0, 1.0)
 	sat_inicial = clampf(config.sat_inicial, 0.0, 100.0)
 	peso_prioridad_prioritaria = clampf(config.peso_prioridad_prioritaria, 1.0, 10.0)
+	prob_reclamacion = clampf(config.prob_reclamacion, 0.0, 1.0)
 	# Invariante: el umbral bajo NUNCA por encima del alto (si el .tres viniera cruzado, se ordenan
 	# en vez de dejar una franja imposible donde el ánimo no se pudiera calcular).
 	if umbral_animo_bajo > umbral_animo_alto:

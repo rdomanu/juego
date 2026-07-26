@@ -98,11 +98,11 @@ stories:
     name: "Paciencia: reclamaciones a ODAC (RNG, sin recursion)"
     file: "production/epics/paciencia/story-006-reclamaciones.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.15
     blocker: "pac-005"
-    completed: ""
+    completed: "2026-07-26"
   - id: "pac-007"
     name: "Paciencia: persistencia y determinismo con abandonos"
     file: "production/epics/paciencia/story-007-persistencia-determinismo.md"
