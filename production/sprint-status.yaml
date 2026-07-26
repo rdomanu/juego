@@ -116,8 +116,8 @@ stories:
     name: "Paciencia: HITO VISIBLE — animo, medidor y la marcha"
     file: "production/epics/paciencia/story-008-animo-visible-demo.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: review
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.15
     blocker: "pac-007"
     completed: ""

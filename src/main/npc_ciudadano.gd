@@ -19,6 +19,9 @@ var _velocidad: float = 90.0
 var _estado_visto: StringName = &""
 ## El NavigationServer sincroniza en el 1er physics frame: hasta entonces ni target ni camino.
 var _nav_lista: bool = false
+## Barrita de ánimo sobre la cabeza y el último ánimo pintado (DIFF: solo se toca al cambiar de tramo).
+var _animo: ColorRect = null
+var _animo_visto: StringName = &""
 
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
@@ -54,6 +57,14 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	cabeza.position = Vector2(-4, -14)
 	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(cabeza)
+	# Indicador de ÁNIMO (story paciencia-008): una barrita sobre la cabeza, legible a distancia de
+	# cámara y SIN hover (regla del proyecto). Nace oculta: solo se ve mientras la persona espera.
+	_animo = ColorRect.new()
+	_animo.size = Vector2(14, 3)
+	_animo.position = Vector2(-7, -20)
+	_animo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_animo.visible = false
+	add_child(_animo)
 
 
 func _physics_process(_delta: float) -> void:
@@ -66,6 +77,7 @@ func _physics_process(_delta: float) -> void:
 	if persona.estado != _estado_visto:
 		_estado_visto = persona.estado
 		_nav.target_position = _manager.destino_de(self)
+	_refrescar_animo()
 	# El paseo escala con el reloj (2×/3× caminan más rápido); en Pausa (mult 0) se congela.
 	var mult: float = Tiempo.multiplicador_velocidad
 	if mult <= 0.0:
@@ -98,3 +110,20 @@ func _velocidad_adaptativa() -> float:
 	return clampf(
 		restante_px * Tiempo.escala_tiempo / restante_min, _velocidad * 0.75, _velocidad * 1.5
 	)
+
+
+## Pinta el ánimo de esta persona (story paciencia-008). Por DIFF: solo toca el nodo cuando cambia de
+## tramo (contento → impaciente → al límite), nunca cada frame. Se oculta en cuanto deja de esperar:
+## una vez te llaman, tu cara ya no es asunto de nadie.
+func _refrescar_animo() -> void:
+	if _animo == null:
+		return
+	var animo: StringName = _manager.animo_de(persona)
+	if animo == _animo_visto:
+		return
+	_animo_visto = animo
+	if animo == &"":
+		_animo.visible = false
+		return
+	_animo.visible = true
+	_animo.color = _manager.color_de_animo(animo)

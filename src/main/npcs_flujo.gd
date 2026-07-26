@@ -37,12 +37,20 @@ const COLOR_ESTADO: Dictionary[StringName, Color] = {
 }
 ## Uniforme del policía (torso azul marino, cabeza clara — estilo npc_ciudadano).
 const COLOR_POLICIA_TORSO := Color(0.10, 0.14, 0.30)
+## Colores del ÁNIMO de quien espera (story paciencia-008). Sobrios, nada caricaturesco (art bible):
+## el descontento se ve, pero esto es una comisaría, no un parque de atracciones.
+const COLOR_ANIMO: Dictionary[StringName, Color] = {
+	&"contento": Color(0.45, 0.80, 0.45),
+	&"impaciente": Color(0.95, 0.78, 0.30),
+	&"al_limite": Color(0.90, 0.35, 0.35),
+}
 ## Sentinela de "sin celda" (fuera de todo rect de sala: las celdas del edificio son ≥ 0).
 const CELDA_NULA := Vector2i(-1, -1)
 
 var _flujo: Node = null
 var _construccion: Node = null
 var _personal: Node = null
+var _paciencia: Node = null
 var _tam_celda: int = 40
 var _pos_suelo: Vector2 = Vector2.ZERO
 var _columnas: int = 24
@@ -55,6 +63,28 @@ var _plaza_de: Dictionary[Vector2i, Node] = {}
 ## Puesto_id → Node2D contenedor de su visual (muñeco policía + etiqueta nombre + rótulo estado).
 ## Se crea/borra/actualiza por DIFF (meta en el contenedor) — cero trabajo por frame si nada cambia.
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
+
+
+func usar_paciencia(paciencia: Node) -> void:
+	_paciencia = paciencia
+
+
+## El ánimo que debe mostrar esta persona, o `&""` si no procede enseñarlo (ya la han llamado, o no
+## hay sistema de paciencia). COSMÉTICO: solo LEE (FL5).
+func animo_de(persona: RefCounted) -> StringName:
+	if _paciencia == null or persona == null:
+		return &""
+	if persona.estado != &"esperando_dentro" and persona.estado != &"esperando_fuera":
+		return &""
+	if not _paciencia.tiene(persona):
+		return &""
+	return _paciencia.animo_de_persona(persona)
+
+
+## Color del aro de ánimo (texto+forma no aplican a un indicador de 3 px: el respaldo daltónico de
+## esta información vive en el HUD, que da los números de satisfacción y colas).
+func color_de_animo(animo: StringName) -> Color:
+	return COLOR_ANIMO.get(animo, Color(1, 1, 1, 0.5))
 
 
 func configurar(

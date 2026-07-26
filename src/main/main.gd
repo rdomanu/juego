@@ -54,6 +54,8 @@ const POS_SUELO := Vector2(96, 24)
 const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
 const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
+## Gris tenue del HUD (texto secundario).
+const COLOR_TENUE_HUD := Color(1, 1, 1, 0.65)
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -80,6 +82,8 @@ var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
 var _lbl_puerta_doc: Label
+var _lbl_satisfaccion: Label
+var _lbl_reclamaciones: Label
 
 
 func _ready() -> void:
@@ -193,6 +197,7 @@ func _instanciar_mundo() -> void:
 	_npcs = NPCsFlujoScript.new()
 	_npcs.name = "NPCs"
 	_npcs.configurar(_flujo, _construccion, _personal, TAM_CELDA, POS_SUELO, COLUMNAS, FILAS)
+	_npcs.usar_paciencia(_paciencia)   # el aro de ánimo sobre cada ciudadano (story paciencia-008)
 	add_child(_npcs)
 	_sincronizar_puestos_flujo()
 	_construccion.fijar_hook_layout(_al_cambiar_layout)
@@ -385,6 +390,27 @@ func _crear_hud() -> void:
 	_lbl_puerta_doc.add_theme_font_size_override("font_size", 11)
 	caja_flujo.add_child(_lbl_puerta_doc)
 
+	# Bloque de satisfacción (story paciencia-008): la media de HOY construyéndose junto al cierre de
+	# AYER (el que fija el dinero de hoy) + las quejas. Con su escala SIEMPRE visible (principio U5
+	# del backlog de pulido: ningún número sin saber respecto a qué).
+	var caja_sat := _seccion(fila)
+	_lbl_satisfaccion = Label.new()
+	_lbl_satisfaccion.add_theme_font_size_override("font_size", 13)
+	caja_sat.add_child(_lbl_satisfaccion)
+	_lbl_reclamaciones = Label.new()
+	_lbl_reclamaciones.add_theme_font_size_override("font_size", 11)
+	caja_sat.add_child(_lbl_reclamaciones)
+
+
+## Color de la satisfacción, con los MISMOS umbrales que el ánimo de la gente (66/33): lo que ve el
+## jugador en la barra y lo que ve sobre las cabezas hablan el mismo idioma.
+func _color_satisfaccion(sat: float) -> Color:
+	if sat > _paciencia.umbral_animo_alto:
+		return COLOR_HOLGADO
+	if sat < _paciencia.umbral_animo_bajo:
+		return COLOR_ROJOS
+	return COLOR_JUSTO
+
 
 ## Una sección vertical de la barra inferior (con separador a partir de la segunda).
 func _seccion(fila: HBoxContainer) -> VBoxContainer:
@@ -451,6 +477,19 @@ func _refrescar_etiquetas() -> void:
 	_lbl_atendiendo.text = "Atendiendo: %d · FPS %d" % [
 		_flujo.atendiendo_total(), Engine.get_frames_per_second(),
 	]
+	# Satisfacción (story paciencia-008): hoy / ayer, con la escala a la vista. El color del texto
+	# refuerza (verde/ámbar/rojo por los umbrales de ánimo), pero el número manda.
+	var sat_hoy: float = _paciencia.sat_global()
+	var sat_ayer: float = _paciencia.sat_cierre_de(&"Documentacion")
+	_lbl_satisfaccion.text = "Satisfacción: %d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
+	_lbl_satisfaccion.modulate = _color_satisfaccion(sat_hoy)
+	var graves: int = _paciencia.reclamaciones_graves_jornada
+	_lbl_reclamaciones.text = "Reclamaciones hoy: %d%s · mes: %d" % [
+		_paciencia.reclamaciones_jornada,
+		(" (%d graves)" % graves) if graves > 0 else "",
+		_paciencia.reclamaciones_mes,
+	]
+	_lbl_reclamaciones.modulate = COLOR_ROJOS if graves > 0 else COLOR_TENUE_HUD
 	# Puerta de Documentación (AC-FL24): abierta hasta cierre_doc_min; cerrada el resto del día.
 	var hora_cierre: String = Tiempo.hhmm(float(_flujo.cierre_doc_min))
 	if _flujo.puerta_doc_abierta():

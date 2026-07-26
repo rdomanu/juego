@@ -1,12 +1,12 @@
 # Story 008: 🎉 HITO VISIBLE — se ve el cabreo (ánimo, medidor y la marcha)
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: In Review — implementada; pendiente del sign-off en ventana
 > **Layer**: Feature (+ Presentation provisional)
 > **Type**: Visual/Feel *(ADVISORY — evidencia + sign-off)*
 > **Estimate**: M (~2-3 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada y verificada en headless; falta la demo con el usuario
 
 ## Context
 
@@ -72,3 +72,17 @@ automatiza). Sí automatizable y exigido antes de la demo:
 
 - La UI real (UI/HUD #11, tras `/ux-design`).
 - Audio del abandono (Feedback y Juice #12).
+
+## Estado (2026-07-26) — implementada, pendiente de sign-off
+
+**Implementado:**
+- `npc_ciudadano.gd`: barrita de ánimo sobre la cabeza, oculta mientras no espera, refrescada por DIFF.
+- `npcs_flujo.gd`: `usar_paciencia` + `animo_de(persona)` / `color_de_animo` — COSMÉTICO puro: lee
+  Paciencia y jamás la muta (FL5).
+- `main.gd`: bloque de HUD con **satisfacción de hoy junto a la de ayer** (la que fija el dinero) y
+  contador de reclamaciones, con las graves en rojo. Color por los mismos umbrales 66/33 que el ánimo.
+- Verificación automática sobre Main real: los tres ánimos se pintan, la satisfacción se mueve y las
+  quejas se acumulan. **Suite 410/410, exit 0.**
+
+**Pendiente:** la demo con el usuario (M1-M5) y, sobre todo, **calibrar `tolerancia_base_min`** —
+ver el hallazgo de balance en `production/qa/evidence/paciencia-demo-2026-07-26.md`.

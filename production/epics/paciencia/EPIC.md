@@ -77,7 +77,7 @@ This epic is complete when:
 | 005 | [La reputación se convierte en dinero](story-005-sat-a-ingresos.md) | Integration | **Complete** | PS14 |
 | 006 | [Reclamaciones — quien se va cabreado te da trabajo](story-006-reclamaciones.md) | Integration | **Complete** | PS15, PS16, PS17, PS18, PS20 |
 | 007 | [Persistencia y el determinismo con abandonos](story-007-persistencia-determinismo.md) | Integration | **Complete** | PS21, PS23 |
-| 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | Ready | demo (M1-M5) |
+| 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | **In Review** | demo (M1-M5) |
 
 **Cobertura: 23/23 AC del GDD.** Orden secuencial estricto 001→008. Cada story trae sus casos de test
 escritos (QA Lead omitido — modo LEAN, patrón de los epics anteriores).
