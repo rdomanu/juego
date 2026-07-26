@@ -1,7 +1,7 @@
 # Story 004: Los eventos de la División + guardar el servicio
 
 > **Epic**: Documentación
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~2-3 h)
@@ -37,15 +37,15 @@ frágil por los `uid`/`ext_resource` — regla del proyecto desde el epic Datos)
 
 *De `design/gdd/documentation.md`, acotados a esta story:*
 
-- [ ] **AC-DC09** `[Integration]` — GIVEN el evento "periodo vacacional" activo THEN se **autoriza** ampliar
+- [x] **AC-DC09** `[Integration]` — GIVEN el evento "periodo vacacional" activo THEN se **autoriza** ampliar
       hasta las **21:30**; el jugador decide si amplía (la División habilita, no obliga).
-- [ ] **AC-DC10** `[Integration]` — GIVEN que el evento **termina** con el horario ampliado por encima de
+- [x] **AC-DC10** `[Integration]` — GIVEN que el evento **termina** con el horario ampliado por encima de
       20:00 THEN el cierre vuelve al tope ordinario (20:00) con aviso.
-- [ ] **AC-DC11** `[Integration]` — GIVEN el MVP (`requiere_cita = false`) THEN la demanda de Doc **no se
+- [x] **AC-DC11** `[Integration]` — GIVEN el MVP (`requiere_cita = false`) THEN la demanda de Doc **no se
       autolimita**; si un trámite del catálogo pidiera cita, se trata **como sin cita con aviso**.
-- [ ] **AC-DC16** `[Unit]` — GIVEN un save con horario configurado + margen + evento activo WHEN se carga
+- [x] **AC-DC16** `[Unit]` — GIVEN un save con horario configurado + margen + evento activo WHEN se carga
       THEN se restauran los tres, y el horario restaurado se vuelve a empujar a Flujo y Demanda.
-- [ ] `[Integration]` — GIVEN el cambio de mes THEN el evento correspondiente se activa/desactiva y se
+- [x] `[Integration]` — GIVEN el cambio de mes THEN el evento correspondiente se activa/desactiva y se
       **anuncia por el bus** una sola vez (sin repetir el aviso cada tick).
 
 ---
@@ -134,3 +134,34 @@ frágil por los `uid`/`ext_resource` — regla del proyecto desde el epic Datos)
 
 - Depends on: Story 003
 - Unlocks: Story 005
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **Suite 485/485, exit 0** (+13); test propio **13/13 a la
+primera**; arranque headless limpio.
+
+- **Catálogo**: esquema nuevo `src/foundation/datos/esquema/evento_division.gd` + carpeta
+  `datos/eventos/` con los **2 comunicados del MVP** (`vacaciones` meses 7–8 → pasaporte, 21:30;
+  `colapso_extranjeria` mes 2 → TIE, 21:30). `datos.gd` indexa el tipo nuevo y `build_catalogo.gd`
+  los genera (**32 recursos**, antes 30).
+- **Bus**: señal nueva `aviso_division(evento_id, nombre, activo)` documentada con emisor y oyentes.
+- **Documentación**: `revisar_eventos()` (activa/apaga por mes, prioridad **30** del `nuevo_mes`),
+  `evento_activo()` / `evento_de()`, y `save()` / `load_state()` + grupo `Persist`.
+- Test `tests/integration/documentacion/documentacion_eventos_persistencia_test.gd` **13/13**.
+
+**Decisiones de implementación (más allá de los AC):**
+- **El save guarda las DECISIONES, no el marco**: se serializan la hora de cierre, el margen y el
+  evento vigente; el horario base y los topes se releen del catálogo al cargar. Así, si algún día se
+  reequilibra el juego, las partidas guardadas heredan el catálogo nuevo en vez de una copia congelada.
+- **`load_state` sanea igual que la partida y vuelve a empujar el horario**: un save manipulado no
+  puede abrir hasta las 03:00, y sin la reemisión Flujo y Demanda se quedarían con sus defaults
+  (la partida cargada abriría con el horario base aunque hubieras guardado con la tarde ampliada).
+  Hay un test dedicado a cada una de las dos cosas.
+- **Un evento desconocido en el save no rompe la carga**: se avisa y se queda sin evento (una partida
+  guardada con un catálogo más nuevo sigue siendo jugable).
+- **Al apagarse un evento, el cierre se recoge solo** al tope ordinario — si no, el jugador seguiría
+  cerrando a las 21:30 en un mes en el que la División ya no lo autoriza.
+- **El aviso se emite solo al CAMBIAR de estado** (guarda anti-duplicado, patrón de
+  `nivel_demanda_cambiado`): sin ella el comunicado saldría en pantalla en cada revisión del mes.
+- **Orden estable si dos eventos solaparan mes** (ordenados por id): el catálogo del MVP no solapa,
+  pero el desempate no puede quedar al azar.

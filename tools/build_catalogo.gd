@@ -23,6 +23,7 @@ const TipoSalaScript := preload("res://src/foundation/datos/esquema/tipo_sala.gd
 const TipoAgenteScript := preload("res://src/foundation/datos/esquema/tipo_agente.gd")
 const CostesScript := preload("res://src/foundation/datos/esquema/costes.gd")
 const EscenarioScript := preload("res://src/foundation/datos/esquema/escenario.gd")
+const EventoDivisionScript := preload("res://src/foundation/datos/esquema/evento_division.gd")
 
 const RUTA_CATALOGO := "res://datos/"
 
@@ -43,8 +44,8 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ]
 
 ## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
-## + 4 salas + 3 agentes + 1 costes + 1 escenario = 30.
-const TOTAL_ESPERADO := 30
+## + 4 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos de la División = 32.
+const TOTAL_ESPERADO := 32
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -61,6 +62,7 @@ func _init() -> void:
 	_generar_agentes()       # F5 — 3 TipoAgente
 	_generar_costes()        # F6 — 1 Costes
 	_generar_escenario()     # F7 — 1 Escenario
+	_generar_eventos()       # F8 — 2 EventoDivision (story doc-004)
 
 	print("build_catalogo: %d guardados, %d fallos (esperados %d archivos)." % [
 		_guardados, _fallos, TOTAL_ESPERADO,
@@ -272,6 +274,36 @@ func _agente(
 	return r
 
 
+## F8 · Los eventos de la División (DO7, story doc-004). MVP: **2 eventos simples** para validar el
+## mecanismo — el catálogo crece en playtest/V-Slice (campañas de DNI, jornada ininterrumpida...).
+## Deterministas por MES (decisión del usuario 2026-07-26): la estacionalidad se aprende, no se sortea.
+func _generar_eventos() -> void:
+	_guardar(_evento(
+		&"vacaciones", "Periodo vacacional",
+		"La División avisa del pico anual de pasaportes. Se autoriza ampliar el horario hasta las 21:30.",
+		[7, 8], &"pasaporte", 1290
+	), "eventos")
+	_guardar(_evento(
+		&"colapso_extranjeria", "Colapso en extranjería",
+		"Atasco en las citas de extranjería. Se autoriza ampliar el horario de TIE hasta las 21:30.",
+		[2], &"tie", 1290
+	), "eventos")
+
+
+func _evento(
+	id: StringName, nombre: String, descripcion: String,
+	meses: Array[int], tramite: StringName, cierre_max_min: int
+) -> Resource:
+	var r: Resource = EventoDivisionScript.new()
+	r.id = id
+	r.nombre = nombre
+	r.descripcion = descripcion
+	r.meses = meses
+	r.tramite_destacado = tramite
+	r.cierre_max_min = cierre_max_min
+	return r
+
+
 # ── Guardado (con comprobación de error) ─────────────────────────────────────────────────
 
 ## Crea las carpetas del catálogo si faltan (DirAccess). Idempotente.
@@ -282,7 +314,9 @@ func _asegurar_carpetas() -> void:
 		quit(1)
 		return
 	base.make_dir_recursive("datos")
-	for carpeta: String in ["tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios"]:
+	for carpeta: String in [
+		"tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios", "eventos",
+	]:
 		base.make_dir_recursive("datos".path_join(carpeta))
 
 

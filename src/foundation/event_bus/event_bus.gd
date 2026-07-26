@@ -70,6 +70,13 @@ signal reclamacion_generada(origen: StringName)
 ## (Ampliacion 2026-07-23, epic demanda story 004.)
 signal nivel_demanda_cambiado(nivel: StringName)
 
+## Comunicado de la Division de Documentacion (DO7): un evento estacional se ACTIVA o se APAGA.
+## Mientras esta activo, la Division AUTORIZA ampliar el horario mas alla del tope ordinario (no
+## obliga: ampliar sigue siendo decision del jugador). Se emite SOLO al cambiar de estado (guarda
+## anti-duplicado, patron de nivel_demanda_cambiado). Emisor: Documentacion #8. Oyentes: UI (bandeja
+## de comunicados), Feedback. (Ampliacion 2026-07-26, epic documentacion story 004.)
+signal aviso_division(evento_id: StringName, nombre: String, activo: bool)
+
 ## Incidencia de plantilla (p. ej. una baja del dia): `texto` legible para la bandeja de la UI y
 ## `puesto` afectado (&"" si el agente no tenia puesto). UNA emision por incidencia individual; el
 ## parte AGRUPADO del Oficial llegara por otra senal (story 005). Emisor: Personal. Oyentes: UI/HUD

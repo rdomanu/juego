@@ -33,6 +33,7 @@ const TipoSalaScript := preload("res://src/foundation/datos/esquema/tipo_sala.gd
 const TipoAgenteScript := preload("res://src/foundation/datos/esquema/tipo_agente.gd")
 const CostesScript := preload("res://src/foundation/datos/esquema/costes.gd")
 const EscenarioScript := preload("res://src/foundation/datos/esquema/escenario.gd")
+const EventoDivisionScript := preload("res://src/foundation/datos/esquema/evento_division.gd")
 
 ## Raíz del catálogo en disco (empaquetado en `res://`, read-only al exportar — ADR-0003).
 const RUTA_CATALOGO := "res://datos/"
@@ -41,7 +42,7 @@ const RUTA_CATALOGO := "res://datos/"
 ## El TIPO real de cada resource se determina por su script (ver `_clave_tipo`), no por la carpeta: la
 ## carpeta solo acota dónde buscar `.tres`.
 const CARPETAS: Array[String] = [
-	"tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios",
+	"tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios", "eventos",
 ]
 
 ## Claves `StringName` de tipo usadas para indexar y en la API pública `obtener`/`obtener_todos`.
@@ -53,6 +54,7 @@ const TIPO_TIPO_SALA := &"TipoSala"
 const TIPO_TIPO_AGENTE := &"TipoAgente"
 const TIPO_COSTES := &"Costes"
 const TIPO_ESCENARIO := &"Escenario"
+const TIPO_EVENTO_DIVISION := &"EventoDivision"
 
 ## Minutos operativos de un puesto ODAC al día para el chequeo R5 (GDD F8): supuesto CONSERVADOR de
 ## ~16 h/día (dotación de ~2 de los 3 turnos; la operativa 24h real la fijan Personal/Horarios). 16×60=960.
@@ -213,6 +215,8 @@ func _clave_tipo(recurso: Resource) -> StringName:
 		return TIPO_COSTES
 	if recurso is EscenarioScript:
 		return TIPO_ESCENARIO
+	if recurso is EventoDivisionScript:
+		return TIPO_EVENTO_DIVISION
 	return &""
 
 

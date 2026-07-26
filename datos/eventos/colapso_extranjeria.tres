@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EventoDivision" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/evento_division.gd" id="1_st48e"]
+
+[resource]
+script = ExtResource("1_st48e")
+id = &"colapso_extranjeria"
+nombre = "Colapso en extranjería"
+descripcion = "Atasco en las citas de extranjería. Se autoriza ampliar el horario de TIE hasta las 21:30."
+meses = Array[int]([2])
+tramite_destacado = &"tie"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EventoDivision" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/evento_division.gd" id="1_f83fv"]
+
+[resource]
+script = ExtResource("1_f83fv")
+id = &"vacaciones"
+nombre = "Periodo vacacional"
+descripcion = "La División avisa del pico anual de pasaportes. Se autoriza ampliar el horario hasta las 21:30."
+meses = Array[int]([7, 8])
+tramite_destacado = &"pasaporte"

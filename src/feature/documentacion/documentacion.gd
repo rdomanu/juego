@@ -23,6 +23,8 @@ const ConfigDocumentacionScript := preload("res://src/feature/documentacion/conf
 const SERVICIO := &"Documentacion"
 ## Tipo del catálogo con los trámites que presta (DNI, Pasaporte, TIE).
 const TIPO_TRAMITE := &"TramiteDoc"
+## Tipo del catálogo con los comunicados estacionales de la División (story 004).
+const TIPO_EVENTO := &"EventoDivision"
 
 const MINUTOS_POR_HORA := 60.0
 const MINUTOS_POR_DIA := 1440.0
@@ -72,8 +74,10 @@ var peonada_activa_por_defecto: bool = false
 ## `peonada_activa_por_defecto` la sube al tope ordinario al aplicar la config.
 var hora_cierre_min: int = 870
 ## Tope EXTRA autorizado por un evento de la División (DO7), en minutos del día. 0 = sin evento
-## (manda `slider_max_min`). Lo activa la story 004; aquí solo se respeta si alguien lo pone.
+## (manda `slider_max_min`).
 var tope_evento_min: int = 0
+## Id del comunicado de la División vigente, o `&""` si no hay ninguno (story 004). Se serializa.
+var evento_activo_id: StringName = &""
 
 
 func _ready() -> void:
@@ -84,6 +88,8 @@ func _ready() -> void:
 	if _bus == null:
 		usar_bus(get_node_or_null("/root/EventBus"))
 	_cargar_config()
+	revisar_eventos()          # ¿hay comunicado de la División para el mes en que empieza la partida?
+	add_to_group("Persist")    # ADR-0002: el SaveManager recolecta por grupo; clave = node.name
 
 
 # ── Inyección de dependencias (ADR-0001: se ORDENA por API, jamás se muta a otro sistema) ────
@@ -103,6 +109,8 @@ func usar_bus(bus: Node) -> void:
 		return
 	if _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 15, _al_nuevo_dia)
+		# nuevo_mes: la División revisa qué comunicado toca (Economía 10 · Paciencia 20 · Doc 30).
+		_bus.registrar_ordenado(&"nuevo_mes", 30, _al_nuevo_mes)
 	if not _bus.tramite_completado.is_connected(_al_tramite_completado):
 		_bus.tramite_completado.connect(_al_tramite_completado)
 
@@ -328,6 +336,107 @@ func _asegurar_catalogo() -> void:
 		push_warning("Documentacion: sin 'costes_global' en el catalogo -> peonada con default")
 		return
 	_peonada_eur_hora = costes.peonada_eur_hora
+
+
+# ── Los eventos de la División (DO2/DO7 · TR-doc-002 · story doc-004) ────────────────────────
+
+## Handler del `nuevo_mes` (dispatcher ordenado, prioridad 30): la División revisa el calendario y
+## activa o apaga su comunicado. Lo llaman el bus y `load_state` (al cargar hay que resituarse en el
+## mes de la partida guardada).
+func _al_nuevo_mes() -> void:
+	revisar_eventos()
+
+
+## Busca en el catálogo el comunicado vigente para el mes actual y lo aplica: mientras esté activo, la
+## División **autoriza** cerrar hasta su `cierre_max_min` (21:30 en vacaciones). Al apagarse, el tope
+## vuelve al ordinario y el cierre elegido **se recoge** con aviso si se había pasado.
+## Se anuncia por el bus **solo al cambiar de estado** (un aviso por activación y otro por apagado):
+## sin esa guarda, el comunicado saldría en pantalla en cada tick del mes entero.
+func revisar_eventos() -> void:
+	var mes: int = _mes_actual()
+	var vigente: Resource = _evento_del_mes(mes)
+	var id_vigente: StringName = vigente.id if vigente != null else &""
+	if id_vigente == evento_activo_id:
+		return
+	var anterior: Resource = evento_de(evento_activo_id)
+	if anterior != null and _bus != null:
+		_bus.aviso_division.emit(anterior.id, anterior.nombre, false)
+	evento_activo_id = id_vigente
+	tope_evento_min = vigente.cierre_max_min if vigente != null else 0
+	# El tope ha bajado: si el jugador estaba cerrando más tarde de lo que ahora se autoriza, se le
+	# recoge el horario (y se entera: el aviso del clamp lo da `refrescar_horario`).
+	refrescar_horario()
+	if vigente != null and _bus != null:
+		_bus.aviso_division.emit(vigente.id, vigente.nombre, true)
+
+
+## El comunicado vigente (Resource del catálogo) o `null` si no hay ninguno.
+func evento_activo() -> Resource:
+	return evento_de(evento_activo_id)
+
+
+## Definición de un comunicado por id (`null` si no existe o si el id está vacío — sin aviso: "sin
+## evento" es un estado normal, no un dato roto).
+func evento_de(id: StringName) -> Resource:
+	if id == &"":
+		return null
+	return Datos.obtener(TIPO_EVENTO, id)
+
+
+## El comunicado del catálogo cuyo calendario incluye ese mes (el PRIMERO en orden estable si hubiera
+## solapamiento — el catálogo del MVP no lo tiene, pero el orden no puede quedar al azar).
+func _evento_del_mes(mes: int) -> Resource:
+	var candidatos: Array = Datos.obtener_todos(TIPO_EVENTO)
+	candidatos.sort_custom(func(a: Resource, b: Resource) -> bool: return String(a.id) < String(b.id))
+	for evento: Resource in candidatos:
+		if mes in evento.meses:
+			return evento
+	return null
+
+
+## Mes de campaña del reloj (1 si no hay reloj inyectado: el juego siempre empieza en el mes 1).
+func _mes_actual() -> int:
+	if _tiempo == null:
+		return 1
+	return int(_tiempo.mes)
+
+
+# ── Persistencia (ADR-0002 · grupo "Persist" · AC-DC16) ──────────────────────────────────────
+
+## Lo que se guarda del servicio: **las decisiones del jugador** (hora de cierre y margen) y el
+## comunicado vigente. Lo demás (horario base, topes) sale del catálogo al cargar: si un día se
+## reequilibra el juego, las partidas guardadas heredan el catálogo nuevo, no una copia congelada.
+func save() -> Dictionary:
+	return {
+		"hora_cierre_min": hora_cierre_min,
+		"margen_ultima_admision_min": margen_ultima_admision_min,
+		"evento_activo_id": String(evento_activo_id),
+	}
+
+
+## Restaura el servicio de una partida guardada. **Se sanea igual que en partida** (un save manipulado
+## no puede abrir hasta las 03:00 ni exprimir con un margen negativo) y **se vuelve a empujar** el
+## horario a Flujo y a Demanda: al cargar, ellos arrancan con sus defaults y hay que resituarlos.
+## Un save viejo sin estas claves carga con los valores del catálogo, sin romper.
+func load_state(datos: Dictionary) -> void:
+	# El evento primero: es quien fija el tope autorizado con el que se clampa el cierre.
+	evento_activo_id = StringName(datos.get("evento_activo_id", ""))
+	var evento: Resource = evento_de(evento_activo_id)
+	if evento_activo_id != &"" and evento == null:
+		push_warning(
+			"Documentacion: el save trae un evento desconocido ('%s') -> sin evento" % evento_activo_id
+		)
+		evento_activo_id = &""
+	tope_evento_min = evento.cierre_max_min if evento != null else 0
+	margen_ultima_admision_min = _clamp_knob(
+		int(datos.get("margen_ultima_admision_min", margen_ultima_admision_min)),
+		0, 30, "margen_ultima_admision_min"
+	)
+	hora_cierre_min = _clamp_knob(
+		int(datos.get("hora_cierre_min", cierre_base_min)),
+		cierre_base_min, tope_autorizado(), "hora_cierre_min"
+	)
+	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
 
 
 # ── Los trámites y la política de cita (DO1, DO8) ────────────────────────────────────────────
