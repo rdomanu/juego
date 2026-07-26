@@ -186,6 +186,8 @@ func _instanciar_mundo() -> void:
 	_paciencia.name = "Paciencia"
 	_paciencia.usar_flujo(_flujo)
 	_paciencia.usar_construccion(_construccion)
+	_paciencia.usar_personal(_personal)     # el 🤝Trato del agente puntúa la visita (F2)
+	_paciencia.usar_economia(_economia)     # y la satisfacción de hoy fija el retorno DGP de mañana
 	add_child(_paciencia)
 	# La capa cosmética: NPCs + navegación bakeada del layout real.
 	_npcs = NPCsFlujoScript.new()

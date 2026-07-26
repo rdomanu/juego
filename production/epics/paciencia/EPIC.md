@@ -74,7 +74,7 @@ This epic is complete when:
 | 002 | [El tick, la Pausa y EL ABANDONO](story-002-tick-pausa-abandono.md) | Integration | **Complete** | PS04, PS19, PS22 |
 | 003 | [F2 — cuánto puntúa cada visita](story-003-puntuacion-visita.md) | Logic | **Complete** | PS06, PS07, PS08, PS09 |
 | 004 | [F3 — la satisfacción del día y su cierre](story-004-media-jornada-cierre.md) | Integration | **Complete** | PS10, PS11, PS12, PS13 |
-| 005 | [La reputación se convierte en dinero](story-005-sat-a-ingresos.md) | Integration | Ready | PS14 |
+| 005 | [La reputación se convierte en dinero](story-005-sat-a-ingresos.md) | Integration | **Complete** | PS14 |
 | 006 | [Reclamaciones — quien se va cabreado te da trabajo](story-006-reclamaciones.md) | Integration | Ready | PS15, PS16, PS17, PS18, PS20 |
 | 007 | [Persistencia y el determinismo con abandonos](story-007-persistencia-determinismo.md) | Integration | Ready | PS21, PS23 |
 | 008 | [🎉 HITO VISIBLE — se ve el cabreo](story-008-animo-visible-demo.md) | Visual/Feel | Ready | demo (M1-M5) |

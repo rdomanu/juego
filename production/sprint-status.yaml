@@ -89,11 +89,11 @@ stories:
     name: "Paciencia: la reputacion se convierte en dinero (retorno DGP)"
     file: "production/epics/paciencia/story-005-sat-a-ingresos.md"
     priority: must-have
-    status: ready-for-dev
-    owner: ""
+    status: done
+    owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: "pac-004"
-    completed: ""
+    completed: "2026-07-26"
   - id: "pac-006"
     name: "Paciencia: reclamaciones a ODAC (RNG, sin recursion)"
     file: "production/epics/paciencia/story-006-reclamaciones.md"

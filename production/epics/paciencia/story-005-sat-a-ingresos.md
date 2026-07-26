@@ -1,12 +1,12 @@
 # Story 005: La reputación se convierte en dinero (retorno DGP)
 
 > **Epic**: Paciencia y Satisfacción
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: S (~1-2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: —
+> **Last Updated**: 2026-07-26 — implementada + test 5/5 en verde
 
 ## Context
 
@@ -29,7 +29,7 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC-PS14** `[Integration]` — GIVEN `sat_cierre_doc = 50` de ayer WHEN se cobran trámites hoy THEN
+- [x] **AC-PS14** `[Integration]` — GIVEN `sat_cierre_doc = 50` de ayer WHEN se cobran trámites hoy THEN
       `retorno_dgp = 0.30` **fijo toda la jornada** (no cambia intra-día aunque la media de hoy suba o baje).
 
 ---
@@ -60,3 +60,23 @@
 ## Out of Scope
 
 - Las reclamaciones (006) y el HUD del medidor (008).
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **El bucle económico del juego queda cerrado**: atender bien
+hoy → cobrar más mañana.
+
+- `paciencia.gd`: `usar_economia` + en `cerrar_jornada`, `Economia.fijar_sat_cierre(sat_cierre_doc)`.
+  La fórmula F4 **no se toca**: es de Economía y ya existía; esta story solo le da el dato bueno.
+- `main.gd`: Paciencia recibe Economía **y** Personal (el 🤝Trato que puntúa las visitas).
+- Test `paciencia_ingresos_test.gd` **5/5**: el retorno no cambia intradía aunque el día vaya fatal,
+  una jornada impecable sube el retorno de 0.30 a **0.39**, y una jornada mala cobra menos que una
+  buena. Suite total **396/396, exit 0**; arranque headless limpio.
+
+**Por qué el dato se pasa al CERRAR y no visita a visita:** si el retorno cambiara a media mañana, el
+jugador no podría planificar nada — vería ingresos distintos por el mismo trámite sin saber por qué.
+Cerrando de un día para otro, la regla es legible: *"lo de hoy fija el dinero de mañana"*.
+
+**Nota de balance (para la demo):** con `sat_inicial` 50 se arranca en un retorno de 0.30 sobre un
+máximo de 0.45. Hay un **30 % de ingresos en juego** según lo bien que se gestione la sala — margen
+suficiente para que la gestión se note sin que un mal día arruine la partida.

@@ -56,6 +56,7 @@ var _construccion: Node = null
 var _personal: Node = null
 var _tiempo: Node = null
 var _bus: Node = null
+var _economia: Node = null
 var _suscrito_al_tick: bool = false
 
 ## Buffers REUTILIZADOS entre ticks (regla del proyecto: cero allocs en el bucle de simulación —
@@ -106,6 +107,13 @@ func usar_bus(bus: Node) -> void:
 	_bus = bus
 	if _bus != null and _bus.has_method("registrar_ordenado"):
 		_bus.registrar_ordenado(&"nuevo_dia", 10, _al_nuevo_dia)
+
+
+## Inyecta Economía: al cerrar la jornada se le pasa el `sat_cierre` de Documentación, que es con el
+## que cobrará TODO el día siguiente (F4 — la fórmula es de Economía; Paciencia solo aporta el dato).
+## Sin Economía inyectada, Paciencia funciona igual: el dinero simplemente no se entera (story 005).
+func usar_economia(economia: Node) -> void:
+	_economia = economia
 
 
 ## Inyecta Personal para leer el 🤝Trato del agente que atiende (F2). Sin él → trato neutro (1.0).
@@ -429,6 +437,11 @@ func cerrar_jornada() -> void:
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
 	_visitas_jornada.clear()
+	# Story 005: la reputación se convierte en dinero. Economía cobrará TODA la jornada de mañana con
+	# este número — por eso se le pasa AQUÍ, al cerrar, y no cada vez que alguien sale por la puerta:
+	# si el retorno cambiara a media mañana, el jugador no podría planificar nada.
+	if _economia != null and _economia.has_method("fijar_sat_cierre"):
+		_economia.fijar_sat_cierre(sat_cierre_de(&"Documentacion"))
 
 
 ## Handler del evento ordenado `nuevo_dia`.
