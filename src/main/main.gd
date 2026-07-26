@@ -235,8 +235,13 @@ func _instanciar_mundo() -> void:
 	_flujo.usar_personal(_personal)
 	_flujo.usar_construccion(_construccion)
 	add_child(_flujo)
-	_flujo.fijar_hook_horas_extra(_economia.registrar_horas_extra)   # peonada AC-FL24
 	_construccion.fijar_puede_demoler(_flujo.puede_demoler_puesto)   # gate AC-CO13
+	# Documentación cobra la peonada (F1) y desmotiva a quien sale tarde (DO5): necesita Economía
+	# (le REGISTRA las horas, no toca el saldo), Personal (cuántos agentes la cubren) y Demanda (el
+	# nivel BAJA/MEDIA/ALTA, la brújula de la decisión). Story doc-003.
+	_documentacion.usar_economia(_economia)
+	_documentacion.usar_personal(_personal)
+	_documentacion.usar_demanda(_demanda)
 	# El horario de Doc, de su dueño a quienes lo ejecutan (story doc-002). Se empuja UNA vez aquí
 	# con el estado de arranque; a partir de ahí lo hace la señal `horario_cambiado`.
 	_al_cambiar_horario_doc(

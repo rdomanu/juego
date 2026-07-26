@@ -1,7 +1,7 @@
 # Story 003: La peonada — alargar la tarde cuesta dinero (F1/F2)
 
 > **Epic**: Documentación
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M (~2-3 h)
@@ -52,17 +52,17 @@ que se nota de verdad. El modelo pleno sigue siendo Bienestar #13/#15.
 
 *De `design/gdd/documentation.md`, acotados a esta story:*
 
-- [ ] **AC-DC04** `[Unit]` — GIVEN cierre 18:00 (3,5 h extra), 2 agentes de Doc y `peonada_eur_hora = 15`
+- [x] **AC-DC04** `[Unit]` — GIVEN cierre 18:00 (3,5 h extra), 2 agentes de Doc y `peonada_eur_hora = 15`
       THEN `coste_peonada_dia = 105 €` (F1).
-- [ ] **AC-DC05** `[Integration]` — GIVEN peonada activa THEN el resultado del día es el esperado por F2:
+- [x] **AC-DC05** `[Integration]` — GIVEN peonada activa THEN el resultado del día es el esperado por F2:
       con demanda **ALTA** el ingreso extra supera el coste; con **BAJA**, se pierde dinero (**permitido**).
-- [ ] **AC-DC06** `[Integration]` — GIVEN peonada (voluntaria y pagada) THEN la **motivación NO baja** de los
+- [x] **AC-DC06** `[Integration]` — GIVEN peonada (voluntaria y pagada) THEN la **motivación NO baja** de los
       agentes que la cubren.
-- [ ] **AC-DC08** `[Integration]` — GIVEN `margen = 0` y cola al cierre THEN los agentes que terminan fuera
+- [x] **AC-DC08** `[Integration]` — GIVEN `margen = 0` y cola al cierre THEN los agentes que terminan fuera
       de horario **se desmotivan** (−1, suelo 1) y **no se cobra peonada** por esos minutos.
-- [ ] `[Integration]` — GIVEN el cierre del día THEN Economía recibe las horas extra **antes** de calcular el
+- [x] `[Integration]` — GIVEN el cierre del día THEN Economía recibe las horas extra **antes** de calcular el
       balance (orden determinista), y con cierre base (14:30) recibe **0**.
-- [ ] `[Integration]` — GIVEN el nivel de demanda de Demanda THEN Documentación lo expone
+- [x] `[Integration]` — GIVEN el nivel de demanda de Demanda THEN Documentación lo expone
       (**BAJA/MEDIA/ALTA**) como brújula de la decisión (DO12) — sin recalcularlo.
 
 ---
@@ -149,3 +149,35 @@ Los tests de Flujo afectados por la retirada del hook se actualizan **en esta st
 
 - Depends on: Story 002 (el horario ya vive en su dueño)
 - Unlocks: Story 004
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **Suite 472/472, exit 0** (+16); test propio **16/16**;
+arranque headless limpio.
+
+- **Documentación**: `num_agentes_doc()`, **F1** `coste_peonada_estimado(cierre_tentativo = -1)`
+  (con previsualización para el slider), `horas_agente_extra()`, `nivel_demanda()` delegado, cierre
+  del día en el dispatcher **prioridad 15** (Paciencia 10 → **Doc 15** → Economía 20) y el efecto de
+  moral escuchando `tramite_completado`.
+- **Personal**: `agentes_dotados_en_servicio(servicio)` — API pública nueva de lectura.
+- **Flujo**: **retirados** `fijar_hook_horas_extra`, `_hook_horas_extra` y el conteo de `minutos_extra`
+  en `_avanzar_atenciones`, con la razón escrita en el código para que nadie los reponga.
+- **Main**: cablea Economía/Personal/Demanda a Documentación y deja de cablear el hook.
+- Test `tests/integration/documentacion/documentacion_peonada_test.gd` **16/16**.
+
+**Decisiones de implementación (más allá de los AC):**
+- **Documentación registra HORAS-AGENTE, no euros**: `horas_extra × agentes` va a
+  `Economia.registrar_horas_extra`, y Economía pone el precio con su `peonada_eur_hora`. Así el euro
+  por hora vive en un solo sitio (ADR-0003) y la peonada se cobra junto al resto de gastos del día.
+- **Prioridad 15 y no otra**: si Documentación registrara después de Economía (20), la peonada del día
+  se cobraría **un día tarde** — un desfase de esos es de los que no se notan hasta que no cuadra el
+  balance del mes.
+- **La desmotivación es por agente y día, no por trámite**: cinco rezagados seguidos no pueden dejar a
+  un agente a 1 de motivación en una tarde. Se guarda la lista de "ya se llevó el disgusto hoy" y se
+  vacía en el cierre.
+- **Un puesto sin dotar no cuenta para la peonada**: nadie cobra horas extra por no venir.
+- **El test de Flujo que medía la peonada se actualizó, no se borró**: ahora comprueba lo contrario
+  (`_horas_extra_dia == 0.0`) — es la prueba de que Flujo ya no cobra por los rezagados.
+- 🐛 *Un test propio falló por contar mal los ticks*: tras cerrar por horario, el puesto necesita **un
+  tick para reabrir** antes de poder emparejar. Sin ese tick de margen, la atención del "día siguiente"
+  no llegaba a completarse y parecía que la desmotivación no se aplicaba.

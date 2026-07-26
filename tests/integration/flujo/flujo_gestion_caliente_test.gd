@@ -197,9 +197,12 @@ func test_abandono_compromiso_de_servicio() -> void:
 	assert_int(abandonos.size()).is_equal(1)
 
 
-# ── AC-FL24: puerta Doc cerrada a NUEVAS; la cola admitida se vacía con peonada al hook ───
-func test_cierre_doc_puerta_y_peonada() -> void:
-	# Arrange — reloj manual a las 14:20 (860); 3 dni admitidas; Economía real via hook.
+# ── AC-FL24: puerta Doc cerrada a NUEVAS; la cola admitida se vacía (y NO genera euros) ───
+# ⚠️ Actualizado en doc-003: los minutos trabajados tras el cierre YA NO son peonada. El GDD de
+# Documentación (DO4/DO5) dice que la peonada se paga por AMPLIAR el horario y que terminar a los
+# rezagados cuesta MORAL, no dinero — eso lo cubre `documentacion_peonada_test.gd`.
+func test_cierre_doc_puerta_y_cola_admitida_no_genera_euros() -> void:
+	# Arrange — reloj manual a las 14:20 (860); 3 dni admitidas; Economía real para comprobar el 0.
 	var mundo: Array = _mundo_doc()
 	var flujo: Node = mundo[0]
 	var emisiones: Array = _espia_completados(mundo[2])
@@ -208,7 +211,6 @@ func test_cierre_doc_puerta_y_peonada() -> void:
 	flujo.usar_tiempo(tiempo)
 	var eco: Node = auto_free(EconomiaScript.new())
 	eco.aplicar_config(ConfigEconomiaScript.new())
-	flujo.fijar_hook_horas_extra(eco.registrar_horas_extra)
 	for i: int in range(3):
 		assert_object(_dni_admitido(flujo)).is_not_null()
 
@@ -221,10 +223,11 @@ func test_cierre_doc_puerta_y_peonada() -> void:
 	for i: int in range(37):
 		flujo._al_tick(1.0)
 
-	# Assert — 3 atendidas, cola Doc vacía y 36 min = 0.6 h de peonada registradas en Economía.
+	# Assert — 3 atendidas, cola Doc vacía y NI UN EURO de peonada: Flujo ya no cobra por los
+	# rezagados (doc-003). Su precio es la motivación del agente, y lo aplica Documentación.
 	assert_int(emisiones.size()).is_equal(3)
 	assert_int(flujo.personas_en_cola(&"Documentacion")).is_equal(0)
-	assert_float(eco._horas_extra_dia).is_equal_approx(0.6, 0.0001)
+	assert_float(eco._horas_extra_dia).is_equal_approx(0.0, 0.0001)
 	# horario provisional 2026-07-25: vaciada la cola fuera de horario, los funcionarios se van.
 	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("cerrado")
 

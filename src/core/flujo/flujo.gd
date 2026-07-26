@@ -127,9 +127,10 @@ var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
 var _personal: Node = null
 ## Construcción inyectada (story 005: el aforo por asientos es SUYO). Sin ella → sin límite (tests).
 var _construccion: Node = null
-## Hook de peonada (story 006, AC-FL24): Main lo cablea a `Economia.registrar_horas_extra` (recibe
-## HORAS). Sin cablear → no-op. SOLO el hook — la peonada real la hará Horarios #13.
-var _hook_horas_extra: Callable = Callable()
+## ⚠️ El hook de peonada (`fijar_hook_horas_extra`) se RETIRÓ en la story doc-003: cobraba euros por
+## los minutos trabajados tras el cierre, y el GDD dice lo contrario (DO4/DO5) — la peonada se paga
+## por **ampliar el horario** (la calcula Documentación #8) y terminar a los rezagados cuesta **moral,
+## no dinero**. No volver a añadirlo aquí: el horario y su coste son de Documentación.
 ## Puestos a retirar tras completar su atención (retirada_pendiente) — pre-alocado (regla hot path).
 var _puestos_a_retirar: Array[StringName] = []
 ## Colas lógicas por servicio (FL2): personas en espera, en orden de inserción — el ORDEN de
@@ -564,11 +565,6 @@ func forzar_abandono(persona: RefCounted) -> bool:
 	return true
 
 
-## Cablea el hook de peonada (AC-FL24): Main → `Economia.registrar_horas_extra` (recibe HORAS).
-func fijar_hook_horas_extra(hook: Callable) -> void:
-	_hook_horas_extra = hook
-
-
 ## **El horario de Documentación, empujado por su dueño** (Documentación #8 · story doc-002).
 ## Flujo lo EJECUTA: abre y cierra los puestos de Doc a esa hora y deja de dar número en
 ## `ultima_admision_min`. Todo en minutos del día [0, 1439]. Se sanea defensivamente (un horario
@@ -695,18 +691,15 @@ func _al_tick(delta_juego_min: float) -> void:
 ## (tramite + agente REAL del puesto — Economía cobra, Paciencia cerrará visita) UNA sola vez,
 ## la Persona pasa a Resuelta (despawn lógico) y el puesto queda Libre — salvo pendientes de la
 ## story 006: `cierre_pendiente` → Cerrado; `retirada_pendiente` → fuera del flujo.
-## AC-FL24: los minutos trabajados en Doc con la puerta CERRADA son peonada → hook en HORAS.
+## Los minutos trabajados tras el cierre YA NO generan euros (doc-003): quien termina fuera de hora
+## cuesta MORAL, y de eso se encarga Documentación #8 escuchando `tramite_completado`.
 func _avanzar_atenciones(delta_min: float) -> void:
-	var minutos_extra: float = 0.0
-	var doc_cerrada: bool = not puerta_doc_abierta()
 	_puestos_a_retirar.clear()
 	for puesto_id: StringName in _puestos_flujo:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_EN_ATENCION:
 			continue
-		if doc_cerrada and persona.servicio() == SERVICIO_DOC:
-			minutos_extra += minf(delta_min, maxf(float(puesto["restante"]), 0.0))
 		puesto["restante"] = float(puesto["restante"]) - delta_min
 		if puesto["restante"] > 0.0:
 			continue
@@ -723,8 +716,6 @@ func _avanzar_atenciones(delta_min: float) -> void:
 			_puestos_a_retirar.append(puesto_id)   # no se borra DENTRO de la iteración
 	for puesto_id: StringName in _puestos_a_retirar:
 		_puestos_flujo.erase(puesto_id)
-	if minutos_extra > 0.0 and _hook_horas_extra.is_valid():
-		_hook_horas_extra.call(minutos_extra / 60.0)
 
 
 ## AC-CO13: si Construcción tiene demoliciones PENDIENTES (el gate `puede_demoler` las frenó por

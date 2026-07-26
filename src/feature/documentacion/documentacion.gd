@@ -43,6 +43,22 @@ const CITA_ACTIVA := false
 ## Los tres valores son minutos del día. La conexión la hace Main en la story 002.
 signal horario_cambiado(apertura_min: int, cierre_min: int, ultima_admision_min: int)
 
+## Coste de peonada por hora y funcionario, cacheado del catálogo (`costes_global`) — ADR-0003.
+var _peonada_eur_hora: float = 15.0
+var _cache_catalogo_listo: bool = false
+
+# ── Sistemas inyectados (DI → testeable sin autoloads ni Main) ───────────────────────────────
+var _economia: Node = null
+var _personal: Node = null
+var _demanda: Node = null
+var _tiempo: Node = null
+var _bus: Node = null
+
+## Agentes que YA se han llevado el disgusto de salir tarde HOY (DO5): la desmotivación es **una vez
+## por agente y jornada**, no por trámite — si no, una tarde mala dejaría a media plantilla a 1 de
+## motivación en cinco minutos. Se vacía en cada `nuevo_dia`.
+var _desmotivados_hoy: Array[RefCounted] = []
+
 # ── Tuning (del `.tres`; ver ConfigDocumentacion — lo fija la División, DO2) ──────────────────
 var apertura_base_min: int = 480
 var cierre_base_min: int = 870
@@ -61,7 +77,52 @@ var tope_evento_min: int = 0
 
 
 func _ready() -> void:
+	# Auto-resuelve los autoloads reales cuando corre en el juego (patrón de Flujo/Paciencia); en los
+	# tests se inyectan dobles y estos get_node no encuentran nada.
+	if _tiempo == null:
+		usar_tiempo(get_node_or_null("/root/Tiempo"))
+	if _bus == null:
+		usar_bus(get_node_or_null("/root/EventBus"))
 	_cargar_config()
+
+
+# ── Inyección de dependencias (ADR-0001: se ORDENA por API, jamás se muta a otro sistema) ────
+
+## Inyecta el reloj (solo se LEE la hora; jamás se escribe en él).
+func usar_tiempo(tiempo: Node) -> void:
+	_tiempo = tiempo
+
+
+## Inyecta el bus. Registra el cierre del día en el dispatcher ordenado con **prioridad 15**: después
+## de que Paciencia cierre su media (10) y **antes de que Economía pase la factura (20)** — si se
+## registrara después, la peonada del día se cobraría un día tarde. También escucha
+## `tramite_completado` para detectar a quien termina fuera de hora (DO5).
+func usar_bus(bus: Node) -> void:
+	_bus = bus
+	if _bus == null:
+		return
+	if _bus.has_method("registrar_ordenado"):
+		_bus.registrar_ordenado(&"nuevo_dia", 15, _al_nuevo_dia)
+	if not _bus.tramite_completado.is_connected(_al_tramite_completado):
+		_bus.tramite_completado.connect(_al_tramite_completado)
+
+
+## Inyecta Economía: Documentación **no mueve dinero** — le REGISTRA las horas extra y Economía las
+## cobra en su cierre diario junto al resto de gastos (F1 · ADR-0001).
+func usar_economia(economia: Node) -> void:
+	_economia = economia
+
+
+## Inyecta Personal: de él sale **cuántos agentes** cubren las horas extra (F1) y a él pertenecen los
+## agentes que se desmotivan al salir tarde (DO5/DO6).
+func usar_personal(personal: Node) -> void:
+	_personal = personal
+
+
+## Inyecta Demanda: solo para **leer** el nivel BAJA/MEDIA/ALTA (DO12), la brújula de la decisión de
+## peonada. Documentación no recalcula nada de la demanda.
+func usar_demanda(demanda: Node) -> void:
+	_demanda = demanda
 
 
 # ── Config (ADR-0003: los valores SOLO del catálogo, con clamps y aviso) ─────────────────────
@@ -191,6 +252,82 @@ func estado_servicio(minuto_del_dia: float) -> StringName:
 ## story 002 para su puerta de admisiones.
 func admite_a_esa_hora(minuto_del_dia: float) -> bool:
 	return estado_servicio(minuto_del_dia) == ESTADO_ABIERTO
+
+
+# ── La peonada: lo que cuesta alargar la tarde (DO4 · F1/F2 · story doc-003) ─────────────────
+
+## Agentes de Documentación que cubrirían las horas extra (los puestos de Doc DOTADOS). Sin Personal
+## inyectado devuelve 0: sin gente no hay peonada que pagar.
+func num_agentes_doc() -> int:
+	if _personal == null:
+		return 0
+	return _personal.agentes_dotados_en_servicio(SERVICIO)
+
+
+## **F1** · `coste_peonada_dia = peonada_eur_hora × horas_extra × num_agentes_doc`.
+## Con `cierre_tentativo` se **previsualiza** lo que costaría cerrar a esa hora sin aplicarlo — es el
+## número que el panel del slider enseña en vivo mientras se arrastra (story 005). Sin él, el coste
+## del horario vigente. Cerrar a las 18:00 con 2 agentes → 15 × 3,5 × 2 = **105 €/día**.
+func coste_peonada_estimado(cierre_tentativo: int = -1) -> float:
+	_asegurar_catalogo()
+	var cierre: int = hora_cierre_min if cierre_tentativo < 0 else cierre_tentativo
+	var horas: float = maxf(0.0, float(cierre - cierre_base_min)) / MINUTOS_POR_HORA
+	return _peonada_eur_hora * horas * float(num_agentes_doc())
+
+
+## Las **horas-agente** extra del día: lo que se le registra a Economía (ella pone el precio, F1 —
+## aquí no se duplica el euro/hora). `horas_extra × nº de agentes`.
+func horas_agente_extra() -> float:
+	return horas_extra() * float(num_agentes_doc())
+
+
+## **DO12** · La brújula: el nivel de demanda BAJA/MEDIA/ALTA que informa la decisión de peonada (F2).
+## Se **delega** en Demanda, que es su dueña; sin Demanda inyectada, MEDIA (el valor neutro).
+func nivel_demanda() -> StringName:
+	if _demanda == null or not _demanda.has_method("nivel_demanda"):
+		return &"MEDIA"
+	return _demanda.nivel_demanda()
+
+
+## Cierre del día (dispatcher ordenado, prioridad 15): registra la peonada de la jornada que termina
+## y borra la lista de quienes ya se llevaron el disgusto de salir tarde. Se registra **siempre** que
+## haya horas extra; con la jornada base no se llama a Economía (no hay nada que cobrar).
+func _al_nuevo_dia() -> void:
+	var horas_agente: float = horas_agente_extra()
+	if horas_agente > 0.0 and _economia != null:
+		_economia.registrar_horas_extra(horas_agente)
+	_desmotivados_hoy.clear()
+
+
+## **DO5/DO6** · El precio en MORAL de exprimir el cierre. Cuando un trámite de Doc se completa con la
+## hora **ya pasada del cierre**, quien lo ha terminado se ha quedado fuera de su jornada **sin cobrar
+## extra** (la peonada es solo por ampliar el horario, DO4) → pierde 1 punto de motivación, con suelo
+## 1 y **una sola vez al día**. Es el "efecto ligero/gancho" del MVP; el modelo pleno es Bienestar
+## #13/#15. La motivación ya modula la rapidez (F2) y el trato (F3) del agente: se nota de verdad.
+func _al_tramite_completado(tramite_id: StringName, agente: RefCounted) -> void:
+	if agente == null or _tiempo == null:
+		return
+	if tramite(tramite_id) == null:
+		return                              # no es un trámite de Doc (ODAC no tiene horario)
+	if estado_servicio(_tiempo.minutos_juego) != ESTADO_CERRADO:
+		return                              # dentro de su jornada: nadie se queda a deber nada
+	if agente in _desmotivados_hoy:
+		return
+	_desmotivados_hoy.append(agente)
+	agente.motivacion = maxi(1, agente.motivacion - 1)
+
+
+## Cachea del catálogo lo que Documentación necesita (perezoso: en los tests unitarios el catálogo
+## puede no estar cargado todavía cuando se instancia el nodo).
+func _asegurar_catalogo() -> void:
+	if _cache_catalogo_listo:
+		return
+	_cache_catalogo_listo = true
+	var costes: Resource = Datos.obtener(&"Costes", &"costes_global")
+	if costes == null:
+		push_warning("Documentacion: sin 'costes_global' en el catalogo -> peonada con default")
+		return
+	_peonada_eur_hora = costes.peonada_eur_hora
 
 
 # ── Los trámites y la política de cita (DO1, DO8) ────────────────────────────────────────────

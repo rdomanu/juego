@@ -464,6 +464,20 @@ func puesto_dotado(puesto_id: StringName) -> bool:
 	return agente != null and agente.estado == AgenteScript.ESTADO_ASIGNADO
 
 
+## Cuántos puestos DOTADOS hay de un servicio (el tipo de puesto lo dice el catálogo). Lo consume
+## Documentación #8 para la peonada (F1: la pagan los agentes que cubren las horas extra) — un puesto
+## sin dotar no cuenta: nadie cobra por no venir. Story doc-003.
+func agentes_dotados_en_servicio(servicio: StringName) -> int:
+	var total: int = 0
+	for puesto_id: StringName in _puestos:
+		if not puesto_dotado(puesto_id):
+			continue
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", _puestos[puesto_id])
+		if tipo != null and tipo.servicio == String(servicio):
+			total += 1
+	return total
+
+
 ## El agente que responde HOY por el puesto: el cubridor si hay cobertura (story 005); si no, el
 ## titular (aunque esté ausente — la titularidad se consulta aquí o por `agente.puesto_id`).
 func agente_de(puesto_id: StringName) -> RefCounted:
