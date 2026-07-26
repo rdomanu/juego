@@ -1,7 +1,7 @@
 # Story 002: La mudanza — el horario deja de vivir prestado en Flujo
 
 > **Epic**: Documentación
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Integration
 > **Estimate**: M-L (~3 h)
@@ -33,17 +33,17 @@ de `ConfigFlujo`/`ConfigDemanda` y pasa a ser un dato que su dueño empuja.
 
 *De `design/gdd/documentation.md`, acotados a esta story:*
 
-- [ ] **AC-DC02** `[Integration]` — GIVEN horario base 08:00–14:30 WHEN son las 15:00 THEN Flujo cierra los
+- [x] **AC-DC02** `[Integration]` — GIVEN horario base 08:00–14:30 WHEN son las 15:00 THEN Flujo cierra los
       puestos de Doc y Demanda **no genera** trámites de Doc.
-- [ ] **AC-DC03** `[Integration]` — GIVEN el cierre ampliado a **18:00** THEN los puestos de Doc siguen
+- [x] **AC-DC03** `[Integration]` — GIVEN el cierre ampliado a **18:00** THEN los puestos de Doc siguen
       abiertos hasta las 18:00 (Flujo ejecuta) y Demanda genera dentro de esa ventana.
-- [ ] **AC-DC13** `[Integration]` — GIVEN un puesto de Doc **sin agente** o **fuera de horario** THEN no
+- [x] **AC-DC13** `[Integration]` — GIVEN un puesto de Doc **sin agente** o **fuera de horario** THEN no
       atiende (sigue valiendo FL4 tras la mudanza).
-- [ ] `[Integration]` — GIVEN el margen de última admisión THEN **la puerta deja de dar número** en
+- [x] `[Integration]` — GIVEN el margen de última admisión THEN **la puerta deja de dar número** en
       `hora_ultima_admision`, pero **lo ya admitido se termina siempre** (compromiso de servicio, FL24).
-- [ ] 🚦 **RED DE SEGURIDAD** — `tests/integration/flujo/flujo_horario_test.gd` (3 tests) y
+- [x] 🚦 **RED DE SEGURIDAD** — `tests/integration/flujo/flujo_horario_test.gd` (3 tests) y
       `tests/integration/demanda/demanda_tick_ventana_test.gd` (6 tests) siguen **en verde sin modificarlos**.
-- [ ] `[Integration]` — el horario **ya no vive en `ConfigFlujo` ni en `ConfigDemanda`**: grep de
+- [x] `[Integration]` — el horario **ya no vive en `ConfigFlujo` ni en `ConfigDemanda`**: grep de
       `apertura_doc_min`/`cierre_doc_min`/`ventana_doc_*` en los `.gd` de config → 0 resultados.
 
 ---
@@ -132,3 +132,46 @@ siguen pasando tal cual: son la prueba de que no se rompió nada.
 
 - Depends on: Story 001 (el objeto y sus fórmulas)
 - Unlocks: Story 003
+
+## Cierre (2026-07-26)
+
+Implementada en hilo principal (Opus 5). **Suite 456/456, exit 0** (+11); arranque headless limpio.
+🚦 **La red de seguridad aguantó**: `flujo_horario_test.gd` (3) y `demanda_tick_ventana_test.gd` (6)
+**en verde sin tocar una línea**.
+
+- **Flujo** (ejecuta): `fijar_horario_doc(apertura, cierre, ultima_admision)` con saneado defensivo,
+  `ultima_admision_doc_min` nuevo, `puerta_doc_abierta()` = `[apertura, ultima_admision)`. Los knobs
+  salen de `ConfigFlujo`.
+- **Demanda** (respeta): `fijar_ventana_doc(inicio, fin)` con el saneado que antes vivía en
+  `aplicar_config`. Los knobs salen de `ConfigDemanda`. `.tres` de ambos regenerados.
+- **Main**: instancia `Documentacion` tras Demanda y `_al_cambiar_horario_doc` es **el único punto**
+  por el que el horario viaja (empuje inicial + señal).
+- **HUD**: la etiqueta de la puerta pasa a **ABIERTA / CERRANDO / CERRADA** con la hora de admisión.
+- **Panel DEV (F1)**: sección del horario apuntando a Documentación (+ knob nuevo de margen).
+- **Registro**: `apertura_doc_min` y `cierre_doc_min` cambian de dueño a Documentación #8 y se añade
+  `margen_ultima_admision_min`. YAML validado.
+
+**Decisiones de implementación (más allá de los AC):**
+- **Demanda recibe la ÚLTIMA ADMISIÓN como fin de ventana, no el cierre.** Generar a alguien entre la
+  última admisión y el cierre sería fabricar a una persona que se encontraría la puerta cerrada al
+  llegar: demanda imposible de atender, abandono garantizado y el aviso rojo de "nadie puede atender"
+  saltando sin culpa del jugador.
+- **`puerta_doc_abierta()` ahora también comprueba la APERTURA** — antes solo miraba el cierre, así que
+  a las 03:00 la puerta admitía trámites de Doc. No se notaba porque Demanda no genera a esa hora, pero
+  colar a alguien de madrugada sí lo habría destapado.
+- **El panel DEV llama a `refrescar_horario()`** tras escribir un knob: el panel escribe propiedades a
+  pelo y se saltaría los `fijar_*`, así que sin esto la barra cambiaría el número pero no la comisaría.
+- 🐛 **Un test ajeno se rompió y era señal, no ruido**: `flujo_atencion_test::test_pausa_congela_la_atencion`
+  creaba su reloj **sin hora** (00:00) y, con la apertura ya comprobada, dejó de poder admitir. Es el
+  gotcha conocido del proyecto ("un fixture sin reloj inyectado cree que son las 00:00"). Arreglado
+  poniendo el reloj a las 08:20 con el porqué escrito: ese test mide la Pausa, no el horario.
+- **`demanda_volumen_test`** se actualizó donde comprobaba los knobs retirados del `.tres` (el saneado
+  de ventana imposible ahora se verifica sobre `fijar_ventana_doc`).
+
+**⚠️ Hallazgo de diseño para la demo (C3-8), anotado y NO resuelto aquí:** el perfil intradía de
+Demanda (`perfil_hora_doc`) solo tiene peso en las franjas 8–14 y **suma 1.0** (AC-DM03a de Demanda).
+Es decir: **ampliar el horario no trae gente nueva por la tarde** — sirve para *vaciar la cola
+acumulada*, que es exactamente lo que dice el GDD (DO4: *"la cola no baja al dar las 14:30, ¿alargo
+para vaciarla?"*). Si en la demo se ve que con demanda ALTA no queda cola suficiente para que la
+peonada compense, la palanca es añadir franjas de tarde como demanda **extra** (sin renormalizar, para
+no tocar los 45/día calibrados) — es la Open Question nº1 del GDD (valores semilla).

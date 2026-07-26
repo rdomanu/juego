@@ -227,15 +227,16 @@ func test_mezclas_suman_1_y_apuntan_a_ids_reales() -> void:
 
 # ── Clamp: knobs corruptos se sanean con aviso, sin romper ────────────────────────────────
 func test_config_fuera_de_rango_clampa_con_aviso() -> void:
-	# Arrange — tasa negativa y ventana imposible (los push_warning esperados son intencionales).
+	# Arrange — tasa negativa (el push_warning esperado es intencional). La ventana de Doc ya NO
+	# viene del config desde la mudanza (doc-002): la empuja Documentación con `fijar_ventana_doc`,
+	# y una ventana imposible se sanea allí (se comprueba justo debajo).
 	var config: Resource = ConfigDemandaScript.new()
 	config.tasa_base_doc = -1.0
-	config.ventana_doc_inicio_min = 900
-	config.ventana_doc_fin_min = 480
 	var demanda: Node = auto_free(DemandaScript.new())
 
 	# Act
 	demanda.aplicar_config(config)
+	demanda.fijar_ventana_doc(900, 480)          # fin antes que inicio: imposible
 
 	# Assert — tasa a 0; ventana al default [480, 870).
 	assert_float(demanda.tasa_base_doc).is_equal_approx(0.0, 0.0001)
@@ -257,8 +258,7 @@ func test_tres_real_existe_y_carga_semillas() -> void:
 	assert_int(config.perfil_hora_doc.size()).is_equal(7)
 	assert_int(config.perfil_hora_odac.size()).is_equal(24)
 	assert_int(config.max_llegadas_por_tick).is_equal(3)
-	assert_int(config.ventana_doc_inicio_min).is_equal(480)
-	assert_int(config.ventana_doc_fin_min).is_equal(870)
+	# (La ventana de Doc ya no es un knob de este `.tres`: se mudó a ConfigDocumentacion en doc-002.)
 	assert_float(config.umbral_nivel_bajo).is_equal_approx(40.0, 0.0001)
 	assert_float(config.umbral_nivel_alto).is_equal_approx(60.0, 0.0001)
 	assert_float(config.mult_estacional[6]).is_equal_approx(1.5, 0.0001)

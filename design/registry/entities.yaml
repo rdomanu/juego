@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-25"
+last_updated: "2026-07-26"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -840,27 +840,38 @@ constants:
   # --- Horario de Documentacion y camino (registrados en C2-7, 2026-07-25) ---
   - name: apertura_doc_min
     status: active
-    source: design/gdd/demand-generation.md
+    source: design/gdd/documentation.md
     referenced_by:
+      - design/gdd/documentation.md
       - design/gdd/demand-generation.md
       - design/gdd/flow-queues.md
-      - design/gdd/documentation.md
     value: 480
     unit: minutos_desde_medianoche
-    notes: "08:00. MISMO HECHO que ventana_doc_inicio de Demanda #5 (que lo posee): la hora a la que abre Documentacion. Flujo #4 lo implementa como knob apertura_doc_min para el HORARIO PROVISIONAL (enmienda usuario 2026-07-25): fuera de horario y sin cola admitida el puesto Doc se cierra solo y a esta hora reabre solo; el cierre MANUAL del jugador NO se reabre. Provisional en Flujo hasta que exista Documentacion #8. ODAC es 24 h."
+    notes: "08:00. La hora a la que abre Documentacion. CAMBIO DE DUENO 2026-07-26 (story doc-002, LA MUDANZA): lo POSEE Documentacion #8 (knob apertura_base_min de ConfigDocumentacion); Flujo #4 lo EJECUTA y Demanda #5 lo RESPETA, ambos recibiendolo por API publica (Flujo.fijar_horario_doc / Demanda.fijar_ventana_doc). Ya NO es knob de ConfigFlujo ni de ConfigDemanda (fuente unica). Sigue siendo el MISMO HECHO que ventana_doc_inicio de Demanda. Fuera de horario y sin cola admitida el puesto Doc se cierra solo y a esta hora reabre solo; el cierre MANUAL del jugador NO se reabre. ODAC es 24 h."
     added: 2026-07-25
-    revised: ""
+    revised: 2026-07-26
   - name: cierre_doc_min
     status: active
-    source: design/gdd/demand-generation.md
+    source: design/gdd/documentation.md
     referenced_by:
+      - design/gdd/documentation.md
       - design/gdd/demand-generation.md
       - design/gdd/flow-queues.md
-      - design/gdd/documentation.md
     value: 870
     unit: minutos_desde_medianoche
-    notes: "14:30. MISMO HECHO que ventana_doc_fin de Demanda #5 (que lo posee): la hora a la que cierra Documentacion. Flujo #4 lo implementa como knob cierre_doc_min: puerta_doc_abierta() = min_dia < cierre_doc_min -> admitir Doc devuelve null con la puerta cerrada (AC-FL24: la cola YA admitida se atiende hasta vaciarse, con peonada). Si se cambia uno hay que cambiar el otro: son el mismo minuto del reloj."
+    notes: "14:30. La hora a la que cierra la jornada BASE de Documentacion (sin peonada). CAMBIO DE DUENO 2026-07-26 (story doc-002): lo POSEE Documentacion #8 (knob cierre_base_min); el jugador AMPLIA el cierre efectivo con el slider hasta 20:00 (o 21:30 con evento de la Division) pagando peonada, asi que el cierre vigente en partida es hora_cierre_min, NO este valor. Ya NO es knob de ConfigFlujo ni de ConfigDemanda. Sigue siendo el MISMO HECHO que ventana_doc_fin de Demanda."
     added: 2026-07-25
+    revised: 2026-07-26
+  - name: margen_ultima_admision_min
+    status: active
+    source: design/gdd/documentation.md
+    referenced_by:
+      - design/gdd/documentation.md
+      - design/gdd/flow-queues.md
+    value: 15
+    unit: minutos
+    notes: "F3 de Documentacion #8: hora_ultima_admision = hora_cierre - margen. Con 15 (default) se deja de dar numero 15 min antes de cerrar y el personal sale a su hora; con 0 se exprime hasta el cierre y quien termina fuera de hora se DESMOTIVA (DO5, coste de moral y NO de euros: la peonada es solo por ampliar el horario, DO4). Rango seguro 0-30. IMPLEMENTADO 2026-07-26 (story doc-002): Flujo lo ejecuta como ultima_admision_doc_min (puerta_doc_abierta) y Demanda lo respeta como fin de su ventana (no se fabrica a quien encontraria la puerta cerrada al llegar)."
+    added: 2026-07-26
     revised: ""
   - name: velocidad_camino_celdas_min
     status: active

@@ -39,14 +39,14 @@ class_name Flujo extends Node
 ## (AC-CO13, pendientes en Construcción que Flujo reintenta al terminar cada atención) ESPERAN al
 ## fin de la atención en curso; `forzar_abandono` (la API que Paciencia #10 llamará) devuelve
 ## false en Llamada/En atención. `reconfigurar_puesto` (FL9, solo tipos `reconfigurable`) cambia
-## el filtro para la PRÓXIMA llamada. Cierre Doc (AC-FL24, PROVISIONAL hasta Documentación #8):
-## pasada la hora (`cierre_doc_min`) la puerta no admite NUEVAS personas Doc, la cola admitida se
-## atiende hasta vaciarse y esos minutos van al hook de peonada (`fijar_hook_horas_extra` →
-## Economía F4, en horas). Horario provisional 2026-07-25 (etiqueta homónima, PROVISIONAL hasta
-## Documentación #8, `_gestionar_horario_doc`): tras `cierre_doc_min` los puestos Doc cierran solos
-## AL VACIAR su cola admitida ("los funcionarios se van") y REABREN solos en `apertura_doc_min`; el
-## cierre MANUAL del jugador (`cerrar_puesto`) NO se reabre solo — el jugador manda. La Pausa congela
-## por construcción (Tiempo no empuja el tick — FL8).
+## el filtro para la PRÓXIMA llamada. **Horario de Doc (AC-FL24): Flujo lo EJECUTA, Documentación #8
+## lo POSEE** (mudanza de la story doc-002 — antes vivía prestado aquí como knob del `.tres`). Su
+## dueño lo empuja con `fijar_horario_doc(apertura, cierre, ultima_admision)`; Flujo lo aplica:
+## fuera de `[apertura, ultima_admision)` la puerta no admite NUEVAS personas Doc, la cola ya
+## admitida se atiende hasta vaciarse y, al vaciarse, los puestos Doc cierran solos ("los
+## funcionarios se van", `_gestionar_horario_doc`) y REABREN solos en la apertura; el cierre MANUAL
+## del jugador (`cerrar_puesto`) NO se reabre solo — el jugador manda. La Pausa congela por
+## construcción (Tiempo no empuja el tick — FL8).
 ##
 ## Story 007: PERSISTENCIA (ADR-0002) — `save()`/`load_state()` + grupo Persist (clave "Flujo"):
 ## personas por campos + turno + estado (las colas y el dentro/fuera se RE-DERIVAN del estado),
@@ -94,10 +94,18 @@ const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 var velocidad_camino_celdas_min: float = 0.375
 var habilitar_aging_odac: bool = false
 var tope_cola_exterior: int = 0
+## ── El horario de Documentación (lo POSEE Documentación #8; Flujo solo lo EJECUTA) ──────────
+## Desde la story doc-002 estos tres valores **no salen del `.tres` de Flujo**: los empuja su dueño
+## por `fijar_horario_doc()`. Los defaults son los del horario base (08:00–14:30, sin margen) para
+## que Flujo **sin Documentación cableada** se comporte igual que antes de la mudanza — así los
+## tests de flujo siguen siendo la red de seguridad de la migración.
+## Minuto del día en que cierra Documentación: los puestos Doc se cierran solos al vaciar su cola.
 var cierre_doc_min: int = 870
-## Minuto del día en que los puestos Doc reabren solos (horario provisional 2026-07-25). Ver
-## `apertura_doc_min` de ConfigFlujo. PROVISIONAL en Flujo hasta Documentación #8.
+## Minuto del día en que abre Documentación: los puestos Doc cerrados POR HORARIO reabren solos.
 var apertura_doc_min: int = 480
+## Minuto del día hasta el que se DA NÚMERO (F3 de Documentación: `cierre − margen`). Con margen 0
+## coincide con el cierre (comportamiento previo a la mudanza). Lo ya admitido se atiende siempre.
+var ultima_admision_doc_min: int = 870
 var velocidad_npc_px_s: float = 90.0
 
 # ── El estado del flujo ──────────────────────────────────────────────────────────────────────
@@ -178,14 +186,16 @@ func admitir(ficha: RefCounted) -> RefCounted:
 	return PersonaFlujoScript.new(ficha, turno)
 
 
-## AC-FL24 (PROVISIONAL en Flujo hasta Documentación #8 — decisión propuesta en la story): la
-## puerta de Doc a NUEVAS admisiones, DERIVADA del reloj (≥ `cierre_doc_min` → cerrada hasta la
-## medianoche; Demanda ya corta el grifo en su ventana — esto cubre a las "en camino"). Sin reloj
-## inyectado (tests unitarios) → siempre abierta.
+## AC-FL24: la puerta de Doc a NUEVAS admisiones, DERIVADA del reloj. Se da número dentro de
+## `[apertura_doc_min, ultima_admision_doc_min)` — el horario lo fija Documentación #8 (story
+## doc-002), Flujo solo lo ejecuta. Fuera de esa franja `admitir` devuelve null: Demanda ya corta el
+## grifo en su ventana, y esto cubre a las que ya venían "en camino". Lo YA admitido se atiende
+## siempre (compromiso de servicio). Sin reloj inyectado (tests unitarios) → siempre abierta.
 func puerta_doc_abierta() -> bool:
 	if _tiempo == null:
 		return true
-	return fposmod(_tiempo.minutos_juego, 1440.0) < float(cierre_doc_min)
+	var min_dia: float = fposmod(_tiempo.minutos_juego, 1440.0)
+	return min_dia >= float(apertura_doc_min) and min_dia < float(ultima_admision_doc_min)
 
 
 ## Transición de estado con guardia (States A): una transición inválida AVISA y no cambia nada
@@ -557,6 +567,18 @@ func forzar_abandono(persona: RefCounted) -> bool:
 ## Cablea el hook de peonada (AC-FL24): Main → `Economia.registrar_horas_extra` (recibe HORAS).
 func fijar_hook_horas_extra(hook: Callable) -> void:
 	_hook_horas_extra = hook
+
+
+## **El horario de Documentación, empujado por su dueño** (Documentación #8 · story doc-002).
+## Flujo lo EJECUTA: abre y cierra los puestos de Doc a esa hora y deja de dar número en
+## `ultima_admision_min`. Todo en minutos del día [0, 1439]. Se sanea defensivamente (un horario
+## imposible no puede dejar la comisaría sin atender): el cierre nunca antes de la apertura, y la
+## última admisión dentro de `[apertura, cierre]`. Sin esta llamada valen los defaults del horario
+## base — así los tests previos a la mudanza siguen midiendo lo mismo.
+func fijar_horario_doc(apertura_min: int, cierre_min: int, ultima_admision_min: int) -> void:
+	apertura_doc_min = clampi(apertura_min, 0, 1439)
+	cierre_doc_min = clampi(cierre_min, apertura_doc_min + 1, 1439)
+	ultima_admision_doc_min = clampi(ultima_admision_min, apertura_doc_min, cierre_doc_min)
 
 
 ## Estado DERIVADO del puesto (States B): Cerrado → Abierto-sin-agente (gate FL4 de Personal) →
@@ -979,9 +1001,9 @@ func aplicar_config(config: Resource) -> void:
 	velocidad_camino_celdas_min = clampf(config.velocidad_camino_celdas_min, 0.0, 100.0)
 	habilitar_aging_odac = config.habilitar_aging_odac
 	tope_cola_exterior = maxi(config.tope_cola_exterior, 0)
-	cierre_doc_min = clampi(config.cierre_doc_min, 0, 1439)
-	apertura_doc_min = clampi(config.apertura_doc_min, 0, 1439)
 	velocidad_npc_px_s = clampf(config.velocidad_npc_px_s, 10.0, 600.0)
+	# El horario de Doc YA NO se lee de aquí (doc-002): lo empuja Documentación #8 con
+	# `fijar_horario_doc()`. Sin ella, valen los defaults del horario base.
 
 
 ## Carga el `.tres` real con fallback seguro (falta/inválido → defaults con aviso; no peta).

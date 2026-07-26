@@ -130,6 +130,10 @@ func test_pausa_congela_la_atencion() -> void:
 	var flujo: Node = mundo[0]
 	var bus: Node = mundo[2]
 	var tiempo: Node = auto_free(TiempoScript.new())
+	# ⚠️ Reloj DENTRO del horario de Documentación (08:20): desde la mudanza doc-002 la puerta de Doc
+	# respeta también la APERTURA, así que un reloj a 00:00 dejaría el fixture sin poder admitir a
+	# nadie (gotcha conocido del proyecto). Este test mide la Pausa, no el horario.
+	tiempo.minutos_juego = 500.0
 	flujo.usar_tiempo(tiempo)
 	var emisiones: Array = []
 	bus.tramite_completado.connect(func(_t: StringName, _a: RefCounted) -> void: emisiones.append(_t))

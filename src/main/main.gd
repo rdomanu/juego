@@ -43,6 +43,9 @@ const FlujoScript := preload("res://src/core/flujo/flujo.gd")
 ## La capa cosmética de NPCs navegando (story flujo-008).
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
 const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
+## Documentación (story doc-002): el DUEÑO del horario del servicio — Flujo lo ejecuta y Demanda lo
+## respeta, pero quien lo decide es este sistema (antes vivía prestado dentro de Flujo).
+const DocumentacionScript := preload("res://src/feature/documentacion/documentacion.gd")
 ## El andamio de interacción del modo construcción (story const-007).
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 ## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
@@ -84,6 +87,7 @@ var _lbl_incidencia: Label
 var _construccion: Node
 var _flujo: Node
 var _paciencia: Node
+var _documentacion: Node
 var _npcs: Node2D
 var _lbl_flujo: Label
 var _lbl_atendiendo: Label
@@ -124,7 +128,8 @@ func _ready() -> void:
 		_panel_admin.name = "PanelAdmin"
 		add_child(_panel_admin)
 		_panel_admin.configurar(
-			_paciencia, _demanda, _flujo, _construccion, Tiempo, _economia, _personal
+			_paciencia, _demanda, _flujo, _construccion, Tiempo, _economia, _personal,
+			_documentacion
 		)
 	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
 	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
@@ -193,6 +198,14 @@ func _instanciar_mundo() -> void:
 	_demanda = DemandaScript.new()
 	_demanda.name = "Demanda"
 	add_child(_demanda)
+	# Documentación (story doc-002): el DUEÑO del horario del servicio. No ejecuta nada — decide, y
+	# Flujo/Demanda obedecen. Se instancia aquí (su _ready solo carga su `.tres`) y el horario se
+	# empuja MÁS ABAJO, cuando Flujo ya existe: `_al_cambiar_horario_doc` es el único punto por el que
+	# ese dato viaja (fuente única — nada de knobs duplicados en dos configs).
+	_documentacion = DocumentacionScript.new()
+	_documentacion.name = "Documentacion"
+	add_child(_documentacion)
+	_documentacion.horario_cambiado.connect(_al_cambiar_horario_doc)
 	# Construcción (story const-006): el layout REAL. ⚠️ ANTES que Personal en el árbol: el orden de
 	# los hijos es el orden de carga del SaveManager, y las asignaciones de Personal referencian
 	# puestos que Construcción debe registrar primero (invariante de personal-006/const-005).
@@ -224,6 +237,13 @@ func _instanciar_mundo() -> void:
 	add_child(_flujo)
 	_flujo.fijar_hook_horas_extra(_economia.registrar_horas_extra)   # peonada AC-FL24
 	_construccion.fijar_puede_demoler(_flujo.puede_demoler_puesto)   # gate AC-CO13
+	# El horario de Doc, de su dueño a quienes lo ejecutan (story doc-002). Se empuja UNA vez aquí
+	# con el estado de arranque; a partir de ahí lo hace la señal `horario_cambiado`.
+	_al_cambiar_horario_doc(
+		_documentacion.apertura_base_min,
+		_documentacion.hora_cierre_min,
+		_documentacion.hora_ultima_admision(),
+	)
 	# Paciencia (story paciencia-002): la espera pasa a tener consecuencias — la gente se cansa y se
 	# marcha. ⚠️ ORDEN ADR-0001: DESPUÉS de Flujo en el árbol, para que su suscripción al tick sea
 	# posterior (Tiempo → Demanda → Flujo → Paciencia). Así, en el mismo tick, Flujo ya ha llamado a
@@ -680,14 +700,35 @@ func _refrescar_etiquetas() -> void:
 		_paciencia.reclamaciones_mes,
 	]
 	_lbl_reclamaciones.modulate = COLOR_ROJOS if graves > 0 else COLOR_TENUE_HUD
-	# Puerta de Documentación (AC-FL24): abierta hasta cierre_doc_min; cerrada el resto del día.
-	var hora_cierre: String = Tiempo.hhmm(float(_flujo.cierre_doc_min))
-	if _flujo.puerta_doc_abierta():
-		_lbl_puerta_doc.text = "Doc: ABIERTA (cierra %s)" % hora_cierre
-		_lbl_puerta_doc.modulate = COLOR_HOLGADO
-	else:
-		_lbl_puerta_doc.text = "Doc: CERRADA (admisión hasta %s)" % hora_cierre
-		_lbl_puerta_doc.modulate = Color(0.6, 0.6, 0.6)
+	# Estado del servicio de Documentación (story doc-002): ABIERTA / CERRANDO / CERRADA — el texto
+	# SIEMPRE dice lo que pasa; el color solo lo refuerza (regla de daltónicos del manifiesto).
+	var hora_cierre: String = Tiempo.hhmm(float(_documentacion.hora_cierre_min))
+	var hora_admision: String = Tiempo.hhmm(float(_documentacion.hora_ultima_admision()))
+	match _documentacion.estado_servicio(Tiempo.minutos_juego):
+		_documentacion.ESTADO_ABIERTO:
+			_lbl_puerta_doc.text = "Doc: ABIERTA (admite hasta %s · cierra %s)" % [
+				hora_admision, hora_cierre
+			]
+			_lbl_puerta_doc.modulate = COLOR_HOLGADO
+		_documentacion.ESTADO_CERRANDO:
+			_lbl_puerta_doc.text = "Doc: CERRANDO (ya no da número · cierra %s)" % hora_cierre
+			_lbl_puerta_doc.modulate = COLOR_BOTON_ACTIVO
+		_:
+			_lbl_puerta_doc.text = "Doc: CERRADA (abre %s)" % Tiempo.hhmm(
+				float(_documentacion.apertura_base_min)
+			)
+			_lbl_puerta_doc.modulate = Color(0.6, 0.6, 0.6)
+
+
+## **El único punto por el que viaja el horario de Documentación** (story doc-002): su dueño decide y
+## aquí se lo damos a quien lo EJECUTA (Flujo abre/cierra los puestos y da número) y a quien lo
+## RESPETA (Demanda no fabrica gente fuera de la ventana). Demanda recibe la **última admisión** como
+## fin de ventana: no tiene sentido generar a alguien que se encontraría la puerta cerrada al llegar.
+func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -> void:
+	if _flujo != null:
+		_flujo.fijar_horario_doc(apertura, cierre, ultima_admision)
+	if _demanda != null:
+		_demanda.fijar_ventana_doc(apertura, ultima_admision)
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.

@@ -36,10 +36,9 @@ class_name ConfigDemanda extends Resource
 @export var max_llegadas_por_tick: int = 3
 ## Escala de la tasa base por nivel/rango (DG8). 1.0 en el MVP (Nivel 1); Ascensos lo subirá.
 @export var factor_crecimiento_nivel: float = 1.0
-## Ventana de apertura de Documentación en minutos del día (DG6): [inicio, fin). 480 = 08:00, 870 = 14:30.
-## PROVISIONAL: la ventana la poseerá Documentación #8 (peonada amplía el cierre); Demanda la consulta.
-@export var ventana_doc_inicio_min: int = 480
-@export var ventana_doc_fin_min: int = 870
+## ⚠️ La ventana de Documentación (DG6) YA NO VIVE AQUÍ: se mudó a `ConfigDocumentacion` en la story
+## doc-002 — Documentación #8 la posee y la empuja con `Demanda.fijar_ventana_doc(inicio, fin)`.
+## No volver a añadirla: una sola fuente de verdad (el horario del slider la mueve en partida).
 ## Mezcla de trámites de Documentación (F3): peso de cada `TramiteDoc` del catálogo. Σ = 1.0.
 @export var mezcla_doc: Dictionary[StringName, float] = {
 	&"dni": 0.45, &"pasaporte": 0.35, &"tie": 0.20,

@@ -55,6 +55,12 @@ var mult_nocturno_odac: float = 0.5
 var mult_dia_semana: float = 1.0
 var max_llegadas_por_tick: int = 3
 var factor_crecimiento_nivel: float = 1.0
+## ── La ventana de Documentación (la POSEE Documentación #8; Demanda la RESPETA) ─────────────
+## Desde la story doc-002 no salen del `.tres` de Demanda: los empuja su dueño con
+## `fijar_ventana_doc()`. Los defaults son los del horario base para que Demanda **sin
+## Documentación cableada** genere exactamente lo mismo que antes de la mudanza.
+## ⚠️ `ventana_doc_fin_min` es la **última admisión**, no el cierre: no tiene sentido fabricar a
+## alguien que va a encontrarse la puerta cerrada al llegar (sería demanda imposible de atender).
 var ventana_doc_inicio_min: int = 480
 var ventana_doc_fin_min: int = 870
 var mezcla_doc: Dictionary[StringName, float] = {}
@@ -312,6 +318,24 @@ func _peso_franja(servicio: StringName, hora: int) -> float:
 	return peso
 
 
+## **La ventana de Documentación, empujada por su dueño** (Documentación #8 · story doc-002). Demanda
+## la RESPETA: fuera de `[inicio, fin)` no genera ni una ficha de Doc (DG6 — la gente conoce el
+## horario, no hay demanda "fantasma"). `fin` es la **última admisión**, no el cierre: no se fabrica a
+## quien iba a encontrarse la puerta cerrada. Una ventana imposible (`fin ≤ inicio`) AVISA y vuelve al
+## horario base — la comisaría nunca se queda sin demanda por un dato corrupto.
+func fijar_ventana_doc(inicio_min: int, fin_min: int) -> void:
+	var inicio: int = clampi(inicio_min, 0, 1439)
+	var fin: int = clampi(fin_min, 0, 1440)
+	if fin <= inicio:
+		push_warning(
+			"Demanda: ventana Doc invalida [%d, %d) -> default [480, 870)" % [inicio, fin]
+		)
+		inicio = 480
+		fin = 870
+	ventana_doc_inicio_min = inicio
+	ventana_doc_fin_min = fin
+
+
 ## ¿`min_dia` cae dentro de la ventana de apertura de Documentación [inicio, fin)? (DG6)
 func _en_ventana_doc(min_dia: float) -> bool:
 	return min_dia >= float(ventana_doc_inicio_min) and min_dia < float(ventana_doc_fin_min)
@@ -548,15 +572,8 @@ func aplicar_config(config: Resource) -> void:
 	if config.max_llegadas_por_tick < 1:
 		push_warning("Demanda: knob 'max_llegadas_por_tick' fuera de rango (%d) -> 1" % config.max_llegadas_por_tick)
 	factor_crecimiento_nivel = _clamp_knob(config.factor_crecimiento_nivel, "factor_crecimiento_nivel")
-	ventana_doc_inicio_min = config.ventana_doc_inicio_min
-	ventana_doc_fin_min = config.ventana_doc_fin_min
-	if ventana_doc_fin_min <= ventana_doc_inicio_min:
-		push_warning(
-			"Demanda: ventana Doc invalida [%d, %d) -> default [480, 870)"
-			% [ventana_doc_inicio_min, ventana_doc_fin_min]
-		)
-		ventana_doc_inicio_min = 480
-		ventana_doc_fin_min = 870
+	# La ventana de Doc YA NO se lee de aquí (doc-002): la empuja Documentación #8 con
+	# `fijar_ventana_doc()`. Sin ella, valen los defaults del horario base [480, 870).
 	mezcla_doc = config.mezcla_doc.duplicate()
 	mezcla_odac = config.mezcla_odac.duplicate()
 	umbral_nivel_bajo = _clamp_knob(config.umbral_nivel_bajo, "umbral_nivel_bajo")

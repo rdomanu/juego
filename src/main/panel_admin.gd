@@ -26,6 +26,8 @@ var _construccion: Node = null
 var _tiempo: Node = null
 var _economia: Node = null
 var _personal: Node = null
+## Documentación (story doc-002): dueña del horario — sus knobs son los de la sección del horario.
+var _documentacion: Node = null
 
 ## Dónde vive el `.tres` de cada sistema y qué clase de config usa — para poder FIJAR lo calibrado.
 const CONFIGS: Dictionary[String, Dictionary] = {
@@ -48,6 +50,10 @@ const CONFIGS: Dictionary[String, Dictionary] = {
 	"tiempo": {
 		"ruta": "res://datos/config/tiempo.tres",
 		"script": "res://src/foundation/tiempo/config_tiempo.gd",
+	},
+	"documentacion": {
+		"ruta": "res://datos/config/documentacion.tres",
+		"script": "res://src/feature/documentacion/config_documentacion.gd",
 	},
 }
 
@@ -91,7 +97,8 @@ class Knob extends RefCounted:
 
 func configurar(
 	paciencia: Node, demanda: Node, flujo: Node, construccion: Node,
-	tiempo: Node = null, economia: Node = null, personal: Node = null
+	tiempo: Node = null, economia: Node = null, personal: Node = null,
+	documentacion: Node = null
 ) -> void:
 	_paciencia = paciencia
 	_demanda = demanda
@@ -100,6 +107,7 @@ func configurar(
 	_tiempo = tiempo
 	_economia = economia
 	_personal = personal
+	_documentacion = documentacion
 	_crear_ui()
 	visible = false
 
@@ -164,12 +172,16 @@ func _grupos() -> Array:
 		]],
 		["🕐 EL HORARIO Y EL RELOJ", [
 			Knob.new(
-				"flujo", "apertura_doc_min", "Documentación abre (minuto del día)",
+				"documentacion", "apertura_base_min", "Documentación abre (minuto del día)",
 				"480 = 08:00. Los puestos de Doc se abren solos a esta hora", 0.0, 1439.0, 30.0, 0
 			),
 			Knob.new(
-				"flujo", "cierre_doc_min", "Documentación cierra (minuto del día)",
-				"870 = 14:30. Deja de darse número; la cola admitida se termina de atender", 0.0, 1439.0, 30.0, 0
+				"documentacion", "cierre_base_min", "Documentación cierra (jornada base)",
+				"870 = 14:30. A partir de aquí, alargar cuesta peonada", 0.0, 1439.0, 30.0, 0
+			),
+			Knob.new(
+				"documentacion", "margen_ultima_admision_min", "Deja de dar número (min antes de cerrar)",
+				"15 = el personal sale a su hora. 0 = se exprime hasta el cierre", 0.0, 30.0, 5.0, 0
 			),
 			Knob.new(
 				"tiempo", "escala_tiempo", "Ritmo del reloj",
@@ -439,6 +451,8 @@ func _sistema_de(knob: Knob) -> Node:
 			return _construccion
 		"tiempo":
 			return _tiempo
+		"documentacion":
+			return _documentacion
 		_:
 			return null
 
@@ -449,6 +463,10 @@ func _aplicar(knob: Knob, valor: float) -> void:
 	if sistema == null:
 		return
 	sistema.set(knob.propiedad, valor)
+	# Los knobs de horario se escriben a pelo y se saltarían los `fijar_*` de Documentación: hay que
+	# pedirle que reemita para que el cambio llegue de verdad a Flujo y a Demanda (story doc-002).
+	if sistema.has_method("refrescar_horario"):
+		sistema.refrescar_horario()
 	if _valor_de.has(knob.clave()):
 		_valor_de[knob.clave()].text = _formato(valor, knob.decimales)
 

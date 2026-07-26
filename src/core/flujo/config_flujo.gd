@@ -20,15 +20,9 @@ class_name ConfigFlujo extends Resource
 @export var habilitar_aging_odac: bool = false
 ## Tope de la cola exterior. 0 = SIN tope (MVP, FL7 — la válvula es la paciencia, no un muro).
 @export var tope_cola_exterior: int = 0
-## Minuto del día en que Documentación cierra la puerta a NUEVAS admisiones (AC-FL24, PROVISIONAL
-## en Flujo hasta Documentación #8). MISMO valor que `ventana_doc_fin_min` de Demanda (cross-fact
-## 870 = 14:30; el dueño real será Horarios/Documentación). Semilla 870.
-@export var cierre_doc_min: int = 870
-## Minuto del día en que Documentación ABRE (los funcionarios llegan y los puestos Doc se reabren
-## solos — etiqueta "horario provisional 2026-07-25", PROVISIONAL en Flujo hasta Documentación #8).
-## MISMO valor que `ventana_doc_inicio` de Demanda (cross-fact 480 = 08:00; el dueño real será
-## Horarios/Documentación). Semilla 480.
-@export var apertura_doc_min: int = 480
+## ⚠️ El horario de Documentación (apertura / cierre / última admisión) YA NO VIVE AQUÍ: se mudó a
+## `ConfigDocumentacion` en la story doc-002 (Documentación #8 lo posee, Flujo solo lo ejecuta vía
+## `Flujo.fijar_horario_doc`). No volver a añadirlo: una sola fuente de verdad.
 ## Velocidad de paseo del NPC visible, en px/s a velocidad 1× (story 008 — COSMÉTICO puro, FL5:
 ## jamás afecta a la simulación; escala con el multiplicador del reloj). Semilla 90.
 @export var velocidad_npc_px_s: float = 90.0

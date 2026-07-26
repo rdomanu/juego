@@ -147,6 +147,15 @@ func fijar_margen_ultima_admision(minutos: int) -> int:
 	return margen_ultima_admision_min
 
 
+## Reemite el horario vigente tras sanearlo. Lo necesita el **panel DEV de calibración (F1)**, que
+## escribe los knobs directamente (`set`) y se saltaría los `fijar_*`: sin esto, mover la barra
+## cambiaría el número del panel pero no la comisaría. También reajusta el cierre elegido si el
+## horario base o el tope han cambiado por debajo de él.
+func refrescar_horario() -> void:
+	hora_cierre_min = clampi(hora_cierre_min, cierre_base_min, tope_autorizado())
+	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+
+
 ## **F3** · `hora_ultima_admision = hora_cierre − margen_ultima_admision_min` (minutos del día).
 ## Cierre 14:30 con margen 15 → 14:15: quien coge número a las 14:15 se atiende; después, puerta
 ## cerrada. Nunca antes de la apertura (un margen absurdo no puede cerrar la puerta antes de abrirla).
