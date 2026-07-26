@@ -3,9 +3,9 @@
 *Última actualización: 2026-07-25*
 
 <!-- STATUS -->
-Epic: Paciencia #10 — 7/8 stories cerradas
-Feature: La espera duele (abandono, satisfacción, reclamaciones)
-Task: demo en ventana + CALIBRAR tolerancia_base_min con el usuario
+Epic: Documentación #8 (capa Feature — Sprint 3)
+Feature: Horario configurable + peonada
+Task: C3-6 crear stories → C3-7 implementar (migrar el horario desde Flujo)
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -819,7 +819,59 @@ casi todos de ODAC antes de que abra Doc. Coherente con el diseño (ODAC 24 h co
 denuncias/día, paciencia semilla 30 min), pero hay que **calibrar `tolerancia_base_min` CON el usuario**
 (tarea C3-4). Palancas ordenadas y recomendación (empezar solo por el knob) en la evidencia.
 **Ruta nueva `src/feature/`** (1er sistema de la capa Feature; no había convención escrita).
-**PRÓXIMO: demo en ventana + calibración → cerrar 008 y el epic → luego Documentación #8 (C3-6..C3-9).**
+**🎉 EPIC PACIENCIA #10 CERRADO 8/8 CON SIGN-OFF (2026-07-26).** Suite **423/423**, todo pusheado.
+Último commit: `c9b7d4a`. La partida YA SE PUEDE PERDER.
+
+**Sign-off literal:** *"paciencia está bien de momento, veo que baja mucho la barra pero entiendo que
+con mejoras en la sala podría subir la paciencia por lo que lo dejamos así"*. `tolerancia_base_min`
+**se queda en 30** por decisión del usuario.
+
+**⚠️ DEPENDENCIA DE DISEÑO REGISTRADA (no perder de vista):** ese sign-off trae una condición
+implícita — se acepta el ritmo de cabreo **porque se cuenta con Comodidades #15, que aún no existe**.
+Si ese sistema no llega, hay que subir la tolerancia; cuando llegue, hay que **revisar el número otra
+vez**. Está escrito en `production/qa/evidence/paciencia-demo-2026-07-26.md` y en el cierre de la 008.
+
+**Lo que entró el 26 además de las stories** (peticiones del usuario en ventana, todas cerradas):
+- **Botonera de acciones en el HUD**: Personal (P) · **Guardar (F5)** · **Cargar (F9)**. ⚠️ El
+  guardado EXISTÍA en el código pero **no había forma de invocarlo**: la partida no se podía guardar.
+- **Panel de calibración F1, SOLO-DEV** (`src/main/panel_admin.gd`): 13 knobs agrupados por lo que el
+  jugador nota (la espera / las visitas / el horario y el reloj / la comisaría), cada uno con su rango
+  a la vista, termómetro en vivo arriba y botones **"Fijar en el catálogo"** (escribe los `.tres`) y
+  **"Volver a los del catálogo"**. Solo se instancia con `OS.has_feature("editor")` → **no existe en un
+  build exportado** (orden expresa del usuario: *"solo para el desarrollador"*).
+- **Barra de paciencia que SE VACÍA** (antes era de tamaño fijo y solo cambiaba de color: no se veía
+  venir el abandono). Fondo + relleno que se encoge; azul = colado.
+- **MECÁNICA NUEVA — COLAR** (clic derecho → **menú contextual** con ficha de la persona + opción
+  "⬆ Colar"): rango de prioridad máximo en F7 y **el resto de la cola pierde 10 puntos**
+  (`penalizacion_colado`). Vale también para la cola exterior. Documentada en el GDD de Paciencia y
+  registrada como cross-fact. 🐛 *El clic no funcionaba: leía `get_global_mouse_position()` (el puntero
+  del sistema) en vez de la posición DEL EVENTO. Regla ya escrita en el control manifest.*
+- **ENMIENDA del usuario**: el camino de entrada (puerta → su sitio de espera) **no gasta paciencia**;
+  son ~10 min de juego con el ritmo actual. Hermana de "EN CAMINO no se tramita".
+- **C3-10** `Flujo.tramites_sin_servicio()` + aviso rojo en el HUD (*"⚠ Nadie puede atender: tie ×3"*):
+  el "misterio de las 22:00" ya no puede repetirse en silencio. 5 tests.
+- **C3-11** reglas de orden de dibujo y ratón escritas en `docs/architecture/control-manifest.md`,
+  cada una con el bug real que la originó + prohibido que las herramientas DEV entren en el build.
+- **C3-1** `production/qa/qa-plan-sprint-3.md` escrito con la cobertura real y los 5 bugs cazados.
+
+**PENDIENTE ANOTADO EN DISEÑO (NO implementado, por orden del usuario):**
+- **U8 — icono de "a qué viene" cada ciudadano** (`design/ux/pulido-backlog.md` §U8 + `ui-hud.md`):
+  los **17 tipos reales del catálogo**, con la urgencia distinguible del tipo, sin hover y resuelto
+  JUNTO con la barra de paciencia que ya va sobre la cabeza. Para `/ux-design`.
+- **Epic Comodidades #15 esbozado** (`production/epics/comodidades/`): vending, revistas, TV, mejores
+  asientos → suben la paciencia. **El hueco ya existe en F1** (`mult_comodidad`, hoy fijo en 1.0):
+  falta el CONTENIDO, no la fórmula. Fuera del MVP, pendiente de decisión de alcance del usuario.
+
+**ESTADO DEL SPRINT 3:** 14/20 tareas. Hechas: C3-1, C3-2, pac-001..008, C3-3/4/5, C3-10, C3-11,
+C3-12. **PENDIENTES: C3-6 `/create-stories documentacion` → C3-7 implementar → C3-8 demo → C3-9
+cierre.** C3-13 (epic ODAC #9) sigue marcado como probable Sprint 4.
+
+**PRÓXIMO INMEDIATO: Documentación #8** — epic ya escrito en `production/epics/documentacion/EPIC.md`
+(TR-doc-001/002 trazados, riesgo LOW). Lo importante de ese epic: **el horario vive HOY prestado dentro
+de Flujo** (`apertura_doc_min` 480 / `cierre_doc_min` 870, `_gestionar_horario_doc`, hook de peonada) y
+hay que **migrarlo a su dueño** convirtiéndolo en configurable por el jugador (slider 08:00–20:00
+pagando peonada). **Red de seguridad: `tests/integration/flujo/flujo_horario_test.gd` debe seguir en
+verde durante toda la migración**; migrar en una story propia, sin mezclar features nuevas.
 
 **[HISTÓRICO] C3-1 `/qa-plan sprint`** (antes de implementar nada, patrón de los sprints 1-2) →
 **C3-2 `/create-stories documentacion`** → C3-3 implementar. **Deuda que salda este sprint: el horario
