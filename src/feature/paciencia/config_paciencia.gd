@@ -58,6 +58,12 @@ class_name ConfigPaciencia extends Resource
 ## com-003). 0.04 = uno de cada 25 minutos-persona; con una espera larga, casi todos acaban yendo
 ## alguna vez. Sube esto y el vending recauda más (y la sala se llena de gente paseando).
 @export var prob_uso_comodidad_min: float = 0.04
+## Qué parte del público es **de la que consume algo** (feedback del usuario 2026-07-28: *"no todos
+## consumen por lo que sea; no todos los que baje la paciencia quieren tomar algo, al igual que el
+## agua"*). Se decide UNA vez por persona, al llegar: quien sale "no consumidor" **no se levanta
+## jamás**, por muy larga que se le haga la espera. 0.45 = algo menos de la mitad de la sala.
+## Es lo que hace que la sala se vea natural: gente quieta y algunos moviéndose, no una romería.
+@export var prob_consumidor: float = 0.45
 ## Cuántas veces como MUCHO se levanta una misma persona en toda su visita (feedback del usuario
 ## 2026-07-28: *"hay muchos que lo hacen varias veces, eso no es normal, vas 1 vez o 2 como mucho, he
 ## visto a 1 hasta 4 veces"*). Sin este tope, cada vez que la barra volvía a bajar del umbral la

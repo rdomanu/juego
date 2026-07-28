@@ -46,6 +46,7 @@ var mult_comodidad_min: float = 0.6
 var prob_uso_comodidad_min: float = 0.04
 var umbral_uso_comodidad: float = 75.0
 var max_usos_comodidad: int = 2
+var prob_consumidor: float = 0.45
 var mult_horapunta: float = 1.0
 var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
@@ -81,6 +82,12 @@ var _usando_comodidad: Dictionary = {}
 ## (`max_usos_comodidad`) es lo que impide que quien espera mucho acabe dando cuatro viajes a la
 ## máquina — a la ventanilla se va a un trámite, no a merendar (feedback del usuario 2026-07-28).
 var _usos_comodidad: Dictionary = {}
+## ¿Es de los que consumen? `persona -> bool`, decidido UNA vez y para siempre. Hay gente que no toma
+## nada ni bebe agua por mucho que espere, y una sala donde TODOS acaban yendo a la máquina no se
+## parece a una sala de verdad. Se decide PEREZOSAMENTE (la primera vez que haría falta), no al
+## registrarse: así el dado solo se tira cuando de verdad importa y no se altera la secuencia del RNG
+## en partidas sin comodidades instaladas.
+var _consumidor_de: Dictionary = {}
 
 # ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
 var _flujo: Node = null
@@ -290,6 +297,8 @@ func _quizas_ir_a_una_comodidad(persona: RefCounted, servicio: StringName, minut
 		return false   # ya ha ido lo suyo: se queda en el sitio esperando su turno
 	if float(_paciencia_de.get(persona, 100.0)) > umbral_uso_comodidad:
 		return false
+	if not es_consumidor(persona):
+		return false   # hay quien no toma nada ni aunque le den las tantas
 	if _rng.randf() > prob_uso_comodidad_min * minutos:
 		return false
 	var elegido: StringName = _mejor_comodidad_usable(servicio)
@@ -309,6 +318,17 @@ func _quizas_ir_a_una_comodidad(persona: RefCounted, servicio: StringName, minut
 	# hecho — si no, cortarle el café le regalaría un viaje extra.
 	_usos_comodidad[persona] = int(_usos_comodidad.get(persona, 0)) + 1
 	return true
+
+
+## ¿Esta persona es de las que consumen? Se decide la PRIMERA vez que se pregunta (cuando ya lleva
+## esperando y hay algo que usar) y no cambia en toda su visita: el mismo ciudadano no puede ser de
+## los que pasan del vending un minuto y de los que van corriendo al siguiente. Se serializa.
+func es_consumidor(persona: RefCounted) -> bool:
+	if not _consumidor_de.has(persona):
+		if _rng == null:
+			return false
+		_consumidor_de[persona] = _rng.randf() < prob_consumidor
+	return bool(_consumidor_de[persona])
 
 
 ## El objeto USABLE de las salas de espera del servicio que más paciencia devuelve (desempate estable
@@ -418,6 +438,7 @@ func _purgar_terminadas() -> void:
 		_camino_a_su_sitio.erase(persona)
 		_usando_comodidad.erase(persona)
 		_usos_comodidad.erase(persona)
+		_consumidor_de.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────
@@ -439,6 +460,9 @@ func registrar(persona: RefCounted) -> void:
 			_camino_a_su_sitio[persona] = float(guardado["camino"])
 		# El que estaba en la máquina sigue en la máquina (story com-003). El ELEMENTO concreto se
 		# vuelve a buscar por el catálogo: al cargar, Construcción ha creado ids nuevos.
+		var consumidor: int = int(guardado.get("consumidor", -1))
+		if consumidor >= 0:
+			_consumidor_de[persona] = consumidor == 1
 		var usos_previos: int = int(guardado.get("usos_comodidad", 0))
 		if usos_previos > 0:
 			_usos_comodidad[persona] = usos_previos
@@ -483,6 +507,7 @@ func olvidar(persona: RefCounted) -> void:
 	_camino_a_su_sitio.erase(persona)
 	_usando_comodidad.erase(persona)
 	_usos_comodidad.erase(persona)
+	_consumidor_de.erase(persona)
 
 
 ## ¿Está esta persona esperando bajo el ojo de Paciencia?
@@ -811,6 +836,8 @@ func save() -> Dictionary:
 			"usando_restante": float(_usando_comodidad.get(persona, {}).get("restante", 0.0)),
 			# Los viajes ya hechos: sin esto, cargar la partida le regalaría el tope entero otra vez.
 			"usos_comodidad": int(_usos_comodidad.get(persona, 0)),
+			# -1 = "aún no se ha decidido"; 0/1 = ya se sabe si es de los que consumen.
+			"consumidor": -1 if not _consumidor_de.has(persona) else (1 if _consumidor_de[persona] else 0),
 		})
 	var acumulado: Dictionary = {}
 	for servicio: StringName in SERVICIOS:
@@ -844,6 +871,7 @@ func load_state(d: Dictionary) -> void:
 	# personas ya no existen. `registrar()` decide, por la clave estable, si hay que restaurar uno.
 	_usando_comodidad.clear()
 	_usos_comodidad.clear()
+	_consumidor_de.clear()
 	_restaurables.clear()
 	for barra: Dictionary in d.get("barras", []):
 		_restaurables[String(barra.get("clave", ""))] = {
@@ -856,6 +884,7 @@ func load_state(d: Dictionary) -> void:
 			"usando": String(barra.get("usando", "")),
 			"usando_restante": float(barra.get("usando_restante", 0.0)),
 			"usos_comodidad": int(barra.get("usos_comodidad", 0)),
+			"consumidor": int(barra.get("consumidor", -1)),
 		}
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
@@ -892,6 +921,7 @@ func aplicar_config(config: Resource) -> void:
 	prob_uso_comodidad_min = clampf(config.prob_uso_comodidad_min, 0.0, 1.0)
 	umbral_uso_comodidad = clampf(config.umbral_uso_comodidad, 0.0, 100.0)
 	max_usos_comodidad = clampi(config.max_usos_comodidad, 0, 10)
+	prob_consumidor = clampf(config.prob_consumidor, 0.0, 1.0)
 	mult_horapunta = clampf(config.mult_horapunta, 0.1, 3.0)
 	umbral_animo_alto = clampf(config.umbral_animo_alto, 0.0, 100.0)
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)

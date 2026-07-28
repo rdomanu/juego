@@ -171,6 +171,7 @@ func test_el_que_lleva_rato_esperando_si_se_levanta() -> void:
 	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
 	var persona: RefCounted = _persona()
 	paciencia.registrar(persona)
+	paciencia._consumidor_de[persona] = true            # aquí se mide el UMBRAL, no el rasgo
 	paciencia.drenar(persona, 12.0)                     # 60 < umbral 75
 	# `minutos` alto → la probabilidad por minuto satura y la tirada siempre entra: el gesto ocurre.
 	assert_bool(paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)).is_true()
@@ -233,6 +234,7 @@ func test_nadie_va_a_la_maquina_mas_de_dos_veces() -> void:
 	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
 	var persona: RefCounted = _persona()
 	paciencia.registrar(persona)
+	paciencia._consumidor_de[persona] = true            # aísla la variable: aquí se mide el TOPE
 	paciencia.drenar(persona, 12.0)                     # 60: por debajo del umbral
 
 	# Dos viajes: se le permiten (con `minutos` alto la tirada siempre entra).
@@ -254,6 +256,7 @@ func test_el_viaje_cuenta_aunque_le_llamen_a_media_consumicion() -> void:
 	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
 	var persona: RefCounted = _persona()
 	paciencia.registrar(persona)
+	paciencia._consumidor_de[persona] = true
 	paciencia.drenar(persona, 12.0)
 	paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)   # se levanta...
 	paciencia.olvidar(persona)                                    # ...y le llaman / se resuelve
@@ -261,6 +264,7 @@ func test_el_viaje_cuenta_aunque_le_llamen_a_media_consumicion() -> void:
 	# Otra persona distinta (misma clave lógica no importa aquí): el contador es POR persona.
 	var otra: RefCounted = _persona(2)
 	paciencia.registrar(otra)
+	paciencia._consumidor_de[otra] = true
 	paciencia.drenar(otra, 12.0)
 	assert_bool(paciencia._quizas_ir_a_una_comodidad(otra, DOC, 1000.0)).is_true()
 
@@ -272,6 +276,7 @@ func test_los_viajes_ya_hechos_sobreviven_al_guardado() -> void:
 	var paciencia: Node = _paciencia_con(construccion, mundo[1])
 	var persona: RefCounted = _persona(9)
 	paciencia.registrar(persona)
+	paciencia._consumidor_de[persona] = true
 	paciencia.drenar(persona, 12.0)
 	paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)
 	paciencia._consumir_uso_comodidad(persona, 99.0)
@@ -287,3 +292,67 @@ func test_los_viajes_ya_hechos_sobreviven_al_guardado() -> void:
 
 	# Cargar la partida NO le regala viajes nuevos.
 	assert_bool(otra._quizas_ir_a_una_comodidad(persona_nueva, DOC, 1000.0)).is_false()
+
+
+# ── No todo el mundo consume (feedback del usuario 2026-07-28) ──────────────────────────
+# "no todos consumen por lo que sea; no todos los que baje la paciencia quieren tomar algo, al igual
+# que el agua". Hay gente que no toma nada por muy larga que se le haga la espera.
+func test_el_que_no_es_consumidor_no_se_levanta_nunca() -> void:
+	var mundo: Array = _mundo()
+	mundo[0].construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
+	var persona: RefCounted = _persona()
+	paciencia.registrar(persona)
+	paciencia.drenar(persona, 20.0)                     # 33: lleva un buen rato
+	paciencia._consumidor_de[persona] = false           # de los que no toman nada
+
+	# Ni con la tirada saturada: sencillamente no le apetece.
+	assert_bool(paciencia._quizas_ir_a_una_comodidad(persona, DOC, 10000.0)).is_false()
+	assert_bool(paciencia.es_consumidor(persona)).is_false()
+
+
+func test_el_rasgo_no_cambia_a_media_visita() -> void:
+	# El mismo ciudadano no puede pasar del vending un minuto y correr hacia él al siguiente.
+	var mundo: Array = _mundo()
+	mundo[0].construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
+	var persona: RefCounted = _persona()
+	paciencia.registrar(persona)
+	var primera: bool = paciencia.es_consumidor(persona)
+	for i: int in range(20):
+		assert_bool(paciencia.es_consumidor(persona)).is_equal(primera)
+
+
+func test_no_todos_los_de_la_sala_son_consumidores() -> void:
+	# Con 40 personas y prob 0.45, tiene que haber de los dos tipos (si salieran todos iguales, el
+	# rasgo no estaría haciendo nada). RNG sembrado → resultado estable entre ejecuciones.
+	var mundo: Array = _mundo()
+	mundo[0].construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
+	var consumidores: int = 0
+	for i: int in range(40):
+		var persona: RefCounted = _persona(i + 1)
+		paciencia.registrar(persona)
+		if paciencia.es_consumidor(persona):
+			consumidores += 1
+	assert_bool(consumidores > 0).is_true()
+	assert_bool(consumidores < 40).is_true()
+
+
+func test_el_rasgo_sobrevive_al_guardado() -> void:
+	var mundo: Array = _mundo()
+	var construccion: Node = mundo[0]
+	construccion.construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(construccion, mundo[1])
+	var persona: RefCounted = _persona(11)
+	paciencia.registrar(persona)
+	paciencia._consumidor_de[persona] = false          # este no consume
+
+	var recuperado: Dictionary = JSON.parse_string(JSON.stringify(paciencia.save()))
+	var otra: Node = _paciencia_con(construccion, mundo[1])
+	otra.load_state(recuperado)
+	var persona_nueva: RefCounted = _persona(11)
+	otra.registrar(persona_nueva)
+
+	# Al cargar sigue sin apetecerle: el rasgo no se vuelve a sortear.
+	assert_bool(otra.es_consumidor(persona_nueva)).is_false()
