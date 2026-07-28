@@ -128,7 +128,7 @@ func _ready() -> void:
 	_panel_horario = PanelHorarioScript.new()
 	_panel_horario.name = "PanelHorario"
 	add_child(_panel_horario)
-	_panel_horario.configurar(_documentacion, Tiempo, EventBus)
+	_panel_horario.configurar(_documentacion, Tiempo, EventBus, _personal)
 	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
 	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
 	# ningún jugador puede abrirlo ni tocar los números del balance. Mismo patrón que la captura de
@@ -749,6 +749,13 @@ func _refrescar_etiquetas() -> void:
 func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -> void:
 	if _flujo != null:
 		_flujo.fijar_horario_doc(apertura, cierre, ultima_admision)
+		# Y el horario PROPIO de cada ventanilla (story doc-006): las que no hacen la tarde cierran a
+		# la hora de la jornada base aunque el servicio siga abierto.
+		for puesto_id: StringName in _documentacion.puestos_de_doc():
+			_flujo.fijar_cierre_de_puesto(
+				puesto_id,
+				cierre if _documentacion.puesto_de_tarde(puesto_id) else _documentacion.cierre_base_min
+			)
 	if _demanda != null:
 		_demanda.fijar_ventana_doc(apertura, ultima_admision)
 

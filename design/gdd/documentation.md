@@ -94,6 +94,14 @@ dentro de la jornada.)*
 (normalmente disponibles). Como es **voluntaria y pagada**, la **Motivación NO baja** (el dinero motiva; se
 mantiene/restaura), pero la **fatiga sube** (cansa igual). Rentable según demanda (DG12).
 
+> **Enmienda del usuario (2026-07-28) — la peonada se paga POR VENTANILLA, no por plantilla.** El jugador
+> decide **qué ventanillas se quedan** por la tarde: *"en temporada baja no compensa abrirlas todas, pero sí
+> unas pocas; en temporada alta, todas"*. Por defecto se quedan **todas** (ampliar el horario amplía el
+> servicio) y el jugador va mandando a casa a su hora las que no necesita. **Si no se queda ninguna, el
+> servicio cierra de facto a la hora base** (no se genera demanda que nadie iba a atender). Nota de balance:
+> cerrar una ventanilla **dentro** del horario base no ahorra nada (el salario se paga igual) — el ahorro
+> vive solo en las horas extra, y eso es lo que convierte esto en *la* decisión del servicio.
+
 **DO5 · Última admisión (exprimir vs cuidar → coste de MORAL).** La última admisión (hasta qué minuto se da
 número antes del cierre) es configurable con `margen_ultima_admision_min`:
 - **Margen 15:** el personal sale **a su hora** — **contento**. Menos trámites.
@@ -174,7 +182,7 @@ abasto.
 |----------|------|-------|-------------|
 | `peonada_eur_hora` | float | 15 (Datos) | Coste de una hora extra por funcionario |
 | `horas_extra` | float | 0 – 5.5 | `max(0, hora_cierre − 14:30)` en horas (slider hasta 20:00) |
-| `num_agentes_doc` | int | ≥ 0 | Agentes de Doc que cubren las horas extra |
+| `num_agentes_doc` | int | ≥ 0 | Agentes de Doc que cubren las horas extra = **ventanillas dotadas Y marcadas para la tarde** (enmienda 2026-07-28) |
 
 **Salida y ejemplo:** cerrar a las **18:00** (3,5 h extra) con 2 agentes → `15 × 3,5 × 2 = **105 €/día**`. Lo
 cobra Economía (peonada, F4 de Economía).
@@ -188,6 +196,12 @@ cobra Economía (peonada, F4 de Economía).
 | `ingreso_extra_esperado` | float | ≥ 0 | `trámites_extra × ingreso_medio_trámite` en las horas extra |
 | `trámites_extra` | float | ≥ 0 | Trámites atendidos en las horas extra (según nivel de demanda DG12) |
 | `coste_peonada_dia` | float | ≥ 0 | De F1 |
+
+**De dónde salen los `trámites_extra`** *(concretado 2026-07-28)*: de **dos** sitios, y esa es la clave del
+balance. (1) La **cola que arrastras** al llegar la hora de cierre — con demanda ALTA es lo gordo. (2) Un
+**goteo** de llegadas de tarde (`perfil_hora_doc_tarde` de Demanda ≈ **9 personas/día** abriendo hasta las
+20:00), deliberadamente **pequeño**: no paga una ventanilla él solo. *Sin cita, la tarde solo compensa si
+llegas saturado; la **cita previa #14** es la que convertirá esa apuesta en un cálculo.*
 
 **Salida:** booleano — **la clave del sistema**. Con demanda **BAJA**, pocas llegadas tardías →
 `ingreso_extra < coste` → **pierdes**. Con demanda **ALTA**, muchas → `ingreso_extra > coste` → **ganas**.

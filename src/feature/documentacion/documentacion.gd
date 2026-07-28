@@ -78,6 +78,11 @@ var hora_cierre_min: int = 870
 var tope_evento_min: int = 0
 ## Id del comunicado de la División vigente, o `&""` si no hay ninguno (story 004). Se serializa.
 var evento_activo_id: StringName = &""
+## Ventanillas de Doc que NO se quedan por la tarde (story doc-006): `puesto_id -> true`. Se guarda la
+## EXCEPCIÓN, no la norma — por defecto, ampliar el horario amplía todo el servicio, y el jugador va
+## quitando las que quiere mandar a casa a su hora. Así una ventanilla nueva se comporta como el resto
+## sin que nadie tenga que acordarse de darla de alta aquí. Se serializa.
+var _puestos_sin_tarde: Dictionary[StringName, bool] = {}
 
 
 func _ready() -> void:
@@ -156,7 +161,7 @@ func aplicar_config(config: Resource) -> void:
 	peonada_activa_por_defecto = config.peonada_activa_por_defecto
 	# El horario de partida: base, o ya ampliado al tope si el jugador lo dejó activado por defecto.
 	hora_cierre_min = slider_max_min if peonada_activa_por_defecto else cierre_base_min
-	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 
 
 ## Carga el `.tres` real con fallback seguro (falta/inválido → defaults con aviso; no peta).
@@ -201,7 +206,7 @@ func fijar_hora_cierre(minuto_del_dia: int) -> int:
 	if nuevo == hora_cierre_min:
 		return hora_cierre_min
 	hora_cierre_min = nuevo
-	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 	return hora_cierre_min
 
 
@@ -212,7 +217,7 @@ func fijar_margen_ultima_admision(minutos: int) -> int:
 	if nuevo == margen_ultima_admision_min:
 		return margen_ultima_admision_min
 	margen_ultima_admision_min = nuevo
-	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 	return margen_ultima_admision_min
 
 
@@ -222,26 +227,26 @@ func fijar_margen_ultima_admision(minutos: int) -> int:
 ## horario base o el tope han cambiado por debajo de él.
 func refrescar_horario() -> void:
 	hora_cierre_min = clampi(hora_cierre_min, cierre_base_min, tope_autorizado())
-	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 
 
 ## **F3** · `hora_ultima_admision = hora_cierre − margen_ultima_admision_min` (minutos del día).
 ## Cierre 14:30 con margen 15 → 14:15: quien coge número a las 14:15 se atiende; después, puerta
 ## cerrada. Nunca antes de la apertura (un margen absurdo no puede cerrar la puerta antes de abrirla).
 func hora_ultima_admision() -> int:
-	return maxi(apertura_base_min, hora_cierre_min - margen_ultima_admision_min)
+	return maxi(apertura_base_min, hora_cierre_efectiva() - margen_ultima_admision_min)
 
 
 ## **F1 (parte pura)** · Horas que se alargan más allá de la jornada base — las que cuestan peonada.
 ## `max(0, hora_cierre − cierre_base) / 60`. Cerrar a las 18:00 → 3,5 h. El COSTE en euros y su cobro
 ## son la story 003 (Documentación no mueve dinero: se lo registra a Economía).
 func horas_extra() -> float:
-	return maxf(0.0, float(hora_cierre_min - cierre_base_min)) / MINUTOS_POR_HORA
+	return maxf(0.0, float(hora_cierre_efectiva() - cierre_base_min)) / MINUTOS_POR_HORA
 
 
 ## ¿Hay peonada hoy? (el horario está ampliado por encima de la jornada base).
 func hay_horas_extra() -> bool:
-	return hora_cierre_min > cierre_base_min
+	return hora_cierre_efectiva() > cierre_base_min
 
 
 ## Estado del servicio a esa hora del día (DO3 · §States and Transitions). Función **pura**: recibe la
@@ -249,7 +254,7 @@ func hay_horas_extra() -> bool:
 ## existe la franja CERRANDO (se admite hasta el cierre) — es exactamente lo que significa "exprimir".
 func estado_servicio(minuto_del_dia: float) -> StringName:
 	var min_dia: float = fposmod(minuto_del_dia, MINUTOS_POR_DIA)
-	if min_dia < float(apertura_base_min) or min_dia >= float(hora_cierre_min):
+	if min_dia < float(apertura_base_min) or min_dia >= float(hora_cierre_efectiva()):
 		return ESTADO_CERRADO
 	if min_dia >= float(hora_ultima_admision()):
 		return ESTADO_CERRANDO
@@ -262,14 +267,64 @@ func admite_a_esa_hora(minuto_del_dia: float) -> bool:
 	return estado_servicio(minuto_del_dia) == ESTADO_ABIERTO
 
 
+# ── Qué ventanillas se quedan por la tarde (story doc-006) ───────────────────────────────────
+
+## Las ventanillas de Documentación que existen en la comisaría (orden estable). Sin Personal
+## inyectado, ninguna: los tests unitarios trabajan con el horario del servicio, no con ventanillas.
+func puestos_de_doc() -> Array[StringName]:
+	if _personal == null:
+		return []
+	return _personal.puestos_de_servicio(SERVICIO)
+
+
+## ¿Esta ventanilla se queda por la tarde? Por defecto **sí** (ampliar el horario amplía el servicio).
+func puesto_de_tarde(puesto_id: StringName) -> bool:
+	return not _puestos_sin_tarde.has(puesto_id)
+
+
+## Orden del jugador: "esta ventanilla se queda / se va a su hora". Emite `horario_cambiado` para que
+## Flujo reajuste el cierre de ese puesto y Demanda su ventana (quitar la última ventanilla de tarde
+## equivale a no haber ampliado).
+func fijar_puesto_de_tarde(puesto_id: StringName, se_queda: bool) -> void:
+	if se_queda == puesto_de_tarde(puesto_id):
+		return
+	if se_queda:
+		_puestos_sin_tarde.erase(puesto_id)
+	else:
+		_puestos_sin_tarde[puesto_id] = true
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
+
+
+## ¿Queda ALGUNA ventanilla dotada dispuesta a hacer la tarde? Sin Personal inyectado se responde que
+## sí: no hay ventanillas que consultar, así que manda el horario elegido (comportamiento previo a
+## esta story — es lo que mantiene verdes los tests que no montan una comisaría entera).
+func hay_puestos_de_tarde() -> bool:
+	if _personal == null:
+		return true
+	return num_agentes_doc() > 0
+
+
+## **La hora a la que cierra el servicio DE VERDAD**: el cierre elegido si alguien se queda a hacerlo,
+## y el de la jornada base si no queda nadie. De aquí cuelgan las horas extra, la última admisión y el
+## estado del servicio — así, quitar todas las ventanillas de la tarde equivale a no haber ampliado
+## (y no se fabrica demanda que nadie iba a atender).
+func hora_cierre_efectiva() -> int:
+	return hora_cierre_min if hay_puestos_de_tarde() else cierre_base_min
+
+
 # ── La peonada: lo que cuesta alargar la tarde (DO4 · F1/F2 · story doc-003) ─────────────────
 
-## Agentes de Documentación que cubrirían las horas extra (los puestos de Doc DOTADOS). Sin Personal
-## inyectado devuelve 0: sin gente no hay peonada que pagar.
+## Agentes que cubren las horas extra: las ventanillas de Doc **dotadas Y que se quedan por la tarde**
+## (story doc-006 — antes contaba toda la plantilla, así que dejar una sola de guardia costaba lo mismo
+## que abrirlas todas). Sin Personal inyectado devuelve 0: sin gente no hay peonada que pagar.
 func num_agentes_doc() -> int:
 	if _personal == null:
 		return 0
-	return _personal.agentes_dotados_en_servicio(SERVICIO)
+	var total: int = 0
+	for puesto_id: StringName in _personal.puestos_de_servicio(SERVICIO):
+		if puesto_de_tarde(puesto_id) and _personal.puesto_dotado(puesto_id):
+			total += 1
+	return total
 
 
 ## **F1** · `coste_peonada_dia = peonada_eur_hora × horas_extra × num_agentes_doc`.
@@ -278,9 +333,16 @@ func num_agentes_doc() -> int:
 ## del horario vigente. Cerrar a las 18:00 con 2 agentes → 15 × 3,5 × 2 = **105 €/día**.
 func coste_peonada_estimado(cierre_tentativo: int = -1) -> float:
 	_asegurar_catalogo()
-	var cierre: int = hora_cierre_min if cierre_tentativo < 0 else cierre_tentativo
+	var cierre: int = hora_cierre_efectiva() if cierre_tentativo < 0 else cierre_tentativo
 	var horas: float = maxf(0.0, float(cierre - cierre_base_min)) / MINUTOS_POR_HORA
 	return _peonada_eur_hora * horas * float(num_agentes_doc())
+
+
+## Lo que cuesta **una sola ventanilla** que se queda por la tarde (F1 para un agente). Es el número
+## que la UI enseña en cada fila; el total es este × ventanillas que se quedan.
+func coste_peonada_por_ventanilla() -> float:
+	_asegurar_catalogo()
+	return _peonada_eur_hora * horas_extra()
 
 
 ## Las **horas-agente** extra del día: lo que se le registra a Economía (ella pone el precio, F1 —
@@ -407,10 +469,15 @@ func _mes_actual() -> int:
 ## comunicado vigente. Lo demás (horario base, topes) sale del catálogo al cargar: si un día se
 ## reequilibra el juego, las partidas guardadas heredan el catálogo nuevo, no una copia congelada.
 func save() -> Dictionary:
+	var sin_tarde: Array[String] = []
+	for puesto_id: StringName in _puestos_sin_tarde:
+		sin_tarde.append(String(puesto_id))
+	sin_tarde.sort()   # orden estable: dos saves del mismo estado deben ser idénticos
 	return {
 		"hora_cierre_min": hora_cierre_min,
 		"margen_ultima_admision_min": margen_ultima_admision_min,
 		"evento_activo_id": String(evento_activo_id),
+		"puestos_sin_tarde": sin_tarde,
 	}
 
 
@@ -436,7 +503,12 @@ func load_state(datos: Dictionary) -> void:
 		int(datos.get("hora_cierre_min", cierre_base_min)),
 		cierre_base_min, tope_autorizado(), "hora_cierre_min"
 	)
-	horario_cambiado.emit(apertura_base_min, hora_cierre_min, hora_ultima_admision())
+	# Las ventanillas que el jugador mandó a casa a su hora (story doc-006). Un save sin la clave
+	# (partida anterior a esta story) deja a todas haciendo la tarde: la norma, no la excepción.
+	_puestos_sin_tarde.clear()
+	for puesto_id: Variant in datos.get("puestos_sin_tarde", []):
+		_puestos_sin_tarde[StringName(puesto_id)] = true
+	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 
 
 # ── Los trámites y la política de cita (DO1, DO8) ────────────────────────────────────────────

@@ -22,6 +22,18 @@ class_name ConfigDemanda extends Resource
 @export var perfil_hora_doc: Dictionary[int, float] = {
 	8: 0.30, 9: 0.22, 10: 0.16, 11: 0.12, 12: 0.10, 13: 0.07, 14: 0.03,
 }
+## **Goteo de tarde de Documentación** (story doc-006): demanda EXTRA por franja **si el servicio sigue
+## abierto** más allá de la jornada base. Es **aditivo** sobre `perfil_hora_doc` a propósito: el perfil
+## base debe seguir sumando 1.0 (AC-DM03a — la jornada de mañana reparte el 100 % de la demanda diaria),
+## y esto es gente que HOY no viene porque la ventanilla está cerrada.
+##
+## Deliberadamente PEQUEÑO: sumado (0,215 ≈ **9-10 personas/día** abriendo hasta las 20:00) no da para
+## pagar una ventanilla de tarde él solo. Lo que la paga es el goteo **más la cola que arrastras** — que
+## es justo la decisión del GDD (DO4: *"la cola no baja al dar las 14:30, ¿alargo para vaciarla?"*).
+## Con demanda BAJA no compensa; con ALTA, sí. Semilla a calibrar en playtest.
+@export var perfil_hora_doc_tarde: Dictionary[int, float] = {
+	15: 0.06, 16: 0.05, 17: 0.04, 18: 0.03, 19: 0.02, 20: 0.015, 21: 0.01,
+}
 ## Perfil intradía de ODAC (F2): fracción por hora, 24 h. Semilla UNIFORME (1/24 por hora; el matiz
 ## "decae 22-23h" es tuning fino — Open Q2/Q5); el valle nocturno lo crea `mult_nocturno_odac` en
 ## runtime, NO estos pesos. Σ = 1.0. Se rellena en `_init` (uniforme programático > 24 líneas a mano).

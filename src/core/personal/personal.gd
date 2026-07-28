@@ -464,6 +464,24 @@ func puesto_dotado(puesto_id: StringName) -> bool:
 	return agente != null and agente.estado == AgenteScript.ESTADO_ASIGNADO
 
 
+## Los puestos de un servicio, en **orden de registro** (estable — el mismo que usa Flujo para
+## desempatar quién llama primero). Lo consume Documentación #8 para su horario por ventanilla
+## (story doc-006) y la UI para listarlas. Incluye los NO dotados: existir y estar cubierto son
+## cosas distintas, y la pantalla debe poder enseñar una ventanilla vacante.
+func puestos_de_servicio(servicio: StringName) -> Array[StringName]:
+	var lista: Array[StringName] = []
+	for puesto_id: StringName in _puestos:
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", _puestos[puesto_id])
+		if tipo != null and tipo.servicio == String(servicio):
+			lista.append(puesto_id)
+	return lista
+
+
+## El tipo de puesto (id del catálogo) con el que se registró, o `&""` si el puesto no existe.
+func tipo_de_puesto(puesto_id: StringName) -> StringName:
+	return _puestos.get(puesto_id, &"")
+
+
 ## Cuántos puestos DOTADOS hay de un servicio (el tipo de puesto lo dice el catálogo). Lo consume
 ## Documentación #8 para la peonada (F1: la pagan los agentes que cubren las horas extra) — un puesto
 ## sin dotar no cuenta: nadie cobra por no venir. Story doc-003.

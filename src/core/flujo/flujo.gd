@@ -457,8 +457,9 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 		"cierre_pendiente": false,     # story 006: cerrar espera al fin de la atención
 		"retirada_pendiente": false,   # story 006: retirar (demoler) espera al fin de la atención
 		"override": sin_override,      # story 006: reconfiguración FL9 (vacío = catálogo)
-		"cierre_horario": false,       # horario provisional 2026-07-25: cerrado por HORARIO (se reabre
-		                               # solo en apertura_doc_min); el cierre MANUAL del jugador NO
+		"cierre_horario": false,       # cerrado por HORARIO (se reabre solo en apertura_doc_min); el
+		                               # cierre MANUAL del jugador NO
+		"cierre_propio": 0,            # story doc-006: hora de cierre propia (0 = la del servicio)
 	}
 
 
@@ -575,6 +576,23 @@ func fijar_horario_doc(apertura_min: int, cierre_min: int, ultima_admision_min: 
 	apertura_doc_min = clampi(apertura_min, 0, 1439)
 	cierre_doc_min = clampi(cierre_min, apertura_doc_min + 1, 1439)
 	ultima_admision_doc_min = clampi(ultima_admision_min, apertura_doc_min, cierre_doc_min)
+
+
+## **El horario propio de UNA ventanilla** (story doc-006): su hora de cierre puede ser distinta de la
+## del servicio — "esta se queda hasta las 18:00 y esta otra cierra a las 14:30". `0` = sigue el
+## horario global (lo normal). Lo empuja Documentación #8; Flujo solo lo ejecuta.
+func fijar_cierre_de_puesto(puesto_id: StringName, cierre_min: int) -> void:
+	if not _puestos_flujo.has(puesto_id):
+		return
+	_puestos_flujo[puesto_id]["cierre_propio"] = clampi(cierre_min, 0, 1439)
+
+
+## La hora a la que cierra ESE puesto: la suya propia si la tiene, o la del servicio.
+func cierre_de_puesto(puesto_id: StringName) -> int:
+	if not _puestos_flujo.has(puesto_id):
+		return cierre_doc_min
+	var propio: int = int(_puestos_flujo[puesto_id].get("cierre_propio", 0))
+	return propio if propio > 0 else cierre_doc_min
 
 
 ## Estado DERIVADO del puesto (States B): Cerrado → Abierto-sin-agente (gate FL4 de Personal) →
@@ -763,12 +781,14 @@ func _gestionar_horario_doc() -> void:
 	if _tiempo == null:
 		return
 	var min_dia: float = fposmod(_tiempo.minutos_juego, 1440.0)
-	var en_horario: bool = min_dia >= float(apertura_doc_min) and min_dia < float(cierre_doc_min)
 	for puesto_id: StringName in _puestos_flujo:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
 		if tipo == null or tipo.servicio != String(SERVICIO_DOC):
 			continue
+		# Cada ventanilla puede tener SU hora de cierre (story doc-006): "esta se queda por la tarde".
+		var cierre: int = cierre_de_puesto(puesto_id)
+		var en_horario: bool = min_dia >= float(apertura_doc_min) and min_dia < float(cierre)
 		if en_horario and puesto["cierre_horario"]:
 			puesto["abierto"] = true
 			puesto["cierre_horario"] = false

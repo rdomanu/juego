@@ -39,6 +39,8 @@ const PASO_MARGEN_MIN := 5
 # ── Refs a los sistemas (inyectadas por Main; la UI solo lee y ordena — ADR-0001) ────────────
 var _documentacion: Node = null
 var _tiempo: Node = null
+## Personal: de él salen el nombre del tipo de cada ventanilla y si está dotada (solo LECTURA).
+var _personal: Node = null
 
 # ── Nodos de UI (construidos en configurar; el panel nace oculto) ────────────────────────────
 var _panel: PanelContainer
@@ -50,13 +52,16 @@ var _slider_margen: HSlider
 var _lbl_margen: Label
 var _lbl_demanda: Label
 var _lbl_comunicado: Label
+## Una fila por ventanilla de Doc con su interruptor de tarde (story doc-006).
+var _lista_ventanillas: VBoxContainer
 
 
 ## Inyección de dependencias + construcción de la UI (la llama Main tras add_child). El panel nace
 ## OCULTO y se repuebla al abrirlo (foto fresca), nunca por frame.
-func configurar(documentacion: Node, tiempo: Node, bus: Node = null) -> void:
+func configurar(documentacion: Node, tiempo: Node, bus: Node = null, personal: Node = null) -> void:
 	_documentacion = documentacion
 	_tiempo = tiempo
+	_personal = personal
 	_crear_ui()
 	if bus != null:
 		bus.aviso_division.connect(_al_aviso_division)
@@ -124,6 +129,14 @@ func _crear_ui() -> void:
 	_slider_cierre.value_changed.connect(_al_mover_cierre)
 	caja.add_child(_slider_cierre)
 	_lbl_peonada = _etiqueta(caja, 13)
+
+	# ── Qué ventanillas se quedan por la tarde (story doc-006) ───────────────────────────
+	# La decisión fina: en temporada baja dejas una de guardia; en alta las abres todas. Solo
+	# se paga peonada por las que se quedan.
+	_separador(caja, "¿QUÉ VENTANILLAS SE QUEDAN POR LA TARDE?")
+	_lista_ventanillas = VBoxContainer.new()
+	_lista_ventanillas.add_theme_constant_override("separation", 2)
+	caja.add_child(_lista_ventanillas)
 
 	# ── La última admisión: exprimir vs cuidar ───────────────────────────────────────────
 	_separador(caja, "ÚLTIMA ADMISIÓN (hasta cuándo se da número)")
@@ -205,11 +218,79 @@ func _al_aviso_division(_evento_id: StringName, _nombre: String, _activo: bool) 
 func _refrescar() -> void:
 	if _documentacion == null:
 		return
+	_refrescar_ventanillas()
 	_refrescar_cierre()
 	_refrescar_margen()
 	_refrescar_estado()
 	_refrescar_demanda()
 	_refrescar_comunicado()
+
+
+## Reconstruye la lista de ventanillas (una fila por puesto de Doc: interruptor + tipo + estado).
+## Solo al abrir el panel o al construir/demoler: no se repuebla por frame.
+func _refrescar_ventanillas() -> void:
+	for hijo: Node in _lista_ventanillas.get_children():
+		hijo.queue_free()
+	var puestos: Array[StringName] = _documentacion.puestos_de_doc()
+	if puestos.is_empty():
+		var vacio: Label = _etiqueta(_lista_ventanillas, 12)
+		vacio.text = "No hay ventanillas de Documentación construidas."
+		vacio.modulate = COLOR_TENUE
+		return
+	for puesto_id: StringName in puestos:
+		_lista_ventanillas.add_child(_fila_ventanilla(puesto_id))
+
+
+## Una fila: casilla "se queda por la tarde" + nombre del puesto + su coste o su motivo de no costar.
+func _fila_ventanilla(puesto_id: StringName) -> HBoxContainer:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 8)
+	var casilla := CheckBox.new()
+	casilla.text = _nombre_ventanilla(puesto_id)
+	casilla.button_pressed = _documentacion.puesto_de_tarde(puesto_id)
+	casilla.focus_mode = Control.FOCUS_NONE   # si no, Espacio la vuelve a pulsar en vez de pausar
+	casilla.toggled.connect(func(activo: bool) -> void: _al_marcar_ventanilla(puesto_id, activo))
+	fila.add_child(casilla)
+	var detalle := Label.new()
+	detalle.add_theme_font_size_override("font_size", 11)
+	detalle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detalle.text = _detalle_ventanilla(puesto_id)
+	detalle.modulate = COLOR_TENUE
+	fila.add_child(detalle)
+	return fila
+
+
+## "Ventanilla doc_1 · DNI/Pasaporte" — el nombre del tipo sale del catálogo, nunca del código.
+func _nombre_ventanilla(puesto_id: StringName) -> String:
+	var tipo_id: StringName = _personal.tipo_de_puesto(puesto_id) if _personal != null else &""
+	var tipo: Resource = Datos.obtener(&"TipoPuesto", tipo_id)
+	var nombre: String = tipo.nombre if tipo != null else String(tipo_id)
+	return "%s · %s" % [puesto_id, nombre]
+
+
+## Lo que le pasa a esa ventanilla si se queda: su coste, o por qué no cuesta.
+func _detalle_ventanilla(puesto_id: StringName) -> String:
+	if _personal != null and not _personal.puesto_dotado(puesto_id):
+		return "(sin agente asignado — no atiende ni cobra peonada)"
+	if not _documentacion.puesto_de_tarde(puesto_id):
+		return "cierra a las %s" % _hhmm(_documentacion.cierre_base_min)
+	var horas: float = _documentacion.horas_extra()
+	if horas <= 0.0:
+		return "sin horas extra"
+	return "%s €/día de peonada" % _num(_documentacion.coste_peonada_por_ventanilla())
+
+
+## El jugador marca o desmarca una ventanilla: se le ORDENA a Documentación y se relee todo (el coste
+## total cambia, y si se queda sin ninguna el servicio vuelve de facto al horario base).
+func _al_marcar_ventanilla(puesto_id: StringName, se_queda: bool) -> void:
+	_documentacion.fijar_puesto_de_tarde(puesto_id, se_queda)
+	_refrescar_cierre()
+	_refrescar_estado()
+	for fila: Node in _lista_ventanillas.get_children():
+		if fila is HBoxContainer and fila.get_child_count() >= 2:
+			var casilla: CheckBox = fila.get_child(0)
+			var id: StringName = StringName(casilla.text.split(" · ")[0])
+			(fila.get_child(1) as Label).text = _detalle_ventanilla(id)
 
 
 ## El slider y sus dos números: la hora de cierre y lo que cuesta esa decisión (F1, en vivo).

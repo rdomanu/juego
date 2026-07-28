@@ -222,6 +222,14 @@ donde `Σ peso_hora(t)` sobre las horas de apertura del servicio = **1.0** (dist
 **Perfil semilla Documentación** (front-loaded, pico a la apertura 08:00 — DG3): 08–09 **0.30** · 09–10 0.22 ·
 10–11 0.16 · 11–12 0.12 · 12–13 0.10 · 13–14 0.07 · 14–14:30 0.03 → suma 1.0. *(Ventana base **08:00–14:30 =
 390 min**; ampliar el cierre más allá de 14:30 —hasta 20:00— es decisión de Documentación con **peonada**.)*
+
+> **Goteo de tarde de Documentación** *(añadido 2026-07-28, enmienda del usuario · knob
+> `perfil_hora_doc_tarde`)*: si el servicio **sigue abierto** pasada la jornada base, cada franja de tarde
+> aporta demanda **EXTRA** — gente que hoy no viene porque la ventanilla está cerrada. Semilla: 15h **0.06**
+> · 16h 0.05 · 17h 0.04 · 18h 0.03 · 19h 0.02 · 20h 0.015 · 21h 0.01 ≈ **9 personas/día** abriendo hasta las
+> 20:00. Es **aditivo**, no reparte: el perfil base **sigue sumando 1.0** (AC-DM03a intacto), porque la
+> jornada de mañana ya distribuye el 100 % de la demanda diaria. Deliberadamente pequeño — la tarde sola no
+> paga una ventanilla; la paga la tarde **más la cola que arrastras** (F2 de Documentación).
 **Perfil semilla ODAC** (bajo y bastante estable; la **tarde/noche temprana aguanta** —21:00 ≈ 20:00— y
 decae hacia 00:00): el grueso se reparte 07:00–00:00; en la franja **00:00–07:00** el peso horario se
 **reduce por `mult_nocturno_odac`** (default 0.5, tuning) → **≈ 5 atenciones en Pozuelo** *(consecuencia

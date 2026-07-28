@@ -58,9 +58,14 @@ func _mundo(puestos_doc: int = 2, min_dia: float = 600.0) -> Array:
 	doc.usar_economia(economia)
 	doc.usar_personal(personal)
 	doc.aplicar_config(ConfigDocumentacionScript.new())
+	# El cableado de Main (story doc-006): el horario del servicio **y** el de cada ventanilla.
 	doc.horario_cambiado.connect(
 		func(apertura: int, cierre: int, ultima: int) -> void:
 			flujo.fijar_horario_doc(apertura, cierre, ultima)
+			for id: StringName in doc.puestos_de_doc():
+				flujo.fijar_cierre_de_puesto(
+					id, cierre if doc.puesto_de_tarde(id) else doc.cierre_base_min
+				)
 	)
 	doc.refrescar_horario()
 	return [doc, flujo, economia, personal, tiempo, bus]
@@ -272,3 +277,116 @@ func test_con_demanda_alta_la_ampliacion_puede_pagarse_y_con_baja_no() -> void:
 	var minimo_rentable: int = int(ceil(coste / ingreso_por_dni))
 	assert_bool(float(minimo_rentable) * ingreso_por_dni >= coste).is_true()
 	assert_bool(float(minimo_rentable - 1) * ingreso_por_dni < coste).is_true()
+
+
+# ══ Story doc-006 · Peonada POR VENTANILLA (feedback del usuario 2026-07-28) ══════════════
+# "En temporada baja no es rentable abrir todos los puestos pero sí unos pocos." Antes, ampliar
+# el horario cobraba por TODAS las ventanillas dotadas: la decisión no se podía tomar.
+
+# ── AC-DC17 · Se paga por la que se queda, no por la plantilla ───────────────────────────
+func test_solo_una_ventanilla_de_tarde_cuesta_la_peonada_de_una() -> void:
+	var mundo: Array = _mundo(3)                      # 3 ventanillas dotadas
+	var doc: Node = mundo[0]
+	doc.fijar_hora_cierre(1080)                       # 18:00 → 3,5 h extra
+	assert_float(doc.coste_peonada_estimado()).is_equal_approx(157.5, 0.001)   # las 3
+
+	doc.fijar_puesto_de_tarde(&"doc_2", false)
+	doc.fijar_puesto_de_tarde(&"doc_3", false)        # solo se queda doc_1
+
+	assert_int(doc.num_agentes_doc()).is_equal(1)
+	assert_float(doc.coste_peonada_estimado()).is_equal_approx(52.5, 0.001)
+	assert_float(doc.coste_peonada_por_ventanilla()).is_equal_approx(52.5, 0.001)
+
+
+func test_una_ventanilla_sin_agente_no_cuenta_aunque_se_quede() -> void:
+	var mundo: Array = _mundo(2)
+	var doc: Node = mundo[0]
+	var personal: Node = mundo[3]
+	personal.registrar_puesto(&"doc_9", &"puesto_doc_general")   # existe, pero sin dotar
+	doc.fijar_hora_cierre(1080)
+	assert_int(doc.num_agentes_doc()).is_equal(2)                # las 2 dotadas, no 3
+
+
+# ── AC-DC19 · Sin nadie de tarde, es como no haber ampliado ──────────────────────────────
+func test_sin_ventanillas_de_tarde_el_servicio_vuelve_al_horario_base() -> void:
+	var mundo: Array = _mundo(2)
+	var doc: Node = mundo[0]
+	var flujo: Node = mundo[1]
+	doc.fijar_hora_cierre(1080)
+	assert_int(doc.hora_cierre_efectiva()).is_equal(1080)
+
+	doc.fijar_puesto_de_tarde(&"doc_1", false)
+	doc.fijar_puesto_de_tarde(&"doc_2", false)        # nadie hace la tarde
+
+	assert_int(doc.hora_cierre_efectiva()).is_equal(870)         # como si no hubiera ampliado
+	assert_float(doc.horas_extra()).is_equal(0.0)
+	assert_float(doc.coste_peonada_estimado()).is_equal(0.0)
+	assert_int(doc.hora_ultima_admision()).is_equal(855)         # la puerta cierra a la hora de siempre
+	assert_int(flujo.ultima_admision_doc_min).is_equal(855)
+	# ...y el slider NO se ha movido: el jugador sigue viendo su elección de las 18:00.
+	assert_int(doc.hora_cierre_min).is_equal(1080)
+
+
+# ── AC-DC18 · La que se queda atiende; la que no, cierra ─────────────────────────────────
+func test_pasado_el_cierre_base_solo_sigue_abierta_la_ventanilla_de_tarde() -> void:
+	var mundo: Array = _mundo(2, 600.0)
+	var doc: Node = mundo[0]
+	var flujo: Node = mundo[1]
+	var tiempo: Node = mundo[4]
+	doc.fijar_hora_cierre(1080)                       # el servicio abre hasta las 18:00...
+	doc.fijar_puesto_de_tarde(&"doc_2", false)        # ...pero doc_2 se va a su hora
+
+	tiempo.minutos_juego = 900.0                      # 15:00
+	flujo._al_tick(1.0)
+
+	assert_str(String(flujo.estado_de_puesto(&"doc_1"))).is_equal("libre")      # sigue de guardia
+	assert_str(String(flujo.estado_de_puesto(&"doc_2"))).is_equal("cerrado")    # se fue a casa
+	assert_int(flujo.cierre_de_puesto(&"doc_1")).is_equal(1080)
+	assert_int(flujo.cierre_de_puesto(&"doc_2")).is_equal(870)
+
+
+func test_volver_a_marcar_la_ventanilla_la_reabre() -> void:
+	var mundo: Array = _mundo(2, 900.0)               # 15:00, con el servicio ampliado
+	var doc: Node = mundo[0]
+	var flujo: Node = mundo[1]
+	doc.fijar_hora_cierre(1080)
+	doc.fijar_puesto_de_tarde(&"doc_2", false)
+	flujo._al_tick(1.0)
+	assert_str(String(flujo.estado_de_puesto(&"doc_2"))).is_equal("cerrado")
+
+	doc.fijar_puesto_de_tarde(&"doc_2", true)         # el jugador cambia de idea
+	flujo._al_tick(1.0)
+	assert_str(String(flujo.estado_de_puesto(&"doc_2"))).is_equal("libre")
+
+
+# ── AC-DC22 · Las ventanillas de tarde sobreviven al guardado ────────────────────────────
+func test_las_ventanillas_de_tarde_se_guardan_y_se_restauran() -> void:
+	var mundo: Array = _mundo(3)
+	var doc: Node = mundo[0]
+	doc.fijar_hora_cierre(1080)
+	doc.fijar_puesto_de_tarde(&"doc_2", false)
+
+	var recuperado: Dictionary = JSON.parse_string(JSON.stringify(doc.save()))
+	var otro: Array = _mundo(3)
+	var doc2: Node = otro[0]
+	doc2.load_state(recuperado)
+
+	assert_bool(doc2.puesto_de_tarde(&"doc_1")).is_true()
+	assert_bool(doc2.puesto_de_tarde(&"doc_2")).is_false()
+	assert_bool(doc2.puesto_de_tarde(&"doc_3")).is_true()
+	assert_float(doc2.coste_peonada_estimado()).is_equal_approx(105.0, 0.001)
+
+
+func test_un_save_anterior_a_esta_story_deja_a_todas_haciendo_la_tarde() -> void:
+	var doc: Node = _mundo(2)[0]
+	doc.load_state({"hora_cierre_min": 1080, "margen_ultima_admision_min": 15, "evento_activo_id": ""})
+	assert_bool(doc.puesto_de_tarde(&"doc_1")).is_true()
+	assert_bool(doc.puesto_de_tarde(&"doc_2")).is_true()
+
+
+func test_una_ventanilla_nueva_hace_la_tarde_sin_darla_de_alta() -> void:
+	# Se guarda la EXCEPCIÓN, no la norma: construir una ventanilla no obliga a acordarse de nada.
+	var mundo: Array = _mundo(1)
+	var doc: Node = mundo[0]
+	mundo[3].registrar_puesto(&"doc_nueva", &"puesto_doc_general")
+	assert_bool(doc.puesto_de_tarde(&"doc_nueva")).is_true()

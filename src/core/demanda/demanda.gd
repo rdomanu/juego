@@ -50,6 +50,8 @@ const UMBRAL_AVISO_ACUMULADOR := 3.0
 var tasa_base_doc: float = 0.5
 var tasa_base_odac: float = 0.4
 var perfil_hora_doc: Dictionary[int, float] = {}
+## Goteo de tarde de Doc (story doc-006): peso EXTRA por franja, aditivo sobre el perfil base.
+var perfil_hora_doc_tarde: Dictionary[int, float] = {}
 var perfil_hora_odac: Dictionary[int, float] = {}
 var mult_nocturno_odac: float = 0.5
 var mult_dia_semana: float = 1.0
@@ -311,7 +313,9 @@ func densidad_por_minuto(min_dia: float, servicio: StringName) -> float:
 ## `mult_nocturno_odac` (F2): el valle lo crea el multiplicador, no los pesos base (semilla uniforme).
 func _peso_franja(servicio: StringName, hora: int) -> float:
 	if servicio == SERVICIO_DOC:
-		return perfil_hora_doc.get(hora, 0.0)
+		# Base (Σ = 1.0, la jornada de mañana) + goteo de tarde ADITIVO (story doc-006): gente que hoy
+		# no viene porque la ventanilla está cerrada. Solo cuenta si la ventana llega hasta esa franja.
+		return perfil_hora_doc.get(hora, 0.0) + perfil_hora_doc_tarde.get(hora, 0.0)
 	var peso: float = perfil_hora_odac.get(hora, 0.0)
 	if hora < HORA_FIN_VALLE_ODAC:
 		peso *= mult_nocturno_odac
@@ -574,6 +578,7 @@ func aplicar_config(config: Resource) -> void:
 	factor_crecimiento_nivel = _clamp_knob(config.factor_crecimiento_nivel, "factor_crecimiento_nivel")
 	# La ventana de Doc YA NO se lee de aquí (doc-002): la empuja Documentación #8 con
 	# `fijar_ventana_doc()`. Sin ella, valen los defaults del horario base [480, 870).
+	perfil_hora_doc_tarde = config.perfil_hora_doc_tarde.duplicate()
 	mezcla_doc = config.mezcla_doc.duplicate()
 	mezcla_odac = config.mezcla_odac.duplicate()
 	umbral_nivel_bajo = _clamp_knob(config.umbral_nivel_bajo, "umbral_nivel_bajo")

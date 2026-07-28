@@ -265,3 +265,46 @@ func test_tres_real_existe_y_carga_semillas() -> void:
 	assert_float(config.mult_estacional[1]).is_equal_approx(0.6, 0.0001)
 	assert_int(config.eventos.size()).is_equal(1)
 	assert_str(String(config.eventos[0]["id"])).is_equal("vacaciones")
+
+
+# ══ Story doc-006 · El goteo de tarde (feedback del usuario 2026-07-28) ═══════════════════
+# "Se abren citas para la tarde": sin cita, abrir por la tarde capta un GOTEO de gente que hoy no
+# viene porque la ventanilla está cerrada. Deliberadamente pequeño: solo compensa con cola que vaciar.
+
+# ── AC-DC21: el perfil base sigue sumando 1.0 (AC-DM03a NO se rompe) ─────────────────────
+func test_el_goteo_de_tarde_no_altera_el_perfil_base() -> void:
+	var demanda: Node = _demanda()
+	var suma: float = 0.0
+	for peso: float in demanda.perfil_hora_doc.values():
+		suma += peso
+	assert_float(suma).is_equal_approx(1.0, 0.0001)
+	# El goteo vive aparte y es ADITIVO (no reparte la demanda de la mañana: la amplía).
+	assert_bool(demanda.perfil_hora_doc_tarde.size() > 0).is_true()
+	assert_bool(demanda.perfil_hora_doc.has(16)).is_false()
+
+
+# ── AC-DC20: con la ventana ampliada llega gente por la tarde; con la base, nadie ────────
+func test_con_el_horario_base_las_franjas_de_tarde_no_generan_a_nadie() -> void:
+	var demanda: Node = _demanda()
+	demanda.fijar_ventana_doc(480, 855)                      # jornada base
+	assert_float(demanda.llegadas_esperadas_hora(960.0, DOC)).is_equal_approx(0.0, 0.0001)  # 16:00
+
+
+func test_ampliando_hasta_las_dieciocho_llega_el_goteo_de_la_tarde() -> void:
+	var demanda: Node = _demanda()
+	demanda.fijar_ventana_doc(480, 1065)                     # cierre 18:00, última admisión 17:45
+	# Franja 16:00 → peso 0.05 × 45 llegadas/día = 2,25 personas esa hora.
+	assert_float(demanda.llegadas_esperadas_hora(960.0, DOC)).is_equal_approx(2.25, 0.0001)
+	# Y la franja de la mañana no ha cambiado ni un ápice (0.30 × 45 = 13,5 a las 08:00).
+	assert_float(demanda.llegadas_esperadas_hora(510.0, DOC)).is_equal_approx(13.5, 0.0001)
+
+
+func test_el_goteo_de_toda_la_tarde_ronda_las_nueve_personas() -> void:
+	# Abrir hasta las 20:00 (franjas 15-19: 0.06+0.05+0.04+0.03+0.02 = 0.20) → 9 personas/día.
+	# Poco a propósito: no paga sola una ventanilla (52,5 € con 3,5 h) — hace falta cola que vaciar.
+	var demanda: Node = _demanda()
+	demanda.fijar_ventana_doc(480, 1185)                     # cierre 20:00, admisión hasta 19:45
+	var total: float = 0.0
+	for hora: int in range(15, 20):
+		total += demanda.llegadas_esperadas_hora(float(hora * 60), DOC)
+	assert_float(total).is_equal_approx(9.0, 0.001)

@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: "2026-07-26"
+last_updated: "2026-07-28"
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -792,6 +792,17 @@ constants:
     added: 2026-07-21
     revised: ""
   # --- Tuning de Documentacion (documentation.md) ---
+  - name: perfil_hora_doc_tarde
+    status: active
+    source: design/gdd/demand-generation.md
+    referenced_by:
+      - design/gdd/demand-generation.md
+      - design/gdd/documentation.md
+    value: "15:0.06 16:0.05 17:0.04 18:0.03 19:0.02 20:0.015 21:0.01"
+    unit: fraccion_demanda_diaria_por_franja
+    notes: "Goteo de tarde de Documentacion (enmienda usuario 2026-07-28, story doc-006). Demanda EXTRA por franja SI el servicio sigue abierto pasada la jornada base: gente que hoy no viene porque la ventanilla esta cerrada. ADITIVO sobre perfil_hora_doc, que sigue sumando 1.0 (AC-DM03a intacto). Suma 0.215 ~ 9-10 personas/dia abriendo hasta las 20:00 en Pozuelo. Deliberadamente pequeno: la tarde SOLA no paga una ventanilla (52,5 EUR con 3,5 h y 1 agente); la paga junto con la cola acumulada -> F2 de Documentacion. Dueno: Demanda #5 (es su perfil); lo consume la decision de peonada de Documentacion #8. Semilla a calibrar en playtest."
+    added: 2026-07-28
+    revised: ""
   - name: margen_ultima_admision_min
     status: active
     source: design/gdd/documentation.md
