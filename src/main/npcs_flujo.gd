@@ -27,6 +27,7 @@ const ROTULO_ESTADO: Dictionary[StringName, String] = {
 	&"libre": "LIBRE",
 	&"en_camino": "EN CAMINO",   # enmienda 2026-07-25: llamada emitida, el ciudadano aún camina
 	&"atendiendo": "ATENDIENDO",
+	&"descansando": "☕ DESCANSO",   # Bienestar #13: su titular se ha ido a por su café
 }
 const COLOR_ESTADO: Dictionary[StringName, Color] = {
 	&"cerrado": Color(0.6, 0.6, 0.6),
@@ -34,6 +35,7 @@ const COLOR_ESTADO: Dictionary[StringName, Color] = {
 	&"libre": Color(0.55, 0.9, 0.55),
 	&"en_camino": Color(0.6, 0.7, 0.9),
 	&"atendiendo": Color(0.5, 0.75, 1.0),
+	&"descansando": Color(0.85, 0.7, 0.45),   # ámbar tostado: ni alarma ni normalidad
 }
 ## Uniforme del policía (torso azul marino, cabeza clara — estilo npc_ciudadano).
 const COLOR_POLICIA_TORSO := Color(0.10, 0.14, 0.30)
@@ -66,6 +68,11 @@ var _plaza_de: Dictionary[Vector2i, Node] = {}
 ## Puesto_id → Node2D contenedor de su visual (muñeco policía + etiqueta nombre + rótulo estado).
 ## Se crea/borra/actualiza por DIFF (meta en el contenedor) — cero trabajo por frame si nada cambia.
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
+## Segunda línea del rótulo de un puesto (hoy: los minutos que le quedan al que está de café).
+var _rotulo_extra: Dictionary[StringName, String] = {}
+## Capa donde se pintan los que están de café + firma para no repoblarla cada frame.
+var _capa_descansos: Node2D = null
+var _firma_descansos: String = ""
 
 
 ## El objeto que esta persona está usando ahora (`&""` si ninguno) — lo LEE el NPC para saber si
@@ -154,6 +161,11 @@ func configurar(
 	_region = NavigationRegion2D.new()
 	_region.name = "Navegacion"
 	add_child(_region)
+	# Capa de los que están de café (Bienestar #13): cuelga de aquí para heredar el z_index de los
+	# NPCs y dibujarse por encima de las salas, como el resto de la gente.
+	_capa_descansos = Node2D.new()
+	_capa_descansos.name = "Descansos"
+	add_child(_capa_descansos)
 	_rebake_pendiente = true
 
 
@@ -173,6 +185,7 @@ func _physics_process(_delta: float) -> void:
 		_rebake_pendiente = false
 		_bakear_navegacion()
 	_refrescar_puestos()
+	_refrescar_descansos()
 
 
 ## Bake del polígono navegable: el suelo del edificio + dos celdas de "calle" a la izquierda
@@ -375,18 +388,93 @@ func _refrescar_puestos() -> void:
 			var agente: RefCounted = _personal.agente_de(puesto_id)
 			nombre = agente.nombre if agente != null else ""
 		var estado: StringName = _flujo.estado_de_puesto(puesto_id)
+		# Bienestar #13: si su titular está de café, se DICE — y con los minutos que le quedan. Una
+		# ventanilla parada sin explicación parece un bug; con el motivo delante, es una decisión de
+		# gestión (¿monto una sala de descanso? ¿contrato a alguien que cubra?).
+		var de_cafe: RefCounted = (
+			_personal.agente_descansando_en(puesto_id)
+			if _personal != null and _personal.has_method("agente_descansando_en") else null
+		)
+		if de_cafe != null:
+			estado = &"descansando"
+			nombre = de_cafe.nombre
+			var quedan: int = roundi(_personal.minutos_de_descanso_restantes(de_cafe))
+			_rotulo_extra[puesto_id] = "☕ %d min" % quedan
 		_asegurar_visual_puesto(puesto_id, celda)
 		# Si el puesto se MUEVE (modo obra), su visual le sigue (DIFF por celda vista).
 		var contenedor: Node2D = _visual_de_puesto[puesto_id]
 		if contenedor.get_meta(&"celda", Vector2i(-9999, -9999)) != celda:
 			contenedor.set_meta(&"celda", celda)
 			contenedor.position = _construccion.centro_de_celda(celda) + Vector2(0, -_tam_celda * 0.55)
-		_actualizar_visual_puesto(puesto_id, dotado, nombre, estado)
+		_actualizar_visual_puesto(puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""))
+		if de_cafe == null:
+			_rotulo_extra.erase(puesto_id)
 	# Retira los visuales de puestos que ya no están registrados (demolidos / cargados fuera).
 	for puesto_id: StringName in _visual_de_puesto.keys():
 		if not vivos.has(puesto_id):
 			_visual_de_puesto[puesto_id].queue_free()
 			_visual_de_puesto.erase(puesto_id)
+
+
+## Los que están de café, dibujados DENTRO de la sala de descanso (Bienestar #13). Si no hay sala
+## construida no se pinta a nadie: es que se han ido a la calle, y esa ausencia también informa.
+## Se repuebla por DIFF (solo cuando cambia quién está descansando), nunca por frame.
+func _refrescar_descansos() -> void:
+	if _personal == null or _construccion == null:
+		return
+	var descansando: Array[RefCounted] = []
+	for agente: RefCounted in _personal.plantilla:
+		if agente.estado == &"descansando":
+			descansando.append(agente)
+	var firma: String = "%d" % descansando.size()
+	if firma == _firma_descansos:
+		return
+	_firma_descansos = firma
+	for hijo: Node in _capa_descansos.get_children():
+		hijo.queue_free()
+	var sala: StringName = _sala_de_descanso()
+	if sala == &"":
+		return   # sin sala: están fuera del edificio, no hay nada que pintar
+	var rect: Rect2i = _construccion.rect_de_sala(sala)
+	for i: int in range(descansando.size()):
+		# Se reparten en fila dentro de la sala, sin salirse de su rectángulo.
+		var celda: Vector2i = Vector2i(
+			rect.position.x + (i % maxi(rect.size.x, 1)),
+			rect.position.y + mini(i / maxi(rect.size.x, 1), maxi(rect.size.y - 1, 0))
+		)
+		var muneco: Node2D = _crear_muneco_policia()
+		muneco.position = _construccion.centro_de_celda(celda)
+		_capa_descansos.add_child(muneco)
+		var taza := Label.new()
+		taza.text = "☕"
+		taza.add_theme_font_size_override("font_size", 10)
+		taza.position = Vector2(-6, -26)
+		taza.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		muneco.add_child(taza)
+
+
+## La primera sala de tipo "descanso" construida (`&""` si no hay ninguna).
+func _sala_de_descanso() -> StringName:
+	var salas: Array[StringName] = _construccion.salas_de_tipo("descanso")
+	return salas[0] if not salas.is_empty() else &""
+
+
+## Un muñeco de policía suelto (torso + cabeza), el mismo que se planta en los mostradores.
+func _crear_muneco_policia() -> Node2D:
+	var muneco := Node2D.new()
+	var torso := ColorRect.new()
+	torso.color = COLOR_POLICIA_TORSO
+	torso.size = Vector2(12, 16)
+	torso.position = Vector2(-6, -8)
+	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	muneco.add_child(torso)
+	var cabeza := ColorRect.new()
+	cabeza.color = COLOR_POLICIA_TORSO.lightened(0.55)
+	cabeza.size = Vector2(8, 6)
+	cabeza.position = Vector2(-4, -14)
+	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	muneco.add_child(cabeza)
+	return muneco
 
 
 ## Crea (una vez) el contenedor del puesto con sus tres piezas hijas fijas: muñeco policía (torso +
@@ -429,26 +517,33 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 ## Aplica el estado por DIFF: solo toca los nodos si el nombre visto o el estado visto cambiaron
 ## (metas en el contenedor). El muñeco se muestra/oculta con `dotado`; el rótulo siempre visible.
 func _actualizar_visual_puesto(
-	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName
+	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName, extra: String = ""
 ) -> void:
 	var contenedor: Node2D = _visual_de_puesto[puesto_id]
 	var visto_dotado: bool = contenedor.get_meta(&"dotado", false)
 	var visto_nombre: String = contenedor.get_meta(&"nombre", "")
 	var visto_estado: StringName = contenedor.get_meta(&"estado", &"")
-	if visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado:
+	var visto_extra: String = contenedor.get_meta(&"extra", "")
+	if visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado 			and visto_extra == extra:
 		return   # nada cambió: cero toques a nodos este frame
 	contenedor.set_meta(&"dotado", dotado)
 	contenedor.set_meta(&"nombre", nombre)
 	contenedor.set_meta(&"estado", estado)
+	contenedor.set_meta(&"extra", extra)
 	# Horario provisional 2026-07-25 "los funcionarios se van": con el puesto cerrado (por horario o
 	# por el jugador) el muñeco y su nombre desaparecen del mostrador — caminar a casa es juice futuro.
 	var policia: Node2D = contenedor.get_node("Policia")
-	policia.visible = dotado and estado != &"cerrado"
+	# De café, el mostrador se queda VACÍO (el muñeco se va) pero el nombre sigue: es SU ventanilla,
+	# solo que ahora mismo no hay nadie.
+	policia.visible = dotado and estado != &"cerrado" and estado != &"descansando"
 	var lbl_nombre: Label = contenedor.get_node("Nombre")
-	lbl_nombre.visible = dotado and estado != &"cerrado"
+	lbl_nombre.visible = estado == &"descansando" or (dotado and estado != &"cerrado")
 	lbl_nombre.text = nombre
 	var lbl_estado: Label = contenedor.get_node("Estado")
 	lbl_estado.text = ROTULO_ESTADO.get(estado, String(estado).to_upper())
+	if extra != "":
+		lbl_estado.text += "
+" + extra
 	lbl_estado.modulate = COLOR_ESTADO.get(estado, Color.WHITE)
 
 

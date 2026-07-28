@@ -264,6 +264,16 @@ func usables_de_servicio(servicio: StringName) -> Array[StringName]:
 	return resultado
 
 
+## Las salas construidas de un tipo ("espera" / "oficina" / "descanso"), en orden de construcción.
+func salas_de_tipo(tipo: String) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for sala_id: StringName in _salas:
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala != null and tipo_sala.tipo == tipo:
+			resultado.append(sala_id)
+	return resultado
+
+
 ## ¿Existe alguna sala construida de este tipo ("espera" / "oficina" / "descanso")? Lo consulta
 ## Personal para saber si hay sala de descanso (Bienestar #13).
 func hay_sala_de_tipo(tipo: String) -> bool:
