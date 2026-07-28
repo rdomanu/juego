@@ -45,6 +45,7 @@ var k_confort: float = 0.02
 var mult_comodidad_min: float = 0.6
 var prob_uso_comodidad_min: float = 0.04
 var umbral_uso_comodidad: float = 75.0
+var max_usos_comodidad: int = 2
 var mult_horapunta: float = 1.0
 var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
@@ -76,6 +77,10 @@ var _camino_a_su_sitio: Dictionary = {}
 ## `persona -> {elemento: StringName, restante: float}`. Mientras usa, su paciencia **no baja**: está
 ## entretenida, que es exactamente lo que el jugador ha comprado. Se serializa con el resto.
 var _usando_comodidad: Dictionary = {}
+## Veces que cada persona YA se ha levantado en esta visita: `persona -> int`. El tope
+## (`max_usos_comodidad`) es lo que impide que quien espera mucho acabe dando cuatro viajes a la
+## máquina — a la ventanilla se va a un trámite, no a merendar (feedback del usuario 2026-07-28).
+var _usos_comodidad: Dictionary = {}
 
 # ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
 var _flujo: Node = null
@@ -281,6 +286,8 @@ func _consumir_uso_comodidad(persona: RefCounted, delta_min: float) -> float:
 func _quizas_ir_a_una_comodidad(persona: RefCounted, servicio: StringName, minutos: float) -> bool:
 	if _construccion == null or _rng == null:
 		return false
+	if int(_usos_comodidad.get(persona, 0)) >= max_usos_comodidad:
+		return false   # ya ha ido lo suyo: se queda en el sitio esperando su turno
 	if float(_paciencia_de.get(persona, 100.0)) > umbral_uso_comodidad:
 		return false
 	if _rng.randf() > prob_uso_comodidad_min * minutos:
@@ -298,6 +305,9 @@ func _quizas_ir_a_una_comodidad(persona: RefCounted, servicio: StringName, minut
 		"catalogo": _construccion.catalogo_de_elemento(elegido),
 		"restante": comodidad.minutos_de_uso,
 	}
+	# Se cuenta al LEVANTARSE, no al volver: si le llaman a media consumición, el viaje ya lo ha
+	# hecho — si no, cortarle el café le regalaría un viaje extra.
+	_usos_comodidad[persona] = int(_usos_comodidad.get(persona, 0)) + 1
 	return true
 
 
@@ -407,6 +417,7 @@ func _purgar_terminadas() -> void:
 		_paciencia_al_llamar.erase(persona)
 		_camino_a_su_sitio.erase(persona)
 		_usando_comodidad.erase(persona)
+		_usos_comodidad.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────
@@ -428,6 +439,9 @@ func registrar(persona: RefCounted) -> void:
 			_camino_a_su_sitio[persona] = float(guardado["camino"])
 		# El que estaba en la máquina sigue en la máquina (story com-003). El ELEMENTO concreto se
 		# vuelve a buscar por el catálogo: al cargar, Construcción ha creado ids nuevos.
+		var usos_previos: int = int(guardado.get("usos_comodidad", 0))
+		if usos_previos > 0:
+			_usos_comodidad[persona] = usos_previos
 		var catalogo_uso: String = String(guardado.get("usando", ""))
 		var restante_uso: float = float(guardado.get("usando_restante", 0.0))
 		if catalogo_uso != "" and restante_uso > 0.0:
@@ -468,6 +482,7 @@ func olvidar(persona: RefCounted) -> void:
 	_paciencia_al_llamar.erase(persona)
 	_camino_a_su_sitio.erase(persona)
 	_usando_comodidad.erase(persona)
+	_usos_comodidad.erase(persona)
 
 
 ## ¿Está esta persona esperando bajo el ojo de Paciencia?
@@ -794,6 +809,8 @@ func save() -> Dictionary:
 			# el id de CATÁLOGO, no el del elemento — al cargar, el objeto es otro id de Construcción.
 			"usando": String(_usando_comodidad.get(persona, {}).get("catalogo", "")),
 			"usando_restante": float(_usando_comodidad.get(persona, {}).get("restante", 0.0)),
+			# Los viajes ya hechos: sin esto, cargar la partida le regalaría el tope entero otra vez.
+			"usos_comodidad": int(_usos_comodidad.get(persona, 0)),
 		})
 	var acumulado: Dictionary = {}
 	for servicio: StringName in SERVICIOS:
@@ -826,6 +843,7 @@ func load_state(d: Dictionary) -> void:
 	# recrea a Paciencia), un uso de comodidad de la partida anterior no puede sobrevivir — sus
 	# personas ya no existen. `registrar()` decide, por la clave estable, si hay que restaurar uno.
 	_usando_comodidad.clear()
+	_usos_comodidad.clear()
 	_restaurables.clear()
 	for barra: Dictionary in d.get("barras", []):
 		_restaurables[String(barra.get("clave", ""))] = {
@@ -837,6 +855,7 @@ func load_state(d: Dictionary) -> void:
 			# vacíos (`get("usando", "")` caía al default) y el gesto nunca sobrevivía al guardado.
 			"usando": String(barra.get("usando", "")),
 			"usando_restante": float(barra.get("usando_restante", 0.0)),
+			"usos_comodidad": int(barra.get("usos_comodidad", 0)),
 		}
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
@@ -872,6 +891,7 @@ func aplicar_config(config: Resource) -> void:
 	mult_comodidad_min = clampf(config.mult_comodidad_min, 0.1, 1.0)
 	prob_uso_comodidad_min = clampf(config.prob_uso_comodidad_min, 0.0, 1.0)
 	umbral_uso_comodidad = clampf(config.umbral_uso_comodidad, 0.0, 100.0)
+	max_usos_comodidad = clampi(config.max_usos_comodidad, 0, 10)
 	mult_horapunta = clampf(config.mult_horapunta, 0.1, 3.0)
 	umbral_animo_alto = clampf(config.umbral_animo_alto, 0.0, 100.0)
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)

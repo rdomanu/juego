@@ -222,3 +222,68 @@ func test_el_gesto_sobrevive_al_guardado() -> void:
 
 	otra.registrar(persona_nueva)
 	assert_str(String(otra.comodidad_en_uso(persona_nueva))).is_not_equal("")
+
+
+# ── Tope de viajes por visita (feedback del usuario 2026-07-28) ─────────────────────────
+# "hay muchos que lo hacen varias veces, eso no es normal, vas 1 vez o 2 como mucho, he visto a 1
+# hasta 4 veces". A la ventanilla se va a un trámite, no a merendar.
+func test_nadie_va_a_la_maquina_mas_de_dos_veces() -> void:
+	var mundo: Array = _mundo()
+	mundo[0].construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
+	var persona: RefCounted = _persona()
+	paciencia.registrar(persona)
+	paciencia.drenar(persona, 12.0)                     # 60: por debajo del umbral
+
+	# Dos viajes: se le permiten (con `minutos` alto la tirada siempre entra).
+	assert_bool(paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)).is_true()
+	paciencia._consumir_uso_comodidad(persona, 99.0)    # vuelve del primero
+	paciencia.drenar(persona, 12.0)                     # vuelve a bajar del umbral
+	assert_bool(paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)).is_true()
+	paciencia._consumir_uso_comodidad(persona, 99.0)
+	paciencia.drenar(persona, 12.0)
+
+	# El tercero NO: ya ha ido lo suyo, se queda esperando su turno como todo el mundo.
+	assert_bool(paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)).is_false()
+
+
+func test_el_viaje_cuenta_aunque_le_llamen_a_media_consumicion() -> void:
+	# Se cuenta al LEVANTARSE: si cortarle el café no contara, una llamada le regalaría un viaje.
+	var mundo: Array = _mundo()
+	mundo[0].construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(mundo[0], mundo[1])
+	var persona: RefCounted = _persona()
+	paciencia.registrar(persona)
+	paciencia.drenar(persona, 12.0)
+	paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)   # se levanta...
+	paciencia.olvidar(persona)                                    # ...y le llaman / se resuelve
+
+	# Otra persona distinta (misma clave lógica no importa aquí): el contador es POR persona.
+	var otra: RefCounted = _persona(2)
+	paciencia.registrar(otra)
+	paciencia.drenar(otra, 12.0)
+	assert_bool(paciencia._quizas_ir_a_una_comodidad(otra, DOC, 1000.0)).is_true()
+
+
+func test_los_viajes_ya_hechos_sobreviven_al_guardado() -> void:
+	var mundo: Array = _mundo()
+	var construccion: Node = mundo[0]
+	construccion.construir_elemento(&"vending", Vector2i(3, 7))
+	var paciencia: Node = _paciencia_con(construccion, mundo[1])
+	var persona: RefCounted = _persona(9)
+	paciencia.registrar(persona)
+	paciencia.drenar(persona, 12.0)
+	paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)
+	paciencia._consumir_uso_comodidad(persona, 99.0)
+	paciencia._quizas_ir_a_una_comodidad(persona, DOC, 1000.0)
+	paciencia._consumir_uso_comodidad(persona, 99.0)              # ya lleva 2
+
+	var recuperado: Dictionary = JSON.parse_string(JSON.stringify(paciencia.save()))
+	var otra: Node = _paciencia_con(construccion, mundo[1])
+	otra.load_state(recuperado)
+	var persona_nueva: RefCounted = _persona(9)
+	otra.registrar(persona_nueva)
+	otra.drenar(persona_nueva, 20.0)
+
+	# Cargar la partida NO le regala viajes nuevos.
+	assert_bool(otra._quizas_ir_a_una_comodidad(persona_nueva, DOC, 1000.0)).is_false()

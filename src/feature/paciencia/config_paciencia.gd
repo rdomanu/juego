@@ -58,6 +58,11 @@ class_name ConfigPaciencia extends Resource
 ## com-003). 0.04 = uno de cada 25 minutos-persona; con una espera larga, casi todos acaban yendo
 ## alguna vez. Sube esto y el vending recauda más (y la sala se llena de gente paseando).
 @export var prob_uso_comodidad_min: float = 0.04
+## Cuántas veces como MUCHO se levanta una misma persona en toda su visita (feedback del usuario
+## 2026-07-28: *"hay muchos que lo hacen varias veces, eso no es normal, vas 1 vez o 2 como mucho, he
+## visto a 1 hasta 4 veces"*). Sin este tope, cada vez que la barra volvía a bajar del umbral la
+## persona podía volver a la máquina: el que esperaba mucho acababa dando cuatro viajes.
+@export var max_usos_comodidad: int = 2
 ## Solo se levantan los que YA llevan un rato: por encima de esta paciencia nadie se mueve del sitio
 ## (acaba de llegar, no le apetece nada). 75 = cuando ya ha perdido un cuarto de su aguante.
 @export var umbral_uso_comodidad: float = 75.0
