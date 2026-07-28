@@ -329,19 +329,23 @@ func _generar_comodidades() -> void:
 	), "comodidades")
 	_guardar(_comodidad(
 		&"fuente_agua", "Fuente de agua", "Agua fresca para los que llevan horas. Gratis.",
-		"ciudadano", 400, 2, 3.0, true, 0.0, 2.0, 10.0
+		"ciudadano", 400, 2, 3.0, true, 0.0, 2.0, 10.0,
+		true, Color(0.85, 0.95, 1.0), 70.0    # un piloto blanco tenue
 	), "comodidades")
 	_guardar(_comodidad(
 		&"vending", "Maquina de vending", "Cafe y algo de picar: cada consumicion deja 1 EUR en caja.",
-		"ciudadano", 1200, 3, 5.0, true, 1.0, 3.0, 15.0
+		"ciudadano", 1200, 3, 5.0, true, 1.0, 3.0, 15.0,
+		true, Color(1.0, 0.85, 0.55), 95.0    # el expositor iluminado y sus pilotos
 	), "comodidades")
 	_guardar(_comodidad(
 		&"television", "Television", "Lo que mas mata el tiempo de una sala de espera.",
-		"ciudadano", 900, 4, 6.0
+		"ciudadano", 900, 4, 6.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.55, 0.72, 1.0), 110.0   # el parpadeo azulado de la pantalla
 	), "comodidades")
 	_guardar(_comodidad(
 		&"equipo_informatico", "Equipo informatico nuevo", "Menos pantallazos, mas tramites.",
-		"funcionario", 1500, 2, 4.0
+		"funcionario", 1500, 2, 4.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.70, 0.85, 1.0), 80.0    # el monitor encendido en la oficina de noche
 	), "comodidades")
 	_guardar(_comodidad(
 		&"impresora_dni", "Impresora de DNI moderna", "El documento sale en la mitad de tiempo.",
@@ -353,7 +357,8 @@ func _comodidad(
 	id: StringName, nombre: String, descripcion: String, familia: String,
 	coste: int, mantenimiento: int, aporte: float,
 	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
-	recupera: float = 0.0
+	recupera: float = 0.0,
+	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -367,6 +372,9 @@ func _comodidad(
 	r.ingreso_por_uso_eur = ingreso_uso
 	r.minutos_de_uso = minutos_uso
 	r.recupera_paciencia = recupera
+	r.emite_luz = emite_luz
+	r.color_luz = color_luz
+	r.radio_luz = radio_luz
 	return r
 
 

@@ -52,8 +52,12 @@ const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
 ## El panel del horario de Documentación (story doc-005): el slider que decide cuánto abres.
 const PanelHorarioScript := preload("res://src/main/panel_horario.gd")
+## El modal del Comisario (2026-07-28): sin él, quedarse sin dinero BLOQUEABA la partida.
+const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
 ## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
 const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
+## Las luces de los objetos comprados, que se encienden de noche (petición del usuario 2026-07-28).
+const LucesObjetosScript := preload("res://src/main/luces_objetos.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
@@ -169,6 +173,12 @@ func _ready() -> void:
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
 	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _refrescar_etiquetas())
 	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
+	# El modal del Comisario: Economía PAUSA el juego al tocar el suelo de deuda y espera una
+	# decisión. Sin alguien escuchando esa señal, esa pausa era un bloqueo del que no se salía.
+	var modal: CanvasLayer = ModalComisarioScript.new()
+	modal.name = "ModalComisario"
+	add_child(modal)
+	modal.configurar(_economia, EventBus)
 	# Partida nueva: el reloj se sitúa a la hora de arranque del catálogo (07:30). Cargar un guardado
 	# (F9) sobreescribe esto con la hora guardada, que es lo correcto.
 	Tiempo.iniciar_partida_nueva()
@@ -180,6 +190,12 @@ func _ready() -> void:
 	ciclo_luz.name = "CicloLuz"
 	add_child(ciclo_luz)
 	ciclo_luz.configurar(Tiempo)
+	# Los focos puntuales de la noche (art bible §2): la tele, el vending, la fuente y los equipos
+	# informáticos se encienden al anochecer, con la misma curva horaria que la luz ambiente.
+	var luces: Node2D = LucesObjetosScript.new()
+	luces.name = "LucesObjetos"
+	add_child(luces)
+	luces.configurar(_construccion, Tiempo)
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
 	_programar_captura_evidencia()

@@ -11,3 +11,6 @@ familia = "ciudadano"
 coste_construccion_eur = 900
 coste_mantenimiento_dia_eur = 4
 aporte = 6.0
+emite_luz = true
+color_luz = Color(0.55, 0.72, 1, 1)
+radio_luz = 110.0

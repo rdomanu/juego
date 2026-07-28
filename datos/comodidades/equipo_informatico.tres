@@ -11,3 +11,6 @@ familia = "funcionario"
 coste_construccion_eur = 1500
 coste_mantenimiento_dia_eur = 2
 aporte = 4.0
+emite_luz = true
+color_luz = Color(0.7, 0.85, 1, 1)
+radio_luz = 80.0

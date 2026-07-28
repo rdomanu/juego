@@ -44,3 +44,14 @@ class_name Comodidad extends Resource
 @export var minutos_de_uso: float = 3.0
 ## Puntos de paciencia que devuelve haber ido (0-100). Un café calma más que hojear una revista.
 @export var recupera_paciencia: float = 0.0
+
+# ── Luz propia (petición del usuario 2026-07-28) ─────────────────────────────────────────────
+## ¿Este objeto **se enciende de noche**? La tele, el vending y la fuente tienen pantalla o piloto;
+## una papelera o un revistero, no. De día no se nota; cuando cae la noche, la sala deja de estar a
+## oscuras del todo y se ven los puntos de luz de lo que has comprado.
+@export var emite_luz: bool = false
+## Color de esa luz. La tele tira a azul frío (pantalla), el vending a ámbar (los pilotos y el
+## expositor iluminado), la fuente a un blanco tenue.
+@export var color_luz: Color = Color(1.0, 0.9, 0.7)
+## Radio de la luz en píxeles. Ninguna ilumina media comisaría: son toques, no farolas.
+@export var radio_luz: float = 90.0

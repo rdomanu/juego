@@ -74,3 +74,51 @@ func test_la_hora_acumulada_del_reloj_se_normaliza() -> void:
 	assert_bool(
 		CicloLuzScript.color_a_las(5100.0).is_equal_approx(CicloLuzScript.color_a_las(780.0))
 	).is_true()
+
+
+# ══ Las luces de los objetos se encienden de noche (petición del usuario 2026-07-28) ══════
+const LucesObjetosScript := preload("res://src/main/luces_objetos.gd")
+
+
+func test_de_dia_los_objetos_no_dan_luz() -> void:
+	assert_float(LucesObjetosScript.energia_a_las(600.0)).is_equal(0.0)    # 10:00
+	assert_float(LucesObjetosScript.energia_a_las(900.0)).is_equal(0.0)    # 15:00
+
+
+func test_de_noche_estan_encendidos_del_todo() -> void:
+	assert_float(LucesObjetosScript.energia_a_las(1320.0)).is_equal(1.0)   # 22:00
+	assert_float(LucesObjetosScript.energia_a_las(120.0)).is_equal(1.0)    # 02:00
+
+
+func test_encienden_al_anochecer_de_forma_gradual() -> void:
+	# Entre las 19:00 y las 21:00 van subiendo: a las 20:00 están a medias.
+	assert_float(LucesObjetosScript.energia_a_las(1140.0)).is_equal(0.0)   # 19:00 — aún no
+	assert_float(LucesObjetosScript.energia_a_las(1200.0)).is_equal_approx(0.5, 0.01)
+	assert_float(LucesObjetosScript.energia_a_las(1260.0)).is_equal(1.0)   # 21:00 — del todo
+
+
+func test_se_apagan_al_amanecer() -> void:
+	assert_float(LucesObjetosScript.energia_a_las(420.0)).is_equal(1.0)    # 07:00 — aún encendidas
+	assert_float(LucesObjetosScript.energia_a_las(450.0)).is_equal_approx(0.5, 0.01)
+	assert_float(LucesObjetosScript.energia_a_las(480.0)).is_equal(0.0)    # 08:00 — ya sobran
+
+
+func test_la_transicion_no_da_saltos() -> void:
+	var anterior: float = LucesObjetosScript.energia_a_las(0.0)
+	for minuto: int in range(1, 1440):
+		var actual: float = LucesObjetosScript.energia_a_las(float(minuto))
+		assert_bool(absf(actual - anterior) < 0.03).is_true()
+		anterior = actual
+
+
+func test_solo_se_encienden_los_que_tienen_luz_propia() -> void:
+	# La tele, el vending, la fuente y el equipo informático tienen pantalla o piloto; la papelera
+	# y el revistero, no. Que la lista salga del CATÁLOGO es lo que permite añadir objetos sin tocar
+	# la capa visual.
+	assert_bool(Datos.obtener(&"Comodidad", &"television").emite_luz).is_true()
+	assert_bool(Datos.obtener(&"Comodidad", &"vending").emite_luz).is_true()
+	assert_bool(Datos.obtener(&"Comodidad", &"fuente_agua").emite_luz).is_true()
+	assert_bool(Datos.obtener(&"Comodidad", &"equipo_informatico").emite_luz).is_true()
+	assert_bool(Datos.obtener(&"Comodidad", &"papelera").emite_luz).is_false()
+	assert_bool(Datos.obtener(&"Comodidad", &"revistero").emite_luz).is_false()
+	assert_bool(Datos.obtener(&"Comodidad", &"radio").emite_luz).is_false()
