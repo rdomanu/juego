@@ -17,6 +17,9 @@ var _manager: Node2D = null
 var _nav: NavigationAgent2D = null
 var _velocidad: float = 90.0
 var _estado_visto: StringName = &""
+## El objeto que estaba usando la última vez que se miró (story com-003): cambiar de "nada" a "el
+## vending" (y al revés) es un cambio de destino aunque el ESTADO lógico siga siendo el mismo.
+var _comodidad_vista: StringName = &""
 ## El NavigationServer sincroniza en el 1er physics frame: hasta entonces ni target ni camino.
 var _nav_lista: bool = false
 ## Tamaño de la barra de paciencia (px). Ancha para leerse a distancia de cámara sin acercarse.
@@ -92,8 +95,10 @@ func _physics_process(_delta: float) -> void:
 	if persona == null:
 		return
 	# Solo al CAMBIAR el estado lógico se recalcula el destino (cero trabajo extra por frame).
-	if persona.estado != _estado_visto:
+	var comodidad: StringName = _manager.comodidad_de(persona)
+	if persona.estado != _estado_visto or comodidad != _comodidad_vista:
 		_estado_visto = persona.estado
+		_comodidad_vista = comodidad
 		_nav.target_position = _manager.destino_de(self)
 	_refrescar_animo()
 	# El paseo escala con el reloj (2×/3× caminan más rápido); en Pausa (mult 0) se congela.

@@ -6,7 +6,10 @@
 script = ExtResource("1_uasic")
 id = &"revistero"
 nombre = "Revistero"
-descripcion = "Prensa del dia para la espera."
+descripcion = "Prensa del dia: se coge una y se hojea mientras se espera."
 familia = "ciudadano"
 coste_construccion_eur = 150
 aporte = 2.0
+usable = true
+minutos_de_uso = 2.0
+recupera_paciencia = 8.0

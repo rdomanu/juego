@@ -315,20 +315,20 @@ func _generar_comodidades() -> void:
 		"ciudadano", 60, 0, 1.0
 	), "comodidades")
 	_guardar(_comodidad(
-		&"revistero", "Revistero", "Prensa del dia para la espera.",
-		"ciudadano", 150, 0, 2.0
+		&"revistero", "Revistero", "Prensa del dia: se coge una y se hojea mientras se espera.",
+		"ciudadano", 150, 0, 2.0, true, 0.0, 2.0, 8.0
 	), "comodidades")
 	_guardar(_comodidad(
 		&"radio", "Hilo musical", "Musica ambiente: la espera se hace menos larga.",
 		"ciudadano", 250, 1, 3.0
 	), "comodidades")
 	_guardar(_comodidad(
-		&"fuente_agua", "Fuente de agua", "Agua fresca para los que llevan horas.",
-		"ciudadano", 400, 2, 3.0
+		&"fuente_agua", "Fuente de agua", "Agua fresca para los que llevan horas. Gratis.",
+		"ciudadano", 400, 2, 3.0, true, 0.0, 2.0, 10.0
 	), "comodidades")
 	_guardar(_comodidad(
-		&"vending", "Maquina de vending", "Cafe y algo de picar sin salir de la comisaria.",
-		"ciudadano", 1200, 3, 5.0
+		&"vending", "Maquina de vending", "Cafe y algo de picar: cada consumicion deja 1 EUR en caja.",
+		"ciudadano", 1200, 3, 5.0, true, 1.0, 3.0, 15.0
 	), "comodidades")
 	_guardar(_comodidad(
 		&"television", "Television", "Lo que mas mata el tiempo de una sala de espera.",
@@ -346,7 +346,9 @@ func _generar_comodidades() -> void:
 
 func _comodidad(
 	id: StringName, nombre: String, descripcion: String, familia: String,
-	coste: int, mantenimiento: int, aporte: float
+	coste: int, mantenimiento: int, aporte: float,
+	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
+	recupera: float = 0.0
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -356,6 +358,10 @@ func _comodidad(
 	r.coste_construccion_eur = coste
 	r.coste_mantenimiento_dia_eur = mantenimiento
 	r.aporte = aporte
+	r.usable = usable
+	r.ingreso_por_uso_eur = ingreso_uso
+	r.minutos_de_uso = minutos_uso
+	r.recupera_paciencia = recupera
 	return r
 
 

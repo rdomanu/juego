@@ -152,11 +152,11 @@ stories:
     name: "Implementar epic Documentacion (horario + peonada + ultima admision; MIGRAR horario desde Flujo)"
     file: "production/epics/documentacion/EPIC.md"
     priority: should-have
-    status: in-progress
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.8
     blocker: "C3-6"
-    completed: ""
+    completed: "2026-07-28"
   - id: "C3-8"
     name: "Rondas de demo y ajustes de Documentacion (ventana + sign-off)"
     file: "production/qa/evidence/"

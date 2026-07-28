@@ -54,6 +54,13 @@ class_name ConfigPaciencia extends Resource
 ## no todo el que se va se queja, pero 4 de cada 10 sí — y esa queja es trabajo real para ODAC que
 ## además no paga nada. Es el castigo con dientes de la mala gestión.
 @export var prob_reclamacion: float = 0.4
+## Probabilidad POR MINUTO de que alguien que espera se levante a usar una comodidad (story
+## com-003). 0.04 = uno de cada 25 minutos-persona; con una espera larga, casi todos acaban yendo
+## alguna vez. Sube esto y el vending recauda más (y la sala se llena de gente paseando).
+@export var prob_uso_comodidad_min: float = 0.04
+## Solo se levantan los que YA llevan un rato: por encima de esta paciencia nadie se mueve del sitio
+## (acaba de llegar, no le apetece nada). 75 = cuando ya ha perdido un cuarto de su aguante.
+@export var umbral_uso_comodidad: float = 75.0
 ## Puntos de paciencia que pierde CADA UNO de los que esperan cuando el jugador cuela a alguien
 ## (mecánica del 2026-07-26). Es el precio social del favor: colar arregla un caso y empeora el
 ## resto de la sala. Semilla 10 = un octavo de la barra, notable pero no fulminante.

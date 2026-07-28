@@ -3,8 +3,9 @@
 > **Layer**: Feature
 > **GDD**: *pendiente* — hoy vive como `mult_comodidad` en `design/gdd/patience-satisfaction.md` (F1)
 > **Architecture Module**: Comodidades #15 (Vertical Slice, **fuera del MVP 12**)
-> **Status**: Esbozado — **no planificado**; a la espera de decisión de alcance del usuario
-> **Origen**: petición del usuario 2026-07-26, **ampliada el 2026-07-28** (equipamiento del funcionario)
+> **Status**: In Progress — 3/3 stories implementadas; **falta el sign-off del usuario** en ventana
+> **Origen**: petición del usuario 2026-07-26, **ampliada el 2026-07-28** (equipamiento del funcionario
+> y el USO de los objetos)
 
 ## Overview
 
@@ -56,14 +57,28 @@ que aguanten más (comodidades) o en que salgan antes (equipamiento)?"*.
 **Acceso**: ya está preparado — el menú del clic derecho sobre la sala (2026-07-28) tiene la entrada
 **"🛋 Comodidades"** puesta y **deshabilitada**, esperando a este epic.
 
-## Preguntas de diseño abiertas (para el usuario)
+## Preguntas de diseño abiertas — RESUELTAS (usuario, 2026-07-28, story 001)
 
-- ¿El confort es **por sala** (una tele beneficia a toda la sala) o **por asiento** (butaca cómoda
-  solo a quien se sienta en ella)? *Recomendación: por sala, mucho más simple de entender y de jugar.*
-- ¿Tienen **coste de mantenimiento** diario? Daría una decisión económica real (invertir vs. gastar).
-- ¿Un tope de confort por sala, o se puede llenar la sala de teles?
+- ¿Por sala o por asiento? → **Por sala.**
+- ¿Mantenimiento diario? → **Solo para lo que consume** (radio, tele, vending, fuente, equipos); la
+  papelera y el revistero se pagan una vez.
+- ¿Tope de confort? → **Sí**, `mult_comodidad_min = 0.6` (story 002): por muy bien montada que esté la
+  sala, nadie espera eternamente.
+
+## Stories
+
+| # | Story | Type | Status | ADR |
+|---|-------|------|--------|-----|
+| 001 | El catálogo de objetos y el confort de la sala | Integration | Complete | ADR-0003 |
+| 002 | El efecto — aguantan más y atienden antes | Integration | Complete | ADR-0001, ADR-0003 |
+| 003 | El uso de los objetos — vending, fuente y revistero | Integration | Complete | ADR-0002 |
+
+**Cobertura de los 25 AC:** 001 → AC-CM01..06 (catálogo + colocación) · 002 → AC-CM07..12 (el confort y
+el equipamiento hacen efecto) · 003 → AC-CM13..25 (la gente se levanta, usa el objeto y vuelve; el
+vending deja 1 € en caja — petición del usuario 2026-07-28).
 
 ## Next Step
 
-Decisión de alcance del usuario: si entra al MVP (sería un epic pequeño, ~4-5 stories) o se queda
-para después del MVP. **No está en ningún sprint.**
+**Código y tests completos (3/3 stories, suite en verde).** Falta la demo en ventana con el usuario y
+su sign-off antes de marcar el epic **Complete** — incluida la decisión pendiente de si esto entra en
+el MVP o queda como epic post-MVP ya construido. **No está en ningún sprint formal todavía.**

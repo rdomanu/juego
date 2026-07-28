@@ -111,9 +111,9 @@
 ## Test Evidence
 
 **Story Type**: Integration
-**Required evidence**: `tests/integration/comodidades/comodidades_catalogo_test.gd` en verde + suite.
+**Required evidence**: `tests/integration/comodidades/comodidades_catalogo_test.gd` — **18/18 en verde**.
 
-**Status**: [ ] Not yet created
+**Status**: [x] `tests/integration/comodidades/comodidades_catalogo_test.gd` · suite completa **528/528, exit 0** (verificada en el hilo principal el 2026-07-28)
 
 ---
 

@@ -6,8 +6,11 @@
 script = ExtResource("1_aiyfp")
 id = &"fuente_agua"
 nombre = "Fuente de agua"
-descripcion = "Agua fresca para los que llevan horas."
+descripcion = "Agua fresca para los que llevan horas. Gratis."
 familia = "ciudadano"
 coste_construccion_eur = 400
 coste_mantenimiento_dia_eur = 2
 aporte = 3.0
+usable = true
+minutos_de_uso = 2.0
+recupera_paciencia = 10.0

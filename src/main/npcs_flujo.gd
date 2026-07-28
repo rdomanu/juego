@@ -68,6 +68,14 @@ var _plaza_de: Dictionary[Vector2i, Node] = {}
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
 
 
+## El objeto que esta persona está usando ahora (`&""` si ninguno) — lo LEE el NPC para saber si
+## tiene que acercarse a la máquina. Cosmético puro: aquí no se decide nada (FL5).
+func comodidad_de(persona: RefCounted) -> StringName:
+	if _paciencia == null or not _paciencia.has_method("comodidad_en_uso"):
+		return &""
+	return _paciencia.comodidad_en_uso(persona)
+
+
 func usar_paciencia(paciencia: Node) -> void:
 	_paciencia = paciencia
 
@@ -218,6 +226,12 @@ func destino_de(npc: Node) -> Vector2:
 	var persona: RefCounted = npc.persona
 	match persona.estado:
 		&"esperando_dentro":
+			# ¿Se ha levantado a por un café? (story com-003) Entonces su destino es la máquina; al
+			# terminar vuelve a su sitio de siempre (`_sitio_en_espera` es idempotente: le devuelve
+			# la plaza que tenía reservada, no le busca otra).
+			var comodidad: StringName = comodidad_de(persona)
+			if comodidad != &"":
+				return _construccion.centro_de_celda(_construccion.posicion_de(comodidad))
 			return _sitio_en_espera(npc)
 		&"esperando_fuera":
 			return _punto_calle(persona.numero_turno)

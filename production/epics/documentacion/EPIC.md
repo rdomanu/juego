@@ -3,8 +3,8 @@
 > **Layer**: Feature
 > **GDD**: design/gdd/documentation.md
 > **Architecture Module**: Documentación #8 (configurador de la operativa de Doc)
-> **Status**: In Progress
-> **Stories**: 5 — creadas el 2026-07-26
+> **Status**: Complete
+> **Stories**: 6 — 001-005 creadas el 2026-07-26, 006 añadida el 2026-07-28
 > **Manifest Version**: 2026-07-22
 
 ## Overview
@@ -64,15 +64,17 @@ This epic is complete when:
 
 | # | Story | Type | Status | ADR |
 |---|-------|------|--------|-----|
-| 001 | El servicio y su reloj — núcleo, config y F3 | Logic | Ready | ADR-0003 |
-| 002 | La mudanza — el horario deja de vivir prestado en Flujo | Integration | Ready | ADR-0001 |
-| 003 | La peonada — alargar la tarde cuesta dinero (F1/F2) | Integration | Ready | ADR-0001 |
-| 004 | Los eventos de la División + guardar el servicio | Integration | Ready | ADR-0003 |
-| 005 | El panel del servicio — el slider de horario (HITO VISIBLE) | UI | Ready | ADR-0001 |
+| 001 | El servicio y su reloj — núcleo, config y F3 | Logic | Complete | ADR-0003 |
+| 002 | La mudanza — el horario deja de vivir prestado en Flujo | Integration | Complete | ADR-0001 |
+| 003 | La peonada — alargar la tarde cuesta dinero (F1/F2) | Integration | Complete | ADR-0001 |
+| 004 | Los eventos de la División + guardar el servicio | Integration | Complete | ADR-0003 |
+| 005 | El panel del servicio — el slider de horario (HITO VISIBLE) | UI | Complete | ADR-0001 |
+| 006 | Peonada por ventanilla + el goteo de la tarde | Integration | Complete | ADR-0001 |
 
 **Cobertura de los 16 AC del GDD:** 001 → AC-DC01/07/10 · 002 → AC-DC02/03/13 · 003 → AC-DC04/05/06/08 ·
 004 → AC-DC09/10/11/16 · 005 → AC-DC14/15. **AC-DC12** (trámite → ingreso) ya está implementado y
-testeado por Economía/Flujo; se re-verifica en la demo de la 005.
+testeado por Economía/Flujo; se re-verifica en la demo de la 005. **006** añade AC-DC17..22, fuera del
+recuento original de 16: nace de feedback de la demo (2026-07-28), no del GDD inicial.
 
 **Decisiones de diseño aprobadas por el usuario (2026-07-26), aplicadas en las stories:**
 1. **La peonada cambia de significado** (story 003): se cobra por **ampliar el horario** (DO4), no por los
@@ -87,3 +89,11 @@ testeado por Economía/Flujo; se re-verifica en la demo de la 005.
 
 Run `/story-readiness production/epics/documentacion/story-001-servicio-reloj-config.md` →
 `/dev-story` para implementar. Las stories van **en orden**: cada una depende de la anterior.
+
+## Cierre del epic (2026-07-28)
+
+**Documentación #8 completo: 6/6 stories `Complete`, cada una con su sección "Cierre" y suite en
+verde.** El horario ya no vive prestado en Flujo (deuda saldada por la 002); Flujo y Demanda respetan
+lo que este epic configura. La 006 (peonada por ventanilla + goteo de tarde) nació de feedback directo
+de la demo del usuario y cierra la Definition of Done: el servicio se paga y se comporta como el
+jugador lo configura, ventanilla a ventanilla.

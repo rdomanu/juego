@@ -6,8 +6,11 @@
 script = ExtResource("1_e6u2d")
 id = &"vending"
 nombre = "Maquina de vending"
-descripcion = "Cafe y algo de picar sin salir de la comisaria."
+descripcion = "Cafe y algo de picar: cada consumicion deja 1 EUR en caja."
 familia = "ciudadano"
 coste_construccion_eur = 1200
 coste_mantenimiento_dia_eur = 3
 aporte = 5.0
+usable = true
+ingreso_por_uso_eur = 1.0
+recupera_paciencia = 15.0

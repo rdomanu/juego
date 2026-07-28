@@ -77,9 +77,9 @@
 ## Test Evidence
 
 **Story Type**: Integration
-**Required evidence**: `tests/unit/comodidades/comodidades_efecto_test.gd` + suite completa en verde.
+**Required evidence**: `tests/integration/comodidades/comodidades_catalogo_test.gd` (el efecto se testea junto al catálogo).
 
-**Status**: [ ] Not yet created
+**Status**: [x] suite completa **528/528, exit 0** (verificada en el hilo principal el 2026-07-28)
 
 ---
 

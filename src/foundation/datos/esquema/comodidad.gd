@@ -31,3 +31,16 @@ class_name Comodidad extends Resource
 @export var aporte: float = 1.0
 ## Celdas que ocupa (como el resto de elementos colocables). 1 en todo el catálogo semilla.
 @export var superficie: int = 1
+
+# ── Objetos de USO (story com-003): a estos la gente se ACERCA ───────────────────────────────
+## ¿Hay que ir hasta él para aprovecharlo? La tele y el hilo musical se disfrutan **desde el
+## asiento** (solo confort ambiental); al vending, a la fuente y al revistero **se va**.
+@export var usable: bool = false
+## Lo que deja de beneficio cada consumición, en euros. El vending vende: cada café es 1 € que entra
+## en caja. Los objetos gratuitos (fuente, revistero) dejan 0 — dan servicio, no dinero.
+@export var ingreso_por_uso_eur: float = 0.0
+## Minutos de juego que dura el gesto (ir, consumir, volver). Mientras usa, la persona **no gasta
+## paciencia**: está entretenida, que es justo lo que se le ha comprado.
+@export var minutos_de_uso: float = 3.0
+## Puntos de paciencia que devuelve haber ido (0-100). Un café calma más que hojear una revista.
+@export var recupera_paciencia: float = 0.0

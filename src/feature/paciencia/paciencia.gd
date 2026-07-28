@@ -43,6 +43,8 @@ var k_hacinamiento: float = 1.0
 var mult_comodidad: float = 1.0
 var k_confort: float = 0.02
 var mult_comodidad_min: float = 0.6
+var prob_uso_comodidad_min: float = 0.04
+var umbral_uso_comodidad: float = 75.0
 var mult_horapunta: float = 1.0
 var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
@@ -70,6 +72,10 @@ var _paciencia_al_llamar: Dictionary = {}
 ## Persona → minutos que le quedan de CAMINO HASTA SU SITIO de espera (enmienda 2026-07-26). Mientras
 ## camina no gasta paciencia: todavía no está esperando, está yendo.
 var _camino_a_su_sitio: Dictionary = {}
+## Quién está AHORA usando una comodidad y cuánto le queda (story com-003):
+## `persona -> {elemento: StringName, restante: float}`. Mientras usa, su paciencia **no baja**: está
+## entretenida, que es exactamente lo que el jugador ha comprado. Se serializa con el resto.
+var _usando_comodidad: Dictionary = {}
 
 # ── Sistemas inyectados (dependency injection → testeable sin autoloads ni Main) ─────────────
 var _flujo: Node = null
@@ -232,12 +238,94 @@ func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
 		var minutos: float = _consumir_camino(persona, delta_min)
 		if minutos <= 0.0:
 			continue
+		# ¿Está en el vending / la fuente / el revistero? Entonces no está sufriendo la cola
+		# (story com-003). Al volver trae paciencia nueva y, si consumió, un euro para la caja.
+		minutos = _consumir_uso_comodidad(persona, minutos)
+		if minutos <= 0.0:
+			continue
+		if _quizas_ir_a_una_comodidad(persona, servicio, minutos):
+			continue
 		if drenar(persona, minutos, mult, mult_com) <= 0.0:
 			_a_abandonar.append(persona)
 
 
 ## Gasta `delta_min` en el camino pendiente hasta su sitio y devuelve los minutos que SOBRAN (los que
 ## ya cuentan como espera de verdad). Sin camino pendiente, devuelve el delta entero.
+## **Comodidades de USO (story com-003)** · Gasta los minutos que la persona está en la máquina. Al
+## terminar el gesto: recupera paciencia, **entra el dinero de la consumición** y vuelve a su sitio.
+## Devuelve los minutos que SOBRAN para la espera normal (0 si sigue allí).
+func _consumir_uso_comodidad(persona: RefCounted, delta_min: float) -> float:
+	if not _usando_comodidad.has(persona):
+		return delta_min
+	var uso: Dictionary = _usando_comodidad[persona]
+	var restante: float = float(uso["restante"]) - delta_min
+	if restante > 0.0:
+		uso["restante"] = restante
+		return 0.0
+	_usando_comodidad.erase(persona)
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", uso["catalogo"])
+	if comodidad != null:
+		# Vuelve más calmado (la barra sube, con tope 100) y deja su euro si ha consumido.
+		_paciencia_de[persona] = minf(
+			float(_paciencia_de.get(persona, 0.0)) + comodidad.recupera_paciencia, PACIENCIA_INICIAL
+		)
+		if comodidad.ingreso_por_uso_eur > 0.0 and _economia != null 				and _economia.has_method("registrar_consumicion"):
+			_economia.registrar_consumicion(comodidad.ingreso_por_uso_eur)
+	return maxf(-restante, 0.0)   # lo que sobra del minuto ya cuenta como espera normal
+
+
+## ¿Se levanta a por un café? Solo quien **ya lleva un rato** esperando (por debajo del umbral) y con
+## una probabilidad por minuto — el azar viene SIEMPRE de RNGService (determinista, ADR-0002). Elige
+## el objeto usable de su sala que más paciencia le devuelva: la gente va a lo que más le apetece.
+## Devuelve `true` si se ha levantado (ese minuto ya no cuenta como espera).
+func _quizas_ir_a_una_comodidad(persona: RefCounted, servicio: StringName, minutos: float) -> bool:
+	if _construccion == null or _rng == null:
+		return false
+	if float(_paciencia_de.get(persona, 100.0)) > umbral_uso_comodidad:
+		return false
+	if _rng.randf() > prob_uso_comodidad_min * minutos:
+		return false
+	var elegido: StringName = _mejor_comodidad_usable(servicio)
+	if elegido == &"":
+		return false
+	var comodidad: Resource = Datos.obtener_silencioso(
+		&"Comodidad", _construccion.catalogo_de_elemento(elegido)
+	)
+	if comodidad == null:
+		return false
+	_usando_comodidad[persona] = {
+		"elemento": elegido,
+		"catalogo": _construccion.catalogo_de_elemento(elegido),
+		"restante": comodidad.minutos_de_uso,
+	}
+	return true
+
+
+## El objeto USABLE de las salas de espera del servicio que más paciencia devuelve (desempate estable
+## por id). `&""` si no hay ninguno instalado.
+func _mejor_comodidad_usable(servicio: StringName) -> StringName:
+	var mejor: StringName = &""
+	var mejor_valor: float = -1.0
+	for elemento_id: StringName in _construccion.usables_de_servicio(servicio):
+		var comodidad: Resource = Datos.obtener_silencioso(
+			&"Comodidad", _construccion.catalogo_de_elemento(elemento_id)
+		)
+		if comodidad == null:
+			continue
+		if comodidad.recupera_paciencia > mejor_valor:
+			mejor = elemento_id
+			mejor_valor = comodidad.recupera_paciencia
+	return mejor
+
+
+## El elemento que esta persona está usando ahora mismo (`&""` si ninguno). Lo LEE la capa de NPCs
+## para mandar al muñeco hasta la máquina y traerlo de vuelta — cosmético puro.
+func comodidad_en_uso(persona: RefCounted) -> StringName:
+	if not _usando_comodidad.has(persona):
+		return &""
+	return _usando_comodidad[persona]["elemento"]
+
+
 func _consumir_camino(persona: RefCounted, delta_min: float) -> float:
 	var restante: float = float(_camino_a_su_sitio.get(persona, 0.0))
 	if restante <= 0.0:
@@ -318,6 +406,7 @@ func _purgar_terminadas() -> void:
 		_paciencia_de.erase(persona)
 		_paciencia_al_llamar.erase(persona)
 		_camino_a_su_sitio.erase(persona)
+		_usando_comodidad.erase(persona)
 
 
 # ── Alta y baja de personas ──────────────────────────────────────────────────────────────────
@@ -337,12 +426,34 @@ func registrar(persona: RefCounted) -> void:
 			_paciencia_al_llamar[persona] = float(guardado["al_llamar"])
 		if float(guardado.get("camino", 0.0)) > 0.0:
 			_camino_a_su_sitio[persona] = float(guardado["camino"])
+		# El que estaba en la máquina sigue en la máquina (story com-003). El ELEMENTO concreto se
+		# vuelve a buscar por el catálogo: al cargar, Construcción ha creado ids nuevos.
+		var catalogo_uso: String = String(guardado.get("usando", ""))
+		var restante_uso: float = float(guardado.get("usando_restante", 0.0))
+		if catalogo_uso != "" and restante_uso > 0.0:
+			_usando_comodidad[persona] = {
+				"elemento": _elemento_usable_de_catalogo(persona.servicio(), StringName(catalogo_uso)),
+				"catalogo": StringName(catalogo_uso),
+				"restante": restante_uso,
+			}
 		_restaurables.erase(clave)
 		return
 	_paciencia_de[persona] = PACIENCIA_INICIAL
 	var camino: float = minutos_hasta_su_sitio(persona)
 	if camino > 0.0:
 		_camino_a_su_sitio[persona] = camino
+
+
+## Un elemento instalado de ese tipo de catálogo en las salas del servicio (`&""` si ya no existe —
+## el jugador pudo demoler la máquina antes de guardar y el gesto se queda sin destino visible, que
+## es inofensivo: el uso termina igual y la persona vuelve a su sitio).
+func _elemento_usable_de_catalogo(servicio: StringName, catalogo: StringName) -> StringName:
+	if _construccion == null:
+		return &""
+	for elemento_id: StringName in _construccion.usables_de_servicio(servicio):
+		if _construccion.catalogo_de_elemento(elemento_id) == catalogo:
+			return elemento_id
+	return &""
 
 
 ## Clave ESTABLE de una persona entre guardado y carga: su servicio y su número de turno (los objetos
@@ -356,6 +467,7 @@ func olvidar(persona: RefCounted) -> void:
 	_paciencia_de.erase(persona)
 	_paciencia_al_llamar.erase(persona)
 	_camino_a_su_sitio.erase(persona)
+	_usando_comodidad.erase(persona)
 
 
 ## ¿Está esta persona esperando bajo el ojo de Paciencia?
@@ -678,6 +790,10 @@ func save() -> Dictionary:
 			"valor": float(_paciencia_de[persona]),
 			"al_llamar": float(_paciencia_al_llamar.get(persona, -1.0)),
 			"camino": float(_camino_a_su_sitio.get(persona, 0.0)),
+			# Quien estaba en el vending al guardar sigue allí al cargar (story com-003): se guarda
+			# el id de CATÁLOGO, no el del elemento — al cargar, el objeto es otro id de Construcción.
+			"usando": String(_usando_comodidad.get(persona, {}).get("catalogo", "")),
+			"usando_restante": float(_usando_comodidad.get(persona, {}).get("restante", 0.0)),
 		})
 	var acumulado: Dictionary = {}
 	for servicio: StringName in SERVICIOS:
@@ -706,12 +822,21 @@ func load_state(d: Dictionary) -> void:
 	_paciencia_de.clear()
 	_paciencia_al_llamar.clear()
 	_camino_a_su_sitio.clear()
+	# Igual que las otras tres: si este `load_state` corre sobre el MISMO nodo (el SaveManager no
+	# recrea a Paciencia), un uso de comodidad de la partida anterior no puede sobrevivir — sus
+	# personas ya no existen. `registrar()` decide, por la clave estable, si hay que restaurar uno.
+	_usando_comodidad.clear()
 	_restaurables.clear()
 	for barra: Dictionary in d.get("barras", []):
 		_restaurables[String(barra.get("clave", ""))] = {
 			"valor": float(barra.get("valor", PACIENCIA_INICIAL)),
 			"al_llamar": float(barra.get("al_llamar", -1.0)),
 			"camino": float(barra.get("camino", 0.0)),
+			# BUG corregido (story com-003): `save()` ya escribía "usando"/"usando_restante" en cada
+			# barra, pero aquí no se copiaban al buffer de reenganche → `registrar()` los leía siempre
+			# vacíos (`get("usando", "")` caía al default) y el gesto nunca sobrevivía al guardado.
+			"usando": String(barra.get("usando", "")),
+			"usando_restante": float(barra.get("usando_restante", 0.0)),
 		}
 	_suma_puntuaciones.clear()
 	_peso_total.clear()
@@ -745,6 +870,8 @@ func aplicar_config(config: Resource) -> void:
 	mult_comodidad = clampf(config.mult_comodidad, 0.1, 2.0)
 	k_confort = clampf(config.k_confort, 0.0, 1.0)
 	mult_comodidad_min = clampf(config.mult_comodidad_min, 0.1, 1.0)
+	prob_uso_comodidad_min = clampf(config.prob_uso_comodidad_min, 0.0, 1.0)
+	umbral_uso_comodidad = clampf(config.umbral_uso_comodidad, 0.0, 100.0)
 	mult_horapunta = clampf(config.mult_horapunta, 0.1, 3.0)
 	umbral_animo_alto = clampf(config.umbral_animo_alto, 0.0, 100.0)
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)

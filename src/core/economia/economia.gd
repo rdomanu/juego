@@ -63,6 +63,9 @@ var _horas_extra_dia: float = 0.0
 ## Mantenimiento de las comodidades instaladas, acumulado del día (Comodidades #15, story com-001).
 ## Lo REGISTRA Construcción al cierre (prio 16); aquí solo se cobra y se resetea, como la peonada.
 var _mantenimiento_dia: float = 0.0
+## Lo que han dejado hoy las consumiciones de las comodidades (story com-003). Es KPI para el HUD:
+## dice si la máquina de vending se está pagando sola. Se resetea con el resto en el cierre.
+var ingreso_comodidades_dia: float = 0.0
 ## Coste de la peonada por hora (cacheado del catálogo `costes_global`).
 var _peonada_eur_hora: float = 15.0
 
@@ -225,6 +228,18 @@ func registrar_mantenimiento(euros: float) -> void:
 	_mantenimiento_dia += maxf(euros, 0.0)
 
 
+## Ingresa una CONSUMICIÓN de las comodidades (story com-003): cada café del vending deja su euro en
+## caja al momento — es ingreso instantáneo, como el trámite, no un acumulado del cierre. Se lleva su
+## propio contador diario para que el jugador pueda ver si la máquina se está amortizando.
+func registrar_consumicion(euros: float) -> void:
+	var ingreso: float = maxf(euros, 0.0)
+	if ingreso <= 0.0:
+		return
+	ingreso_comodidades_dia += ingreso
+	ingresos_mes += ingreso
+	abonar(ingreso)
+
+
 ## El cierre de cuentas al `nuevo_dia` (prioridad 20), en el ORDEN DETERMINISTA de F6:
 ## (1) RECARGO sobre la deuda de APERTURA (antes de los gastos de hoy — así el déficit que crea la
 ##     nómina de hoy no genera recargo hasta mañana, AC-E09/E10c);
@@ -246,6 +261,7 @@ func _al_nuevo_dia() -> void:
 	gastos_mes += recargo + gastos
 	# (3) Reinicio de acumuladores.
 	ingreso_doc_dia = 0.0
+	ingreso_comodidades_dia = 0.0
 	_horas_extra_dia = 0.0
 	_mantenimiento_dia = 0.0
 	_emitir_saldo()

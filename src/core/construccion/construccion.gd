@@ -235,6 +235,35 @@ func _al_nuevo_dia() -> void:
 		_economia.registrar_mantenimiento(coste)
 
 
+## El id de CATÁLOGO de un elemento colocado (`&""` si no existe). Con él se le pregunta a Datos qué
+## es ese objeto: un puesto, un asiento o una comodidad.
+func catalogo_de_elemento(elemento_id: StringName) -> StringName:
+	if not _elementos.has(elemento_id):
+		return &""
+	return _elementos[elemento_id]["catalogo"]
+
+
+## Los objetos USABLES instalados en las salas de espera de un servicio (story com-003): a estos la
+## gente se levanta a ir. Orden estable de construcción. Lo consume Paciencia #10.
+func usables_de_servicio(servicio: StringName) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for elemento_id: StringName in _elementos:
+		var sala_id: StringName = _elementos[elemento_id]["sala"]
+		if not _salas.has(sala_id):
+			continue
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala == null or tipo_sala.tipo != "espera":
+			continue
+		if tipo_sala.servicio != String(servicio) and tipo_sala.servicio != "Comun":
+			continue
+		var comodidad: Resource = Datos.obtener_silencioso(
+			&"Comodidad", _elementos[elemento_id]["catalogo"]
+		)
+		if comodidad != null and comodidad.usable:
+			resultado.append(elemento_id)
+	return resultado
+
+
 ## El tipo de sala (id del catálogo) con el que se construyó, o `&""` si la sala no existe. Lo
 ## consume el menú contextual del clic derecho (2026-07-28) para saber con qué pincel se amplía.
 func tipo_de_sala(sala_id: StringName) -> StringName:
@@ -391,7 +420,12 @@ func _alta_elemento(
 	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &""
 ) -> StringName:
 	var elemento_id: StringName = _crear_elemento(id_catalogo, celda, coste_pagado, id_forzado)
-	if id_catalogo != ASIENTO_BASICO:
+	# Solo los PUESTOS se registran en Personal (son plazas de trabajo). Ni los asientos ni las
+	# comodidades lo son: una máquina de vending no es una vacante que cubrir.
+	# 🐛 Bug cazado por `comodidades_uso_test` (2026-07-28): antes bastaba con "no ser asiento", así
+	# que cada tele o vending entraba en Personal como puesto fantasma — habría aparecido en el panel
+	# de plantilla pidiendo un agente que jamás lo iba a atender.
+	if Datos.obtener_silencioso(&"TipoPuesto", id_catalogo) != null:
 		if _personal != null:
 			_personal.registrar_puesto(elemento_id, id_catalogo)
 		else:
