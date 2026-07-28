@@ -49,17 +49,19 @@ cuesta la peonada?), que se resuelve en playtest, no en arquitectura.
 (enmienda del 2026-07-25), y el epic **ODAC** da dueño a `Flujo.reconfigurar_puesto`, ya implementado y
 testeado pero aún sin sistema que lo gobierne.
 
-## Implementado fuera de sprint formal — pendiente de sign-off
+## Implementado fuera de sprint formal — CERRADO
 
 *Se construyó aprovechando el hueco que Paciencia ya dejaba en `mult_comodidad`, sin pasar antes por
-`/sprint-plan`. Código y tests completos; falta la demo en ventana con el usuario y su sign-off.*
+`/sprint-plan`. Código y tests completos, demo en ventana y sign-off del usuario ya concedidos.*
 
 | Epic | Qué es | Stories | Estado |
 |---|---|---|---|
-| [Comodidades #15](comodidades/EPIC.md) | Objetos que compras y colocas: **comodidades del ciudadano** (asientos, vending, radio, papeleras → aguanta más, y algunas se **usan** de verdad) y **equipamiento del funcionario** (mejor material → atiende más rápido) | 3/3 (catálogo, efecto, uso) | Código+tests completos — falta sign-off del usuario |
+| [Comodidades #15](comodidades/EPIC.md) | Objetos que compras y colocas: **comodidades del ciudadano** (asientos, vending, radio, papeleras → aguanta más, y algunas se **usan** de verdad) y **equipamiento del funcionario** (mejor material → atiende más rápido) | 3/3 (catálogo, efecto, uso) | **Complete** (3 stories, 2026-07-28) |
 
 > **Dependencia de diseño viva:** el sign-off de Paciencia (`tolerancia_base_min = 30`) se dio
-> **contando con Comodidades #15**. Con el epic ya implementado, toca revisar ese número en la demo.
+> **contando con Comodidades #15**. El epic ya está implementado, demostrado y firmado (2026-07-28,
+> evidencia `production/qa/evidence/comodidades-demo-2026-07-28.md`) — la revisión fina de ese número a
+> la luz del confort real queda pendiente de más partidas.
 
 ## Fuera del MVP — esbozados a partir de peticiones del usuario (sin planificar)
 

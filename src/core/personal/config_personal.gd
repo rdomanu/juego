@@ -31,6 +31,21 @@ class_name ConfigPersonal extends Resource
 ## Coste de despedir (PA6). Semilla 0 (MVP: despido libre).
 @export var coste_despido: float = 0.0
 
+# ── Cansancio y descansos (Bienestar #13, story bien-001) ────────────────────────────────────
+## Minutos de ATENCIÓN que aguanta un funcionario antes de necesitar su descanso, si solo se toma
+## una pausa. Quien parte su descanso en dos (motivación 5) se agota a la mitad de camino: el aguante
+## efectivo se reparte entre sus pausas. 180 min ≈ una jornada de mañana despachando sin respiro.
+@export var minutos_aguante: int = 180
+## Pausa corta, la del que hace "15 y 15" (motivación 5).
+@export var min_pausa_corta: int = 15
+## Pausa reglamentaria de un tirón (motivación 3-4): la media hora que le corresponde.
+@export var min_pausa_normal: int = 30
+## Lo que se toma el CARADURA (motivación 1-2): el doble de lo que puede, y lo sabe.
+@export var min_pausa_caradura: int = 60
+## Cuánto más cansa atender en horas extra (peonada de Documentación #8): alargar la tarde no solo
+## cuesta dinero, también quema a la gente. 1.5 = una hora de peonada cansa como hora y media.
+@export var mult_cansancio_horas_extra: float = 1.5
+
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.
 @export var n_candidatos: int = 4

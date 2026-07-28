@@ -19,7 +19,7 @@ goal: "Que la espera duela: Paciencia #10 (la gente se cansa, se va y hunde la s
 start: "2026-07-25"
 end: "2026-08-01"
 generated: "2026-07-25"
-updated: "2026-07-25"
+updated: "2026-07-28"
 
 stories:
   - id: "C3-1"
@@ -159,22 +159,22 @@ stories:
     completed: "2026-07-28"
   - id: "C3-8"
     name: "Rondas de demo y ajustes de Documentacion (ventana + sign-off)"
-    file: "production/qa/evidence/"
+    file: "production/qa/evidence/documentacion-demo-2026-07-28.md"
     priority: should-have
-    status: backlog
+    status: done
     owner: "Opus 5 + usuario"
     estimate_days: 0.3
     blocker: "C3-7"
-    completed: ""
+    completed: "2026-07-28"
   - id: "C3-9"
     name: "Cierre formal Documentacion"
     file: "production/epics/documentacion/EPIC.md"
     priority: should-have
-    status: backlog
+    status: done
     owner: "Opus 5 (hilo principal)"
     estimate_days: 0.1
     blocker: "C3-8"
-    completed: ""
+    completed: "2026-07-28"
   - id: "C3-10"
     name: "Aviso de demanda sin servicio capaz (accion #2 del retro)"
     file: "production/retrospectives/retro-sprint-2-2026-07-25.md"

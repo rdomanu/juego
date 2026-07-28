@@ -37,6 +37,11 @@ const AgenteScript := preload("res://src/core/personal/agente.gd")
 var k_calidad: float = 0.5
 var prima_rango_oficial: float = 1.3
 var k_rapidez: float = 0.1
+var minutos_aguante: int = 180
+var min_pausa_corta: int = 15
+var min_pausa_normal: int = 30
+var min_pausa_caradura: int = 60
+var mult_cansancio_horas_extra: float = 1.5
 var k_motivacion_rapidez: float = 0.05
 var k_trato: float = 0.25
 var k_motivacion_trato: float = 0.1
@@ -131,6 +136,70 @@ func factor_trato(agente: RefCounted) -> float:
 ## F4: `clamp(base_ausencia − k_salud×(S−3), 0, 1)`. Salud 5 → 0 (clamp) · Salud 3 → 3 % · Salud 1 → 7 %.
 func prob_ausencia(agente: RefCounted) -> float:
 	return clampf(base_ausencia - k_salud * float(agente.salud - 3), 0.0, 1.0)
+
+
+# ── Cansancio y descansos (Bienestar #13 · story bien-001) ───────────────────────────────────
+
+## Patrones de descanso. NO son un dado: salen de la **motivación** del agente, que hasta hoy solo
+## movía unas fórmulas invisibles y ahora se ve en pantalla. Y cierra un bucle con Documentación #8:
+## hacer salir tarde a la gente le baja la motivación… y eso convierte a un cumplidor en un caradura.
+const PATRON_DOS_CAFES := &"dos_cafes"     # motivación 5 — parte su media hora en dos
+const PATRON_UN_CAFE := &"un_cafe"         # motivación 3-4 — la media hora reglamentaria de un tirón
+const PATRON_CARADURA := &"caradura"       # motivación 1-2 — se toma el doble, y lo sabe
+
+## El patrón de descanso de este agente, derivado de su motivación (determinista: el mismo agente se
+## comporta igual siempre, y el jugador puede aprender a leerlo).
+func patron_de(agente: RefCounted) -> StringName:
+	if agente == null:
+		return PATRON_UN_CAFE
+	if agente.motivacion >= 5:
+		return PATRON_DOS_CAFES
+	if agente.motivacion <= 2:
+		return PATRON_CARADURA
+	return PATRON_UN_CAFE
+
+
+## Cuántas pausas se toma en una jornada (el de "15 y 15" hace dos; el resto, una).
+func pausas_de(agente: RefCounted) -> int:
+	return 2 if patron_de(agente) == PATRON_DOS_CAFES else 1
+
+
+## Cuánto dura CADA pausa suya, en minutos de juego.
+func minutos_de_pausa(agente: RefCounted) -> int:
+	match patron_de(agente):
+		PATRON_DOS_CAFES:
+			return min_pausa_corta
+		PATRON_CARADURA:
+			return min_pausa_caradura
+		_:
+			return min_pausa_normal
+
+
+## Minutos de ATENCIÓN que aguanta antes de agotar la barra. El presupuesto se reparte entre sus
+## pausas: quien hace dos se agota a la mitad de camino, y así los tres patrones gastan lo suyo en
+## una jornada normal.
+func aguante_efectivo(agente: RefCounted) -> float:
+	return float(minutos_aguante) / float(maxi(pausas_de(agente), 1))
+
+
+## Suma cansancio por `minutos` ATENDIENDO (parado no cansa). `en_horas_extra` aplica el recargo de
+## la peonada: alargar la tarde no solo cuesta dinero, también quema. Devuelve la barra resultante.
+func cansar(agente: RefCounted, minutos: float, en_horas_extra: bool = false) -> float:
+	if agente == null:
+		return 0.0
+	if minutos <= 0.0:
+		return agente.cansancio
+	var recargo: float = mult_cansancio_horas_extra if en_horas_extra else 1.0
+	agente.cansancio += (100.0 / aguante_efectivo(agente)) * minutos * recargo
+	return agente.cansancio
+
+
+## ¿Le toca levantarse? Barra llena **y** le quedan pausas por gastar: agotado su cupo aguanta hasta
+## el cierre, que es lo que hace un funcionario de verdad (el caradura ya se pasó antes).
+func necesita_descanso(agente: RefCounted) -> bool:
+	if agente == null:
+		return false
+	return agente.cansancio >= 100.0 and agente.pausas_gastadas < pausas_de(agente)
 
 
 # ── F5 · Mercado de fichajes (Story 002 — todo el azar vía RNGService, orden de llamadas FIJO) ─
@@ -682,6 +751,13 @@ func aplicar_config(config: Resource) -> void:
 	k_calidad = _clamp_knob(config.k_calidad, "k_calidad")
 	prima_rango_oficial = maxf(_clamp_knob(config.prima_rango_oficial, "prima_rango_oficial"), 1.0)
 	k_rapidez = _clamp_knob(config.k_rapidez, "k_rapidez")
+	minutos_aguante = maxi(config.minutos_aguante, 1)
+	min_pausa_corta = clampi(config.min_pausa_corta, 1, 240)
+	min_pausa_normal = clampi(config.min_pausa_normal, 1, 240)
+	min_pausa_caradura = clampi(config.min_pausa_caradura, 1, 240)
+	mult_cansancio_horas_extra = clampf(config.mult_cansancio_horas_extra, 1.0, 5.0)
+	if config.minutos_aguante < 1:
+		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")
 	k_trato = _clamp_knob(config.k_trato, "k_trato")
 	k_motivacion_trato = _clamp_knob(config.k_motivacion_trato, "k_motivacion_trato")

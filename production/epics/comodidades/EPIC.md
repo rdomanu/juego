@@ -3,7 +3,7 @@
 > **Layer**: Feature
 > **GDD**: *pendiente* — hoy vive como `mult_comodidad` en `design/gdd/patience-satisfaction.md` (F1)
 > **Architecture Module**: Comodidades #15 (Vertical Slice, **fuera del MVP 12**)
-> **Status**: In Progress — 3/3 stories implementadas; **falta el sign-off del usuario** en ventana
+> **Status**: Complete — 3/3 stories, demo en ventana y sign-off concedidos el 2026-07-28
 > **Origen**: petición del usuario 2026-07-26, **ampliada el 2026-07-28** (equipamiento del funcionario
 > y el USO de los objetos)
 
@@ -79,6 +79,31 @@ vending deja 1 € en caja — petición del usuario 2026-07-28).
 
 ## Next Step
 
-**Código y tests completos (3/3 stories, suite en verde).** Falta la demo en ventana con el usuario y
-su sign-off antes de marcar el epic **Complete** — incluida la decisión pendiente de si esto entra en
-el MVP o queda como epic post-MVP ya construido. **No está en ningún sprint formal todavía.**
+**Epic cerrado — ver "Cierre del epic" abajo.** Queda pendiente, sin bloquear el cierre, la decisión de
+si esto entra en el MVP formal o queda registrado como epic post-MVP ya construido.
+
+## Cierre del epic (2026-07-28)
+
+**Comodidades #15 completo: 3/3 stories `Complete`, demo en ventana y sign-off del usuario.** Nació de
+una petición del usuario (2026-07-26) fuera de todo sprint formal, aprovechando el hueco que Paciencia
+ya dejaba en `mult_comodidad` — construido y probado sin pasar antes por `/sprint-plan`. Evidencia
+completa en `production/qa/evidence/comodidades-demo-2026-07-28.md`.
+
+Lo que se probó en ventana: el menú del clic derecho sobre la sala, la compra y colocación de objetos,
+y el uso real del vending (gente levantándose de la cola, usando la máquina y volviendo).
+
+**Dos ajustes salieron directamente de ver el sistema en marcha** (no del diseño original de las
+stories 001-003):
+1. **Tope de 2 viajes por visita** — *"hay muchos que lo hacen varias veces, eso no es normal, vas 1 vez
+   o 2 como mucho, he visto a 1 hasta 4 veces"*. Sin tope, la misma persona podía volver a la máquina en
+   cada tick favorable; ahora a partir del segundo uso ya no vuelve a levantarse esa visita.
+2. **Rasgo `prob_consumidor` (0.45) por persona** — *"no todos consumen por lo que sea; no todos los que
+   baje la paciencia quieren tomar algo, al igual que el agua"*. Cada persona decide, una sola vez al
+   generarse, si es de las que consumen; quien no lo es nunca se levanta a usar nada, sin importar su
+   paciencia.
+
+**Sign-off literal del usuario: ✅ "lo dejamos así, continúa con el resto" (2026-07-28).**
+
+Sigue pendiente, como el resto del epic desde el origen: la decisión de si esto entra en el MVP formal
+o queda registrado como epic post-MVP ya construido (no bloquea el cierre — el código y los tests están
+completos y verificados).

@@ -1,11 +1,11 @@
 # Estado de sesión — activo
 
-*Última actualización: 2026-07-26*
+*Última actualización: 2026-07-28*
 
 <!-- STATUS -->
-Epic: Documentación #8 (capa Feature — Sprint 3)
-Feature: Horario configurable + peonada
-Task: C3-7 implementado 4/5 · falta sign-off del panel (005) → C3-8 demo → C3-9 cierre
+Epic: Documentación #8 y Comodidades #15 — ambos CERRADOS (2026-07-28)
+Feature: ---
+Task: Siguiente sistema a esbozar/planificar: Bienestar #13 (cansancio y sala de descanso)
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -1557,3 +1557,59 @@ servicio se comporta como si no hubieras ampliado (pero el slider no se mueve). 
 propósito, no paga una ventanilla solo; la paga con la cola acumulada. GDD y registro actualizados.
 **La cita previa queda donde estaba: sistema #14 (V-Slice)** — es la versión "con información" de esta
 misma decisión, y el usuario la quiere. PENDIENTE: demo baja vs alta + sign-off (005 y 006).
+
+---
+
+## 🎉🎉🎉 EPICS DOCUMENTACIÓN #8 Y COMODIDADES #15 CERRADOS (2026-07-28) + MENÚ DE SALA + PRÓXIMO: BIENESTAR #13
+
+**Suite 535/535, exit 0.** Arranque headless limpio. Todo commiteado y pusheado.
+
+**Documentación #8 CERRADO (6/6 stories).** El panel del horario (tecla H) se probó en ventana: slider
+de cierre con la peonada recalculada en vivo, ventanillas que se quedan por la tarde, margen de última
+admisión y la bandeja de comunicados de la División. **Sign-off literal: "me parece muy bien"
+(2026-07-28)**. La propia demo dejó dos ajustes (story 006, ya cerrada): la peonada se paga **por
+ventanilla** que se queda de guardia, no por toda la plantilla (antes era todo o nada y no dejaba tomar
+la decisión real que el jugador quería tomar); y se añadió un **goteo de demanda de tarde**
+(`perfil_hora_doc_tarde`) porque el perfil de Demanda original solo repartía llegadas hasta las 14:00 —
+ampliar horario sin eso solo vaciaba cola vieja, nunca traía gente nueva. **Queda pendiente de
+calibración fina**: si ese goteo, sumado a la cola acumulada, basta para que la peonada de tarde
+compense de verdad en todos los niveles de demanda — se decide con más partidas, no es un rediseño.
+Evidencia: `production/qa/evidence/documentacion-demo-2026-07-28.md`.
+
+**Comodidades #15 CERRADO (3/3 stories) — y esto es notable porque NO nació del plan.** Es un epic que
+el usuario pidió sobre la marcha (2026-07-26), aprovechando que Paciencia ya dejaba el hueco
+`mult_comodidad` sin usar; se construyó y se probó **sin pasar antes por `/sprint-plan`**. Se demostró
+en ventana el menú del clic derecho sobre la sala, la compra/colocación de objetos y el uso real del
+vending (gente dejando la cola, usando la máquina y volviendo). **Dos ajustes salieron de verlo en
+marcha** — el motivo por el que las demos en ventana valen más que el test automático para temas de
+sensación y ritmo: (1) **tope de 2 viajes por visita** — *"hay muchos que lo hacen varias veces, eso no
+es normal, vas 1 vez o 2 como mucho, he visto a 1 hasta 4 veces"*; sin tope la tirada podía repetirse
+cada tick para la misma persona; (2) **rasgo `prob_consumidor` (0.45) por persona** — *"no todos
+consumen por lo que sea; no todos los que baje la paciencia quieren tomar algo, al igual que el agua"*;
+ahora cada persona decide de una vez, al generarse, si es de las que consumen. **Sign-off literal: "lo
+dejamos así, continúa con el resto" (2026-07-28)**. Evidencia:
+`production/qa/evidence/comodidades-demo-2026-07-28.md`.
+
+**Menú contextual del clic derecho sobre la SALA** (no confundir con el clic derecho sobre un
+ciudadano, para colar — eso es de Flujo/Paciencia): es el acceso por el que entra Comodidades, con una
+entrada "🛋 Comodidades" que estaba puesta y deshabilitada desde antes de que el epic se implementara.
+Ya funciona a pleno uso: comprar objetos, colocarlos y ver su efecto.
+
+**Tres epics quedaron esbozados sin planificar todavía** (cada uno con su EPIC.md: qué existe, qué
+falta, preguntas de diseño abiertas — a la espera de que el usuario decida meterlos en un sprint):
+**Bienestar #13** (cansancio y sala de descanso: 30 min de café por jornada, 1 hora los caraduras; al
+agotarse la barra el agente se levanta y la ventanilla se queda sola), **Retos del Comisario** (te
+endosan un funcionario castigado con atributos malos que no puedes despedir), y **Comodidades #15** —
+que estaba en esta misma lista de "esbozado sin planificar" y **ya salió de ella** implementándose y
+cerrándose directamente por petición del usuario, sin pasar por planificación formal.
+
+**Cambio de modo de trabajo**: esta sesión pasa a un modo **híbrido de coordinación** — Opus 5 en el
+hilo principal coordina (mantiene la visión de conjunto, decide qué se delega y revisa el resultado) y
+los **subagentes Sonnet 5 ejecutan** tareas delegadas y acotadas (como esta misma tanda de evidencias y
+cierres de epic, hecha por el Producer). Motivo: descargar trabajo mecánico bien definido del hilo
+principal sin perder supervisión — el hilo principal sigue siendo quien decide y firma.
+
+**PENDIENTE: el siguiente sistema en la lista es Bienestar #13** (cansancio y sala de descanso) —
+`/create-stories bienestar` cuando el usuario decida meterlo en un sprint. Depende de que Comodidades
+ya esté cerrado (lo está) para que la comparación "invierto en aguante (comodidades) vs. invierto en
+descanso del funcionario (bienestar)" tenga sentido completo.

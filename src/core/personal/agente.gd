@@ -16,6 +16,8 @@ const ESTADO_LIBRE := &"libre"
 const ESTADO_ASIGNADO := &"asignado"
 const ESTADO_AUSENTE := &"ausente"
 const ESTADO_CUBRIENDO := &"cubriendo"
+## Está en la sala de descanso (Bienestar #13): su puesto NO atiende mientras tanto.
+const ESTADO_DESCANSANDO := &"descansando"
 
 ## Nombre propio (identidad — Pilar 2: gente con nombre, no fichas anónimas).
 var nombre: String = ""
@@ -44,6 +46,17 @@ var mando: int = 0:
 var estado: StringName = ESTADO_LIBRE
 ## Puesto asignado (`&""` si no tiene). La titularidad se conserva durante una ausencia (story 004).
 var puesto_id: StringName = &""
+
+# ── Cansancio (Bienestar #13, story bien-001) ────────────────────────────────────────────────
+## Lo cansado que está, 0-100. Sube SOLO mientras atiende: estar de brazos cruzados en una
+## ventanilla vacía no cansa; despachar sin parar, sí. Al llegar a 100 se levanta y se va a
+## descansar (story 002). Se reinicia cada jornada.
+var cansancio: float = 0.0:
+	set(valor):
+		cansancio = clampf(valor, 0.0, 100.0)
+## Pausas que ya se ha tomado HOY. Su patrón dice cuántas le tocan (una o dos): agotadas, aguanta
+## hasta el cierre aunque la barra vuelva a llenarse.
+var pausas_gastadas: int = 0
 
 
 func _init(
