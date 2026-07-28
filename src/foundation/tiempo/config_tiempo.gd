@@ -14,6 +14,12 @@ class_name ConfigTiempo extends Resource
 
 ## Minutos de juego por segundo real a velocidad 1× (driver nº1 del ritmo). `Tiempo` la clampa a [3, 12]
 ## al aplicar el config (rango seguro: nunca ≤0 = reloj congelado, nunca >12). Default 4.0 (GDD F1).
+## Hora a la que EMPIEZA una partida nueva, en minutos del día (450 = 07:30). Antes empezaba a las
+## 00:00 y el jugador se comía 8 horas de juego (2 minutos reales a 1×) mirando una comisaría a
+## oscuras con Documentación cerrada: parecía que el juego estaba parado. Se arranca media hora
+## antes de abrir, que es cuando empieza lo que el jugador puede gestionar.
+@export var hora_inicio_min: int = 450
+
 @export var escala_tiempo: float = 4.0
 
 ## Inicio del turno de MAÑANA, en minutos del día [0, 1440). Default 420 = 07:00 (GDD F3).

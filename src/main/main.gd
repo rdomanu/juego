@@ -169,6 +169,9 @@ func _ready() -> void:
 	EventBus.velocidad_cambiada.connect(_resaltar_boton)
 	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _refrescar_etiquetas())
 	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
+	# Partida nueva: el reloj se sitúa a la hora de arranque del catálogo (07:30). Cargar un guardado
+	# (F9) sobreescribe esto con la hora guardada, que es lo correcto.
+	Tiempo.iniciar_partida_nueva()
 	_crear_menu_ciudadano()
 	_crear_menu_sala()
 	# La luz del día (art bible §2): mañana cálida, mediodía neutro, tarde dorada, noche azul y

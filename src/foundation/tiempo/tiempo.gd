@@ -112,6 +112,23 @@ var _era_de_noche_anterior: bool = true
 var _bus: Node = null
 
 # ── Hook del tick de simulación (Story 007 — GDD Interacciones, ADR-0001) ────────────────────
+## Hora a la que arranca una partida NUEVA (minutos del día, del `.tres`). No se aplica sola: la pide
+## Main con `iniciar_partida_nueva()`. Así, cargar una partida o reaplicar la config a mitad de
+## jornada nunca le mueve la hora al reloj bajo los pies.
+var hora_inicio_min: int = 450
+
+
+## Sitúa el reloj en la hora de arranque de una partida nueva. La llama Main al montar el mundo (NO
+## al cargar un guardado, que trae su propia hora).
+##
+## Por qué existe: antes se empezaba a las 00:00 y el jugador se comía 8 horas de juego con la
+## comisaría de Documentación cerrada y a oscuras — con el ciclo de luz puesto, aquello parecía que
+## el juego estaba parado. Ahora se arranca a las 07:30, media hora antes de abrir la ventanilla.
+func iniciar_partida_nueva() -> void:
+	minutos_juego = float(hora_inicio_min)
+	sincronizar_umbrales()
+
+
 ## Suscriptores del tick de simulación, en el ORDEN de suscripción (ADR-0001: Tiempo EMPUJA el tick a
 ## Demanda → Flujo → Paciencia, en orden fijo). Cada `Callable` recibe el `delta_juego` (minutos de juego
 ## avanzados este frame, ya escalados por escala×mult; 0 en Pausa) y corre DESPUÉS de que el reloj avance y
@@ -290,6 +307,7 @@ func aplicar_config(config: Resource) -> void:
 		push_warning("Tiempo.aplicar_config: el recurso no es un ConfigTiempo → se mantienen los defaults seguros.")
 		return
 
+	hora_inicio_min = clampi(config.hora_inicio_min, 0, 1439)
 	var escala_pedida: float = config.escala_tiempo
 	escala_tiempo = clampf(escala_pedida, ESCALA_MIN, ESCALA_MAX)
 	if not is_equal_approx(escala_pedida, escala_tiempo):
