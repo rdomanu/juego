@@ -184,7 +184,7 @@ func test_atender_cansa_y_el_cafe_se_pide_al_acabar_el_tramite() -> void:
 	personal.cansar(agente, 179.0)
 	var persona: RefCounted = flujo.admitir(PersonaScript.new(&"Documentacion", &"dni", 600.0))
 	flujo.encolar(persona)
-	for i: int in range(14):
+	for i: int in range(20):        # va agotado: el DNI le cuesta ~15 min, no 12
 		flujo._al_tick(1.0)
 
 	# El trámite se completó (nadie se va a media atención) y ENTONCES se fue a su café.
@@ -263,3 +263,52 @@ func test_quien_estaba_de_cafe_sigue_de_cafe_al_cargar() -> void:
 	assert_float(otro.minutos_de_descanso_restantes(cargado)).is_equal_approx(20.0, 0.01)
 	otro._al_tick(20.0)
 	assert_str(String(cargado.estado)).is_equal("asignado")
+
+
+# ── El cansancio se nota ANTES del café: quien va quemado atiende más despacio ──────────
+func test_un_agente_agotado_atiende_mas_despacio() -> void:
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	var fresco: float = personal.modificador_produccion_de(&"doc_1")
+
+	personal.cansar(agente, 180.0)                      # barra a tope
+	var agotado: float = personal.modificador_produccion_de(&"doc_1")
+
+	# Con la barra llena tarda un 25 % más en cada trámite.
+	assert_float(agotado).is_equal_approx(fresco * 1.25, 0.001)
+	assert_float(personal.mult_cansancio_rendimiento(agente)).is_equal_approx(1.25, 0.001)
+
+
+func test_el_bajon_es_progresivo_no_de_golpe() -> void:
+	# Que sea gradual es lo que permite VER venir el problema: la cola se alarga antes del café.
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	personal.cansar(agente, 90.0)                       # media barra
+	assert_float(personal.mult_cansancio_rendimiento(agente)).is_equal_approx(1.125, 0.001)
+
+
+func test_al_volver_del_cafe_rinde_como_al_principio() -> void:
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	var fresco: float = personal.modificador_produccion_de(&"doc_1")
+	personal.cansar(agente, 180.0)
+	personal.enviar_a_descansar(agente)
+	personal._al_tick(30.0)
+	assert_float(personal.modificador_produccion_de(&"doc_1")).is_equal_approx(fresco, 0.001)
+
+
+func test_el_hud_puede_saber_quien_esta_de_cafe() -> void:
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	assert_int(personal.puestos_en_descanso().size()).is_equal(0)
+
+	personal.cansar(agente, 180.0)
+	personal.enviar_a_descansar(agente)
+	assert_array(personal.puestos_en_descanso()).contains_exactly([&"doc_1"])
+
+	personal._al_tick(30.0)
+	assert_int(personal.puestos_en_descanso().size()).is_equal(0)

@@ -873,13 +873,27 @@ func _refrescar_etiquetas() -> void:
 	# ⚠ Gente esperando algo que ninguna ventanilla construida puede atender: si no se dice, esperan
 	# para siempre y el jugador no tiene forma de enterarse (el "misterio de las 22:00").
 	var huerfanos: Dictionary = _flujo.tramites_sin_servicio()
-	if huerfanos.is_empty():
+	# Bienestar #13: quien está de café NO es lo mismo que un puesto sin contratar. Se dice aparte y
+	# con su motivo, porque la solución del jugador es distinta: esperar (vuelven solos), montar la
+	# sala de descanso para que tarden menos, o contratar a alguien que cubra el hueco.
+	var de_cafe: Array[StringName] = (
+		_personal.puestos_en_descanso() if _personal.has_method("puestos_en_descanso") else []
+	)
+	if huerfanos.is_empty() and de_cafe.is_empty():
 		_lbl_sin_servicio.text = ""
-	else:
+	elif not huerfanos.is_empty():
 		var trozos: Array[String] = []
 		for tramite: StringName in huerfanos:
 			trozos.append("%s ×%d" % [tramite, huerfanos[tramite]])
 		_lbl_sin_servicio.text = "⚠ Nadie puede atender: %s" % ", ".join(trozos)
+		_lbl_sin_servicio.modulate = COLOR_ROJOS
+	else:
+		# Solo cafés: es un aviso, no una alarma — vuelven ellos solos.
+		var en_cola: int = _flujo.personas_en_cola(&"Documentacion") + _flujo.personas_en_cola(&"ODAC")
+		_lbl_sin_servicio.text = "☕ %d ventanilla(s) de descanso%s" % [
+			de_cafe.size(), (" · %d esperando" % en_cola) if en_cola > 0 else "",
+		]
+		_lbl_sin_servicio.modulate = COLOR_JUSTO
 	# Satisfacción (story paciencia-008): hoy / ayer, con la escala a la vista. El color del texto
 	# refuerza (verde/ámbar/rojo por los umbrales de ánimo), pero el número manda.
 	var sat_hoy: float = _paciencia.sat_global()

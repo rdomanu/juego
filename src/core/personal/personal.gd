@@ -46,6 +46,7 @@ var mult_cansancio_horas_extra: float = 1.5
 ## algo y tardan más en volver. 1.5 = media hora de café se convierte en tres cuartos. Así la sala no
 ## es obligatoria (la partida arranca sin ella y se puede jugar), pero construirla SE NOTA.
 var mult_pausa_sin_sala: float = 1.5
+var k_cansancio_rendimiento: float = 0.25
 ## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
 ## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
 ## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
@@ -203,6 +204,17 @@ func agente_descansando_en(puesto_id: StringName) -> RefCounted:
 	if agente != null and agente.estado == AgenteScript.ESTADO_DESCANSANDO:
 		return agente
 	return null
+
+
+## Cuánta gente está de café ahora mismo, y de qué ventanillas. Lo consume el HUD para explicar por
+## qué no atiende nadie: el jugador tiene que poder distinguir "no he contratado a nadie" de "están
+## todos en su descanso reglamentario", porque la solución es distinta en cada caso.
+func puestos_en_descanso() -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for puesto_id: StringName in _asignaciones:
+		if agente_descansando_en(puesto_id) != null:
+			resultado.append(puesto_id)
+	return resultado
 
 
 ## El tick: descuenta el café y devuelve a su puesto a quien ya ha terminado, con la barra a cero.
@@ -706,7 +718,18 @@ func modificador_produccion_de(puesto_id: StringName) -> float:
 	if agente == null:
 		push_warning("Personal: modificador de un puesto sin agente ('%s') -> 1.0" % puesto_id)
 		return 1.0
-	return modificador_produccion(agente)
+	# El cansancio se aplica FUERA del clamp de F2 a propósito: F2 mide lo bueno que es el agente
+	# (y ahí un tope tiene sentido); el cansancio es una condición pasajera que se suma encima.
+	return modificador_produccion(agente) * mult_cansancio_rendimiento(agente)
+
+
+## Cuánto ralentiza a este agente lo cansado que está (Bienestar #13): `1 + k × cansancio/100`.
+## Con la barra a tope, un 25 % más lento. Progresivo: el bajón se nota en la cola ANTES de que le
+## toque el café, que es lo que hace que el jugador vea venir el problema.
+func mult_cansancio_rendimiento(agente: RefCounted) -> float:
+	if agente == null:
+		return 1.0
+	return 1.0 + k_cansancio_rendimiento * (agente.cansancio / 100.0)
 
 
 ## F3 del agente OPERATIVO del puesto (lo consumirá Flujo al cerrar → Paciencia). Sin agente → 1.0
@@ -896,6 +919,7 @@ func aplicar_config(config: Resource) -> void:
 	min_pausa_caradura = clampi(config.min_pausa_caradura, 1, 240)
 	mult_cansancio_horas_extra = clampf(config.mult_cansancio_horas_extra, 1.0, 5.0)
 	mult_pausa_sin_sala = clampf(config.mult_pausa_sin_sala, 1.0, 5.0)
+	k_cansancio_rendimiento = clampf(config.k_cansancio_rendimiento, 0.0, 2.0)
 	if config.minutos_aguante < 1:
 		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")

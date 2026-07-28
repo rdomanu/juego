@@ -20,6 +20,9 @@ const TiempoScript := preload("res://src/foundation/tiempo/tiempo.gd")
 func _mundo(rapidez: int = 3, motivacion: int = 3) -> Array:
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
+	# El cansancio (Bienestar #13) ralentiza al agente segun avanza la jornada: aqui se APAGA
+	# para aislar la variable bajo prueba, igual que `velocidad_camino_celdas_min = 0.0`.
+	personal.k_cansancio_rendimiento = 0.0
 	personal.registrar_puesto(&"doc_1", &"puesto_doc_general")
 	var agente: RefCounted = AgenteScript.new(
 		"Ana Ruiz", &"ag_doc", AgenteScript.RANGO_POLICIA, rapidez, 3, 3, motivacion

@@ -20,6 +20,9 @@ const ConfigConstruccionScript := preload("res://src/core/construccion/config_co
 func _mundo_con_espera(asientos: int = 1) -> Array:
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
+	# El cansancio (Bienestar #13) ralentiza al agente segun avanza la jornada: aqui se APAGA
+	# para aislar la variable bajo prueba, igual que `velocidad_camino_celdas_min = 0.0`.
+	personal.k_cansancio_rendimiento = 0.0
 	var construccion: Node = auto_free(ConstruccionScript.new())
 	construccion.aplicar_config(ConfigConstruccionScript.new())
 	construccion.usar_personal(personal)

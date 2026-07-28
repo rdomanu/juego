@@ -21,6 +21,9 @@ const TiempoScript := preload("res://src/foundation/tiempo/tiempo.gd")
 func _mundo(min_dia: float) -> Array:
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
+	# El cansancio (Bienestar #13) ralentiza al agente segun avanza la jornada: aqui se APAGA
+	# para aislar la variable bajo prueba, igual que `velocidad_camino_celdas_min = 0.0`.
+	personal.k_cansancio_rendimiento = 0.0
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())
 	flujo.velocidad_camino_celdas_min = 0.0   # aísla la variable: el camino se testea en flujo_camino_test

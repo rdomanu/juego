@@ -49,6 +49,10 @@ class_name ConfigPersonal extends Resource
 ## volver. 1.5 = la media hora se convierte en tres cuartos. La sala no es obligatoria —la partida
 ## arranca sin ella—, pero construirla se nota en cuánto tiempo tienes la ventanilla parada.
 @export var mult_pausa_sin_sala: float = 1.5
+## Cuánto se ralentiza un funcionario AGOTADO (Bienestar #13). 0.25 = con la barra a tope tarda un
+## 25 % más en cada trámite. Es progresivo: a media barra, un 12,5 %. El cansancio no solo manda a la
+## gente a descansar — mientras aguantan, rinden peor, y eso se nota en la cola antes que el café.
+@export var k_cansancio_rendimiento: float = 0.25
 
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.

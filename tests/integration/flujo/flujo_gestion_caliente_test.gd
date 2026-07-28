@@ -22,6 +22,9 @@ const TiempoScript := preload("res://src/foundation/tiempo/tiempo.gd")
 func _mundo_doc(n_puestos: int = 1) -> Array:
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
+	# El cansancio (Bienestar #13) ralentiza al agente segun avanza la jornada: aqui se APAGA
+	# para aislar la variable bajo prueba, igual que `velocidad_camino_celdas_min = 0.0`.
+	personal.k_cansancio_rendimiento = 0.0
 	var bus: Node = auto_free(EventBusScript.new())
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())
