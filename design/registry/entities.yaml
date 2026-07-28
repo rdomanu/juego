@@ -300,6 +300,69 @@ formulas:
 # Required fields: name, status, source, referenced_by, value, unit, added
 
 constants:
+  # --- Comodidades #15 (implementadas 2026-07-28): confort del ciudadano y equipamiento del funcionario ---
+  - name: k_confort
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+      - design/gdd/construction-layout.md
+    value: 0.02
+    unit: multiplicador_por_punto_confort
+    notes: "F1a de Paciencia: mult_comodidad = clamp(1 - k_confort x confort_servicio, mult_comodidad_min, 1.0). Cada punto de confort instalado en la sala de espera frena el drenaje un 2 %. Una television (confort 6) deja el multiplicador en 0.88 -> se aguantan ~34 min en vez de 30. El confort de un servicio es la MEDIA de sus salas de espera (Construccion), no la suma: si fuera suma, construir salas vacias subiria el confort. SEMILLA a calibrar en playtest."
+    added: 2026-07-28
+    revised: ""
+  - name: mult_comodidad_min
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+    value: 0.6
+    unit: multiplicador
+    notes: "Suelo del multiplicador de comodidad (F1a): por mucho dinero que se gaste en la sala, NADIE espera eternamente. Con 0.6, los 30 min de aguante base se estiran como mucho a 50. La sala completa del catalogo semilla (confort 20) toca exactamente este suelo, asi que es el tope real de lo que se puede comprar con dinero. Rango del GDD F1: 0.6-1.0."
+    added: 2026-07-28
+    revised: ""
+  - name: k_equipamiento
+    status: active
+    source: design/gdd/flow-queues.md
+    referenced_by:
+      - design/gdd/flow-queues.md
+      - design/gdd/construction-layout.md
+    value: 0.02
+    unit: multiplicador_por_punto_rendimiento
+    notes: "F1 de Flujo: duracion_efectiva = base x modificador_agente x clamp(1 - k_equipamiento x rendimiento_sala, mult_equipamiento_min, 1.0). Se multiplica SOBRE el modificador del agente, no lo sustituye: un agente rapido con buen material va aun mas rapido. Equipo informatico (4) + impresora de DNI (6) = 10 -> 0.8 -> un DNI baja de 12 a 9,6 min. SEMILLA a calibrar en playtest."
+    added: 2026-07-28
+    revised: ""
+  - name: mult_equipamiento_min
+    status: active
+    source: design/gdd/flow-queues.md
+    referenced_by:
+      - design/gdd/flow-queues.md
+    value: 0.8
+    unit: multiplicador
+    notes: "Suelo del multiplicador de equipamiento: por mucho material que se compre, el tramite tiene un minimo irreducible (hay que hablar con la persona, comprobar papeles, firmar). 0.8 = como mucho un 20 % mas rapido. Evita que la inversion en material convierta la ventanilla en instantanea."
+    added: 2026-07-28
+    revised: ""
+  - name: prob_uso_comodidad_min
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+    value: 0.04
+    unit: probabilidad_por_minuto
+    notes: "PS14: probabilidad POR MINUTO de que alguien que ya lleva rato esperando se levante a usar una comodidad usable (vending, fuente, revistero). El azar va SIEMPRE por RNGService (determinista, ADR-0002). Con 0.04, en una espera larga casi todos acaban yendo alguna vez. Subirlo hace que el vending recaude mas y que la sala se vea mas viva (mas gente paseando). SEMILLA."
+    added: 2026-07-28
+    revised: ""
+  - name: umbral_uso_comodidad
+    status: active
+    source: design/gdd/patience-satisfaction.md
+    referenced_by:
+      - design/gdd/patience-satisfaction.md
+    value: 75
+    unit: puntos_de_paciencia
+    notes: "PS14: solo se levanta a por algo quien YA ha perdido un cuarto de su aguante (paciencia < 75). Al recien llegado no le hace falta un cafe, y sin este umbral la sala se llenaria de gente paseando desde el primer minuto. SEMILLA."
+    added: 2026-07-28
+    revised: ""
   - name: escala_tiempo
     status: active
     source: design/gdd/time-system.md

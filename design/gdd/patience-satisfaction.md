@@ -63,7 +63,7 @@ respira. *Nadie se ha ido. Esta vez.*
   Arranca al estar esperando, no al generarse.
 - **PS2.** Mientras **espera** (en cola, sin ser llamada), la paciencia **drena** a `tasa_drenaje`/min de juego.
   La tasa base se **modifica** por: **hacinamiento** (aforo de la sala superado → drena más rápido),
-  **comodidades** de la sala (#15; MVP = neutro) y, opcional, la hora punta.
+  **comodidades** de la sala (#15, F1a — el confort instalado la frena, implementado) y, opcional, la hora punta.
 - **PS3.** Al ser **llamada a un puesto** (Flujo la asigna), la paciencia se **congela**: ya no drena ni puede
   abandonar. *(Ser atendida = a salvo.)*
 - **PS4.** Si la paciencia llega a **0** antes de ser llamada, la persona **abandona**: Flujo la retira de la
@@ -105,6 +105,18 @@ respira. *Nadie se ha ido. Esta vez.*
   *(Carga **autoinfligida**: no altera la demanda base de ODAC ni el invariante R5 —es un recargo que te ganas por
   gestionar mal Documentación.)*
 
+**Uso de comodidades — el que se levanta a por algo (Comodidades #15, implementado)**
+- **PS14.** Los objetos `usable = true` del catálogo (vending, fuente de agua, revistero) no se disfrutan
+  sentado: la persona **se levanta a consumirlos**. Solo puede pasar si su paciencia ya bajó de
+  `umbral_uso_comodidad` (SEMILLA 75) —a quien todavía está tranquilo no le hace falta—. Cada minuto se
+  tira una probabilidad `prob_uso_comodidad_min` (SEMILLA 0.04) **por RNGService** (determinista); si
+  toca, elige el objeto usable de su sala que **más paciencia le devuelva** (desempate estable por id) y
+  se dirige a él.
+- **PS15.** Mientras usa el objeto (`minutos_de_uso` de su ficha de catálogo), su paciencia **no drena**:
+  está entretenida, no esperando. Al volver a su sitio recupera `recupera_paciencia` puntos (tope 100) y,
+  si el objeto **cobra** (vending, `ingreso_por_uso_eur`), el dinero entra en caja. La tele y el hilo
+  musical **no** se usan: su confort se disfruta pasivamente desde el asiento (F1a), sin gesto ni cobro.
+
 ### States and Transitions
 
 **Paciencia (por persona):**
@@ -114,6 +126,10 @@ respira. *Nadie se ha ido. Esta vez.*
 | **Esperando** | coger turno | ser llamada · o paciencia=0 | **Sí** |
 | **Atendida** (congelada) | ser llamada a puesto | fin del trámite → visita puntuada | No |
 | **Abandonada** | paciencia = 0 | al instante → visita puntuada (mín) | — |
+
+*Nota (PS14/15): mientras usa una comodidad, la persona sigue formalmente en **Esperando** —Flujo puede
+llamarla igual, y si la llaman se congela sin problema (PS3), cortando el uso a medias sin penalizar—
+pero ese rato **no drena** su barra.*
 
 **Servicio (por jornada):** `Acumulando (jornada en curso)` → **`nuevo_dia`** → `Cerrada (sat_cierre fija los
 ingresos de la jornada siguiente)`. El ciclo se repite cada jornada (= 1 semana de calendario, Tiempo #1).
@@ -128,12 +144,12 @@ ingresos de la jornada siguiente)`. El ciclo se repite cada jornada (= 1 semana 
 | **ODAC #9** | ODAC aporta puntuaciones **ponderadas por `peso_prioridad`**; Paciencia le da la **escala 0–100** (`satisfaccion_odac`/reputación). **Bucle (PS13):** un abandono de Documentación puede **inyectar un trámite `reclamacion`** (30 min) en la cola de ODAC vía Flujo | **Paciencia posee la escala** y **genera** las reclamaciones; ODAC posee los pesos y las tramita |
 | **Objetivo de eficiencia (MVP) / Valoración #28** | Consumen el contador `reclamaciones` (PS12): cuantas menos, mejor evaluación / ascenso | Paciencia **produce** el contador; el objetivo/#28 lo consume |
 | **Personal #6** | El **🤝Trato** del agente modula `puntuacion_visita` (`factor_trato`) | Personal posee el atributo |
-| **Construcción #7 / Comodidades #15** | **Aforo** superado → +drenaje (hacinamiento); comodidades → −drenaje (#15) | Construcción posee el aforo; #15 las comodidades |
+| **Construcción #7 / Comodidades #15** | **Aforo** superado → +drenaje (hacinamiento, F1); confort instalado → −drenaje (F1a, implementado); vending/fuente/revistero generan **uso** (PS14/15) que puede meter dinero en caja | Construcción posee el aforo y el confort/equipamiento instalado; Paciencia calcula el efecto y ejecuta el uso |
 | **Documentación #8** | Horario y última admisión → cuánta gente espera y cuánto | Documentación posee el horario |
 | **UI #11 / Feedback #12** | Leen ánimo por persona y `sat` para pintar | UI/Feedback pintan |
 
-*(Comodidades = neutro hasta #15. La reconciliación con Economía —`sat` = media cerrada de la jornada
-anterior— **aplicada** (Economía E7/F1, 2026-07-21).)*
+*(Comodidades #15 implementadas (F1a) — ver Detailed Design (PS14/15) y Formulas. La reconciliación con
+Economía —`sat` = media cerrada de la jornada anterior— **aplicada** (Economía E7/F1, 2026-07-21).)*
 
 ## Formulas
 
@@ -149,11 +165,32 @@ anterior— **aplicada** (Economía E7/F1, 2026-07-21).)*
 | `paciencia` | float | 0–100 | Barra individual; abandona a 0 |
 | `tolerancia_base_min` | float | 15–60 · **default 30** | Minutos que aguanta una persona en condiciones neutras (tuning) |
 | `mult_hacinamiento` | float | 1.0–~2.0 | 1.0 si `ocupacion ≤ aforo`; si no, `1 + k_hacinamiento × (ocupacion−aforo)/aforo` |
-| `mult_comodidad` | float | 0.6–1.0 · **MVP 1.0** | #15 lo baja (<1 = más paciencia); neutro hasta Comodidades |
+| `mult_comodidad` | float | `mult_comodidad_min`–1.0 (SEMILLA 0.6–1.0) | Derivado del confort de la sala (Comodidades #15, **F1a**, implementado); <1 = más paciencia |
 | `mult_horapunta` | float | 1.0–1.3 · **MVP 1.0** | Opcional; la hora punta puede crispar más (tuning) |
 
 **Salida:** minutos hasta abandonar = `100 / tasa_drenaje_efectiva`. **Ejemplo:** neutro → `100/(100/30) = 30 min`;
 con hacinamiento ×1.5 → `100/(3.33×1.5) ≈ 20 min`.
+
+### F1a · Confort de sala → `mult_comodidad` (Comodidades #15, implementado)
+
+`mult_comodidad = clamp(1 − k_confort × confort_servicio, mult_comodidad_min, 1.0)`
+
+| Variable | Tipo | Rango | Descripción |
+|----------|------|-------|-------------|
+| `confort_servicio` | float | ≥ 0 | **Media** del confort de las salas de espera del servicio (Construcción #7); cada sala suma el `aporte` de sus objetos de familia **ciudadano** |
+| `k_confort` | float | SEMILLA **0.02** | Cuánto baja el drenaje por punto de confort |
+| `mult_comodidad_min` | float | SEMILLA **0.6** | Suelo: por mucho confort que se instale, la paciencia nunca se estira más allá de `1/0.6` |
+
+**Catálogo (familia ciudadano, `datos/comodidades/`):** papelera 60 € (confort 1, sin mantenimiento) ·
+revistero 150 € (2) · hilo musical 250 € + 1 €/día (3) · fuente de agua 400 € + 2 €/día (3) · máquina de
+vending 1.200 € + 3 €/día (5) · televisión 900 € + 4 €/día (6). Solo los aparatos que **consumen**
+(hilo musical, fuente, vending, televisión) llevan mantenimiento diario; papelera y revistero se pagan
+una sola vez.
+
+**Salida y ejemplos:** sala sin nada instalado (confort 0) → `mult_comodidad = 1.0` (el comportamiento de
+siempre). Sala con solo una televisión (confort 6) → `1 − 0.02×6 = 0.88` → `30/0.88 ≈ 34 min` (antes 30).
+Sala completa de comodidades (confort 20) → `1 − 0.02×20 = 0.6` → **topa** en el suelo → `30/0.6 = 50 min`.
+*(Valores `k_confort`/`mult_comodidad_min` SEMILLA, a validar en playtest.)*
 
 > **🔧 ENMIENDA DE DISEÑO (usuario, 2026-07-26 — aplicada en código): la paciencia empieza al LLEGAR
 > a su sitio.** *"Si están de camino a la sala de espera, ese camino no debe gastar paciencia."*
@@ -185,13 +222,17 @@ con hacinamiento ×1.5 → `100/(3.33×1.5) ≈ 20 min`.
 >   La marca se **serializa** con la persona: es una decisión del jugador y sobrevive al guardado.
 > - No se puede colar dos veces a la misma persona (ni cobrar dos veces el cabreo).
 
-> **🔮 PENDIENTE DE DISEÑO — Comodidades (petición del usuario, 2026-07-26):** *"esa paciencia debe
-> subir en minutos con las distintas mejoras: mejores asientos, máquinas de vending, revistas,
-> televisiones... cosas que mejoren los tiempos de espera."*
-> **El hueco YA EXISTE en F1: `mult_comodidad`** (rango 0.6–1.0; <1 = la gente aguanta más), hoy fijo
-> en 1.0 "hasta Comodidades #15". Lo que falta no es la fórmula, sino el **contenido**: objetos
-> construibles con su coste y su aporte de confort, y que `mult_comodidad` se derive de lo que hay
-> puesto en cada sala. Ver `production/epics/comodidades/` (epic esbozado 2026-07-26).
+> **✅ IMPLEMENTADO — Comodidades #15 (story com-002/003, 2026-07-28):** el hueco que dejaba
+> `mult_comodidad` (petición del usuario 2026-07-26: *"esa paciencia debe subir en minutos con las
+> distintas mejoras: mejores asientos, máquinas de vending, revistas, televisiones..."*) ya tiene
+> contenido — ver **F1a** arriba y las reglas **PS14/15** en Detailed Design. La familia **funcionario**
+> del mismo catálogo (equipo informático, impresora de DNI) hace lo simétrico sobre la **atención**:
+> `mult_equipamiento`, que es fórmula de *Flujo* (F1 de `flow-queues.md`), no de Paciencia — Paciencia
+> solo posee el efecto sobre SU barra (confort → `mult_comodidad`).
+> - **Uso (petición del usuario, 2026-07-28):** *"la gente tiene que acercarse a la máquina de vending y
+>   consumir algo, sacar de beneficio 1 euro por ejemplo."* Los objetos `usable = true` (vending, fuente,
+>   revistero) no se disfrutan sentado — ver PS14/15 y sus Edge Cases. La tele y el hilo musical son
+>   pasivos: aportan confort a F1a sin que nadie se levante.
 
 ### F2 · Puntuación de visita
 
@@ -246,6 +287,24 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
 - **Si la ocupación supera el aforo de la sala:** `mult_hacinamiento` sube y **toda** la gente presente drena
   más rápido (F1). *Quién no cabe (esperar fuera / no generarse) lo decide Flujo/Construcción; aquí solo
   penalizamos a los presentes.*
+- **Si la sala no tiene ninguna comodidad instalada** (confort 0): `mult_comodidad = 1.0` (F1a) — el
+  drenaje es el de siempre, como antes de que existiera este sistema. *Ninguna sala empeora por no tener
+  nada puesto; #15 solo puede ayudar, nunca perjudicar.*
+- **Si el confort de la sala es tan alto que `mult_comodidad` bajaría por debajo del suelo:** se
+  **clampa** a `mult_comodidad_min` (SEMILLA 0.6). *Evita comprar paciencia infinita a base de dinero —
+  hay un techo de cuánto puede mejorar la experiencia el mobiliario.*
+- **Si a alguien le toca levantarse** (paciencia por debajo de `umbral_uso_comodidad`) **pero su sala no
+  tiene ningún objeto `usable` instalado** (o ninguno queda en pie): no ocurre nada — sigue esperando y
+  drenando con normalidad. *Sin comodidades usables el comportamiento es el de antes de #15.*
+- **Si a la persona la llaman a un puesto justo cuando está usando una comodidad:** se congela igual
+  (PS3) — el uso se corta a medias sin generar error ni penalización extra; el registro de uso se
+  descarta al purgarse su visita. *Ser atendida sigue ganando a cualquier otra cosa que estuviera
+  haciendo; nadie pierde la vez por estar en el vending.*
+- **Si se guarda la partida con alguien a mitad de consumir una máquina:** se serializa el objeto de
+  catálogo que estaba usando y los minutos que le quedaban; al cargar, sigue exactamente donde lo dejó.
+  **Si el jugador demolió esa máquina antes de guardar:** el gesto termina igual —solo pierde el destino
+  visual, cosmético— y la persona vuelve a su sitio sin romper nada. *Un dato de layout que cambió entre
+  partidas no debe tirar el estado de nadie.*
 - **Si a la persona la atienden pero el agente tiene Trato pésimo** (factor_trato 0.5) aunque esperara poco:
   `puntuacion = 80×1.0×0.5 = 40`. *Mal trato hunde la nota aunque no haya cola: el trato importa por sí solo.*
 - **Si una jornada cierra sin ninguna visita de un servicio** (p. ej. ODAC toda la madrugada sin denuncias):
@@ -285,7 +344,7 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
 | **Tiempo #1** | Hard | El reloj **drena** la paciencia (min de juego); `nuevo_dia` **cierra** la media y `reclamaciones_jornada`; `nuevo_mes` **evalúa/resetea** `reclamaciones_mes`; en Pausa no drena ✅ GDD |
 | **Datos y Configuración #2** | Hard | *lee* `aforo_sala_espera` (40/10, hacinamiento) y el tipo `reclamacion` (30 min, Normal, sin tarifa) ✅ GDD (añadido a Datos F2, 2026-07-21) |
 | **Personal / Agentes #6** | Soft | *lee* el 🤝Trato (`factor_trato` 0.5–1.5, Personal F3) para F2; sin él, trato neutro (1.0) ✅ GDD |
-| **Construcción #7** | Soft | *lee* el aforo de la sala construida (hacinamiento); sin sala → drenaje base ✅ GDD |
+| **Construcción #7 / Comodidades #15** | Soft | *lee* el aforo de la sala construida (hacinamiento, F1) y el **confort** instalado (F1a, `confort_servicio`); sin sala → drenaje base, sin confort → `mult_comodidad=1.0` ✅ GDD |
 
 **Dependen de este sistema (downstream):**
 
@@ -293,7 +352,7 @@ solo aporta `sat_cierre_doc` de la jornada anterior.)*
 |---------|------|-------------|
 | **Economía #3** | Hard | `sat_cierre_doc` (jornada anterior) → `retorno_dgp` (dinero) ✅ GDD (Economía E7/F1 ya lo cita) |
 | **ODAC #9** | Hard | Recibe la carga de `reclamacion` (PS13) y le da a Paciencia sus puntuaciones ponderadas por `peso_prioridad` ✅ GDD (ODAC F3/Deps ya lo citan) |
-| **Comodidades de sala #15** | Soft | Modula `mult_comodidad` (baja el drenaje) — futuro |
+| **Comodidades de sala #15** | Soft | Modula `mult_comodidad` (F1a, **implementado**) y alimenta el **uso** (PS14/15: quién se levanta, cuánta paciencia devuelve y si cobra) |
 | **Objetivo de eficiencia (MVP) / Valoración de jefes #28** | Hard/Soft | El contador `reclamaciones` (cuantas menos, mejor) → evaluación/ascenso |
 | **Demanda #5** | Soft | ODAC recibe carga extra de Paciencia (reclamaciones), no del generador de demanda *(nota — Fase 5)* |
 | **UI/HUD #11 · Feedback #12** | Soft | `sat` por servicio + global, ánimo por persona y contador de reclamaciones para pintar |
@@ -316,6 +375,10 @@ de Paciencia ✅; ODAC cita "la escala 0–100 la posee Paciencia" + la carga de
 | `prob_reclamacion` (PS13) | 0.4 | 0–1 | ↑ más abandonos de Doc saturan ODAC (bucle más duro) / ↓ menos carga extra | Paciencia |
 | `peso_reclamacion_grave` (PS12) | 3 | 1–5 | Cuánto pesa de más una reclamación grave (Prioritaria ODAC abandonada) en la valoración | Paciencia |
 | `mult_horapunta` (F1) | 1.0 (MVP) | 1.0–1.3 | Opcional: la hora punta crispa más | Paciencia |
+| `k_confort` (F1a) | 0.02 | 0–1 | ↑ el confort compra más paciencia por punto / ↓ el mobiliario apenas se nota | Paciencia |
+| `mult_comodidad_min` (F1a) | 0.6 | 0.1–1 | ↑ (más cerca de 1) el confort tiene menos techo / ↓ el confort puede estirar mucho más la tolerancia | Paciencia |
+| `prob_uso_comodidad_min` (PS14) | 0.04 | 0–1 | ↑ la gente se levanta a usar las máquinas más a menudo (salas más vivas, más ingreso de vending) / ↓ casi nadie las usa | Paciencia |
+| `umbral_uso_comodidad` (PS14) | 75 | 0–100 | ↑ se levanta gente que aún está bastante tranquila / ↓ solo se levanta quien ya está muy apurado | Paciencia |
 
 ### Knobs referenciados (dueño externo — no se duplican)
 
@@ -325,7 +388,7 @@ de Paciencia ✅; ODAC cita "la escala 0–100 la posee Paciencia" + la carga de
 | `peso_prioridad` (1.0 / 2.5) | ODAC #9 | Pondera las visitas de ODAC en la media (F3) |
 | `aforo_sala_espera` (40 / 10) | Datos/Construcción | Umbral de hacinamiento (F1) |
 | `retorno_dgp_min/max` (0.15 / 0.45) | Datos/Economía | El mapeo `sat → dinero` (F4) |
-| `mult_comodidad` (0.6–1.0) | Comodidades #15 | Baja el drenaje (futuro; MVP 1.0) |
+| `confort de sala` (suma de `aporte` por objeto, media por servicio) | Construcción #7 / Comodidades #15 | Entra en `mult_comodidad` como `confort_servicio` (F1a) |
 | `duracion` de `reclamacion` (30 min) | Datos | Carga que mete cada reclamación en ODAC (PS13) |
 
 **Interacciones entre knobs (clave):**

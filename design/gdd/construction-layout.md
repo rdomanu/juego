@@ -16,9 +16,10 @@ grandes o pequeñas a tu gusto —puedes **sobredimensionar** o **hacinar**, con
 hay cupos rígidos**: el único límite es el **espacio del edificio** y el **dinero** (cada puesto que abres
 necesita un agente que pagar). Esta capa es la que **habilita** todo lo demás: un puesto **construido** es
 donde *Personal* coloca un agente y *Flujo* atiende; una sala de espera con **asientos** es donde la gente
-aguarda (su **aforo** lo dan los asientos, no un número fijo). Lee de *Datos* los tipos de puesto/sala, sus
-costes y la superficie de los puestos; opera con *Economía* el gate "¿puedo pagarlo?" y el descuento al
-colocar.
+aguarda (su **aforo** lo dan los asientos, no un número fijo); y una sala amueblada con **comodidades**
+(papelera, vending, equipo informático…) es una sala que trata mejor a quien espera o a quien atiende. Lee
+de *Datos* los tipos de puesto/sala, sus costes y la superficie de los puestos; opera con *Economía* el
+gate "¿puedo pagarlo?" y el descuento al colocar.
 
 A nivel de diseño, **la comisaría es TU diseño** (Pilar 4): dos jugadores con el mismo presupuesto montan
 oficinas distintas, y esa **expresión** es parte del placer. El corazón es la decisión espacial y
@@ -33,11 +34,16 @@ comisaría**.
 > de salas, posición de puestos y objetos), la *superficie física* y el **aforo derivado de los asientos**.
 > **Lee** de *Datos* (`TipoPuesto`/`TipoSala`, `coste_construccion_eur`, superficie de puestos) y **opera
 > con** *Economía* (gate E4 + descuento del coste). **Provee** a *Flujo*/*Personal* la **existencia y
-> posición** de cada puesto y el **aforo** de cada sala de espera. **No posee**: *qué atiende* un puesto (→
-> Datos), *quién lo opera* (→ Personal #6), el *ciclo de atención* (→ Flujo #4), ni la *calidad/deterioro*
-> de los asientos (→ **Comodidades #15**; Construcción los coloca, #15 les da calidad). *(Reconciliación
-> con Datos: `tope_construible` → **límite físico del edificio**; `aforo_espera` 40/10 → **referencia**, el
-> aforo real lo dan los asientos. R5 se mantiene por el espacio.)*
+> posición** de cada puesto y el **aforo** de cada sala de espera; y a *Paciencia #10*/*Flujo #4* el
+> **confort** y el **equipamiento** agregados de las **comodidades** instaladas (`confort_de_sala`,
+> `equipamiento_de_sala`, `confort_de_servicio`, `equipamiento_de_puesto`, `usables_de_servicio` —
+> **Comodidades #15, implementado**: ver CO13–CO17). Construcción solo **coloca y suma**; qué hace cada
+> sistema con ese número es SUYO (Paciencia con `mult_comodidad`, Flujo con `mult_equipamiento`). **No
+> posee**: *qué atiende* un puesto (→ Datos), *quién lo opera* (→ Personal #6), el *ciclo de atención* (→
+> Flujo #4), ni la *calidad/deterioro de los propios asientos* más allá de 1 plaza —un tema **distinto** de
+> las comodidades, que sigue **diferido**, sin dueño asignado. *(Reconciliación con Datos: `tope_construible`
+> → **límite físico del edificio**; `aforo_espera` 40/10 → **referencia**, el aforo real lo dan los
+> asientos. R5 se mantiene por el espacio.)*
 
 ## Player Fantasy
 
@@ -82,8 +88,10 @@ tamaño fijo** (Pozuelo: una planta de N×M celdas). Toda construcción ocurre d
 - **Salas (área de tamaño libre):** oficinas (Documentación, ODAC — áreas lógicas que agrupan puestos) y
   salas de espera (Doc, ODAC).
 - **Puestos (1 celda):** ventanillas de atención (`doc_general`, `tie`, `odac`), dentro de su oficina.
-- **Objetos:** asientos (→ aforo), mostradores, decoración *(Comodidades #15 los detalla; MVP: asiento
-  básico = 1 plaza)*.
+- **Objetos (1 celda):** asientos (→ aforo; MVP asiento básico = 1 plaza), mostradores, decoración, y
+  **comodidades** (papelera, revistero, hilo musical, fuente de agua, vending, televisión, equipo
+  informático, impresora de DNI moderna — **Comodidades #15, implementado**; reglas de familia y
+  colocación en CO13).
 
 **CO3 · Dibujar una sala (tamaño libre).** Se elige un tipo de sala y se **arrastra** un rectángulo de
 celdas. Reglas: **dentro del edificio**, **no solapa** con otra sala, **tamaño ≥ mínimo**. Coste al
@@ -128,6 +136,53 @@ operable.
 **CO12 · Pausa.** Se puede construir/reorganizar **en Pausa** (la construcción no depende del reloj;
 gestión permitida en pausa, como Tiempo).
 
+**CO13 · Comodidades: dos familias, cada una en su tipo de sala (Comodidades #15, implementado).** Una
+comodidad es un elemento de **1 celda**, del mismo catálogo, dividido en dos familias que **solo** se
+colocan en su tipo de sala compatible (F6, igual mecanismo que CO4 con los puestos):
+- **ciudadano** → **solo** en salas de tipo "espera". Aporta **confort** (efecto en la paciencia, F1a de
+  *Paciencia y Satisfacción #10*): papelera, revistero, hilo musical, fuente de agua, vending, televisión.
+- **funcionario** → **solo** en salas que **no** son de espera (donde están los puestos). Aporta
+  **rendimiento**, que acelera la atención (F1 de *Flujo de Personas y Colas #4*): equipo informático,
+  impresora de DNI moderna.
+
+Colocar una comodidad en la familia equivocada de sala **se rechaza**: una televisión no pinta nada en la
+oficina, y un equipo informático no sirve de nada en la sala de espera.
+
+**CO14 · Coste, gate y demolición (igual que cualquier elemento).** Una comodidad se compra y coloca como
+un asiento o un puesto: cuesta su `coste_construccion_eur` de catálogo, pasa por el **mismo gate de
+Economía (E4**, CO6/F2), y se demuele/reembolsa con el **mismo %** (CO8/F4). No hay reglas de coste
+especiales por ser comodidad.
+
+**CO15 · Mantenimiento diario (solo lo que consume).** Los aparatos que consumen (hilo musical, fuente de
+agua, vending, televisión, equipo informático, impresora de DNI) tienen un **coste de mantenimiento
+diario** en €; la papelera y el revistero no consumen y se pagan **una sola vez**. Construcción **suma**
+el mantenimiento de TODO lo instalado y se lo **registra a Economía** en el cierre del día: el bus dispara
+`nuevo_dia` en orden determinista (ADR-0001) y Construcción se registra en la **prioridad 16**, entre la
+peonada de **Documentación (15)** y el cobro de **Economía (20)** — el gasto tiene que estar anotado antes
+de que Economía cierre las cuentas de la jornada.
+
+**CO16 · Las comodidades NO son puestos de trabajo.** Una comodidad **no** se registra en *Personal* ni
+genera una **vacante** que cubrir — a diferencia de un puesto, nadie la "opera". *(Nace de un bug real
+cazado por los tests el 2026-07-28: al construirlas se registraban como puestos fantasma, y el panel de
+plantilla pedía un agente para "atender" una máquina de vending. Solo entra en Personal lo que el catálogo
+marca como `TipoPuesto`; asientos y comodidades quedan fuera.)*
+
+**CO17 · Interfaz expuesta a otros sistemas.** Construcción **suma** lo instalado y lo expone; el efecto
+de esa suma (cuánta paciencia compra, cuánto acelera la atención) lo posee cada sistema consumidor con SU
+propia fórmula:
+- `confort_de_sala(sala)` / `equipamiento_de_sala(sala)` — suma del `aporte` de las comodidades de esa
+  familia instaladas en esa sala.
+- `confort_de_servicio(servicio)` — la **media** (no la suma) del confort de todas las salas de espera de
+  ese servicio, incluidas las que no tienen nada instalado (cuentan 0). *Por qué media y no suma:* evita
+  que amueblar de lujo **una sola** sala pequeña maquille como si toda la oficina fuera cómoda; para subir
+  la media hace falta invertir en **todas** las salas de espera del servicio.
+- `equipamiento_de_puesto(puesto)` — el equipamiento de la sala donde vive ese puesto.
+- `usables_de_servicio(servicio)` — los objetos `usable = true` (vending, fuente, revistero) instalados en
+  las salas de espera de ese servicio; a estos la gente se levanta a ir (Paciencia #10, PS14/15).
+
+Lo consumen: *Paciencia y Satisfacción #10* (`confort_de_servicio` → `mult_comodidad`, F1a) y *Flujo de
+Personas y Colas #4* (`equipamiento_de_puesto` → `mult_equipamiento`, F1).
+
 ### States and Transitions
 
 **Estados de un elemento construible** (Construcción lleva existencia/posición; abierto/cerrado y agente
@@ -150,11 +205,11 @@ son de Flujo/Personal):
 |---|---|---|
 | **Datos y Configuración** | *lee* `TipoPuesto`/`TipoSala` (coste, superficie de puestos, `puestos_admitidos`), `Escenario` (edificio/límite físico) | Datos posee los valores ✅ GDD |
 | **Economía #3** | gate **"¿puedo construir?"** (E4) + descuenta el coste al colocar; **demoler devuelve un %** | Economía posee el dinero ✅ GDD |
-| **Flujo #4** | *provee* la **existencia y posición** de puestos y el **aforo** (por asientos) de las salas | Construcción provee; Flujo opera ✅ GDD |
-| **Personal #6** | *provee* los **puestos** donde Personal asigna agentes | Construcción provee ✅ GDD |
+| **Flujo #4** | *provee* la **existencia y posición** de puestos y el **aforo** (por asientos) de las salas, y el **equipamiento** de cada puesto (`equipamiento_de_puesto`, CO17) | Construcción provee; Flujo opera ✅ GDD |
+| **Personal #6** | *provee* los **puestos** donde Personal asigna agentes (comodidades **excluidas**, CO16) | Construcción provee ✅ GDD |
 | **Documentación #8 / ODAC #9** | sus oficinas y puestos | ellos poseen su operativa *(provisional)* |
-| **Comodidades #15** *(V-Slice)* | *(futuro)* los asientos/objetos con **calidad y deterioro** (Construcción los coloca; #15 su calidad) | #15 posee la calidad *(diferido)* |
-| **Paciencia #10** | *(indirecto)* el **aforo** y la comodidad de la sala afectan la espera | Paciencia posee la curva *(provisional)* |
+| **Comodidades #15** ✅ implementado | Construcción **coloca** las comodidades (dos familias, CO13) y expone el agregado (CO17); el mantenimiento diario se registra a Economía (CO15) | Construcción coloca y suma; Paciencia #10/Flujo #4 poseen el efecto de esa suma |
+| **Paciencia #10** | el **aforo** (hacinamiento) y el **confort** de servicio (`confort_de_servicio`, CO17) afectan la espera | Paciencia posee la curva (F1/F1a, implementado) |
 | **UI / HUD #11** | menú de construcción, herramientas de dibujo/colocación | UI presenta |
 | **Feedback #12** | *emite* eventos (construir, demoler, colocar) | Feedback reacciona |
 | **Guardado y Carga** | *serializa/restaura* el **layout** (rejilla, salas, puestos, objetos) | Guardado serializa |
@@ -247,9 +302,45 @@ puestos útiles** en hora punta. **Pon los que quieras** (ilimitado); la demanda
 **Salida:** true → se puede confirmar (resalte verde); false → bloqueado (rojo). *Determinista; sin
 ambigüedad.*
 
-**Nota de frontera:** el **coste base** de puestos/salas lo posee **Datos**; la **calidad de los asientos**
-(más allá de 1 plaza), **Comodidades #15**; el **dimensionado del edificio** para cumplir R5,
-**Datos/Construcción** conjuntamente.
+### F7 · Coste y mantenimiento de una comodidad (Comodidades #15, implementado)
+
+`coste_elemento = coste_construccion_eur (catálogo Comodidad)` — mismo gate E4 que F2.
+`mantenimiento_dia = Σ coste_mantenimiento_dia_eur` de TODO lo instalado que consume (CO15).
+
+**Catálogo (SEMILLA, a validar en playtest):**
+
+| Comodidad | Familia | Aporte | Coste construcción | Mantenimiento/día |
+|---|---|---|---|---|
+| Papelera | ciudadano (confort) | 1 | 60 € | — (no consume) |
+| Revistero | ciudadano (confort) | 2 | 150 € | — (no consume) |
+| Hilo musical | ciudadano (confort) | 3 | 250 € | 1 € |
+| Fuente de agua | ciudadano (confort) | 3 | 400 € | 2 € |
+| Máquina de vending | ciudadano (confort) | 5 | 1.200 € | 3 € |
+| Televisión | ciudadano (confort) | 6 | 900 € | 4 € |
+| Equipo informático | funcionario (rendimiento) | 4 | 1.500 € | 2 € |
+| Impresora de DNI moderna | funcionario (rendimiento) | 6 | 2.200 € | 3 € |
+
+**Salida y ejemplo:** instalar 1 papelera + 1 máquina de vending cuesta `60 + 1.200 = 1.260 €` al
+construirlas; su mantenimiento diario es `0 + 3 = 3 €` (la papelera no consume, se pagó entera una vez).
+Ese 3 € lo suma `mantenimiento_dia()` y Construcción se lo registra a Economía en su prioridad 16 (CO15).
+
+### F8 · Agregados que expone Construcción (Comodidades #15, implementado)
+
+`confort_de_sala(sala) = Σ aporte` de las comodidades familia **ciudadano** instaladas en esa sala
+`equipamiento_de_sala(sala) = Σ aporte` de las comodidades familia **funcionario** instaladas en esa sala
+`confort_de_servicio(servicio) = media( confort_de_sala )` de las salas de espera de ese servicio
+`equipamiento_de_puesto(puesto) = equipamiento_de_sala` de la sala donde vive ese puesto
+
+**Salida y ejemplo:** Documentación tiene 2 salas de espera; una con 1 televisión (aporte 6) y otra vacía
+(aporte 0) → `confort_de_servicio = (6+0)/2 = 3` (la **media**, no `6`). *Amueblar de lujo solo una sala no
+basta: hay que invertir en las dos para que suba la media que consume Paciencia (F1a).* `equipamiento_de_puesto`
+de un `doc_general` en una sala con un equipo informático (aporte 4) → `4`, que Flujo consume en su F1.
+
+**Nota de frontera:** el **coste base** de puestos/salas lo posee **Datos**; el **catálogo y coste de las
+comodidades** (F7) también vive en **Datos** (`Comodidad`); la **calidad/deterioro de los propios
+asientos** (más allá de 1 plaza —un tema distinto de las comodidades, que sí están implementadas) sigue
+**diferida**, sin dueño asignado; el **dimensionado del edificio** para cumplir R5, **Datos/Construcción**
+conjuntamente.
 
 ## Edge Cases
 
@@ -282,6 +373,23 @@ ambigüedad.*
 - **Si se guarda la partida:** se serializa el **layout completo** (rejilla, áreas de salas, puestos,
   objetos, posiciones); al cargar se **restaura** tal cual y arranca en Pausa. *El plano es estado de
   partida; se persiste íntegro.*
+- **Si se intenta colocar una comodidad de familia "ciudadano" fuera de una sala de espera** (p. ej. una
+  televisión en la oficina): **se rechaza** (mismo mecanismo que CO4 con los puestos). *Cada familia vive
+  donde tiene sentido; una tele no pinta nada donde trabajan los funcionarios.*
+- **Si se intenta colocar una comodidad de familia "funcionario" en una sala de espera** (p. ej. un equipo
+  informático): **se rechaza**. *El rendimiento se instala donde se atiende, no donde se espera.*
+- **Si se demuele una comodidad:** se reembolsa su % como cualquier objeto (F4/CO14); no hay "atención en
+  curso" que respetar porque una comodidad nunca atiende a nadie. *Demoler una comodidad es tan simple
+  como demoler un asiento.*
+- **Si una comodidad no consume** (papelera, revistero): su mantenimiento diario es **0**; se pagó entera
+  al construirla. *No todo lo instalado genera gasto recurrente — solo lo que se enchufa.*
+- **Si el jugador espera que una comodidad libere una vacante de Personal:** **no ocurre** — las
+  comodidades nunca se registran como puesto (CO16). *Fue un bug real (2026-07-28): antes de corregirlo,
+  construir una comodidad la daba de alta en Personal como si fuera un puesto vacío, y el panel de
+  plantilla pedía un agente para "atender" una máquina de vending.*
+- **Si un servicio tiene varias salas de espera y solo una lleva comodidades instaladas:**
+  `confort_de_servicio` es la **media** de todas esas salas (la vacía cuenta 0), no la suma. *Evita que
+  amueblar una sola sala pequeña maquille como si toda la oficina fuera cómoda.*
 
 ## Dependencies
 
