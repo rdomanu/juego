@@ -3,9 +3,9 @@
 *Última actualización: 2026-07-28*
 
 <!-- STATUS -->
-Epic: Documentación #8 y Comodidades #15 — ambos CERRADOS (2026-07-28)
-Feature: ---
-Task: Siguiente sistema a esbozar/planificar: Bienestar #13 (cansancio y sala de descanso)
+Epic: Bienestar #13 (capa Feature)
+Feature: Cansancio y sala de descanso
+Task: implementado sin cerrar; faltan stories 002-004 y sign-off
 <!-- /STATUS -->
 
 ## 🎉🎉🎉 HITO — GATE Pre-Production → **PRODUCTION** (2026-07-22)
@@ -1613,3 +1613,78 @@ principal sin perder supervisión — el hilo principal sigue siendo quien decid
 `/create-stories bienestar` cuando el usuario decida meterlo en un sprint. Depende de que Comodidades
 ya esté cerrado (lo está) para que la comparación "invierto en aguante (comodidades) vs. invierto en
 descanso del funcionario (bienestar)" tenga sentido completo.
+
+---
+
+## 🎉🐛 CIERRE DE SESIÓN (2026-07-28) — DOS BUGS DE BLOQUEO ARREGLADOS + CICLO DÍA/NOCHE + LA PEONADA AL PRECIO DEL JUGADOR
+
+**Suite 591/591, exit 0.** Arranque headless limpio. Todo commiteado y pusheado.
+
+**Recapitulando lo ya cerrado hoy** (ver bloque anterior): epic **Documentación #8 CERRADO (6/6)** y
+epic **Comodidades #15 CERRADO (3/3)** — este último nacido de una petición del usuario sobre la
+marcha, no del plan de sprint. Los dos con evidencia de demo y sign-off literal del usuario en
+`production/qa/evidence/`.
+
+**Menú contextual del clic derecho sobre la SALA, ya completo**: ampliar / asientos / ventanillas /
+comodidades / demoler, todo desde el mismo menú. Lo que faltaba no era la mecánica —ampliar ya
+funcionaba desde el Sprint 2— sino el **ACCESO**: había que saberse el truco de dibujar pegado a la
+sala existente para que la ampliación se reconociera como tal.
+
+**Comodidades #15, cómo funciona por dentro** (resumen de completitud, ajustes ya recogidos en el
+bloque anterior): 8 objetos en dos familias — **ciudadano → confort → la gente aguanta más** (sube la
+barra de paciencia) y **funcionario → rendimiento → se atiende más rápido**. Los objetos se USAN de
+verdad, no son decoración: la persona se levanta de la cola, va al vending, consume (1 € a caja, +15 de
+paciencia) y vuelve a su sitio. Dos ajustes salieron de verlo en marcha: tope de 2 viajes por visita, y
+un rasgo por persona (`prob_consumidor` 0.45) porque no todo el mundo consume.
+
+**Epic Bienestar #13 (cansancio y sala de descanso) — IMPLEMENTADO en lo esencial, SIN CERRAR
+formalmente todavía.** Lo que ya funciona: una barra de cansancio que sube solo mientras el agente
+atiende; tres patrones de descanso derivados de la **MOTIVACIÓN** del agente (Motivación 5 → dos
+pausas de 15 min; 3-4 → una pausa de 30 min seguidos; 1-2 → un caradura que se toma 60 min); el
+descanso es REAL, no cosmético (el agente termina el trámite en curso, se levanta, la ventanilla para
+de atender, y vuelve con la barra a cero); una sala de descanso nueva en el catálogo (300 €, y sin ella
+la pausa se alarga ×1,5 — el juego empuja a construirla); se ve en pantalla (rótulo ámbar con cuenta
+atrás sobre la ventanilla vacía + muñecos con una taza dentro de la sala); el cansancio también
+ralentiza el servicio un 25 % con la barra llena, de forma progresiva (no es un interruptor); un aviso
+propio en el HUD, separado del aviso de "nadie puede atender" para no confundir las dos causas;
+reinicio diario y persistencia. **Falta para cerrarlo formalmente**: escribir las stories 002, 003 y
+004 del epic (solo existe la 001 escrita) y pasar por demo + sign-off.
+
+**El precio de la peonada lo elige el jugador** (slider nuevo en el panel H, rango 15-30 €/hora). El
+techo de 30 está razonado con los números del propio juego: un agente genera entre 20 y 30 €/hora
+atendiendo, así que pagar por encima de 30 es pagar por el puro privilegio de que trabajen fuera de
+hora. Efecto añadido: **pagar más cansa menos** — el multiplicador de cansancio baja de ×1,5 a ×1,0
+cuanto más se paga.
+
+**Ciclo de luz día/noche** (`src/main/ciclo_luz.gd`, vía CanvasModulate): mañana cálida, mediodía
+neutro, tarde dorada, noche azul. Y **luces propias de los objetos** (`src/main/luces_objetos.gd`, vía
+PointLight2D): la tele, el vending, la fuente y el equipo informático se encienden solos al anochecer.
+Los dos con función pura testeada sin necesidad de abrir ventana.
+
+**🐛🐛 DOS BUGS DE BLOQUEO ARREGLADOS** — los dos reportados por el usuario como "se queda parado / no
+avanza", la peor clase de bug porque el jugador no sabe si el problema es el juego o él:
+- **La partida empezaba a las 00:00** y Documentación no abre hasta las 08:00: 8 horas de juego real
+  sin nada que gestionar, sensación de "no pasa nada". Arreglado arrancando a las **07:30**
+  (`ConfigTiempo.hora_inicio_min` + `Tiempo.iniciar_partida_nueva()`, llamado desde Main) — con
+  cuidado de NO tocar la hora de una partida cargada: el arreglo vive solo en el arranque de partida
+  nueva, no en `aplicar_config`, precisamente para no desplazar el reloj de un guardado existente.
+- **Quedarse sin dinero bloqueaba la partida DE VERDAD, no solo la pausaba.** Economía pausa el reloj
+  y emite la señal `insolvencia` esperando que alguien decida (rescate/game over), pero **nadie
+  escuchaba esa señal** — la partida se quedaba pausada para siempre, sin salida. Arreglado con
+  `src/main/modal_comisario.gd`. **Este queda anotado como el bug más grave de la sesión**: no era un
+  problema de rendimiento sino un sistema que hablaba solo, sin nadie al otro lado escuchando.
+- El diagnóstico se hizo **midiendo antes de tocar nada** (4,00 min de juego por segundo de reloj, 144
+  FPS en headless / 58 con ventana, nodos estables) — eso descartó rendimiento y fugas de memoria como
+  causa antes de mirar la lógica.
+
+**Modo de trabajo nuevo, ya en marcha**: Opus 5 coordina y verifica en el hilo principal; los
+subagentes **Sonnet 5** ejecutan lo delegable (papeleo, diagnósticos acotados, documentación) en
+paralelo cuando no tocan los mismos archivos. **Gotcha aprendido (pasó dos veces)**: los subagentes se
+quedan sin turno a mitad de escribir documentos largos — hay que trocear el encargo y comprobar los
+archivos resultantes, no fiarse solo de su informe de vuelta.
+
+**PRÓXIMO**: cerrar formalmente Bienestar #13 (faltan las stories 002/003/004 del epic — solo existe la
+001 — más demo y sign-off). Después, a elegir por el usuario: **Retos del Comisario** (esbozado en
+`production/epics/retos-comisario/`), **ODAC #9** (C3-13 en el backlog, la última pieza del MVP sin
+implementar) o una tanda de **juice** (números flotantes, rebotes — el usuario ha dicho que le gustan
+las animaciones de los juegos idle).
