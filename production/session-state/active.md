@@ -1548,3 +1548,12 @@ peonada compense, la palanca es añadir franjas de tarde como demanda **extra** 
 no tocar los 45/día calibrados) — es la Open Question nº1 del GDD.
 
 **PENDIENTE: sign-off de la 005 → C3-9 (cierre formal del epic) → C3-13 (epic ODAC #9, Sprint 4).**
+
+**➕ STORY 006 (2026-07-28, commit `637e4cf`) — nacida del feedback del usuario en la demo.** Suite
+**497/497**. (1) **La peonada se paga POR VENTANILLA que se queda por la tarde**, no por plantilla:
+antes era todo o nada y la decisión "dejo una de guardia" no se podía tomar. Si no queda ninguna, el
+servicio se comporta como si no hubieras ampliado (pero el slider no se mueve). (2) **Goteo de tarde**
+(`perfil_hora_doc_tarde`, knob aditivo): ~9 personas/día abriendo hasta las 20:00 — pequeño a
+propósito, no paga una ventanilla solo; la paga con la cola acumulada. GDD y registro actualizados.
+**La cita previa queda donde estaba: sistema #14 (V-Slice)** — es la versión "con información" de esta
+misma decisión, y el usuario la quiere. PENDIENTE: demo baja vs alta + sign-off (005 y 006).
