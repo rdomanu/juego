@@ -52,6 +52,8 @@ const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
 ## El panel del horario de Documentación (story doc-005): el slider que decide cuánto abres.
 const PanelHorarioScript := preload("res://src/main/panel_horario.gd")
+## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
+const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
@@ -169,6 +171,12 @@ func _ready() -> void:
 	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
 	_crear_menu_ciudadano()
 	_crear_menu_sala()
+	# La luz del día (art bible §2): mañana cálida, mediodía neutro, tarde dorada, noche azul y
+	# fría. Tinta el mundo 2D, NO el HUD (vive en su propio CanvasLayer y debe seguir legible).
+	var ciclo_luz: CanvasModulate = CicloLuzScript.new()
+	ciclo_luz.name = "CicloLuz"
+	add_child(ciclo_luz)
+	ciclo_luz.configurar(Tiempo)
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
 	_programar_captura_evidencia()

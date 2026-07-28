@@ -1,0 +1,76 @@
+# El ciclo de luz día/noche (2026-07-28) — la traducción de la §2 del art bible a color de pantalla.
+# Tipo: Logic. DETERMINISTA: `color_a_las` es una función PURA (recibe la hora, no la busca), así que
+# se puede comprobar sin reloj, sin árbol y sin abrir una ventana.
+extends GdUnitTestSuite
+
+const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
+
+
+## Cuánto tira un color al azul frente al ámbar: >0 es noche, <0 es luz cálida. Es la medida que de
+## verdad importa aquí (que la noche se sienta fría y el día cálido), no los valores exactos.
+func _frialdad(color: Color) -> float:
+	return color.b - color.r
+
+
+# ── La noche es fría y el día cálido ─────────────────────────────────────────────────────
+func test_de_madrugada_el_mundo_es_azul() -> void:
+	var noche: Color = CicloLuzScript.color_a_las(180.0)     # 03:00
+	assert_bool(_frialdad(noche) > 0.2).is_true()
+
+
+func test_a_mediodia_la_luz_es_neutra_y_clara() -> void:
+	var mediodia: Color = CicloLuzScript.color_a_las(780.0)  # 13:00
+	assert_bool(absf(_frialdad(mediodia)) < 0.05).is_true()  # ni azul ni ámbar
+	assert_bool(mediodia.r > 0.95).is_true()                 # y brillante
+
+
+func test_la_tarde_se_dora() -> void:
+	var tarde: Color = CicloLuzScript.color_a_las(1080.0)    # 18:00 — hora de peonada
+	assert_bool(_frialdad(tarde) < -0.1).is_true()           # tira a ámbar
+
+
+func test_al_abrir_documentacion_la_luz_ya_es_calida() -> void:
+	# 08:00 es cuando entra la gente: el art bible pide "ajetreo productivo", no penumbra.
+	var apertura: Color = CicloLuzScript.color_a_las(480.0)
+	assert_bool(apertura.r > 0.95).is_true()
+	assert_bool(_frialdad(apertura) < 0.0).is_true()
+
+
+# ── La transición es continua: no hay saltos de color ────────────────────────────────────
+func test_la_luz_cambia_poco_a_poco_no_a_saltos() -> void:
+	# Entre dos minutos consecutivos el color no puede pegar un salto perceptible en ningún momento
+	# del día: si lo hiciera, se vería un "parpadeo" al cruzar esa hora.
+	var anterior: Color = CicloLuzScript.color_a_las(0.0)
+	for minuto: int in range(1, 1440):
+		var actual: Color = CicloLuzScript.color_a_las(float(minuto))
+		var salto: float = (
+			absf(actual.r - anterior.r) + absf(actual.g - anterior.g) + absf(actual.b - anterior.b)
+		)
+		assert_bool(salto < 0.02).is_true()
+		anterior = actual
+
+
+func test_el_dia_empalma_con_el_siguiente() -> void:
+	# El minuto 1439 y el 0 tienen que ser casi el mismo color: si no, a medianoche se vería un corte.
+	var final: Color = CicloLuzScript.color_a_las(1439.0)
+	var principio: Color = CicloLuzScript.color_a_las(0.0)
+	assert_bool(absf(final.b - principio.b) < 0.02).is_true()
+
+
+# ── Nunca a oscuras: la claridad funcional manda sobre el efecto ─────────────────────────
+func test_ni_en_la_noche_mas_honda_se_deja_de_ver_la_sala() -> void:
+	# Principio 1 del art bible: "si un adorno estorba leer un estado, se simplifica". Una noche
+	# preciosa en la que no se distingue quién espera sería un fallo de diseño, no un logro.
+	for minuto: int in range(0, 1440, 15):
+		var luz: Color = CicloLuzScript.color_a_las(float(minuto))
+		assert_bool(luz.r > 0.35).is_true()
+		assert_bool(luz.g > 0.35).is_true()
+		assert_bool(luz.b > 0.35).is_true()
+
+
+# ── La hora entra cruda: el reloj acumula minutos sin parar ──────────────────────────────
+func test_la_hora_acumulada_del_reloj_se_normaliza() -> void:
+	# El día 3 a las 13:00 son 5.100 minutos: debe dar el mismo color que las 13:00 del día 1.
+	assert_bool(
+		CicloLuzScript.color_a_las(5100.0).is_equal_approx(CicloLuzScript.color_a_las(780.0))
+	).is_true()
