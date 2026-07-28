@@ -45,6 +45,10 @@ class_name ConfigPersonal extends Resource
 ## Cuánto más cansa atender en horas extra (peonada de Documentación #8): alargar la tarde no solo
 ## cuesta dinero, también quema a la gente. 1.5 = una hora de peonada cansa como hora y media.
 @export var mult_cansancio_horas_extra: float = 1.5
+## Lo que se alarga la pausa SIN sala de descanso construida: se van a la calle y tardan más en
+## volver. 1.5 = la media hora se convierte en tres cuartos. La sala no es obligatoria —la partida
+## arranca sin ella—, pero construirla se nota en cuánto tiempo tienes la ventanilla parada.
+@export var mult_pausa_sin_sala: float = 1.5
 
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.

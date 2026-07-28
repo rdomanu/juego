@@ -252,6 +252,8 @@ func _instanciar_mundo() -> void:
 	_personal = PersonalScript.new()
 	_personal.name = "Personal"
 	_personal.usar_economia(_economia)
+	_personal.usar_construccion(_construccion)   # ¿hay sala de descanso? (Bienestar #13)
+	_personal.usar_tiempo(Tiempo)                # los cafés corren con el reloj de juego
 	add_child(_personal)
 	_construccion.usar_personal(_personal)
 	_montar_comisaria_inicial()
@@ -920,6 +922,8 @@ func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -
 		_flujo.fijar_horario_doc(apertura, cierre, ultima_admision)
 		# Y el horario PROPIO de cada ventanilla (story doc-006): las que no hacen la tarde cierran a
 		# la hora de la jornada base aunque el servicio siga abierto.
+		# La jornada base: a partir de esa hora, atender es peonada y cansa más (Bienestar #13).
+		_flujo.fijar_cierre_base_doc(_documentacion.cierre_base_min)
 		for puesto_id: StringName in _documentacion.puestos_de_doc():
 			_flujo.fijar_cierre_de_puesto(
 				puesto_id,

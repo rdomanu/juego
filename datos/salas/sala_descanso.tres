@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="TipoSala" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/tipo_sala.gd" id="1_ljaqn"]
+
+[resource]
+script = ExtResource("1_ljaqn")
+id = &"sala_descanso"
+nombre = "Sala de Descanso"
+tipo = "descanso"
+servicio = "Comun"
+coste_construccion_eur = 300

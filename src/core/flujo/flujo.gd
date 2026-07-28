@@ -106,6 +106,9 @@ var apertura_doc_min: int = 480
 ## Minuto del día hasta el que se DA NÚMERO (F3 de Documentación: `cierre − margen`). Con margen 0
 ## coincide con el cierre (comportamiento previo a la mudanza). Lo ya admitido se atiende siempre.
 var ultima_admision_doc_min: int = 870
+## La hora a la que acaba la jornada BASE de Doc (sin peonada). A partir de aquí, atender cansa más
+## (Bienestar #13). Lo empuja Documentación; por defecto, el cierre base del catálogo.
+var cierre_base_doc_min: int = 870
 var velocidad_npc_px_s: float = 90.0
 var k_equipamiento: float = 0.02
 var mult_equipamiento_min: float = 0.8
@@ -580,6 +583,20 @@ func fijar_horario_doc(apertura_min: int, cierre_min: int, ultima_admision_min: 
 	ultima_admision_doc_min = clampi(ultima_admision_min, apertura_doc_min, cierre_doc_min)
 
 
+## ¿La hora actual está en las horas extra de Documentación? (Bienestar #13: atender en peonada cansa
+## más). Sin reloj o sin cierre base empujado, no hay peonada que valga.
+func _en_horas_extra_doc() -> bool:
+	if _tiempo == null:
+		return false
+	return fposmod(_tiempo.minutos_juego, 1440.0) >= float(cierre_base_doc_min)
+
+
+## Le dice a Flujo cuál es la jornada BASE de Documentación (lo empuja su dueño): a partir de esa
+## hora, atender es peonada y cansa más. Story bien-003.
+func fijar_cierre_base_doc(minuto_del_dia: int) -> void:
+	cierre_base_doc_min = clampi(minuto_del_dia, 0, 1439)
+
+
 ## **El horario propio de UNA ventanilla** (story doc-006): su hora de cierre puede ser distinta de la
 ## del servicio — "esta se queda hasta las 18:00 y esta otra cierra a las 14:30". `0` = sigue el
 ## horario global (lo normal). Lo empuja Documentación #8; Flujo solo lo ejecuta.
@@ -733,6 +750,10 @@ func _avanzar_atenciones(delta_min: float) -> void:
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_EN_ATENCION:
 			continue
+		# Atender CANSA (Bienestar #13): quien despacha se desgasta; quien espera cliente, no. En
+		# horas extra desgasta más (lo modula el precio que el jugador paga por la peonada).
+		if _personal != null and _personal.has_method("cansar"):
+			_personal.cansar(_personal.agente_de(puesto_id), delta_min, _en_horas_extra_doc())
 		puesto["restante"] = float(puesto["restante"]) - delta_min
 		if puesto["restante"] > 0.0:
 			continue
@@ -747,6 +768,11 @@ func _avanzar_atenciones(delta_min: float) -> void:
 			puesto["cierre_pendiente"] = false
 		if puesto["retirada_pendiente"]:
 			_puestos_a_retirar.append(puesto_id)   # no se borra DENTRO de la iteración
+		# El café se pide AL TERMINAR una atención, nunca a media (compromiso de servicio): quien
+		# tiene la barra llena se levanta ahora, con el ciudadano ya despachado. Su puesto deja de
+		# estar dotado solo — el gate FL4 exige ASIGNADO, y descansando ya no lo está.
+		if _personal != null and _personal.has_method("necesita_descanso") 				and _personal.necesita_descanso(agente):
+			_personal.enviar_a_descansar(agente)
 	for puesto_id: StringName in _puestos_a_retirar:
 		_puestos_flujo.erase(puesto_id)
 

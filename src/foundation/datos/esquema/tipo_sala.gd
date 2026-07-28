@@ -13,7 +13,10 @@ class_name TipoSala extends Resource
 ## Nombre visible (UI).
 @export var nombre: String
 ## Rol de la sala: "espera" (aloja ciudadanos en cola) u "oficina" (área lógica que agrupa puestos). GDD F4.
-@export_enum("espera", "oficina") var tipo: String
+## "espera" (aloja ciudadanos en cola) · "oficina" (agrupa puestos) · "descanso" (donde los
+## funcionarios se toman su café — Bienestar #13: sin ella descansan igual, pero tardan más en
+## volver porque se van a la calle).
+@export_enum("espera", "oficina", "descanso") var tipo: String
 ## Servicio de la sala. "Comun" = compartida entre servicios (GDD R2: "servicio|Comun").
 @export_enum("Documentacion", "ODAC", "Comun") var servicio: String
 ## `id`s de los `TipoPuesto` que pueden colocarse en esta sala (referencias por id, no Resources anidados).

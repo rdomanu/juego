@@ -45,8 +45,8 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ]
 
 ## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
-## + 4 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 8 comodidades = 40.
-const TOTAL_ESPERADO := 40
+## + 5 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 8 comodidades = 41.
+const TOTAL_ESPERADO := 41
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -59,7 +59,7 @@ func _init() -> void:
 	_generar_tramites()      # F1 — 3 TramiteDoc
 	_generar_denuncias()     # F2 — 14 DenunciaODAC (13 ciudadanas + 1 interna `reclamacion`)
 	_generar_puestos()       # F3 — 4 TipoPuesto
-	_generar_salas()         # F4 — 4 TipoSala
+	_generar_salas()         # F4 — 5 TipoSala (incl. la de descanso, Bienestar #13)
 	_generar_agentes()       # F5 — 3 TipoAgente
 	_generar_costes()        # F6 — 1 Costes
 	_generar_escenario()     # F7 — 1 Escenario
@@ -148,6 +148,11 @@ func _generar_salas() -> void:
 	_guardar(_sala(
 		&"sala_odac", "Oficina de ODAC", "oficina", "ODAC",
 		[&"puesto_odac"], 0, 0), "salas")
+	# Bienestar #13: el cuarto donde se toman el cafe. Comun a los dos servicios (la comisaria tiene
+	# UNA sala de descanso, no una por departamento). Sin ella se descansa igual, pero mas despacio.
+	_guardar(_sala(
+		&"sala_descanso", "Sala de Descanso", "descanso", "Comun",
+		[], 0, 300), "salas")
 
 
 ## F5 · Tipos de Agente.

@@ -42,6 +42,10 @@ var min_pausa_corta: int = 15
 var min_pausa_normal: int = 30
 var min_pausa_caradura: int = 60
 var mult_cansancio_horas_extra: float = 1.5
+## Lo que se alarga la pausa cuando NO hay sala de descanso construida: se van a la calle a tomar
+## algo y tardan más en volver. 1.5 = media hora de café se convierte en tres cuartos. Así la sala no
+## es obligatoria (la partida arranca sin ella y se puede jugar), pero construirla SE NOTA.
+var mult_pausa_sin_sala: float = 1.5
 ## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
 ## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
 ## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
@@ -71,6 +75,14 @@ var _economia: Node = null
 ## EventBus inyectable (patrón Demanda; auto-resuelto en _ready): emite `incidencia_personal` y
 ## registra el hueco 30 del `nuevo_dia`. Sin bus (tests unitarios), las ausencias corren sin avisar.
 var _bus: Node = null
+## Construcción y reloj (Bienestar #13): la sala de descanso y el paso del tiempo de las pausas.
+var _construccion: Node = null
+var _tiempo: Node = null
+var _suscrito_al_tick: bool = false
+## Quién está de café y cuánto le queda: `agente -> minutos restantes`.
+var _descansando: Dictionary = {}
+## Buffer reutilizado entre ticks (regla del proyecto: cero allocs en el bucle de simulación).
+var _vueltos_del_descanso: Array[RefCounted] = []
 
 ## Tipos contratables del MVP (los 2 perfiles operativos del catálogo; `ag_seguridad` queda fuera del
 ## mercado — el vigilante llegará con su sistema).
@@ -98,6 +110,21 @@ func usar_economia(economia: Node) -> void:
 ## Inyecta el EventBus (dependency injection → testeable sin el autoload real).
 func usar_bus(bus: Node) -> void:
 	_bus = bus
+
+
+## Inyecta Construcción: solo para saber si hay **sala de descanso** construida (Bienestar #13). Sin
+## ella, las pausas se alargan. Personal no construye nada: solo mira.
+func usar_construccion(construccion: Node) -> void:
+	_construccion = construccion
+
+
+## Inyecta el reloj y se suscribe al tick: los descansos corren con el tiempo de juego (en Pausa,
+## Tiempo no empuja → nadie vuelve del café, que es lo correcto).
+func usar_tiempo(tiempo: Node) -> void:
+	_tiempo = tiempo
+	if _tiempo != null and _tiempo.has_method("suscribir_tick") and not _suscrito_al_tick:
+		_suscrito_al_tick = true
+		_tiempo.suscribir_tick(_al_tick)
 
 
 # ── F1 · Salario diario efectivo (base × prima de calidad × prima de rango) ──────────────────
@@ -136,6 +163,70 @@ func factor_trato(agente: RefCounted) -> float:
 
 
 # ── F4 · Probabilidad de ausencia diaria (Salud; la tirada real es de la story 004) ──────────
+
+## ¿Hay sala de descanso construida? Sin ella la gente descansa igual —se va a la calle—, pero tarda
+## más en volver. Sin Construcción inyectada se asume que sí (los tests miden otras cosas).
+func hay_sala_descanso() -> bool:
+	if _construccion == null or not _construccion.has_method("hay_sala_de_tipo"):
+		return true
+	return _construccion.hay_sala_de_tipo("descanso")
+
+
+## Manda al agente a su pausa: deja de dotar su puesto (el gate FL4 ya exige ASIGNADO, así que Flujo
+## deja de llamarle solo) y arranca su cronómetro. Sin sala de descanso la pausa se alarga.
+## Devuelve los minutos que va a durar, o 0 si no procede (ya está fuera, o no le toca).
+func enviar_a_descansar(agente: RefCounted) -> float:
+	if agente == null or agente.estado != AgenteScript.ESTADO_ASIGNADO:
+		return 0.0
+	var minutos: float = float(minutos_de_pausa(agente))
+	if not hay_sala_descanso():
+		minutos *= mult_pausa_sin_sala
+	agente.estado = AgenteScript.ESTADO_DESCANSANDO
+	agente.pausas_gastadas += 1
+	_descansando[agente] = minutos
+	if _bus != null:
+		_bus.incidencia_personal.emit(
+			"%s se va a descansar (%d min)" % [agente.nombre, roundi(minutos)]
+		)
+	return minutos
+
+
+## Minutos que le quedan de café (0 si no está descansando) — lo LEE la UI.
+func minutos_de_descanso_restantes(agente: RefCounted) -> float:
+	return float(_descansando.get(agente, 0.0))
+
+
+## ¿Está alguien de este puesto tomándose el café ahora mismo? Lo consulta el HUD para explicar por
+## qué esa ventanilla no atiende (una ventanilla parada sin motivo visible parece un bug).
+func agente_descansando_en(puesto_id: StringName) -> RefCounted:
+	var agente: RefCounted = _asignaciones.get(puesto_id)
+	if agente != null and agente.estado == AgenteScript.ESTADO_DESCANSANDO:
+		return agente
+	return null
+
+
+## El tick: descuenta el café y devuelve a su puesto a quien ya ha terminado, con la barra a cero.
+## En Pausa no corre (Tiempo no empuja el tick), que es justo lo que se espera.
+func _al_tick(delta_juego_min: float) -> void:
+	if _descansando.is_empty() or delta_juego_min <= 0.0:
+		return
+	_vueltos_del_descanso.clear()
+	for agente: RefCounted in _descansando:
+		var restante: float = float(_descansando[agente]) - delta_juego_min
+		if restante > 0.0:
+			_descansando[agente] = restante
+			continue
+		_vueltos_del_descanso.append(agente)
+	for agente: RefCounted in _vueltos_del_descanso:
+		_descansando.erase(agente)
+		agente.cansancio = 0.0
+		# Vuelve a su puesto SOLO si sigue teniéndolo: pudieron despedirle o reasignarle mientras
+		# estaba fuera, y en ese caso no se le devuelve un puesto que ya no es suyo.
+		if agente.puesto_id != &"" and _asignaciones.get(agente.puesto_id) == agente:
+			agente.estado = AgenteScript.ESTADO_ASIGNADO
+		else:
+			agente.estado = AgenteScript.ESTADO_LIBRE
+
 
 ## F4: `clamp(base_ausencia − k_salud×(S−3), 0, 1)`. Salud 5 → 0 (clamp) · Salud 3 → 3 % · Salud 1 → 7 %.
 func prob_ausencia(agente: RefCounted) -> float:
@@ -303,6 +394,7 @@ func despedir(agente: RefCounted) -> void:
 ## Oficial F6, (5) avisos F7 (parte agrupado o individuales), (6) ciclo de refresco del mercado (F5).
 ## Solo el paso (3) —y el (6) los días de refresco— consume tiradas del RNG.
 func _al_nuevo_dia() -> void:
+	_reiniciar_cansancio()
 	_deshacer_coberturas()
 	_reincorporar_ausentes()
 	var incidencias: Dictionary = _evaluar_ausencias()
@@ -311,6 +403,21 @@ func _al_nuevo_dia() -> void:
 	_jornadas_desde_refresco += 1
 	if _jornadas_desde_refresco >= refresco_mercado_jornadas:
 		generar_mercado()
+
+
+## Jornada nueva, gente descansada (Bienestar #13): la barra vuelve a 0 y el cupo de cafés se
+## renueva. A quien pillara el cambio de día en la sala de descanso se le devuelve su puesto: la
+## pausa no se arrastra de una jornada a otra.
+func _reiniciar_cansancio() -> void:
+	_descansando.clear()
+	for agente: RefCounted in plantilla:
+		agente.cansancio = 0.0
+		agente.pausas_gastadas = 0
+		if agente.estado == AgenteScript.ESTADO_DESCANSANDO:
+			agente.estado = (
+				AgenteScript.ESTADO_ASIGNADO if agente.puesto_id != &""
+				else AgenteScript.ESTADO_LIBRE
+			)
 
 
 # ── Ausencias del día (Story 004 · TR-staff-003 · GDD PA7/PA11, F4) ──────────────────────────
@@ -679,6 +786,11 @@ func _agente_a_dict(agente: RefCounted) -> Dictionary:
 		"mando": agente.mando,
 		"estado": String(agente.estado),
 		"puesto": String(agente.puesto_id),
+		# Bienestar #13: lo cansado que está y los cafés que ya se ha tomado hoy. Sin esto, guardar y
+		# cargar sería un chute de energía gratis para toda la plantilla.
+		"cansancio": agente.cansancio,
+		"pausas_gastadas": agente.pausas_gastadas,
+		"descanso_restante": minutos_de_descanso_restantes(agente),
 	}
 
 
@@ -704,12 +816,21 @@ func _agente_desde_dict(datos: Variant) -> RefCounted:
 	var conocidos: Array[StringName] = [
 		AgenteScript.ESTADO_LIBRE, AgenteScript.ESTADO_ASIGNADO,
 		AgenteScript.ESTADO_AUSENTE, AgenteScript.ESTADO_CUBRIENDO,
+		AgenteScript.ESTADO_DESCANSANDO,
 	]
 	if not (estado in conocidos):
 		push_warning("Personal: estado '%s' desconocido en el save -> libre" % estado)
 		estado = AgenteScript.ESTADO_LIBRE
 	agente.estado = estado
 	agente.puesto_id = StringName(String(datos.get("puesto", "")))
+	# Bienestar #13: vuelve tan cansado como se guardó, con los cafés que ya se había tomado. Si le
+	# pilló el guardado en la sala de descanso, sigue allí el rato que le quedaba (lo re-apunta
+	# `load_state` al terminar, cuando la plantilla ya está entera).
+	agente.cansancio = float(datos.get("cansancio", 0.0))
+	agente.pausas_gastadas = int(datos.get("pausas_gastadas", 0))
+	var restante: float = float(datos.get("descanso_restante", 0.0))
+	if restante > 0.0 and estado == AgenteScript.ESTADO_DESCANSANDO:
+		_descansando[agente] = restante
 	return agente
 
 
@@ -774,6 +895,7 @@ func aplicar_config(config: Resource) -> void:
 	min_pausa_normal = clampi(config.min_pausa_normal, 1, 240)
 	min_pausa_caradura = clampi(config.min_pausa_caradura, 1, 240)
 	mult_cansancio_horas_extra = clampf(config.mult_cansancio_horas_extra, 1.0, 5.0)
+	mult_pausa_sin_sala = clampf(config.mult_pausa_sin_sala, 1.0, 5.0)
 	if config.minutos_aguante < 1:
 		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")

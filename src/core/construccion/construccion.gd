@@ -264,6 +264,16 @@ func usables_de_servicio(servicio: StringName) -> Array[StringName]:
 	return resultado
 
 
+## ¿Existe alguna sala construida de este tipo ("espera" / "oficina" / "descanso")? Lo consulta
+## Personal para saber si hay sala de descanso (Bienestar #13).
+func hay_sala_de_tipo(tipo: String) -> bool:
+	for sala_id: StringName in _salas:
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala != null and tipo_sala.tipo == tipo:
+			return true
+	return false
+
+
 ## El tipo de sala (id del catálogo) con el que se construyó, o `&""` si la sala no existe. Lo
 ## consume el menú contextual del clic derecho (2026-07-28) para saber con qué pincel se amplía.
 func tipo_de_sala(sala_id: StringName) -> StringName:
