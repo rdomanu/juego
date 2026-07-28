@@ -141,6 +141,14 @@ func sala_en(celda: Vector2i) -> StringName:
 	return &""
 
 
+## El tipo de sala (id del catálogo) con el que se construyó, o `&""` si la sala no existe. Lo
+## consume el menú contextual del clic derecho (2026-07-28) para saber con qué pincel se amplía.
+func tipo_de_sala(sala_id: StringName) -> StringName:
+	if not _salas.has(sala_id):
+		return &""
+	return _salas[sala_id]["tipo"]
+
+
 ## ¿Hay ya un elemento en esta celda? (`ignorar` excluye a uno — para revalidar al moverlo).
 func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 	for elemento_id: StringName in _elementos:
@@ -719,6 +727,15 @@ func celda_bajo_cursor() -> Vector2i:
 	if _capa_salas == null:
 		return Vector2i(-1, -1)
 	return _capa_salas.local_to_map(_capa_salas.get_local_mouse_position())
+
+
+## La celda que contiene un punto del MUNDO. ⚠️ Úsala (y no `celda_bajo_cursor`) siempre que la
+## acción venga de un CLIC: `celda_bajo_cursor` lee el puntero del sistema *en ese instante*, no el
+## punto donde se hizo clic — el bug del clic derecho del 2026-07-26, ya escrito en el manifiesto.
+func celda_de_punto(punto_mundo: Vector2) -> Vector2i:
+	if _capa_salas == null:
+		return Vector2i(-1, -1)
+	return _capa_salas.local_to_map(_capa_salas.to_local(punto_mundo))
 
 
 ## El centro de una celda en coordenadas de MUNDO (`map_to_local` — para posicionar previews).

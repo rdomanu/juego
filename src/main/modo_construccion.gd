@@ -145,6 +145,18 @@ func _alternar_modo() -> void:
 	_actualizar_visibilidad()
 
 
+## **Entra en modo construcción con una herramienta YA en la mano** (menú contextual de la sala,
+## 2026-07-28): el jugador pide "ampliar esta sala" o "añadir una ventanilla" y aparece directamente
+## con el pincel correcto, sin tener que buscarlo en la barra. Ampliar una sala **no es una acción
+## aparte**: es dibujar con la herramienta de ESE tipo de sala pegado a la que ya existe (Construcción
+## fusiona y cobra solo las celdas nuevas — enmienda const-007).
+func activar_con_herramienta(id: StringName, es_sala: bool) -> void:
+	_activo = true
+	_arrastrando = false
+	_actualizar_visibilidad()
+	_fijar_herramienta(id, es_sala)
+
+
 func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 	_herramienta = id
 	_es_sala = es_sala

@@ -4,7 +4,7 @@
 > **GDD**: *pendiente* — hoy vive como `mult_comodidad` en `design/gdd/patience-satisfaction.md` (F1)
 > **Architecture Module**: Comodidades #15 (Vertical Slice, **fuera del MVP 12**)
 > **Status**: Esbozado — **no planificado**; a la espera de decisión de alcance del usuario
-> **Origen**: petición del usuario 2026-07-26
+> **Origen**: petición del usuario 2026-07-26, **ampliada el 2026-07-28** (equipamiento del funcionario)
 
 ## Overview
 
@@ -35,6 +35,26 @@ de espera."*
 3. **Paciencia**: derivar `mult_comodidad` por sala en vez de usar el 1.0 fijo, con tope (0.6: por muy
    bien montada que esté la sala, nadie espera eternamente).
 4. **Diseño**: cuánto aporta cada objeto y cuánto cuesta — es una decisión de balance, no técnica.
+
+## Ampliación pedida por el usuario (2026-07-28)
+
+> *"también podría aparecer objetos o no sé cómo llamarlo, si quieres añadir **papeleras, una radio,
+> material mejor para que vayan más rápido los funcionarios**, nuevos puestos..."*
+
+Eso parte el epic en **dos familias de objetos**, que se compran igual pero afectan a cosas distintas:
+
+| Familia | Ejemplos | A quién afecta | Por dónde entra en la simulación |
+|---|---|---|---|
+| **Comodidades del ciudadano** | asientos mejores, vending, revistas, radio, tele, papeleras | **La espera** | `mult_comodidad` de Paciencia F1 (hueco ya hecho, hoy 1.0) |
+| **Equipamiento del funcionario** | mejor ordenador, impresora de DNI nueva, mesa decente | **El trabajo** | `modificador_produccion` de Personal F2 (Flujo ya multiplica por él) |
+
+**La segunda es igual de barata que la primera**: Flujo ya calcula la duración de cada atención como
+`duracion_min × modificador_produccion(agente del puesto)`. Un equipamiento sería un multiplicador más
+en ese producto, **por puesto**. Y da una decisión económica distinta y complementaria: *"¿invierto en
+que aguanten más (comodidades) o en que salgan antes (equipamiento)?"*.
+
+**Acceso**: ya está preparado — el menú del clic derecho sobre la sala (2026-07-28) tiene la entrada
+**"🛋 Comodidades"** puesta y **deshabilitada**, esperando a este epic.
 
 ## Preguntas de diseño abiertas (para el usuario)
 

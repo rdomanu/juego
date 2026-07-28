@@ -1,6 +1,6 @@
 # Epics Index
 
-Last Updated: 2026-07-25
+Last Updated: 2026-07-28
 Engine: Godot 4.6
 Manifest: control-manifest 2026-07-22
 
@@ -35,7 +35,7 @@ spike QQ-02 del vertical slice (150 NPCs → ~145 FPS; plan B `AStarGrid2D` no n
 
 | Epic | Layer | System | GDD | Governing ADRs | Engine Risk | Stories | Status |
 |------|-------|--------|-----|----------------|-------------|---------|--------|
-| [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | 5 stories | In Progress |
+| [Documentación](documentacion/EPIC.md) | Feature | Documentación #8 | documentation.md | ADR-0001, ADR-0003, ADR-0002 | LOW | 6 stories | In Progress (6/6 en código; falta cierre formal) |
 | [ODAC / Denuncias](odac/EPIC.md) | Feature | ODAC #9 | odac.md | ADR-0001, ADR-0003, ADR-0002 | LOW | Not yet created | Ready |
 | [Paciencia y Satisfacción](paciencia/EPIC.md) | Feature | Paciencia #10 | patience-satisfaction.md | ADR-0001, ADR-0002, ADR-0003 | LOW | 8 stories | **Complete** (8/8, 2026-07-26) |
 
@@ -48,6 +48,21 @@ cuesta la peonada?), que se resuelve en playtest, no en arquitectura.
 **Nota de deuda:** el epic **Documentación** se lleva el horario que hoy vive provisionalmente en Flujo
 (enmienda del 2026-07-25), y el epic **ODAC** da dueño a `Flujo.reconfigurar_puesto`, ya implementado y
 testeado pero aún sin sistema que lo gobierne.
+
+## Fuera del MVP — esbozados a partir de peticiones del usuario (sin planificar)
+
+*No están en ningún sprint. Cada uno tiene su EPIC.md con lo que ya existe, lo que falta y las
+preguntas de diseño abiertas. **A la espera de decisión de alcance del usuario.***
+
+| Epic | Qué es | Origen | Depende de |
+|---|---|---|---|
+| [Comodidades #15](comodidades/EPIC.md) | Objetos que compras y colocas: **comodidades del ciudadano** (asientos, vending, radio, papeleras → aguanta más) y **equipamiento del funcionario** (mejor material → atiende más rápido) | usuario 2026-07-26, ampliado 2026-07-28 | nada — el hueco existe en Paciencia F1 y Personal F2 |
+| [Bienestar #13](bienestar/EPIC.md) | **Cansancio y sala de descanso**: 30 min de café por jornada (15+15 / 30 seguidos / **1 hora los caraduras**); al agotarse la barra se levantan y la ventanilla se queda sola | usuario 2026-07-28 | mejor después de Comodidades |
+| [Retos del Comisario](retos-comisario/EPIC.md) | Marrones con nombre y apellidos: te **endosan un funcionario castigado** con atributos malos unos meses y no lo puedes despedir. ¿Tragas, compensas con otra ventanilla o lo escondes? | usuario 2026-07-28 | gana mucho después de Bienestar |
+
+> **Dependencia de diseño viva:** el sign-off de Paciencia (`tolerancia_base_min = 30`) se dio
+> **contando con Comodidades #15**. Si ese epic no llega, hay que subir la tolerancia; cuando llegue,
+> hay que revisar el número.
 
 ## Presentation (envuelve el juego — depende de Feature/Core)
 

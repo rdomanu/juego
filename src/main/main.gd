@@ -67,6 +67,16 @@ const COLOR_TENUE_HUD := Color(1, 1, 1, 0.65)
 const ID_MENU_TITULO := 0
 const ID_MENU_COLAR := 1
 const ID_MENU_CANCELAR := 2
+## Menú contextual de la SALA (petición del usuario 2026-07-28): gestionar la sala donde se hace clic
+## sin buscar nada en la barra de construcción. Rango 100+ para no chocar con el del ciudadano.
+const ID_SALA_TITULO := 100
+const ID_SALA_AMPLIAR := 101
+const ID_SALA_ASIENTOS := 102
+const ID_SALA_DEMOLER := 103
+const ID_SALA_COMODIDADES := 104
+const ID_SALA_CANCELAR := 105
+## Los puestos que admite la sala ocupan 110, 111, 112… (uno por tipo del catálogo).
+const ID_SALA_PUESTO_BASE := 110
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -100,6 +110,13 @@ var _panel_personal: CanvasLayer
 var _panel_admin: CanvasLayer
 ## Menú del clic derecho sobre un ciudadano (petición del usuario 2026-07-26) + a quién apunta.
 var _menu_ciudadano: PopupMenu
+## Menú contextual de la sala (2026-07-28) + la sala sobre la que se abrió.
+var _menu_sala: PopupMenu
+var _sala_del_menu: StringName = &""
+## Los puestos ofrecidos en el menú, en el orden en que se pintaron (índice → id del catálogo).
+var _puestos_del_menu: Array[StringName] = []
+## El modo construcción, para poder darle la herramienta ya en la mano desde el menú.
+var _modo_construccion: Node2D
 var _persona_del_menu: RefCounted = null
 var _lbl_guardado: Label
 var _lbl_satisfaccion: Label
@@ -112,10 +129,10 @@ func _ready() -> void:
 	_instanciar_mundo()
 	_crear_hud()
 	# Modo construcción (story const-007): andamio de ratón sobre la API de Construcción.
-	var modo_construccion: Node2D = ModoConstruccionScript.new()
-	modo_construccion.name = "ModoConstruccion"
-	modo_construccion.configurar(_construccion, TAM_CELDA)
-	add_child(modo_construccion)
+	_modo_construccion = ModoConstruccionScript.new()
+	_modo_construccion.name = "ModoConstruccion"
+	_modo_construccion.configurar(_construccion, TAM_CELDA)
+	add_child(_modo_construccion)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
 	_panel_personal = PanelPersonalScript.new()
@@ -147,6 +164,7 @@ func _ready() -> void:
 	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _refrescar_etiquetas())
 	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
 	_crear_menu_ciudadano()
+	_crear_menu_sala()
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
 	_programar_captura_evidencia()
@@ -295,8 +313,14 @@ func _crear_menu_ciudadano() -> void:
 func _abrir_menu_ciudadano(punto_mundo: Vector2, punto_pantalla: Vector2) -> void:
 	var npc: Node = _npcs.ciudadano_en(punto_mundo)
 	if npc == null:
+		# Nadie bajo el cursor: si el clic cae dentro de una sala, se ofrece gestionarla
+		# (petición del usuario 2026-07-28). Si tampoco hay sala, se explica qué hacer.
 		_persona_del_menu = null
-		_avisar_accion("Clic derecho sobre alguien que espera para ver sus opciones", COLOR_TENUE_HUD)
+		if not _abrir_menu_sala(punto_mundo, punto_pantalla):
+			_avisar_accion(
+				"Clic derecho sobre una sala o sobre alguien que espera para ver sus opciones",
+				COLOR_TENUE_HUD
+			)
 		return
 	_persona_del_menu = npc.persona
 	_menu_ciudadano.clear()
@@ -333,6 +357,106 @@ func _al_elegir_del_menu(id: int) -> void:
 	if id != ID_MENU_COLAR or _persona_del_menu == null:
 		return
 	_colar_a(_persona_del_menu)
+
+
+# ── Menú contextual de la SALA (petición del usuario 2026-07-28) ─────────────────────────────
+
+## Todo lo que se puede hacer con una sala, en el sitio donde está la sala: ampliarla, ponerle
+## asientos, montarle una ventanilla o tirarla. Antes había que abrir la barra de construcción (B) y
+## buscar la herramienta correcta; **ampliar** era especialmente poco evidente (había que saber que
+## dibujar pegado con el mismo tipo de sala la ampliaba en vez de crear otra).
+func _crear_menu_sala() -> void:
+	_menu_sala = PopupMenu.new()
+	_menu_sala.name = "MenuSala"
+	_menu_sala.id_pressed.connect(_al_elegir_del_menu_sala)
+	add_child(_menu_sala)
+
+
+## Abre el menú de la sala que haya en `punto_mundo`. Devuelve `false` si ahí no hay ninguna (para
+## que quien llama pueda dar otra pista al jugador).
+func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
+	# La celda sale del punto DEL EVENTO, nunca del puntero del sistema (regla del manifiesto).
+	var sala_id: StringName = _construccion.sala_en(_construccion.celda_de_punto(punto_mundo))
+	if sala_id == &"":
+		_sala_del_menu = &""
+		return false
+	_sala_del_menu = sala_id
+	var tipo_id: StringName = _construccion.tipo_de_sala(sala_id)
+	var tipo: Resource = Datos.obtener(&"TipoSala", tipo_id)
+	_menu_sala.clear()
+	_puestos_del_menu.clear()
+
+	# Cabecera: qué sala es y cómo está de ocupada (contexto para decidir si ampliar).
+	_menu_sala.add_item(_titulo_de_sala(sala_id, tipo), ID_SALA_TITULO)
+	_menu_sala.set_item_disabled(0, true)
+	_menu_sala.add_separator()
+
+	_menu_sala.add_item("📐 Ampliar esta sala (dibuja pegado a ella)", ID_SALA_AMPLIAR)
+	if tipo != null and tipo.tipo == "espera":
+		_menu_sala.add_item("🪑 Añadir asientos", ID_SALA_ASIENTOS)
+	# Una ventanilla por cada tipo que ESTA sala admite (del catálogo, nunca hardcodeado).
+	if tipo != null:
+		for puesto_id: StringName in tipo.puestos_admitidos:
+			var puesto: Resource = Datos.obtener(&"TipoPuesto", puesto_id)
+			if puesto == null:
+				continue
+			_menu_sala.add_item(
+				"🏛 Añadir %s (%d €)" % [puesto.nombre, puesto.coste_construccion_eur],
+				ID_SALA_PUESTO_BASE + _puestos_del_menu.size()
+			)
+			_puestos_del_menu.append(puesto_id)
+	_menu_sala.add_separator()
+	# Hueco reservado a Comodidades #15 (vending, revistas, tele…): se enseña APAGADO para que el
+	# jugador sepa que el sitio existe, en vez de que la opción aparezca un día de la nada.
+	_menu_sala.add_item("🛋 Comodidades (aún no disponible)", ID_SALA_COMODIDADES)
+	_menu_sala.set_item_disabled(_menu_sala.item_count - 1, true)
+	_menu_sala.add_item("❌ Demoler esta sala", ID_SALA_DEMOLER)
+	_menu_sala.add_separator()
+	_menu_sala.add_item("Cancelar", ID_SALA_CANCELAR)
+	_menu_sala.reset_size()
+	_menu_sala.popup(Rect2i(get_window().position + Vector2i(punto_pantalla), Vector2i.ZERO))
+	return true
+
+
+## "Sala de espera de Documentación · 6×4 · 14 de aforo" — lo que hace falta para decidir.
+func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
+	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
+	var nombre: String = tipo.nombre if tipo != null else String(sala_id)
+	if tipo != null and tipo.tipo == "espera":
+		return "%s · %d×%d · aforo %d" % [
+			nombre, rect.size.x, rect.size.y, _construccion.aforo_de_sala(sala_id),
+		]
+	return "%s · %d×%d" % [nombre, rect.size.x, rect.size.y]
+
+
+## Ejecuta lo elegido. Ninguna acción muta el modelo aquí: se **ordena** por la API pública de
+## Construcción, o se entra en modo construcción con el pincel puesto (ADR-0001).
+func _al_elegir_del_menu_sala(id: int) -> void:
+	if _sala_del_menu == &"":
+		return
+	if id >= ID_SALA_PUESTO_BASE:
+		var indice: int = id - ID_SALA_PUESTO_BASE
+		if indice < _puestos_del_menu.size():
+			_modo_construccion.activar_con_herramienta(_puestos_del_menu[indice], false)
+			_avisar_accion("Elige dónde va la ventanilla dentro de la sala", COLOR_TENUE_HUD)
+		return
+	match id:
+		ID_SALA_AMPLIAR:
+			# Ampliar NO es una acción aparte: es dibujar con el pincel de ESE tipo de sala pegado a
+			# la que ya existe. Construcción fusiona y cobra solo las celdas nuevas (enmienda 007).
+			_modo_construccion.activar_con_herramienta(
+				_construccion.tipo_de_sala(_sala_del_menu), true
+			)
+			_avisar_accion(
+				"Dibuja PEGADO a la sala para ampliarla (solo pagas las celdas nuevas)",
+				COLOR_TENUE_HUD
+			)
+		ID_SALA_ASIENTOS:
+			_modo_construccion.activar_con_herramienta(_construccion.ASIENTO_BASICO, false)
+			_avisar_accion("Coloca los asientos dentro de la sala", COLOR_TENUE_HUD)
+		ID_SALA_DEMOLER:
+			_modo_construccion.activar_con_herramienta(&"demoler", false)
+			_avisar_accion("Confirma en la sala lo que quieres demoler", COLOR_TENUE_HUD)
 
 
 ## Cuela al ciudadano que hay bajo el cursor: pasa a ser el siguiente al que llamen, y TODOS los
