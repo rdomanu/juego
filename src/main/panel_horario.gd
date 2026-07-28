@@ -54,6 +54,9 @@ var _lbl_demanda: Label
 var _lbl_comunicado: Label
 ## Una fila por ventanilla de Doc con su interruptor de tarde (story doc-006).
 var _lista_ventanillas: VBoxContainer
+## Precio de la hora extra (story bien-002): pagar más cansa menos.
+var _slider_precio: HSlider
+var _lbl_peonada_precio: Label
 
 
 ## Inyección de dependencias + construcción de la UI (la llama Main tras add_child). El panel nace
@@ -130,6 +133,17 @@ func _crear_ui() -> void:
 	caja.add_child(_slider_cierre)
 	_lbl_peonada = _etiqueta(caja, 13)
 
+	# ── Cuánto se paga la hora extra (story bien-002) ────────────────────────────────────
+	# Pagar por encima del convenio no es tirar el dinero: la hora extra bien pagada CANSA MENOS.
+	_separador(caja, "PRECIO DE LA HORA EXTRA")
+	_lbl_peonada_precio = _etiqueta(caja, 13)
+	_slider_precio = HSlider.new()
+	_slider_precio.step = 1.0
+	_slider_precio.custom_minimum_size = Vector2(0, 20)
+	_slider_precio.focus_mode = Control.FOCUS_NONE
+	_slider_precio.value_changed.connect(_al_mover_precio)
+	caja.add_child(_slider_precio)
+
 	# ── Qué ventanillas se quedan por la tarde (story doc-006) ───────────────────────────
 	# La decisión fina: en temporada baja dejas una de guardia; en alta las abres todas. Solo
 	# se paga peonada por las que se quedan.
@@ -198,6 +212,16 @@ func _al_mover_cierre(valor: float) -> void:
 	_refrescar_estado()
 
 
+## El jugador mueve el precio de la hora extra: se le ORDENA a Documentación y se relee (ella puede
+## haber clampado al rango que autoriza la División).
+func _al_mover_precio(valor: float) -> void:
+	if _documentacion == null:
+		return
+	_documentacion.fijar_peonada_eur_hora(valor)
+	_refrescar_precio()
+	_refrescar_cierre()
+
+
 func _al_mover_margen(valor: float) -> void:
 	if _documentacion == null:
 		return
@@ -219,6 +243,7 @@ func _refrescar() -> void:
 	if _documentacion == null:
 		return
 	_refrescar_ventanillas()
+	_refrescar_precio()
 	_refrescar_cierre()
 	_refrescar_margen()
 	_refrescar_estado()
@@ -323,6 +348,28 @@ func _refrescar_margen() -> void:
 	_lbl_margen.text = "Se deja de dar número %d min antes de cerrar  →  última admisión a las %s" % [
 		doc.margen_ultima_admision_min, _hhmm(doc.hora_ultima_admision()),
 	]
+
+
+## El precio de la hora extra y lo que compra: menos cansancio. Se dice en llano ("cansa un 50 % más"
+## / "cansa como una hora normal"), no con el multiplicador crudo.
+func _refrescar_precio() -> void:
+	var doc: Node = _documentacion
+	_slider_precio.set_block_signals(true)
+	_slider_precio.min_value = doc.peonada_eur_hora_min
+	_slider_precio.max_value = doc.peonada_eur_hora_max
+	_slider_precio.value = doc.peonada_eur_hora
+	_slider_precio.set_block_signals(false)
+	# El recargo de cansancio que queda: 1.5 con el pago mínimo, 1.0 con el máximo.
+	var recargo: float = lerpf(1.5, 1.0, doc.generosidad_peonada())
+	var efecto: String = (
+		"cansa como una hora normal" if recargo <= 1.01
+		else "cansa un %d %% más de lo normal" % roundi((recargo - 1.0) * 100.0)
+	)
+	_lbl_peonada_precio.text = "%s €/hora (convenio %s · tope %s)  →  %s" % [
+		_num(doc.peonada_eur_hora), _num(doc.peonada_eur_hora_min),
+		_num(doc.peonada_eur_hora_max), efecto,
+	]
+	_lbl_peonada_precio.modulate = COLOR_TENUE if doc.generosidad_peonada() < 0.5 else COLOR_ABIERTO
 
 
 ## Estado del servicio AHORA (texto siempre; el color solo refuerza).

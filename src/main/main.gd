@@ -274,6 +274,10 @@ func _instanciar_mundo() -> void:
 	_documentacion.usar_economia(_economia)
 	_documentacion.usar_personal(_personal)
 	_documentacion.usar_demanda(_demanda)
+	# El precio de la hora extra (story bien-002): Economía lo cobra y Personal lo usa para cansar
+	# menos. Mismo patrón que el horario: el dato viaja por UN solo sitio.
+	_documentacion.peonada_cambiada.connect(_al_cambiar_peonada)
+	_al_cambiar_peonada(_documentacion.peonada_eur_hora, _documentacion.generosidad_peonada())
 	# El horario de Doc, de su dueño a quienes lo ejecutan (story doc-002). Se empuja UNA vez aquí
 	# con el estado de arranque; a partir de ahí lo hace la señal `horario_cambiado`.
 	_al_cambiar_horario_doc(
@@ -923,6 +927,15 @@ func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -
 			)
 	if _demanda != null:
 		_demanda.fijar_ventana_doc(apertura, ultima_admision)
+
+
+## El precio de la hora extra, de quien lo decide a quienes lo notan: Economía lo cobra en el cierre
+## del día y Personal lo traduce a cuánto cansa esa hora (pagar mejor cansa menos).
+func _al_cambiar_peonada(eur_hora: float, generosidad: float) -> void:
+	if _economia != null:
+		_economia.fijar_peonada_eur_hora(eur_hora)
+	if _personal != null:
+		_personal.fijar_generosidad_peonada(generosidad)
 
 
 ## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.

@@ -390,3 +390,54 @@ func test_una_ventanilla_nueva_hace_la_tarde_sin_darla_de_alta() -> void:
 	var doc: Node = mundo[0]
 	mundo[3].registrar_puesto(&"doc_nueva", &"puesto_doc_general")
 	assert_bool(doc.puesto_de_tarde(&"doc_nueva")).is_true()
+
+
+# ══ Story bien-002 · El precio de la hora extra lo elige el jugador ═══════════════════════
+# "el pago por hora de peonadas se podría cambiar con un slider... habría que calcular cuál es el
+# coste máximo que se podría poner, para evitar pagarles 1000 euros por hora" (usuario 2026-07-28).
+
+func test_el_precio_arranca_en_el_convenio_y_se_puede_subir_hasta_el_tope() -> void:
+	var doc: Node = _mundo(2)[0]
+	assert_float(doc.peonada_eur_hora).is_equal(15.0)              # el mínimo reglamentario
+	assert_float(doc.generosidad_peonada()).is_equal(0.0)
+	assert_float(doc.fijar_peonada_eur_hora(30.0)).is_equal(30.0)  # el techo
+	assert_float(doc.generosidad_peonada()).is_equal(1.0)
+
+
+func test_nadie_puede_pagar_mil_euros_la_hora_ni_bajar_del_convenio() -> void:
+	var doc: Node = _mundo(2)[0]
+	assert_float(doc.fijar_peonada_eur_hora(1000.0)).is_equal(30.0)   # el tope manda
+	assert_float(doc.fijar_peonada_eur_hora(1.0)).is_equal(15.0)      # el convenio también
+
+
+func test_pagar_mas_sale_mas_caro_en_la_cuenta_del_dia() -> void:
+	var mundo: Array = _mundo(2)
+	var doc: Node = mundo[0]
+	doc.fijar_hora_cierre(1080)                                   # 3,5 h extra, 2 agentes
+	assert_float(doc.coste_peonada_estimado()).is_equal_approx(105.0, 0.001)   # a 15 €/h
+	doc.fijar_peonada_eur_hora(30.0)
+	assert_float(doc.coste_peonada_estimado()).is_equal_approx(210.0, 0.001)   # a 30 €/h: el doble
+
+
+func test_el_precio_avisa_a_quien_le_afecta() -> void:
+	# ⚠️ Contador en Array: las lambdas capturan por valor.
+	var doc: Node = _mundo(2)[0]
+	var avisos: Array = []
+	doc.peonada_cambiada.connect(
+		func(eur: float, generosidad: float) -> void: avisos.append([eur, generosidad])
+	)
+	doc.fijar_peonada_eur_hora(30.0)
+	doc.fijar_peonada_eur_hora(30.0)                              # mismo precio: no vuelve a avisar
+	assert_int(avisos.size()).is_equal(1)
+	assert_float(avisos[0][0]).is_equal(30.0)
+	assert_float(avisos[0][1]).is_equal(1.0)
+
+
+func test_el_precio_elegido_sobrevive_al_guardado() -> void:
+	var doc: Node = _mundo(2)[0]
+	doc.fijar_peonada_eur_hora(24.0)
+	var recuperado: Dictionary = JSON.parse_string(JSON.stringify(doc.save()))
+	var otro: Node = _mundo(2)[0]
+	otro.load_state(recuperado)
+	assert_float(otro.peonada_eur_hora).is_equal(24.0)
+	assert_float(otro.generosidad_peonada()).is_equal_approx(0.6, 0.001)

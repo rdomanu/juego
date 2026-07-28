@@ -45,9 +45,10 @@ const CITA_ACTIVA := false
 ## Los tres valores son minutos del día. La conexión la hace Main en la story 002.
 signal horario_cambiado(apertura_min: int, cierre_min: int, ultima_admision_min: int)
 
-## Coste de peonada por hora y funcionario, cacheado del catálogo (`costes_global`) — ADR-0003.
-var _peonada_eur_hora: float = 15.0
-var _cache_catalogo_listo: bool = false
+## El precio de la hora extra ha cambiado. `eur_hora` lo cobra Economía; `generosidad` (0-1, cuánto
+## de generoso es el pago dentro del rango autorizado) lo consume Personal para su cansancio: la
+## hora extra bien pagada se lleva mejor. Petición del usuario 2026-07-28.
+signal peonada_cambiada(eur_hora: float, generosidad: float)
 
 # ── Sistemas inyectados (DI → testeable sin autoloads ni Main) ───────────────────────────────
 var _economia: Node = null
@@ -68,6 +69,9 @@ var slider_min_min: int = 480
 var slider_max_min: int = 1200
 var margen_ultima_admision_min: int = 15
 var peonada_activa_por_defecto: bool = false
+var peonada_eur_hora: float = 15.0
+var peonada_eur_hora_min: float = 15.0
+var peonada_eur_hora_max: float = 30.0
 
 # ── Estado del servicio (lo que decide el JUGADOR dentro del marco de la División) ────────────
 ## Hora de cierre elegida con el slider. Arranca en el cierre base (jornada de mañana, sin peonada);
@@ -159,6 +163,10 @@ func aplicar_config(config: Resource) -> void:
 		config.margen_ultima_admision_min, 0, 30, "margen_ultima_admision_min"
 	)
 	peonada_activa_por_defecto = config.peonada_activa_por_defecto
+	peonada_eur_hora_min = maxf(config.peonada_eur_hora_min, 0.0)
+	peonada_eur_hora_max = maxf(config.peonada_eur_hora_max, peonada_eur_hora_min)
+	peonada_eur_hora = clampf(config.peonada_eur_hora, peonada_eur_hora_min, peonada_eur_hora_max)
+	peonada_cambiada.emit(peonada_eur_hora, generosidad_peonada())
 	# El horario de partida: base, o ya ampliado al tope si el jugador lo dejó activado por defecto.
 	hora_cierre_min = slider_max_min if peonada_activa_por_defecto else cierre_base_min
 	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
@@ -332,17 +340,42 @@ func num_agentes_doc() -> int:
 ## número que el panel del slider enseña en vivo mientras se arrastra (story 005). Sin él, el coste
 ## del horario vigente. Cerrar a las 18:00 con 2 agentes → 15 × 3,5 × 2 = **105 €/día**.
 func coste_peonada_estimado(cierre_tentativo: int = -1) -> float:
-	_asegurar_catalogo()
 	var cierre: int = hora_cierre_efectiva() if cierre_tentativo < 0 else cierre_tentativo
 	var horas: float = maxf(0.0, float(cierre - cierre_base_min)) / MINUTOS_POR_HORA
-	return _peonada_eur_hora * horas * float(num_agentes_doc())
+	return peonada_eur_hora * horas * float(num_agentes_doc())
+
+
+## Orden del jugador: "la hora extra se paga a X". Clampa al rango autorizado por la División (nadie
+## paga por debajo del convenio, y por encima del techo sería tirar el dinero) y avisa a quien le
+## afecta: Economía la cobra y Personal la usa para cansar menos.
+func fijar_peonada_eur_hora(eur: float) -> float:
+	var nuevo: float = clampf(eur, peonada_eur_hora_min, peonada_eur_hora_max)
+	if is_equal_approx(nuevo, peonada_eur_hora):
+		return peonada_eur_hora
+	if not is_equal_approx(nuevo, eur):
+		push_warning(
+			"Documentacion: peonada fuera del rango autorizado (%.2f) -> %.2f [%.2f, %.2f]"
+			% [eur, nuevo, peonada_eur_hora_min, peonada_eur_hora_max]
+		)
+	peonada_eur_hora = nuevo
+	peonada_cambiada.emit(peonada_eur_hora, generosidad_peonada())
+	return peonada_eur_hora
+
+
+## Cómo de generoso es el pago dentro del rango: **0 = el mínimo del convenio · 1 = el techo**. Es lo
+## que Personal traduce a "cuánto cansa" (su fórmula, no la nuestra — ADR-0001). Con el rango
+## degenerado (min == max) se considera generoso: no se le puede pedir más al jugador.
+func generosidad_peonada() -> float:
+	var recorrido: float = peonada_eur_hora_max - peonada_eur_hora_min
+	if recorrido <= 0.0:
+		return 1.0
+	return clampf((peonada_eur_hora - peonada_eur_hora_min) / recorrido, 0.0, 1.0)
 
 
 ## Lo que cuesta **una sola ventanilla** que se queda por la tarde (F1 para un agente). Es el número
 ## que la UI enseña en cada fila; el total es este × ventanillas que se quedan.
 func coste_peonada_por_ventanilla() -> float:
-	_asegurar_catalogo()
-	return _peonada_eur_hora * horas_extra()
+	return peonada_eur_hora * horas_extra()
 
 
 ## Las **horas-agente** extra del día: lo que se le registra a Economía (ella pone el precio, F1 —
@@ -385,19 +418,6 @@ func _al_tramite_completado(tramite_id: StringName, agente: RefCounted) -> void:
 		return
 	_desmotivados_hoy.append(agente)
 	agente.motivacion = maxi(1, agente.motivacion - 1)
-
-
-## Cachea del catálogo lo que Documentación necesita (perezoso: en los tests unitarios el catálogo
-## puede no estar cargado todavía cuando se instancia el nodo).
-func _asegurar_catalogo() -> void:
-	if _cache_catalogo_listo:
-		return
-	_cache_catalogo_listo = true
-	var costes: Resource = Datos.obtener(&"Costes", &"costes_global")
-	if costes == null:
-		push_warning("Documentacion: sin 'costes_global' en el catalogo -> peonada con default")
-		return
-	_peonada_eur_hora = costes.peonada_eur_hora
 
 
 # ── Los eventos de la División (DO2/DO7 · TR-doc-002 · story doc-004) ────────────────────────
@@ -477,6 +497,7 @@ func save() -> Dictionary:
 		"hora_cierre_min": hora_cierre_min,
 		"margen_ultima_admision_min": margen_ultima_admision_min,
 		"evento_activo_id": String(evento_activo_id),
+		"peonada_eur_hora": peonada_eur_hora,
 		"puestos_sin_tarde": sin_tarde,
 	}
 
@@ -508,6 +529,13 @@ func load_state(datos: Dictionary) -> void:
 	_puestos_sin_tarde.clear()
 	for puesto_id: Variant in datos.get("puestos_sin_tarde", []):
 		_puestos_sin_tarde[StringName(puesto_id)] = true
+	# El precio de la hora extra que había elegido el jugador (story bien-002), saneado al rango
+	# vigente: si un reequilibrado bajara el techo, un save antiguo no puede saltárselo.
+	peonada_eur_hora = clampf(
+		float(datos.get("peonada_eur_hora", peonada_eur_hora)),
+		peonada_eur_hora_min, peonada_eur_hora_max
+	)
+	peonada_cambiada.emit(peonada_eur_hora, generosidad_peonada())
 	horario_cambiado.emit(apertura_base_min, hora_cierre_efectiva(), hora_ultima_admision())
 
 

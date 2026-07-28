@@ -160,3 +160,39 @@ func test_config_fuera_de_rango_se_clampa_con_aviso() -> void:
 	var agente: RefCounted = _agente(3)
 	personal.cansar(agente, 1.0)
 	assert_float(agente.cansancio).is_equal(100.0)
+
+
+# ── Pagar mejor la hora extra cansa menos (story bien-002) ──────────────────────────────
+# Petición del usuario 2026-07-28: "por defecto cansa 1,5 pero si se paga más esa penalización va
+# bajando". El precio lo elige el jugador en Documentación; la conversión pago→cansancio es de
+# Personal, porque el cansancio es suyo.
+func test_con_el_pago_minimo_la_hora_extra_cansa_lo_maximo() -> void:
+	var personal: Node = _personal()
+	personal.fijar_generosidad_peonada(0.0)             # el convenio pelado
+	assert_float(personal.mult_cansancio_efectivo()).is_equal_approx(1.5, 0.001)
+
+
+func test_pagando_el_tope_la_hora_extra_cansa_como_una_normal() -> void:
+	var personal: Node = _personal()
+	personal.fijar_generosidad_peonada(1.0)
+	assert_float(personal.mult_cansancio_efectivo()).is_equal_approx(1.0, 0.001)
+	# Y se nota en la barra: la misma hora de peonada cansa lo mismo que una hora corriente.
+	var bien_pagado: RefCounted = _agente(3)
+	var normal: RefCounted = _agente(3)
+	personal.cansar(bien_pagado, 60.0, true)
+	personal.cansar(normal, 60.0, false)
+	assert_float(bien_pagado.cansancio).is_equal_approx(normal.cansancio, 0.001)
+
+
+func test_a_medio_camino_el_recargo_es_intermedio() -> void:
+	var personal: Node = _personal()
+	personal.fijar_generosidad_peonada(0.5)
+	assert_float(personal.mult_cansancio_efectivo()).is_equal_approx(1.25, 0.001)
+
+
+func test_la_generosidad_se_clampa_a_su_rango() -> void:
+	var personal: Node = _personal()
+	personal.fijar_generosidad_peonada(5.0)             # un dato absurdo no rompe la fórmula
+	assert_float(personal.mult_cansancio_efectivo()).is_equal_approx(1.0, 0.001)
+	personal.fijar_generosidad_peonada(-3.0)
+	assert_float(personal.mult_cansancio_efectivo()).is_equal_approx(1.5, 0.001)

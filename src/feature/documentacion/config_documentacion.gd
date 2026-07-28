@@ -29,6 +29,19 @@ class_name ConfigDocumentacion extends Resource
 ## Rango seguro 0–30, default 15: con 15 el personal sale a su hora; con 0 se exprime hasta el cierre
 ## y quien se queda terminando fuera de hora **se desmotiva** (story 003).
 @export var margen_ultima_admision_min: int = 15
+# ── El precio de la hora extra (petición del usuario 2026-07-28) ─────────────────────────────
+## Lo que el jugador paga por hora de peonada. **Pagar más cansa menos**: la hora extra se lleva
+## mejor si va bien pagada (lo aplica Personal en su fórmula de cansancio). Arranca en el mínimo.
+@export var peonada_eur_hora: float = 15.0
+## El suelo: la peonada REGLAMENTARIA, lo que la División obliga a pagar como mínimo. Con este pago,
+## la hora extra cansa lo máximo (×1.5 en Personal).
+@export var peonada_eur_hora_min: float = 15.0
+## El techo. **30 €/h no es un número redondo cualquiera**: es donde la hora extra deja de dar
+## beneficio. Un agente atendiendo a buen ritmo genera ~20-30 €/hora (5 DNI/h × 12 € × retorno DGP),
+## así que por encima de 30 estarías pagando por el privilegio de que trabajen. El tope existe para
+## que no se puedan escribir cifras absurdas, no para impedir una mala decisión: dentro del rango, el
+## jugador puede perder dinero si quiere.
+@export var peonada_eur_hora_max: float = 30.0
 ## Si la partida arranca con el horario ya ampliado (DO4). `false` = el jugador decide cada día;
 ## `true` = amplía siempre (y paga peonada aunque la demanda sea BAJA).
 @export var peonada_activa_por_defecto: bool = false

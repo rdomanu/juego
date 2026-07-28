@@ -42,6 +42,10 @@ var min_pausa_corta: int = 15
 var min_pausa_normal: int = 30
 var min_pausa_caradura: int = 60
 var mult_cansancio_horas_extra: float = 1.5
+## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
+## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
+## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
+var _generosidad_peonada: float = 0.0
 var k_motivacion_rapidez: float = 0.05
 var k_trato: float = 0.25
 var k_motivacion_trato: float = 0.1
@@ -182,6 +186,20 @@ func aguante_efectivo(agente: RefCounted) -> float:
 	return float(minutos_aguante) / float(maxi(pausas_de(agente), 1))
 
 
+## Recibe de Documentación #8 lo generoso que es el pago de la hora extra (0-1). Petición del usuario
+## 2026-07-28: *"por defecto cansa 1,5 pero si se paga más esa penalización va bajando"*.
+func fijar_generosidad_peonada(generosidad: float) -> void:
+	_generosidad_peonada = clampf(generosidad, 0.0, 1.0)
+
+
+## Lo que cansa una hora extra AHORA MISMO, según lo que se esté pagando: del recargo completo
+## (`mult_cansancio_horas_extra`, pago mínimo) a 1.0 (pago máximo, cansa como una hora normal).
+## La conversión pago→cansancio es de Personal porque el cansancio es SUYO (ADR-0001); Documentación
+## solo dice cómo de bien paga.
+func mult_cansancio_efectivo() -> float:
+	return lerpf(mult_cansancio_horas_extra, 1.0, _generosidad_peonada)
+
+
 ## Suma cansancio por `minutos` ATENDIENDO (parado no cansa). `en_horas_extra` aplica el recargo de
 ## la peonada: alargar la tarde no solo cuesta dinero, también quema. Devuelve la barra resultante.
 func cansar(agente: RefCounted, minutos: float, en_horas_extra: bool = false) -> float:
@@ -189,7 +207,7 @@ func cansar(agente: RefCounted, minutos: float, en_horas_extra: bool = false) ->
 		return 0.0
 	if minutos <= 0.0:
 		return agente.cansancio
-	var recargo: float = mult_cansancio_horas_extra if en_horas_extra else 1.0
+	var recargo: float = mult_cansancio_efectivo() if en_horas_extra else 1.0
 	agente.cansancio += (100.0 / aguante_efectivo(agente)) * minutos * recargo
 	return agente.cansancio
 

@@ -224,6 +224,16 @@ func registrar_horas_extra(horas: float) -> void:
 ## Registra el mantenimiento de la jornada (Comodidades #15): lo llama Construcción en el cierre del
 ## día (prio 16) con el coste YA en euros — a diferencia de la peonada, aquí no hay tarifa que aplicar
 ## (cada objeto trae su precio diario del catálogo). Negativos se ignoran: un gasto nunca da dinero.
+## Fija lo que se paga por hora extra (lo decide el jugador en Documentación #8, story bien-002).
+## Sustituye al valor del catálogo, que pasa a ser solo el punto de partida. Negativos se ignoran.
+func fijar_peonada_eur_hora(euros: float) -> void:
+	_asegurar_cache_catalogo()
+	if euros < 0.0:
+		push_warning("Economia: peonada negativa (%.2f) -> ignorada" % euros)
+		return
+	_peonada_eur_hora = euros
+
+
 func registrar_mantenimiento(euros: float) -> void:
 	_mantenimiento_dia += maxf(euros, 0.0)
 
