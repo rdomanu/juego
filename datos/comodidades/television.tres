@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_5oj14"]
+
+[resource]
+script = ExtResource("1_5oj14")
+id = &"television"
+nombre = "Television"
+descripcion = "Lo que mas mata el tiempo de una sala de espera."
+familia = "ciudadano"
+coste_construccion_eur = 900
+coste_mantenimiento_dia_eur = 4
+aporte = 6.0

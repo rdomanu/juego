@@ -34,6 +34,7 @@ const TipoAgenteScript := preload("res://src/foundation/datos/esquema/tipo_agent
 const CostesScript := preload("res://src/foundation/datos/esquema/costes.gd")
 const EscenarioScript := preload("res://src/foundation/datos/esquema/escenario.gd")
 const EventoDivisionScript := preload("res://src/foundation/datos/esquema/evento_division.gd")
+const ComodidadScript := preload("res://src/foundation/datos/esquema/comodidad.gd")
 
 ## Raíz del catálogo en disco (empaquetado en `res://`, read-only al exportar — ADR-0003).
 const RUTA_CATALOGO := "res://datos/"
@@ -43,6 +44,7 @@ const RUTA_CATALOGO := "res://datos/"
 ## carpeta solo acota dónde buscar `.tres`.
 const CARPETAS: Array[String] = [
 	"tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios", "eventos",
+	"comodidades",
 ]
 
 ## Claves `StringName` de tipo usadas para indexar y en la API pública `obtener`/`obtener_todos`.
@@ -55,6 +57,7 @@ const TIPO_TIPO_AGENTE := &"TipoAgente"
 const TIPO_COSTES := &"Costes"
 const TIPO_ESCENARIO := &"Escenario"
 const TIPO_EVENTO_DIVISION := &"EventoDivision"
+const TIPO_COMODIDAD := &"Comodidad"
 
 ## Minutos operativos de un puesto ODAC al día para el chequeo R5 (GDD F8): supuesto CONSERVADOR de
 ## ~16 h/día (dotación de ~2 de los 3 turnos; la operativa 24h real la fijan Personal/Horarios). 16×60=960.
@@ -107,6 +110,13 @@ func obtener(tipo: StringName, id: StringName) -> Resource:
 		push_warning("Datos.obtener: no existe id '%s' en tipo '%s' -> null" % [id, tipo])
 		return null
 	return por_id[id]
+
+
+## Igual que `obtener`, pero **sin avisar** si no existe. Es para PREGUNTAR de qué tipo es un id
+## ("¿esto es una comodidad?"), no para buscar algo que se da por seguro: ahí el `null` es una
+## respuesta legítima, no un dato roto, y un `push_warning` por consulta llenaría la consola de ruido.
+func obtener_silencioso(tipo: StringName, id: StringName) -> Resource:
+	return (_por_tipo.get(tipo, {}) as Dictionary).get(id)
 
 
 ## Devuelve TODAS las definiciones de `tipo` (una copia del Array de valores; las definiciones en sí son
@@ -217,6 +227,8 @@ func _clave_tipo(recurso: Resource) -> StringName:
 		return TIPO_ESCENARIO
 	if recurso is EventoDivisionScript:
 		return TIPO_EVENTO_DIVISION
+	if recurso is ComodidadScript:
+		return TIPO_COMODIDAD
 	return &""
 
 

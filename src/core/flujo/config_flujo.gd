@@ -23,6 +23,15 @@ class_name ConfigFlujo extends Resource
 ## ⚠️ El horario de Documentación (apertura / cierre / última admisión) YA NO VIVE AQUÍ: se mudó a
 ## `ConfigDocumentacion` en la story doc-002 (Documentación #8 lo posee, Flujo solo lo ejecuta vía
 ## `Flujo.fijar_horario_doc`). No volver a añadirlo: una sola fuente de verdad.
+
+## Cuánto acelera la atención cada punto de rendimiento instalado en la sala del puesto
+## (Comodidades #15, story com-002): `mult = clamp(1 − k_equipamiento × rendimiento, min, 1.0)`.
+## Con 0.02, un equipo informático (4) + una impresora de DNI (6) dejan el multiplicador en 0.8 →
+## se atiende un 20 % más rápido.
+@export var k_equipamiento: float = 0.02
+## Suelo del multiplicador de equipamiento: por mucho material que compres, el trámite tiene un
+## mínimo (hay que hablar con la persona, comprobar papeles...). 0.8 = como mucho un 20 % más rápido.
+@export var mult_equipamiento_min: float = 0.8
 ## Velocidad de paseo del NPC visible, en px/s a velocidad 1× (story 008 — COSMÉTICO puro, FL5:
 ## jamás afecta a la simulación; escala con el multiplicador del reloj). Semilla 90.
 @export var velocidad_npc_px_s: float = 90.0

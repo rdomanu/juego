@@ -73,10 +73,12 @@ const ID_SALA_TITULO := 100
 const ID_SALA_AMPLIAR := 101
 const ID_SALA_ASIENTOS := 102
 const ID_SALA_DEMOLER := 103
-const ID_SALA_COMODIDADES := 104
+## (104 libre: era el hueco reservado de Comodidades, ya sustituido por el submenu real.)
 const ID_SALA_CANCELAR := 105
 ## Los puestos que admite la sala ocupan 110, 111, 112… (uno por tipo del catálogo).
 const ID_SALA_PUESTO_BASE := 110
+## Las comodidades que admite la sala ocupan 130, 131, 132… (Comodidades #15, story com-003).
+const ID_SALA_COMODIDAD_BASE := 130
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -115,6 +117,8 @@ var _menu_sala: PopupMenu
 var _sala_del_menu: StringName = &""
 ## Los puestos ofrecidos en el menú, en el orden en que se pintaron (índice → id del catálogo).
 var _puestos_del_menu: Array[StringName] = []
+## Las comodidades ofrecidas, en el orden en que se pintaron (índice → id del catálogo).
+var _comodidades_del_menu: Array[StringName] = []
 ## El modo construcción, para poder darle la herramienta ya en la mano desde el menú.
 var _modo_construccion: Node2D
 var _persona_del_menu: RefCounted = null
@@ -385,6 +389,7 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	var tipo: Resource = Datos.obtener(&"TipoSala", tipo_id)
 	_menu_sala.clear()
 	_puestos_del_menu.clear()
+	_comodidades_del_menu.clear()
 
 	# Cabecera: qué sala es y cómo está de ocupada (contexto para decidir si ampliar).
 	_menu_sala.add_item(_titulo_de_sala(sala_id, tipo), ID_SALA_TITULO)
@@ -406,10 +411,9 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 			)
 			_puestos_del_menu.append(puesto_id)
 	_menu_sala.add_separator()
-	# Hueco reservado a Comodidades #15 (vending, revistas, tele…): se enseña APAGADO para que el
-	# jugador sepa que el sitio existe, en vez de que la opción aparezca un día de la nada.
-	_menu_sala.add_item("🛋 Comodidades (aún no disponible)", ID_SALA_COMODIDADES)
-	_menu_sala.set_item_disabled(_menu_sala.item_count - 1, true)
+	# Comodidades #15 (story com-003): los objetos que puede comprar ESTA sala. La familia depende
+	# del tipo de sala — en la de espera se compra confort; en la oficina, material de trabajo.
+	_anadir_comodidades_al_menu(tipo)
 	_menu_sala.add_item("❌ Demoler esta sala", ID_SALA_DEMOLER)
 	_menu_sala.add_separator()
 	_menu_sala.add_item("Cancelar", ID_SALA_CANCELAR)
@@ -423,16 +427,53 @@ func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
 	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
 	var nombre: String = tipo.nombre if tipo != null else String(sala_id)
 	if tipo != null and tipo.tipo == "espera":
-		return "%s · %d×%d · aforo %d" % [
-			nombre, rect.size.x, rect.size.y, _construccion.aforo_de_sala(sala_id),
+		return "%s · %d×%d · aforo %d · confort %d" % [
+			nombre, rect.size.x, rect.size.y,
+			_construccion.aforo_de_sala(sala_id),
+			roundi(_construccion.confort_de_sala(sala_id)),
 		]
-	return "%s · %d×%d" % [nombre, rect.size.x, rect.size.y]
+	return "%s · %d×%d · equipamiento %d" % [
+		nombre, rect.size.x, rect.size.y, roundi(_construccion.equipamiento_de_sala(sala_id)),
+	]
+
+
+## Pinta las comodidades que ESTA sala admite, con su precio, lo que aporta y lo que cuesta tenerla
+## encendida. El catálogo manda: si mañana se añade un objeto nuevo, aparece aquí solo.
+func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
+	if tipo_sala == null:
+		return
+	var familia: String = "ciudadano" if tipo_sala.tipo == "espera" else "funcionario"
+	var catalogo: Array = Datos.obtener_todos(&"Comodidad")
+	catalogo.sort_custom(func(a: Resource, b: Resource) -> bool:
+		return a.coste_construccion_eur < b.coste_construccion_eur   # de lo barato a lo caro
+	)
+	for comodidad: Resource in catalogo:
+		if comodidad.familia != familia:
+			continue
+		var etiqueta: String = "%s %s (%d €" % [
+			"🛋" if familia == "ciudadano" else "🖥",
+			comodidad.nombre,
+			comodidad.coste_construccion_eur,
+		]
+		if comodidad.coste_mantenimiento_dia_eur > 0:
+			etiqueta += " + %d €/día" % comodidad.coste_mantenimiento_dia_eur
+		etiqueta += ") · %s +%d" % [
+			"confort" if familia == "ciudadano" else "rendimiento", roundi(comodidad.aporte),
+		]
+		_menu_sala.add_item(etiqueta, ID_SALA_COMODIDAD_BASE + _comodidades_del_menu.size())
+		_comodidades_del_menu.append(comodidad.id)
 
 
 ## Ejecuta lo elegido. Ninguna acción muta el modelo aquí: se **ordena** por la API pública de
 ## Construcción, o se entra en modo construcción con el pincel puesto (ADR-0001).
 func _al_elegir_del_menu_sala(id: int) -> void:
 	if _sala_del_menu == &"":
+		return
+	if id >= ID_SALA_COMODIDAD_BASE:
+		var i: int = id - ID_SALA_COMODIDAD_BASE
+		if i < _comodidades_del_menu.size():
+			_modo_construccion.activar_con_herramienta(_comodidades_del_menu[i], false)
+			_avisar_accion("Elige el hueco donde va, dentro de la sala", COLOR_TENUE_HUD)
 		return
 	if id >= ID_SALA_PUESTO_BASE:
 		var indice: int = id - ID_SALA_PUESTO_BASE

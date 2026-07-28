@@ -41,6 +41,8 @@ const CELDA_ENTRADA := Vector2i(0, 6)
 var tolerancia_base_min: float = 30.0
 var k_hacinamiento: float = 1.0
 var mult_comodidad: float = 1.0
+var k_confort: float = 0.02
+var mult_comodidad_min: float = 0.6
 var mult_horapunta: float = 1.0
 var umbral_animo_alto: float = 66.0
 var umbral_animo_bajo: float = 33.0
@@ -214,6 +216,9 @@ func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
 	# El hacinamiento se mide con la sala: se aplica a TODOS los de ese servicio (quien no cupo está
 	# esperando en la calle por culpa de la misma sala desbordada — su experiencia no es mejor).
 	var mult: float = mult_hacinamiento(_flujo.ocupacion_dentro(servicio), _aforo_de(servicio))
+	# Lo que el jugador haya comprado para esta sala (story com-002): se calcula UNA vez por servicio
+	# y por tick, no por persona — es el mismo número para todos los que esperan ahí.
+	var mult_com: float = mult_comodidad_de(servicio)
 	personas.sort_custom(func(a: RefCounted, b: RefCounted) -> bool:
 		return a.numero_turno < b.numero_turno
 	)
@@ -227,7 +232,7 @@ func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
 		var minutos: float = _consumir_camino(persona, delta_min)
 		if minutos <= 0.0:
 			continue
-		if drenar(persona, minutos, mult) <= 0.0:
+		if drenar(persona, minutos, mult, mult_com) <= 0.0:
 			_a_abandonar.append(persona)
 
 
@@ -382,17 +387,33 @@ func mult_hacinamiento(ocupacion: int, aforo: int) -> float:
 ## F1 — puntos de paciencia que se pierden por MINUTO DE JUEGO en las condiciones dadas.
 ## `tolerancia_base_min` <= 0 sería una división por cero: se trata como "paciencia infinita" (0.0),
 ## que es lo seguro (nadie abandona) en vez de petar.
-func tasa_drenaje(mult_hac: float = 1.0) -> float:
+func tasa_drenaje(mult_hac: float = 1.0, mult_com: float = -1.0) -> float:
 	if tolerancia_base_min <= 0.0:
 		return 0.0
-	return (100.0 / tolerancia_base_min) * mult_hac * mult_comodidad * mult_horapunta
+	# `mult_com` negativo = "no me lo han dicho" → el knob del `.tres` (sin Construcción, neutro 1.0).
+	var comodidad: float = mult_comodidad if mult_com < 0.0 else mult_com
+	return (100.0 / tolerancia_base_min) * mult_hac * comodidad * mult_horapunta
+
+
+## **Comodidades #15 (story com-002)** · El multiplicador de comodidad que le corresponde a un
+## servicio según lo que el jugador tenga INSTALADO en sus salas de espera:
+## `clamp(1 − k_confort × confort, mult_comodidad_min, 1.0)`.
+##
+## Reparto de propiedad: Construcción dice **cuánto confort hay** (suma de los objetos colocados);
+## esta conversión es de Paciencia, porque F1 es SU fórmula (ADR-0001). Sin Construcción inyectada
+## devuelve el knob de siempre → los tests y las partidas sin salas medibles no cambian.
+func mult_comodidad_de(servicio: StringName) -> float:
+	if _construccion == null or not _construccion.has_method("confort_de_servicio"):
+		return mult_comodidad
+	var confort: float = _construccion.confort_de_servicio(servicio)
+	return clampf(1.0 - k_confort * confort, mult_comodidad_min, 1.0)
 
 
 ## Minutos que le quedan a una barra llena antes de llegar a 0 en estas condiciones (para tests, UI
 ## y la espera estimada). Tasa 0 → -1.0 centinela "no se agota" (NUNCA ∞ ni división por cero —
 ## misma convención que las fórmulas de Flujo).
-func minutos_hasta_agotar(mult_hac: float = 1.0) -> float:
-	var tasa: float = tasa_drenaje(mult_hac)
+func minutos_hasta_agotar(mult_hac: float = 1.0, mult_com: float = -1.0) -> float:
+	var tasa: float = tasa_drenaje(mult_hac, mult_com)
 	if tasa <= 0.0:
 		return -1.0
 	return PACIENCIA_INICIAL / tasa
@@ -401,10 +422,14 @@ func minutos_hasta_agotar(mult_hac: float = 1.0) -> float:
 ## Aplica F1 a UNA persona durante `delta_min` minutos de juego y devuelve su paciencia resultante
 ## (0 = lista para marcharse; la 002 decidirá qué hacer con eso). No baja de 0: una barra vacía no
 ## se vuelve más vacía por seguir esperando.
-func drenar(persona: RefCounted, delta_min: float, mult_hac: float = 1.0) -> float:
+func drenar(
+	persona: RefCounted, delta_min: float, mult_hac: float = 1.0, mult_com: float = -1.0
+) -> float:
 	if not _paciencia_de.has(persona) or delta_min <= 0.0:
 		return paciencia_de(persona)
-	var restante: float = maxf(float(_paciencia_de[persona]) - tasa_drenaje(mult_hac) * delta_min, 0.0)
+	var restante: float = maxf(
+		float(_paciencia_de[persona]) - tasa_drenaje(mult_hac, mult_com) * delta_min, 0.0
+	)
 	_paciencia_de[persona] = restante
 	return restante
 
@@ -718,6 +743,8 @@ func aplicar_config(config: Resource) -> void:
 	tolerancia_base_min = clampf(config.tolerancia_base_min, 1.0, 600.0)
 	k_hacinamiento = clampf(config.k_hacinamiento, 0.0, 10.0)
 	mult_comodidad = clampf(config.mult_comodidad, 0.1, 2.0)
+	k_confort = clampf(config.k_confort, 0.0, 1.0)
+	mult_comodidad_min = clampf(config.mult_comodidad_min, 0.1, 1.0)
 	mult_horapunta = clampf(config.mult_horapunta, 0.1, 3.0)
 	umbral_animo_alto = clampf(config.umbral_animo_alto, 0.0, 100.0)
 	umbral_animo_bajo = clampf(config.umbral_animo_bajo, 0.0, 100.0)

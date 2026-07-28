@@ -107,6 +107,8 @@ var apertura_doc_min: int = 480
 ## coincide con el cierre (comportamiento previo a la mudanza). Lo ya admitido se atiende siempre.
 var ultima_admision_doc_min: int = 870
 var velocidad_npc_px_s: float = 90.0
+var k_equipamiento: float = 0.02
+var mult_equipamiento_min: float = 0.8
 
 # ── El estado del flujo ──────────────────────────────────────────────────────────────────────
 ## Estados del PUESTO (GDD §States B — derivados, nunca almacenados como verdad).
@@ -687,7 +689,20 @@ func duracion_efectiva(servicio: StringName, tramite_id: StringName, puesto_id: 
 	var modificador: float = 1.0
 	if _personal != null:
 		modificador = _personal.modificador_produccion_de(puesto_id)
-	return maxf(1.0, base * modificador)
+	return maxf(1.0, base * modificador * mult_equipamiento(puesto_id))
+
+
+## **Comodidades #15 (story com-002)** · Lo que acelera al puesto el material instalado en su sala:
+## `clamp(1 − k_equipamiento × rendimiento, mult_equipamiento_min, 1.0)`. Se multiplica **sobre** el
+## modificador del agente (F1), no lo sustituye: un agente rápido con buen equipo va aún más rápido.
+##
+## Reparto de propiedad: Construcción dice **cuánto material hay**; la conversión es de Flujo, porque
+## la duración de la atención es SU fórmula (ADR-0001). Sin Construcción inyectada devuelve 1.0.
+func mult_equipamiento(puesto_id: StringName) -> float:
+	if _construccion == null or not _construccion.has_method("equipamiento_de_puesto"):
+		return 1.0
+	var rendimiento: float = _construccion.equipamiento_de_puesto(puesto_id)
+	return clampf(1.0 - k_equipamiento * rendimiento, mult_equipamiento_min, 1.0)
 
 
 ## El tick de simulación (recibe `delta_juego` en MINUTOS; en Pausa Tiempo no empuja → FL8).
@@ -1013,6 +1028,8 @@ func aplicar_config(config: Resource) -> void:
 	habilitar_aging_odac = config.habilitar_aging_odac
 	tope_cola_exterior = maxi(config.tope_cola_exterior, 0)
 	velocidad_npc_px_s = clampf(config.velocidad_npc_px_s, 10.0, 600.0)
+	k_equipamiento = clampf(config.k_equipamiento, 0.0, 1.0)
+	mult_equipamiento_min = clampf(config.mult_equipamiento_min, 0.1, 1.0)
 	# El horario de Doc YA NO se lee de aquí (doc-002): lo empuja Documentación #8 con
 	# `fijar_horario_doc()`. Sin ella, valen los defaults del horario base.
 

@@ -59,6 +59,8 @@ var _contador_ids: int = 0
 
 ## Economía inyectada (gate E4 de construcción — story 002). En runtime la enchufa Main.
 var _economia: Node = null
+## El bus (story com-001): por él llega el cierre del día en que se cobra el mantenimiento.
+var _bus: Node = null
 ## Personal inyectado (el puente `registrar_puesto`/`quitar_puesto` — story 003).
 var _personal: Node = null
 ## Gate de demolición (AC-CO13, story flujo-006): callable que responde si un PUESTO puede
@@ -79,6 +81,8 @@ func fijar_hook_layout(hook: Callable) -> void:
 
 
 func _ready() -> void:
+	if _bus == null:
+		usar_bus(get_node_or_null("/root/EventBus"))
 	_cargar_config()
 	# Contrato de persistencia (ADR-0002): el SaveManager recoge por el grupo, clave = node.name.
 	add_to_group("Persist")
@@ -92,6 +96,15 @@ func usar_economia(economia: Node) -> void:
 ## Inyecta Personal (dependency injection → testeable). Sin él, los puestos no se registran (aviso).
 func usar_personal(personal: Node) -> void:
 	_personal = personal
+
+
+## Inyecta el bus y registra el cobro del mantenimiento en el dispatcher ordenado con **prioridad 16**
+## (Paciencia 10 → Documentación 15 → **Construcción 16** → Economía 20): el gasto tiene que estar
+## anotado antes de que Economía cierre las cuentas del día. Story com-001.
+func usar_bus(bus: Node) -> void:
+	_bus = bus
+	if _bus != null and _bus.has_method("registrar_ordenado"):
+		_bus.registrar_ordenado(&"nuevo_dia", 16, _al_nuevo_dia)
 
 
 # ── Validación de colocación (F6 — determinista, sin ambigüedad) ─────────────────────────────
@@ -127,6 +140,13 @@ func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringN
 			return false
 		# F3 (story 003): el asiento por encima del tope físico por área NO cabe — se rechaza.
 		return _asientos_en(sala_id, ignorar) < _plazas_max_de(sala_id)
+	# Comodidades #15 (story com-001): cada familia va donde tiene sentido — una tele en la sala de
+	# espera, un equipo informático donde trabaja la gente. Al revés no se permite.
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	if comodidad != null:
+		if comodidad.familia == "ciudadano":
+			return tipo_sala.tipo == "espera"
+		return tipo_sala.tipo != "espera"
 	var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", id_catalogo)
 	if tipo_puesto == null:
 		return false   # Datos ya avisó
@@ -139,6 +159,80 @@ func sala_en(celda: Vector2i) -> StringName:
 		if (_salas[sala_id]["rect"] as Rect2i).has_point(celda):
 			return sala_id
 	return &""
+
+
+# ── Comodidades #15 (story com-001): lo que hay COLOCADO en cada sala ────────────────────────
+
+## Suma de aportes de una familia de comodidades en una sala. Construcción **solo suma**: qué hace ese
+## número con la paciencia o con el reloj de la atención lo decide cada sistema con SU fórmula
+## (ADR-0001) — aquí no vive ningún multiplicador de nadie.
+func aporte_de_sala(sala_id: StringName, familia: String) -> float:
+	var total: float = 0.0
+	for elemento_id: StringName in _elementos:
+		if _elementos[elemento_id]["sala"] != sala_id:
+			continue
+		var comodidad: Resource = Datos.obtener_silencioso(
+			&"Comodidad", _elementos[elemento_id]["catalogo"]
+		)
+		if comodidad != null and comodidad.familia == familia:
+			total += comodidad.aporte
+	return total
+
+
+## Confort de una sala de espera (familia "ciudadano"): lo consume Paciencia #10.
+func confort_de_sala(sala_id: StringName) -> float:
+	return aporte_de_sala(sala_id, "ciudadano")
+
+
+## Rendimiento instalado en una sala (familia "funcionario"): lo consume Flujo #4.
+func equipamiento_de_sala(sala_id: StringName) -> float:
+	return aporte_de_sala(sala_id, "funcionario")
+
+
+## Confort MEDIO de las salas de espera de un servicio (0 si no tiene ninguna). Media y no suma: dos
+## salas a medio montar no valen lo mismo que una bien montada, y con una sola sala —el caso normal—
+## el número es exactamente el suyo. Una sala "Comun" cuenta para ambos servicios.
+func confort_de_servicio(servicio: StringName) -> float:
+	var total: float = 0.0
+	var salas: int = 0
+	for sala_id: StringName in _salas:
+		var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
+		if tipo_sala == null or tipo_sala.tipo != "espera":
+			continue
+		if tipo_sala.servicio != String(servicio) and tipo_sala.servicio != "Comun":
+			continue
+		total += confort_de_sala(sala_id)
+		salas += 1
+	if salas == 0:
+		return 0.0
+	return total / float(salas)
+
+
+## Rendimiento instalado en la sala donde vive ese puesto (0 si el puesto no existe).
+func equipamiento_de_puesto(puesto_id: StringName) -> float:
+	if not _elementos.has(puesto_id):
+		return 0.0
+	return equipamiento_de_sala(_elementos[puesto_id]["sala"])
+
+
+## Lo que cuesta cada jornada tener encendido todo lo instalado (los objetos sin consumo suman 0).
+func mantenimiento_dia() -> float:
+	var total: float = 0.0
+	for elemento_id: StringName in _elementos:
+		var comodidad: Resource = Datos.obtener_silencioso(
+			&"Comodidad", _elementos[elemento_id]["catalogo"]
+		)
+		if comodidad != null:
+			total += float(comodidad.coste_mantenimiento_dia_eur)
+	return total
+
+
+## Handler del `nuevo_dia` (prioridad 16: tras la peonada de Documentación 15 y ANTES de que Economía
+## pase la factura en la 20). Le REGISTRA el gasto a Economía; el saldo no se toca aquí (ADR-0001).
+func _al_nuevo_dia() -> void:
+	var coste: float = mantenimiento_dia()
+	if coste > 0.0 and _economia != null and _economia.has_method("registrar_mantenimiento"):
+		_economia.registrar_mantenimiento(coste)
 
 
 ## El tipo de sala (id del catálogo) con el que se construyó, o `&""` si la sala no existe. Lo
@@ -212,6 +306,9 @@ func coste_sala(tipo_sala_id: StringName, rect: Rect2i) -> float:
 func coste_elemento(id_catalogo: StringName) -> float:
 	if id_catalogo == ASIENTO_BASICO:
 		return coste_asiento_basico
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	if comodidad != null:
+		return _clamp_coste(float(comodidad.coste_construccion_eur), id_catalogo)
 	var tipo: Resource = Datos.obtener(&"TipoPuesto", id_catalogo)
 	if tipo == null:
 		return 0.0

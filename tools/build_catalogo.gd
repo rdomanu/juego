@@ -24,6 +24,7 @@ const TipoAgenteScript := preload("res://src/foundation/datos/esquema/tipo_agent
 const CostesScript := preload("res://src/foundation/datos/esquema/costes.gd")
 const EscenarioScript := preload("res://src/foundation/datos/esquema/escenario.gd")
 const EventoDivisionScript := preload("res://src/foundation/datos/esquema/evento_division.gd")
+const ComodidadScript := preload("res://src/foundation/datos/esquema/comodidad.gd")
 
 const RUTA_CATALOGO := "res://datos/"
 
@@ -44,8 +45,8 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ]
 
 ## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
-## + 4 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos de la División = 32.
-const TOTAL_ESPERADO := 32
+## + 4 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 8 comodidades = 40.
+const TOTAL_ESPERADO := 40
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -63,6 +64,7 @@ func _init() -> void:
 	_generar_costes()        # F6 — 1 Costes
 	_generar_escenario()     # F7 — 1 Escenario
 	_generar_eventos()       # F8 — 2 EventoDivision (story doc-004)
+	_generar_comodidades()   # F9 — 8 Comodidad (story com-001)
 
 	print("build_catalogo: %d guardados, %d fallos (esperados %d archivos)." % [
 		_guardados, _fallos, TOTAL_ESPERADO,
@@ -304,6 +306,59 @@ func _evento(
 	return r
 
 
+## F9 · Los objetos que se compran y se colocan (Comodidades #15, story com-001). Dos familias:
+## "ciudadano" (confort de la espera) y "funcionario" (rendimiento del puesto). El mantenimiento SOLO
+## lo llevan los aparatos que consumen: la papelera y el revistero se pagan una vez y ya.
+func _generar_comodidades() -> void:
+	_guardar(_comodidad(
+		&"papelera", "Papelera", "Una sala sin papeleras se ensucia y se nota.",
+		"ciudadano", 60, 0, 1.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"revistero", "Revistero", "Prensa del dia para la espera.",
+		"ciudadano", 150, 0, 2.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"radio", "Hilo musical", "Musica ambiente: la espera se hace menos larga.",
+		"ciudadano", 250, 1, 3.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"fuente_agua", "Fuente de agua", "Agua fresca para los que llevan horas.",
+		"ciudadano", 400, 2, 3.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"vending", "Maquina de vending", "Cafe y algo de picar sin salir de la comisaria.",
+		"ciudadano", 1200, 3, 5.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"television", "Television", "Lo que mas mata el tiempo de una sala de espera.",
+		"ciudadano", 900, 4, 6.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"equipo_informatico", "Equipo informatico nuevo", "Menos pantallazos, mas tramites.",
+		"funcionario", 1500, 2, 4.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"impresora_dni", "Impresora de DNI moderna", "El documento sale en la mitad de tiempo.",
+		"funcionario", 2200, 3, 6.0
+	), "comodidades")
+
+
+func _comodidad(
+	id: StringName, nombre: String, descripcion: String, familia: String,
+	coste: int, mantenimiento: int, aporte: float
+) -> Resource:
+	var r: Resource = ComodidadScript.new()
+	r.id = id
+	r.nombre = nombre
+	r.descripcion = descripcion
+	r.familia = familia
+	r.coste_construccion_eur = coste
+	r.coste_mantenimiento_dia_eur = mantenimiento
+	r.aporte = aporte
+	return r
+
+
 # ── Guardado (con comprobación de error) ─────────────────────────────────────────────────
 
 ## Crea las carpetas del catálogo si faltan (DirAccess). Idempotente.
@@ -316,6 +371,7 @@ func _asegurar_carpetas() -> void:
 	base.make_dir_recursive("datos")
 	for carpeta: String in [
 		"tramites", "denuncias", "puestos", "salas", "agentes", "costes", "escenarios", "eventos",
+		"comodidades",
 	]:
 		base.make_dir_recursive("datos".path_join(carpeta))
 

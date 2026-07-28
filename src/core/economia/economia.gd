@@ -60,6 +60,9 @@ var _salarios_dia: Array[float] = []
 var _salarios_fijados: bool = false
 ## Horas extra acumuladas HOY (las registra Horarios/Personal en el futuro; Economía solo el coste E3).
 var _horas_extra_dia: float = 0.0
+## Mantenimiento de las comodidades instaladas, acumulado del día (Comodidades #15, story com-001).
+## Lo REGISTRA Construcción al cierre (prio 16); aquí solo se cobra y se resetea, como la peonada.
+var _mantenimiento_dia: float = 0.0
 ## Coste de la peonada por hora (cacheado del catálogo `costes_global`).
 var _peonada_eur_hora: float = 15.0
 
@@ -215,6 +218,13 @@ func registrar_horas_extra(horas: float) -> void:
 	_horas_extra_dia += maxf(horas, 0.0)
 
 
+## Registra el mantenimiento de la jornada (Comodidades #15): lo llama Construcción en el cierre del
+## día (prio 16) con el coste YA en euros — a diferencia de la peonada, aquí no hay tarifa que aplicar
+## (cada objeto trae su precio diario del catálogo). Negativos se ignoran: un gasto nunca da dinero.
+func registrar_mantenimiento(euros: float) -> void:
+	_mantenimiento_dia += maxf(euros, 0.0)
+
+
 ## El cierre de cuentas al `nuevo_dia` (prioridad 20), en el ORDEN DETERMINISTA de F6:
 ## (1) RECARGO sobre la deuda de APERTURA (antes de los gastos de hoy — así el déficit que crea la
 ##     nómina de hoy no genera recargo hasta mañana, AC-E09/E10c);
@@ -237,6 +247,7 @@ func _al_nuevo_dia() -> void:
 	# (3) Reinicio de acumuladores.
 	ingreso_doc_dia = 0.0
 	_horas_extra_dia = 0.0
+	_mantenimiento_dia = 0.0
 	_emitir_saldo()
 
 
@@ -284,6 +295,7 @@ func save() -> Dictionary:
 		"gracia_restante_min": gracia_restante_min,
 		"sat_cierre_doc": sat_cierre_doc,
 		"horas_extra_dia": _horas_extra_dia,
+		"mantenimiento_dia": _mantenimiento_dia,
 	}
 
 
@@ -302,6 +314,7 @@ func load_state(d: Dictionary) -> void:
 	gracia_restante_min = d.get("gracia_restante_min", gracia_restante_min)
 	sat_cierre_doc = d.get("sat_cierre_doc", sat_cierre_doc)
 	_horas_extra_dia = d.get("horas_extra_dia", _horas_extra_dia)
+	_mantenimiento_dia = d.get("mantenimiento_dia", _mantenimiento_dia)
 	_esperando_decision = false
 	_estado_anterior = estado()
 

@@ -19,9 +19,17 @@ class_name ConfigPaciencia extends Resource
 ## `mult_hacinamiento = 1 + k_hacinamiento × (ocupacion − aforo) / aforo`). Con 1.0, una sala al 150 %
 ## de su aforo drena ×1.5 (la gente aguanta 20 min en vez de 30). Semilla 1.0.
 @export var k_hacinamiento: float = 1.0
-## Multiplicador de comodidad de la sala (F1). <1 = la gente aguanta MÁS. Lo bajará Comodidades #15;
-## en el MVP es neutro. Semilla 1.0.
+## Multiplicador de comodidad de la sala (F1) cuando NO hay Construcción inyectada (tests, o una
+## partida sin salas medibles). Con Construcción, el valor se DERIVA de lo instalado (Comodidades #15,
+## story com-002) y este knob deja de usarse. Semilla 1.0 = neutro.
 @export var mult_comodidad: float = 1.0
+## Cuánto baja el multiplicador de comodidad por cada punto de confort instalado en la sala
+## (story com-002): `mult = clamp(1 − k_confort × confort, mult_comodidad_min, 1.0)`. Con 0.02, una
+## tele (6) deja el multiplicador en 0.88 → la gente aguanta ~34 min en vez de 30.
+@export var k_confort: float = 0.02
+## Suelo del multiplicador de comodidad: por muy bien montada que esté la sala, **nadie espera
+## eternamente**. 0.6 = como máximo se aguanta un 66 % más (30 min → 50). Rango del GDD F1: 0.6–1.0.
+@export var mult_comodidad_min: float = 0.6
 ## Multiplicador de hora punta (F1): la aglomeración puede crispar más. Opcional, neutro en el MVP.
 @export var mult_horapunta: float = 1.0
 ## Umbral de ánimo CONTENTO (🟢): paciencia por ENCIMA de este valor. Cross-fact 66 (ui-hud F2).

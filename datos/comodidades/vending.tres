@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_e6u2d"]
+
+[resource]
+script = ExtResource("1_e6u2d")
+id = &"vending"
+nombre = "Maquina de vending"
+descripcion = "Cafe y algo de picar sin salir de la comisaria."
+familia = "ciudadano"
+coste_construccion_eur = 1200
+coste_mantenimiento_dia_eur = 3
+aporte = 5.0

@@ -9,6 +9,8 @@ const EventBusScript := preload("res://src/foundation/event_bus/event_bus.gd")
 const CLAVES_SAVE: Array[String] = [
 	"saldo_eur", "prestamos_usados", "prestamos_vivos", "ingreso_doc_dia", "ingresos_mes",
 	"gastos_mes", "balance_mes", "en_gracia", "gracia_restante_min", "sat_cierre_doc", "horas_extra_dia",
+	# Comodidades #15 (story com-001): el mantenimiento del día acumulado, igual que las horas extra.
+	"mantenimiento_dia",
 ]
 
 
