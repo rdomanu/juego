@@ -156,6 +156,11 @@ func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringN
 				return tipo_sala.tipo == "espera"
 			"descanso":
 				return tipo_sala.tipo == "descanso"
+			"iluminacion":
+				# Una lámpara vale en CUALQUIER sala (petición del usuario 2026-07-29: "no veo tampoco
+				# la instalación de luces para la noche"). Es la única familia sin sala propia, y por
+				# eso existe: lo que compra el jugador es VER, no un multiplicador de ningún sistema.
+				return true
 			_:
 				return tipo_sala.tipo == "oficina"
 	var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", id_catalogo)

@@ -1,7 +1,7 @@
 class_name Comodidad extends Resource
 ## Comodidad — un objeto que el jugador **compra y coloca** dentro de una sala (Comodidades #15).
 ##
-## Tres familias, mismo catálogo y mismo modo de colocarse:
+## Cuatro familias, mismo catálogo y mismo modo de colocarse:
 ##   • **ciudadano**  — va en salas de **espera** y aporta **confort**: la gente aguanta más antes de
 ##     largarse (baja el `mult_comodidad` de Paciencia F1).
 ##   • **funcionario** — va en salas con **puestos** y aporta **rendimiento**: se atiende más rápido
@@ -10,6 +10,11 @@ class_name Comodidad extends Resource
 ##     con la sala bien montada la pausa CUNDE más y el funcionario vuelve antes a su ventanilla.
 ##     Petición del usuario 2026-07-29: *"no hay objetos para esa sala, sillas, sofás, nevera,
 ##     revistas… cosas que puedan hacer descansar, agua"*.
+##   • **iluminacion** — se coloca en **CUALQUIER** tipo de sala (espera, oficina o descanso): una
+##     lámpara tiene sentido en cualquier sitio, a diferencia de las otras tres familias que solo
+##     encajan en su tipo de sala. `aporte = 0.0` siempre: no da confort ni rendimiento, lo que
+##     compra el jugador es VER de noche (petición del usuario 2026-07-29: *"no veo tampoco la
+##     instalacion de luces para la noche"*) — la luce la enciende `src/main/luces_objetos.gd`.
 ##
 ## El `aporte` es un número **abstracto** a propósito: cada sistema decide qué hace con él (ADR-0001).
 ## Construcción solo suma los aportes de cada sala; Paciencia y Flujo los convierten con SU fórmula.
@@ -24,9 +29,10 @@ class_name Comodidad extends Resource
 @export var nombre: String
 ## Qué hace, en una línea, para el menú de compra.
 @export var descripcion: String
-## A quién beneficia: "ciudadano" (confort de la espera), "funcionario" (rendimiento del puesto) o
-## "descanso" (calidad del café en la sala de descanso).
-@export_enum("ciudadano", "funcionario", "descanso") var familia: String
+## A quién beneficia: "ciudadano" (confort de la espera), "funcionario" (rendimiento del puesto),
+## "descanso" (calidad del café en la sala de descanso) o "iluminacion" (luz instalable, va en
+## cualquier tipo de sala — no beneficia a nadie en concreto, ver comentario de clase).
+@export_enum("ciudadano", "funcionario", "descanso", "iluminacion") var familia: String
 ## Precio de compra, en euros (lo cobra Construcción por el gate E4 de Economía).
 @export var coste_construccion_eur: int
 ## Lo que cuesta tenerlo encendido cada jornada. **0 = no consume** (papelera, revistero): se paga una

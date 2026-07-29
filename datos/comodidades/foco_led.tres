@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_rod6p"]
+
+[resource]
+script = ExtResource("1_rod6p")
+id = &"foco_led"
+nombre = "Foco LED"
+descripcion = "El mas caro de instalar, pero no gasta nada dia a dia."
+familia = "iluminacion"
+coste_construccion_eur = 350
+aporte = 0.0
+emite_luz = true
+color_luz = Color(0.88, 0.94, 1, 1)
+radio_luz = 160.0

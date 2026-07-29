@@ -53,6 +53,12 @@ var k_confort_pausa: float = 0.03
 var mult_pausa_min: float = 0.7
 ## Plazas que da la sala de descanso VACÍA (uno de pie). Las de verdad se compran.
 var plazas_descanso_base: int = 1
+## Minutos de juego por celda al ir a descansar. Es el paso a pie del funcionario, y el gemelo del
+## `velocidad_camino_celdas_min` de Flujo (0.375 celdas/min → 2.67 min/celda): el mismo paso, dicho
+## del derecho en vez de del revés, porque aquí lo que se necesita es "cuánto tarda", no "cuánto anda".
+var min_por_celda_a_descanso: float = 2.67
+## Cada cuántas horas de reloj se renueva el cupo de cafés (el "turno").
+var horas_por_turno: int = 8
 ## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
 ## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
 ## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
@@ -93,6 +99,17 @@ var _vueltos_del_descanso: Array[RefCounted] = []
 ## Reusada cada tick (cero asignaciones en el bucle): a quienes el cierre de su ventanilla les pilla
 ## tomando café y se marchan a casa con el descanso a medias.
 var _cerrados_del_descanso: Array[RefCounted] = []
+## Quien va ANDANDO a la sala de descanso: `agente -> minutos de camino que le quedan`. Su café aún
+## no ha empezado a contar (petición del usuario 2026-07-29). Ya está en estado DESCANSANDO, así que
+## su ventanilla no atiende desde que se levanta — el trayecto es tiempo de ausencia real.
+var _yendo_a_descansar: Dictionary[RefCounted, float] = {}
+## La pausa que le espera al llegar: `agente -> minutos`. Se calcula al salir (con la calidad de la
+## sala de ese momento) y se cobra al llegar.
+var _pausa_pendiente: Dictionary[RefCounted, float] = {}
+## Reusada cada tick: los que acaban de llegar a la sala y empiezan su café de verdad.
+var _llegados_al_descanso: Array[RefCounted] = []
+## Último turno de reloj visto, para detectar el cambio de franja y renovar el cupo de cafés.
+var _turno_visto: int = -1
 
 ## Tipos contratables del MVP (los 2 perfiles operativos del catálogo; `ag_seguridad` queda fuera del
 ## mercado — el vigilante llegará con su sistema).
@@ -216,7 +233,9 @@ func plazas_de_descanso() -> int:
 func hay_sitio_para_descansar() -> bool:
 	if not hay_sala_descanso():
 		return true   # a la calle caben todos
-	return _descansando.size() < plazas_de_descanso()
+	# Los que van DE CAMINO ya cuentan: su plaza está reservada desde que se levantan. Si no, dos
+	# agentes podrían salir a la vez hacia la única silla libre y el segundo llegaría a nada.
+	return _descansando.size() + _yendo_a_descansar.size() < plazas_de_descanso()
 
 
 ## Manda al agente a su pausa: deja de dotar su puesto (el gate FL4 ya exige ASIGNADO, así que Flujo
@@ -235,7 +254,22 @@ func enviar_a_descansar(agente: RefCounted) -> float:
 	var minutos: float = float(minutos_de_pausa(agente)) * mult_pausa_por_sala()
 	agente.estado = AgenteScript.ESTADO_DESCANSANDO
 	agente.pausas_gastadas += 1
-	_descansando[agente] = minutos
+	# El café empieza a contar CUANDO LLEGA, no al levantarse (petición del usuario 2026-07-29:
+	# *"empieza a contar el descanso durante el camino, deberíamos ponerlo cuando esté fuera de la
+	# comisaría o bien en la sala de descanso, ahí es cuando tiene que empezar a contar"*). Decisión
+	# de balance que tomó él (opción A): el camino es tiempo AÑADIDO, no descontado de la pausa — así
+	# la ausencia real es camino + café, y **poner la sala cerca de las ventanillas pasa a ser una
+	# decisión de construcción con premio**.
+	#
+	# El trayecto lo cronometra el MODELO (distancia × `min_por_celda_a_descanso`), no el muñeco de la
+	# capa visual: así esto es determinista, testeable sin árbol y funciona igual en headless. El
+	# muñeco de `npcs_flujo.gd` anda a su ritmo por encima, pero no manda.
+	var camino: float = minutos_de_camino_al_descanso(agente.puesto_id)
+	if camino > 0.0:
+		_yendo_a_descansar[agente] = camino
+		_pausa_pendiente[agente] = minutos
+	else:
+		_descansando[agente] = minutos
 	if _bus != null:
 		_bus.incidencia_personal.emit(
 			"%s se va a descansar (%d min)" % [agente.nombre, roundi(minutos)]
@@ -243,8 +277,39 @@ func enviar_a_descansar(agente: RefCounted) -> float:
 	return minutos
 
 
-## Minutos que le quedan de café (0 si no está descansando) — lo LEE la UI.
+## Lo que tarda en llegar de su ventanilla a la sala de descanso, en minutos de juego. Sin sala
+## construida se va a la calle: se usa la misma distancia hasta el borde del edificio, porque salir
+## también cuesta. Sin Construcción inyectada (tests que miden otra cosa) → 0 = llega al instante.
+func minutos_de_camino_al_descanso(puesto_id: StringName) -> float:
+	if _construccion == null or min_por_celda_a_descanso <= 0.0:
+		return 0.0
+	if not _construccion.has_method("posicion_de") or not _construccion.has_method("salas_de_tipo"):
+		return 0.0
+	var origen: Vector2i = _construccion.posicion_de(puesto_id)
+	var salas: Array = _construccion.salas_de_tipo("descanso")
+	if salas.is_empty():
+		# A la calle: el borde izquierdo del edificio, que es por donde se sale (misma convención que
+		# usa la capa visual para mandar a la gente fuera).
+		return float(maxi(origen.x, 0)) * min_por_celda_a_descanso
+	var rect: Rect2i = _construccion.rect_de_sala(salas[0])
+	var centro := Vector2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2)
+	var d: Vector2i = centro - origen
+	# Distancia en celdas "a ojo de peatón" (diagonal contada como una celda: el suelo es abierto y
+	# nadie rodea nada salvo los mostradores). No hace falta pathfinding para cronometrar un café.
+	return float(maxi(absi(d.x), absi(d.y))) * min_por_celda_a_descanso
+
+
+## ¿Va de camino a la sala de descanso ahora mismo (todavía no ha llegado)? Lo usa la UI para decir
+## "va al descanso" en vez de enseñar una cuenta atrás que aún no ha empezado.
+func va_de_camino_al_descanso(agente: RefCounted) -> bool:
+	return _yendo_a_descansar.has(agente)
+
+
+## Minutos que le quedan de café (0 si no está descansando). **Mientras camina devuelve los minutos
+## de la pausa que le espera**, no los del trayecto: es lo que la UI quiere enseñar ("se va 21 min").
 func minutos_de_descanso_restantes(agente: RefCounted) -> float:
+	if _yendo_a_descansar.has(agente):
+		return float(_pausa_pendiente.get(agente, 0.0))
 	return float(_descansando.get(agente, 0.0))
 
 
@@ -296,7 +361,12 @@ func turno_terminado(puesto_id: StringName) -> bool:
 ## esa hora no tiene sentido — se marcha con el café a medias, como cualquiera. Su barra NO se pone a
 ## cero (no llegó a terminar el descanso); da igual, porque el reinicio diario la limpia de todos modos.
 func _al_tick(delta_juego_min: float) -> void:
-	if _descansando.is_empty() or delta_juego_min <= 0.0:
+	if delta_juego_min <= 0.0:
+		return
+	_renovar_cupo_si_cambia_el_turno()
+	_mandar_a_casa_a_los_que_van_de_camino()
+	_avanzar_caminos_al_descanso(delta_juego_min)
+	if _descansando.is_empty():
 		return
 	_vueltos_del_descanso.clear()
 	_cerrados_del_descanso.clear()
@@ -327,6 +397,73 @@ func _al_tick(delta_juego_min: float) -> void:
 			agente.estado = AgenteScript.ESTADO_ASIGNADO
 		else:
 			agente.estado = AgenteScript.ESTADO_LIBRE
+
+
+## En qué turno del día estamos (0, 1, 2… según `horas_por_turno`). Sin reloj inyectado, siempre 0.
+func turno_actual() -> int:
+	if _tiempo == null:
+		return 0
+	return int(fposmod(_tiempo.minutos_juego, 1440.0) / float(maxi(horas_por_turno, 1) * 60))
+
+
+## 🐛 Al cambiar de turno se renueva el cupo de cafés de TODA la plantilla. Arregla el bug que
+## reportó el usuario (2026-07-29): *"en la odac el funcionario lleva con la línea roja de cansancio
+## mucho tiempo y sigue atendiendo"*. El cupo era POR JORNADA y ODAC no cierra nunca, así que un
+## agente gastaba su única pausa y se quedaba al máximo de cansancio hasta 18 h de juego — rindiendo
+## un 25 % peor y sin salida. **No se toca la barra de cansancio**: turno nuevo no es persona nueva,
+## solo vuelve a tener DERECHO a parar. Quien está agotado sigue agotado hasta que se toma el café.
+func _renovar_cupo_si_cambia_el_turno() -> void:
+	var turno: int = turno_actual()
+	if turno == _turno_visto:
+		return
+	var primera_vez: bool = _turno_visto < 0
+	_turno_visto = turno
+	# En el PRIMER tick (arranque de partida o carga de un guardado) solo se toma nota del turno en
+	# que estamos: nadie ha cambiado de franja todavía. Sin esta guarda, el primer tick regalaba un
+	# cupo entero de cafés — lo cazó `test_el_cumplidor_se_va_dos_veces_y_menos_rato`, que comprueba
+	# justo lo contrario (gastadas las dos pausas, aguanta hasta el cierre).
+	if primera_vez:
+		return
+	for agente: RefCounted in plantilla:
+		agente.pausas_gastadas = 0
+
+
+## Si a alguien le cierra la ventanilla MIENTRAS va andando al café, da media vuelta y se va a casa:
+## no llega a sentarse siquiera. Misma regla que para el que ya estaba en la sala — el turno de
+## Documentación no continúa hasta el día siguiente.
+func _mandar_a_casa_a_los_que_van_de_camino() -> void:
+	if _yendo_a_descansar.is_empty():
+		return
+	_llegados_al_descanso.clear()   # se reusa como "los que salen" (mismo array, cero asignaciones)
+	for agente: RefCounted in _yendo_a_descansar:
+		if turno_terminado(agente.puesto_id):
+			_llegados_al_descanso.append(agente)
+	for agente: RefCounted in _llegados_al_descanso:
+		_yendo_a_descansar.erase(agente)
+		_pausa_pendiente.erase(agente)
+		if agente.puesto_id != &"" and _asignaciones.get(agente.puesto_id) == agente:
+			agente.estado = AgenteScript.ESTADO_ASIGNADO
+		else:
+			agente.estado = AgenteScript.ESTADO_LIBRE
+
+
+## Avanza a quien va ANDANDO a la sala de descanso; al llegar, arranca su café de verdad. Esta es la
+## fase que pidió el usuario: la cuenta atrás no empieza hasta que está en la sala (o en la calle).
+func _avanzar_caminos_al_descanso(delta_juego_min: float) -> void:
+	if _yendo_a_descansar.is_empty():
+		return
+	_llegados_al_descanso.clear()
+	for agente: RefCounted in _yendo_a_descansar:
+		var restante: float = float(_yendo_a_descansar[agente]) - delta_juego_min
+		if restante > 0.0:
+			_yendo_a_descansar[agente] = restante
+			continue
+		_llegados_al_descanso.append(agente)
+	for agente: RefCounted in _llegados_al_descanso:
+		_yendo_a_descansar.erase(agente)
+		# Ya está sentado: AHORA empieza a contar el café.
+		_descansando[agente] = float(_pausa_pendiente.get(agente, 0.0))
+		_pausa_pendiente.erase(agente)
 
 
 ## F4: `clamp(base_ausencia − k_salud×(S−3), 0, 1)`. Salud 5 → 0 (clamp) · Salud 3 → 3 % · Salud 1 → 7 %.
@@ -511,6 +648,10 @@ func _al_nuevo_dia() -> void:
 ## pausa no se arrastra de una jornada a otra.
 func _reiniciar_cansancio() -> void:
 	_descansando.clear()
+	# También a quien le pille el cambio de día ANDANDO hacia la sala: no se queda caminando de un
+	# día para otro (su estado se corrige en el bucle de abajo, como el de los que ya estaban dentro).
+	_yendo_a_descansar.clear()
+	_pausa_pendiente.clear()
 	for agente: RefCounted in plantilla:
 		agente.cansancio = 0.0
 		agente.pausas_gastadas = 0
@@ -942,6 +1083,11 @@ func _agente_desde_dict(datos: Variant) -> RefCounted:
 	agente.pausas_gastadas = int(datos.get("pausas_gastadas", 0))
 	var restante: float = float(datos.get("descanso_restante", 0.0))
 	if restante > 0.0 and estado == AgenteScript.ESTADO_DESCANSANDO:
+		# Decisión consciente: a quien guardaste ANDANDO hacia la sala se le carga ya SENTADO, con su
+		# pausa entera por delante (`minutos_de_descanso_restantes` devuelve la pausa pendiente, no
+		# los minutos de camino). Se le regala el trayecto, que son un par de minutos de juego; a
+		# cambio, el save no necesita un campo más ni puede desincronizarse. Lo que NO pasa —y es lo
+		# que importa— es perder gente o duplicarla.
 		_descansando[agente] = restante
 	return agente
 
@@ -1012,6 +1158,8 @@ func aplicar_config(config: Resource) -> void:
 	k_confort_pausa = clampf(config.k_confort_pausa, 0.0, 1.0)
 	mult_pausa_min = clampf(config.mult_pausa_min, 0.1, 1.0)
 	plazas_descanso_base = maxi(config.plazas_descanso_base, 0)
+	min_por_celda_a_descanso = clampf(config.min_por_celda_a_descanso, 0.0, 60.0)
+	horas_por_turno = clampi(config.horas_por_turno, 1, 24)
 	if config.minutos_aguante < 1:
 		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")

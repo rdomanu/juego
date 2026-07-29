@@ -45,10 +45,12 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ]
 
 ## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
-## + 5 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 14 comodidades = 47.
+## + 5 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 17 comodidades = 50.
 ## Las comodidades son 8 de sala de espera/oficina (Comodidades #15) + 6 de sala de descanso
-## (Bienestar #13, familia "descanso" — petición del usuario 2026-07-29).
-const TOTAL_ESPERADO := 47
+## (Bienestar #13, familia "descanso" — petición del usuario 2026-07-29) + 3 de iluminación
+## (familia "iluminacion", se colocan en CUALQUIER sala — petición del usuario 2026-07-29:
+## "no veo tampoco la instalacion de luces para la noche").
+const TOTAL_ESPERADO := 50
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -313,9 +315,11 @@ func _evento(
 	return r
 
 
-## F9 · Los objetos que se compran y se colocan (Comodidades #15, story com-001). Dos familias:
-## "ciudadano" (confort de la espera) y "funcionario" (rendimiento del puesto). El mantenimiento SOLO
-## lo llevan los aparatos que consumen: la papelera y el revistero se pagan una vez y ya.
+## F9 · Los objetos que se compran y se colocan (Comodidades #15, story com-001). Cuatro familias:
+## "ciudadano" (confort de la espera), "funcionario" (rendimiento del puesto), "descanso" (calidad
+## del café) e "iluminacion" (se coloca en cualquier sala — petición del usuario 2026-07-29, ver
+## comentario de `TOTAL_ESPERADO`). El mantenimiento SOLO lo llevan los aparatos que consumen: la
+## papelera y el revistero se pagan una vez y ya.
 func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"papelera", "Papelera", "Una sala sin papeleras se ensucia y se nota.",
@@ -383,6 +387,28 @@ func _generar_comodidades() -> void:
 		&"sofa_descanso", "Sofa", "Se sientan tres y se levantan nuevos. La pieza cara de la sala.",
 		"descanso", 550, 0, 4.0, false, 0.0, 3.0, 0.0,
 		false, Color(1.0, 0.9, 0.7), 90.0, 3, 3    # 3 plazas, superficie 3 (coinciden a proposito)
+	), "comodidades")
+	# Familia "iluminacion" (peticion del usuario 2026-07-29: "no veo tampoco la instalacion de
+	# luces para la noche"). Se coloca en CUALQUIER tipo de sala (espera, oficina o descanso) --
+	# a diferencia de las otras tres familias, que solo encajan en la suya. `aporte = 0.0` en las
+	# tres: no dan confort ni rendimiento, lo que se compra es VER de noche, no un multiplicador
+	# (si se quisiera tambien un poco de confort por "sala bien iluminada", seria una decision de
+	# diseno aparte -- no metida aqui sin avisar). El foco LED es el unico con mantenimiento 0:
+	# consume tan poco que no sangra a diario, a cambio de costar mas de entrada.
+	_guardar(_comodidad(
+		&"fluorescente", "Fluorescente", "El tubo de toda oficina. Barato y de sobra para ver.",
+		"iluminacion", 120, 1, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.90, 0.96, 1.0), 130.0    # blanco frio de tubo, radio amplio
+	), "comodidades")
+	_guardar(_comodidad(
+		&"lampara_pie", "Lampara de pie", "Luz calida, un rincon mas acogedor para pasar la noche.",
+		"iluminacion", 200, 1, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(1.0, 0.82, 0.55), 100.0    # calida, radio medio
+	), "comodidades")
+	_guardar(_comodidad(
+		&"foco_led", "Foco LED", "El mas caro de instalar, pero no gasta nada dia a dia.",
+		"iluminacion", 350, 0, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.88, 0.94, 1.0), 160.0    # blanco LED moderno, el radio mas grande
 	), "comodidades")
 
 

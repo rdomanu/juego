@@ -131,6 +131,12 @@ var _persona_del_menu: RefCounted = null
 var _lbl_guardado: Label
 var _lbl_satisfaccion: Label
 var _lbl_reclamaciones: Label
+## Etiquetas de sala (petición del usuario 2026-07-29: "no se sabe como de bonificado está la sala
+## de descanso o las otras salas"): confort/equipamiento/descanso instalado, SIN abrir ningún menú.
+## Capa aparte (z_index 1, por ENCIMA del suelo de las salas — mismo criterio que los NPCs) + un
+## Label persistente por sala construida, indexado por su id (patrón de `npcs_flujo._visual_de_puesto`).
+var _capa_etiquetas_sala: Node2D
+var _etiqueta_de_sala: Dictionary[StringName, Label] = {}
 
 
 func _ready() -> void:
@@ -138,6 +144,7 @@ func _ready() -> void:
 	_crear_suelo()
 	_instanciar_mundo()
 	_crear_hud()
+	_crear_capa_etiquetas_sala()
 	# Modo construcción (story const-007): andamio de ratón sobre la API de Construcción.
 	_modo_construccion = ModoConstruccionScript.new()
 	_modo_construccion.name = "ModoConstruccion"
@@ -198,6 +205,12 @@ func _ready() -> void:
 	luces.configurar(_construccion, Tiempo)
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
+	# Población inicial de las etiquetas de sala: el hook de layout (`_al_cambiar_layout`) se cablea
+	# DENTRO de `_instanciar_mundo` DESPUÉS de montar la comisaría inicial, así que esa primera
+	# construcción nunca lo dispara (ver comentario de `_actualizar_etiquetas_salas`). Sin esta
+	# llamada, la sala de Documentación/ODAC de arranque se quedaría sin etiqueta hasta la primera
+	# compra o demolición.
+	_actualizar_etiquetas_salas()
 	_programar_captura_evidencia()
 
 
@@ -594,6 +607,7 @@ func _al_cambiar_layout() -> void:
 	if _npcs != null:
 		_npcs.solicitar_rebake()
 	_sincronizar_puestos_flujo()
+	_actualizar_etiquetas_salas()
 
 
 ## Los puestos del flujo = los CONSTRUIDOS (fuente única: Construcción). Registra los nuevos
@@ -610,6 +624,107 @@ func _sincronizar_puestos_flujo() -> void:
 	for puesto_id: StringName in _flujo.puestos_registrados():
 		if not construidos.has(puesto_id):
 			_flujo.quitar_puesto_flujo(puesto_id)
+
+
+# ── Etiquetas de sala (petición del usuario 2026-07-29): "no se sabe como de bonificado está la
+# sala de descanso o las otras salas para ver cuanta comodidad hay ahí o rendimiento adicional" —
+# antes solo se veía abriendo el menú del clic derecho, y ni siquiera en todas las salas. ──────────
+
+## Crea (una vez) la capa donde cuelgan las etiquetas. z_index 1: por ENCIMA del suelo de las salas
+## (TileMapLayer + elementos de Construcción cuelgan de un nodo que NO es CanvasItem → son raíces de
+## canvas con z_index 0 por defecto) — mismo criterio ya usado por la capa de NPCs (npcs_flujo.gd).
+func _crear_capa_etiquetas_sala() -> void:
+	_capa_etiquetas_sala = Node2D.new()
+	_capa_etiquetas_sala.name = "EtiquetasSala"
+	_capa_etiquetas_sala.z_index = 1
+	add_child(_capa_etiquetas_sala)
+
+
+## Recalcula las etiquetas de TODAS las salas construidas. Se llama SOLO cuando el layout cambia de
+## verdad —`_al_cambiar_layout`, el hook de Construcción que dispara `_refrescar_visual` en cada
+## construcción/demolición/movimiento/carga— y UNA vez al final de `_ready` para la comisaría
+## inicial (ese hook se cablea DESPUÉS de `_montar_comisaria_inicial`, así que esas salas de
+## arranque nunca lo disparan). **Nunca se llama por frame**: si nadie compra ni construye nada,
+## esta función no se ejecuta NUNCA — coste cero por frame, más estricto todavía que el patrón
+## pull+diff de `npcs_flujo` (que sí relee getters cada physics frame porque el cansancio cambia
+## fuera de eventos de construcción; el confort/equipamiento/descanso instalado, en cambio, SOLO
+## cambia cuando se construye/demuele/mueve algo — exactamente cuando este hook ya dispara).
+##
+## Dentro sí se aplica el mismo patrón DIFF por `set_meta`/`get_meta` que `npcs_flujo._actualizar_
+## visual_puesto`: comprar en la sala A dispara este refresco para TODAS las salas (recorrer el
+## layout entero es barato aquí — es un evento puntual, no un hot path), pero solo se TOCA el nodo
+## Label de las que de verdad cambiaron de texto.
+func _actualizar_etiquetas_salas() -> void:
+	if _construccion == null or _personal == null:
+		return
+	var vivas: Dictionary[StringName, bool] = {}
+	var todas: Array[StringName] = (
+		_construccion.salas_de_tipo("espera") + _construccion.salas_de_tipo("oficina")
+		+ _construccion.salas_de_tipo("descanso")
+	)
+	for sala_id: StringName in todas:
+		vivas[sala_id] = true
+		var etiqueta: Label = _asegurar_etiqueta_sala(sala_id)
+		var texto: String = _texto_etiqueta_sala(sala_id)
+		if etiqueta.get_meta(&"texto", "") == texto:
+			continue   # mismo texto que la última vez: cero toques al nodo
+		etiqueta.set_meta(&"texto", texto)
+		etiqueta.text = texto
+	# Sala demolida → su etiqueta desaparece con ella (petición explícita: aparecer/desaparecer).
+	for sala_id: StringName in _etiqueta_de_sala.keys():
+		if not vivas.has(sala_id):
+			_etiqueta_de_sala[sala_id].queue_free()
+			_etiqueta_de_sala.erase(sala_id)
+
+
+## El Label de una sala, creado la PRIMERA vez que se ve (persiste hasta que se demuele — jamás se
+## reconstruye por un cambio de texto, solo se le toca `.text`).
+func _asegurar_etiqueta_sala(sala_id: StringName) -> Label:
+	var existente: Label = _etiqueta_de_sala.get(sala_id)
+	if existente != null:
+		return existente
+	var etiqueta := Label.new()
+	etiqueta.name = "Sala_%s" % sala_id
+	etiqueta.add_theme_font_size_override("font_size", 9)   # mismo tamaño que los rótulos de puesto
+	etiqueta.modulate = COLOR_TENUE_HUD   # discreta: información de fondo, no un cartel
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE   # gotcha: decorativo, no roba clics al mundo
+	# Esquina inferior-izquierda del rectángulo (celdas → mundo, mismo cálculo que `_crear_suelo`):
+	# las ventanillas y sus rótulos de estado viven pegados a la fila de arriba de la sala (ver
+	# `_montar_comisaria_inicial`), así que el borde de ABAJO es el hueco más despejado para no
+	# tapar nada — un pelín hacia dentro (4 px) y hacia arriba (16 px) para no comerse la rejilla.
+	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
+	etiqueta.position = (
+		POS_SUELO + Vector2(rect.position.x, rect.position.y + rect.size.y) * TAM_CELDA
+		+ Vector2(4.0, -16.0)
+	)
+	_capa_etiquetas_sala.add_child(etiqueta)
+	_etiqueta_de_sala[sala_id] = etiqueta
+	return etiqueta
+
+
+## El texto de una sala según su familia — mismas tres ramas que `_titulo_de_sala` (el título del
+## menú contextual), pero en una línea corta pensada para verse SIEMPRE, no solo al abrir el menú.
+func _texto_etiqueta_sala(sala_id: StringName) -> String:
+	var tipo_id: StringName = _construccion.tipo_de_sala(sala_id)
+	var tipo: Resource = Datos.obtener(&"TipoSala", tipo_id)
+	if tipo != null and tipo.tipo == "espera":
+		# Decisión de diseño (pedida explícitamente): el 0 se ENSEÑA, no se oculta. "confort 0" le
+		# dice al jugador que ese número EXISTE y sube comprando comodidades; escondiéndolo hasta
+		# que abra el menú es exactamente el problema que reportó ("no se sabe cuánta comodidad
+		# hay ahí" — un hueco vacío no enseña nada, un "0" sí).
+		return "🛋 confort %d · aforo %d" % [
+			roundi(_construccion.confort_de_sala(sala_id)), _construccion.aforo_de_sala(sala_id),
+		]
+	if tipo != null and tipo.tipo == "descanso":
+		# Bienestar #13: estos dos getters son GLOBALES (suman TODAS las salas de descanso, no solo
+		# ésta) — el mismo dato que ya enseña el título del menú contextual (`_titulo_de_sala`). Con
+		# una sola sala (el caso normal) el número es el suyo; con dos, ambas etiquetas mostrarían el
+		# mismo total combinado — coherente con que el multiplicador del café de Personal tampoco
+		# distingue de qué sala viene.
+		return "☕ descanso %d · %d plazas" % [
+			roundi(_construccion.descanso_instalado()), _personal.plazas_de_descanso(),
+		]
+	return "🖥 equipamiento %d" % roundi(_construccion.equipamiento_de_sala(sala_id))
 
 
 ## El montaje inicial "DE OFICIO" (const-006, decisión ratificada): la DGP entrega la comisaría

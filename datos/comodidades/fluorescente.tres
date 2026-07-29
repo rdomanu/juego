@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_hqx25"]
+
+[resource]
+script = ExtResource("1_hqx25")
+id = &"fluorescente"
+nombre = "Fluorescente"
+descripcion = "El tubo de toda oficina. Barato y de sobra para ver."
+familia = "iluminacion"
+coste_construccion_eur = 120
+coste_mantenimiento_dia_eur = 1
+aporte = 0.0
+emite_luz = true
+color_luz = Color(0.9, 0.96, 1, 1)
+radio_luz = 130.0

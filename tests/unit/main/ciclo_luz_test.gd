@@ -122,3 +122,22 @@ func test_solo_se_encienden_los_que_tienen_luz_propia() -> void:
 	assert_bool(Datos.obtener(&"Comodidad", &"papelera").emite_luz).is_false()
 	assert_bool(Datos.obtener(&"Comodidad", &"revistero").emite_luz).is_false()
 	assert_bool(Datos.obtener(&"Comodidad", &"radio").emite_luz).is_false()
+
+
+# ══ Iluminación instalable (petición del usuario 2026-07-29: "no veo tampoco la instalacion de
+# luces para la noche") — objetos de la familia "iluminacion", CUYA razón de ser es emitir luz ══
+func test_las_tres_lamparas_emiten_luz_y_no_dan_confort_ni_rendimiento() -> void:
+	for id: StringName in [&"fluorescente", &"lampara_pie", &"foco_led"]:
+		var lampara: Resource = Datos.obtener(&"Comodidad", id)
+		assert_str(lampara.familia).is_equal("iluminacion")
+		assert_bool(lampara.emite_luz).is_true()
+		# Lo que compra el jugador es VER, no un multiplicador (comentario de clase en comodidad.gd).
+		assert_float(lampara.aporte).is_equal(0.0)
+
+
+func test_el_foco_led_es_el_unico_sin_mantenimiento_diario() -> void:
+	# Decisión de diseño: el foco LED cuesta más de entrada (350) pero 0 €/día; el fluorescente y
+	# la lámpara de pie son más baratos de comprar pero sangran 1 €/día cada uno.
+	assert_int(Datos.obtener(&"Comodidad", &"foco_led").coste_mantenimiento_dia_eur).is_equal(0)
+	assert_int(Datos.obtener(&"Comodidad", &"fluorescente").coste_mantenimiento_dia_eur).is_equal(1)
+	assert_int(Datos.obtener(&"Comodidad", &"lampara_pie").coste_mantenimiento_dia_eur).is_equal(1)

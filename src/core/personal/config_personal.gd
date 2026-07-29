@@ -74,6 +74,26 @@ class_name ConfigPersonal extends Resource
 ## que una sala recién construida no bloquee a nadie; las plazas de verdad se compran (sofá 3,
 ## sillas 2). Si no hay sitio, el que necesita café **sigue atendiendo** hasta que quede libre.
 @export var plazas_descanso_base: int = 1
+## Minutos de juego que tarda un funcionario en recorrer UNA celda al ir a la sala de descanso.
+## 2.67 = el mismo paso que ya usa Flujo para el camino del ciudadano (`velocidad_camino_celdas_min`
+## 0.375 celdas/min, que es 1/0.375 = 2.67 min por celda), dicho del derecho. Petición del usuario
+## 2026-07-29: el café **empieza a contar cuando llega**, así que este trayecto es tiempo de ausencia
+## AÑADIDO — y por tanto poner la sala de descanso cerca de las ventanillas tiene premio. 0 = llega
+## al instante (comportamiento anterior).
+@export var min_por_celda_a_descanso: float = 2.67
+## Cada cuántas horas de reloj se renueva el cupo de cafés de cada agente. 8 = tres turnos al día
+## (00-08 / 08-16 / 16-24), el turno clásico del CNP.
+##
+## **Por qué existe** (bug reportado por el usuario 2026-07-29: *"en la odac el funcionario lleva con
+## la línea roja de cansancio mucho tiempo y sigue atendiendo"*): el cupo de pausas era POR JORNADA,
+## así que un agente de ODAC —servicio que no cierra nunca— gastaba su única pausa y se quedaba con
+## la barra al máximo **hasta 18 horas de juego**, rindiendo un 25 % peor y sin poder hacer nada.
+## Con el cupo por turno, cada 8 h vuelve a tener derecho a su café. Documentación no se entera: su
+## jornada (08:00-14:30) cabe entera en un turno, así que allí sigue siendo una pausa al día.
+##
+## Es además el primer ladrillo del **sistema de turnos** que pidió el usuario (turnos de reloj
+## mañana/tarde/noche): cuando ese sistema exista, heredará esta misma idea.
+@export var horas_por_turno: int = 8
 
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.

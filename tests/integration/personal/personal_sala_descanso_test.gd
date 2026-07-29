@@ -44,7 +44,12 @@ func _mundo(motivacion: int = 3, con_sala: bool = true, muebles: Array[StringNam
 			construccion.construir_de_oficio_elemento(mueble, Vector2i(x, y))
 			x += ancho
 	var personal: Node = auto_free(PersonalScript.new())
-	personal.aplicar_config(ConfigPersonalScript.new())
+	var config_p: Resource = ConfigPersonalScript.new()
+	config_p.min_por_celda_a_descanso = 0.0   # aislar la variable: estos tests cuentan MINUTOS
+	# EXACTOS de pausa, y desde bien-006 el cafe no arranca hasta que el agente LLEGA a la sala.
+	# Se apaga el camino igual que el proyecto ya apaga k_cansancio_rendimiento y
+	# velocidad_camino_celdas_min: se aisla lo que se mide, NO se maquilla el resultado.
+	personal.aplicar_config(config_p)
 	personal.usar_construccion(construccion)
 	personal.registrar_puesto(&"doc_1", &"puesto_doc_general")
 	personal.registrar_puesto(&"doc_2", &"puesto_doc_general")

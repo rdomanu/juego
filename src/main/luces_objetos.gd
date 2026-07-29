@@ -53,7 +53,13 @@ func _process(_delta: float) -> void:
 ## luminosos, así que comprar una tele o demolerla es lo único que dispara trabajo real.
 func _sincronizar_luces() -> void:
 	var luminosos: Dictionary[StringName, Resource] = {}
-	for sala_id: StringName in _construccion.salas_de_tipo("espera") + _construccion.salas_de_tipo("oficina"):
+	# Los TRES tipos de sala: la familia "iluminacion" (petición 2026-07-29) se coloca en
+	# cualquiera, y la sala de descanso YA tenía objetos con `emite_luz` (dispensador de agua,
+	# máquina de café) cuyo piloto nunca se encendía porque este bucle se paró en dos tipos.
+	var salas: Array[StringName] = _construccion.salas_de_tipo("espera")
+	salas += _construccion.salas_de_tipo("oficina")
+	salas += _construccion.salas_de_tipo("descanso")
+	for sala_id: StringName in salas:
 		for elemento_id: StringName in _construccion.contenido_de_sala(sala_id):
 			var comodidad: Resource = Datos.obtener_silencioso(
 				&"Comodidad", _construccion.catalogo_de_elemento(elemento_id)

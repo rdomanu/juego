@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_w4ro6"]
+
+[resource]
+script = ExtResource("1_w4ro6")
+id = &"lampara_pie"
+nombre = "Lampara de pie"
+descripcion = "Luz calida, un rincon mas acogedor para pasar la noche."
+familia = "iluminacion"
+coste_construccion_eur = 200
+coste_mantenimiento_dia_eur = 1
+aporte = 0.0
+emite_luz = true
+color_luz = Color(1, 0.82, 0.55, 1)
+radio_luz = 100.0
