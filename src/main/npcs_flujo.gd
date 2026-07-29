@@ -222,7 +222,16 @@ func solicitar_rebake() -> void:
 ## Minutos de camino que le quedan a la persona de este NPC (0.0 si su puesto ya no existe o la
 ## lógica ya lo dio por llegado) — para el paso ADAPTATIVO del muñeco (ver npc_ciudadano).
 func camino_restante_min(persona: RefCounted) -> float:
-	return _flujo.camino_restante_de(_flujo.puesto_de(persona))
+	var puesto_id: StringName = _flujo.puesto_de(persona)
+	# BUG corregido 2026-07-29 (el usuario: "en la odac siempre hay un ciudadano sentado o bien tarda
+	# mucho en irse"): desde la LLAMADA ANTICIPADA, `puesto_de` tambien devuelve el puesto del
+	# RESERVADO — pero `camino_restante_de` da el camino de quien YA esta siendo atendido, que casi
+	# siempre es 0 porque ya llego. El reservado leia "me queda 0", el paso adaptativo lo interpretaba
+	# como "ya casi estas, remata" y le ponia a 1,5x: llegaba corriendo y se quedaba congelado junto al
+	# mostrador hasta 60 min (lo que dura una denuncia gorda de ODAC). Su dato de verdad es otro.
+	if _flujo.siguiente_de(puesto_id) == persona:
+		return _flujo.siguiente_camino_restante_de(puesto_id)
+	return _flujo.camino_restante_de(puesto_id)
 
 
 func _physics_process(_delta: float) -> void:
@@ -295,6 +304,12 @@ func destino_de(npc: Node) -> Vector2:
 			return _punto_calle(persona.numero_turno)
 		&"llamada", &"en_atencion":
 			_liberar_plaza(npc)
+			# El RESERVADO de la llamada anticipada no va al mismo sitio que quien esta siendo atendido:
+			# espera de pie A UN LADO del mostrador, como en una oficina de verdad cuando ya te han
+			# llamado pero el de delante sigue. Sin esto los dos munecos se pintaban SUPERPUESTOS.
+			var suyo: StringName = _flujo.puesto_de(persona)
+			if _flujo.siguiente_de(suyo) == persona:
+				return _frente_del_puesto(persona) + Vector2(float(_tam_celda) * 0.8, 0.0)
 			return _frente_del_puesto(persona)
 		_:
 			# Resuelta / Abandonando (o cualquier raro): a la calle; despawn al llegar.

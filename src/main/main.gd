@@ -85,6 +85,11 @@ const ID_SALA_CANCELAR := 105
 const ID_SALA_PUESTO_BASE := 110
 ## Las comodidades que admite la sala ocupan 130, 131, 132… (Comodidades #15, story com-003).
 const ID_SALA_COMODIDAD_BASE := 130
+## Las ventanillas YA CONSTRUIDAS de la sala ocupan 160, 161, 162... — abrir/cerrar cada una a mano
+## (peticion del usuario 2026-07-29: "no puedo cerrar la mesa, como se hace?"). `Flujo.cerrar_puesto`
+## existia desde la story 006 pero NO SE LLAMABA DESDE NINGUN SITIO de la interfaz: solo la usaba el
+## cierre automatico por horario. Una funcion que el jugador no puede alcanzar, para el, no existe.
+const ID_SALA_VENTANILLA_BASE := 160
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -125,6 +130,8 @@ var _sala_del_menu: StringName = &""
 var _puestos_del_menu: Array[StringName] = []
 ## Las comodidades ofrecidas, en el orden en que se pintaron (índice → id del catálogo).
 var _comodidades_del_menu: Array[StringName] = []
+## Ids de las ventanillas YA CONSTRUIDAS que se listaron en el menu abierto, en el mismo orden.
+var _ventanillas_del_menu: Array[StringName] = []
 ## El modo construcción, para poder darle la herramienta ya en la mano desde el menú.
 var _modo_construccion: Node2D
 var _persona_del_menu: RefCounted = null
@@ -436,6 +443,7 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	_menu_sala.clear()
 	_puestos_del_menu.clear()
 	_comodidades_del_menu.clear()
+	_ventanillas_del_menu.clear()
 
 	# Cabecera: qué sala es y cómo está de ocupada (contexto para decidir si ampliar).
 	_menu_sala.add_item(_titulo_de_sala(sala_id, tipo), ID_SALA_TITULO)
@@ -460,6 +468,7 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	# Comodidades #15 (story com-003): los objetos que puede comprar ESTA sala. La familia depende
 	# del tipo de sala — en la de espera se compra confort; en la oficina, material de trabajo.
 	_anadir_comodidades_al_menu(tipo)
+	_anadir_ventanillas_al_menu(sala_id)
 	_menu_sala.add_item("❌ Demoler esta sala", ID_SALA_DEMOLER)
 	_menu_sala.add_separator()
 	_menu_sala.add_item("Cancelar", ID_SALA_CANCELAR)
@@ -489,6 +498,39 @@ func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
 	return "%s · %d×%d · equipamiento %d" % [
 		nombre, rect.size.x, rect.size.y, roundi(_construccion.equipamiento_de_sala(sala_id)),
 	]
+
+
+## Lista las ventanillas YA CONSTRUIDAS de esta sala para poder ABRIRLAS o CERRARLAS a mano
+## (peticion del usuario 2026-07-29). Cerrar una ventanilla es una decision de gestion real: dejas
+## de atender por ella sin despedir a nadie ni demoler nada — util para concentrar la cola, o para
+## mandar a su titular a otra cosa. La atencion EN CURSO nunca se interrumpe: Flujo deja el cierre
+## pendiente y la persiana baja al terminar con el ciudadano que ya estaba delante.
+func _anadir_ventanillas_al_menu(sala_id: StringName) -> void:
+	if _flujo == null or _construccion == null:
+		return
+	var hay: bool = false
+	for elemento_id: StringName in _construccion.contenido_de_sala(sala_id):
+		if _flujo.estado_de_puesto(elemento_id) == &"cerrado":
+			if not hay:
+				_menu_sala.add_separator()
+				hay = true
+			_menu_sala.add_item(
+				"🔓 Abrir la ventanilla %s" % elemento_id,
+				ID_SALA_VENTANILLA_BASE + _ventanillas_del_menu.size()
+			)
+			_ventanillas_del_menu.append(elemento_id)
+			continue
+		# Solo son ventanillas las que Flujo conoce: un asiento o un sofa no salen aqui.
+		if Datos.obtener_silencioso(&"TipoPuesto", _construccion.catalogo_de_elemento(elemento_id)) == null:
+			continue
+		if not hay:
+			_menu_sala.add_separator()
+			hay = true
+		_menu_sala.add_item(
+			"🔒 Cerrar la ventanilla %s" % elemento_id,
+			ID_SALA_VENTANILLA_BASE + _ventanillas_del_menu.size()
+		)
+		_ventanillas_del_menu.append(elemento_id)
 
 
 ## Pinta las comodidades que ESTA sala admite, con su precio, lo que aporta y lo que cuesta tenerla
@@ -547,6 +589,15 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
 ## Construcción, o se entra en modo construcción con el pincel puesto (ADR-0001).
 func _al_elegir_del_menu_sala(id: int) -> void:
 	if _sala_del_menu == &"":
+		return
+	if id >= ID_SALA_VENTANILLA_BASE:
+		var iv: int = id - ID_SALA_VENTANILLA_BASE
+		if iv < _ventanillas_del_menu.size():
+			var ventanilla: StringName = _ventanillas_del_menu[iv]
+			if _flujo.estado_de_puesto(ventanilla) == &"cerrado":
+				_flujo.abrir_puesto(ventanilla)
+			else:
+				_flujo.cerrar_puesto(ventanilla)
 		return
 	if id >= ID_SALA_COMODIDAD_BASE:
 		var i: int = id - ID_SALA_COMODIDAD_BASE

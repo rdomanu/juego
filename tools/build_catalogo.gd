@@ -395,20 +395,26 @@ func _generar_comodidades() -> void:
 	# (si se quisiera tambien un poco de confort por "sala bien iluminada", seria una decision de
 	# diseno aparte -- no metida aqui sin avisar). El foco LED es el unico con mantenimiento 0:
 	# consume tan poco que no sangra a diario, a cambio de costar mas de entrada.
+	# ILUMINACION (peticion del usuario 2026-07-29). El ALCANCE se piensa en CASILLAS, que es como lo
+	# ve el jugador, y se convierte a pixeles aqui: la celda mide 40 px, asi que una cobertura de NxN
+	# casillas centrada en la lampara es un radio de (N/2)*40. 3x3 -> 60 px · 5x5 -> 100 px.
+	# "un foco led que es el mas caro puede dar luz de 5x5 casillas... el fluorescente por ejemplo 3x3
+	# igual que la lampara de pie". Precios rebajados a la mitad en la misma pasada: "las lamparas las
+	# veo demasiado caras".
 	_guardar(_comodidad(
 		&"fluorescente", "Fluorescente", "El tubo de toda oficina. Barato y de sobra para ver.",
-		"iluminacion", 120, 1, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(0.90, 0.96, 1.0), 130.0    # blanco frio de tubo, radio amplio
+		"iluminacion", 60, 1, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.90, 0.96, 1.0), 60.0     # frio de oficina - 3x3 casillas (radio 1,5 celdas x 40 px)
 	), "comodidades")
 	_guardar(_comodidad(
 		&"lampara_pie", "Lampara de pie", "Luz calida, un rincon mas acogedor para pasar la noche.",
-		"iluminacion", 200, 1, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(1.0, 0.82, 0.55), 100.0    # calida, radio medio
+		"iluminacion", 90, 1, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(1.0, 0.82, 0.55), 60.0     # calida y acogedora - 3x3 casillas, como el fluorescente
 	), "comodidades")
 	_guardar(_comodidad(
 		&"foco_led", "Foco LED", "El mas caro de instalar, pero no gasta nada dia a dia.",
-		"iluminacion", 350, 0, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(0.88, 0.94, 1.0), 160.0    # blanco LED moderno, el radio mas grande
+		"iluminacion", 180, 0, 0.0, false, 0.0, 3.0, 0.0,
+		true, Color(0.88, 0.94, 1.0), 100.0    # LED - 5x5 CASILLAS (radio 2,5 celdas): el que de verdad ilumina una sala
 	), "comodidades")
 
 

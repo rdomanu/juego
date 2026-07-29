@@ -235,10 +235,35 @@ func _refrescar_preview_elemento(celda: Vector2i) -> void:
 		_colocar_caja(celda, Vector2i.ONE, COLOR_VALIDO)
 		_preview_texto.text = "Arrastra para dibujar (pegado a una sala igual, la amplía)"
 		return
-	_colocar_caja(celda, Vector2i.ONE, COLOR_VALIDO if valido and con_caja else COLOR_INVALIDO)
+	# Bug corregido 2026-07-29 (petición del usuario jugando: "el sofá ya sale con 3 huecos pero al
+	# ponerlo para ver como ponerlo o donde solo aparece 1 cuadrado, una vez que se pone ya salen 3"):
+	# el fantasma dibujaba SIEMPRE 1 celda aunque el objeto ocupe más. `validar_elemento` YA valida el
+	# CUERPO entero (ancla + `superficie - 1` celdas hacia +X, misma convención que
+	# `Construccion._celdas_de`) — si una sola celda del cuerpo no cabe, `valido` ya sale false; aquí
+	# solo faltaba pintar la caja con el mismo ancho que va a ocupar de verdad.
+	var superficie: int = _superficie_de_herramienta()
+	_colocar_caja(
+		celda, Vector2i(superficie, 1), COLOR_VALIDO if valido and con_caja else COLOR_INVALIDO
+	)
 	_preview_texto.text = "%.0f € · %s" % [
 		coste, "Válido" if valido and con_caja else ("Sin caja" if valido else "No válido"),
 	]
+
+
+## Superficie (celdas hacia +X desde el ancla) de la herramienta en mano — para que el fantasma se
+## dibuje con el mismo ancho que `Construccion` va a reservar de verdad. Espeja
+## `Construccion._superficie_de` (privada, no invocable desde aquí) leyendo el MISMO catálogo
+## (Datos): ningún dato nuevo, misma convención ya vigente para el elemento ya colocado.
+func _superficie_de_herramienta() -> int:
+	if _herramienta == _construccion.ASIENTO_BASICO:
+		return 1
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", _herramienta)
+	if comodidad != null:
+		return maxi(comodidad.superficie, 1)
+	var tipo_puesto: Resource = Datos.obtener_silencioso(&"TipoPuesto", _herramienta)
+	if tipo_puesto != null:
+		return maxi(tipo_puesto.superficie, 1)
+	return 1
 
 
 ## Coloca la caja del preview cubriendo `tam` celdas desde `celda` (coordenadas de mundo). El color
