@@ -101,8 +101,12 @@ func test_al_enviar_a_descansar_el_agente_va_de_camino_y_su_puesto_deja_de_estar
 
 
 func test_tras_cubrir_el_camino_pero_no_la_pausa_le_queda_la_pausa_entera() -> void:
-	# El camino (26.7 min) es tiempo AÑADIDO: no se resta de la pausa (30.0 min). La ausencia total
-	# de la ventanilla es camino + pausa, no solo la pausa.
+	# El camino (26.7 min) es tiempo AÑADIDO: NO se resta de la pausa (30.0 min). La ausencia total
+	# de la ventanilla es camino + pausa.
+	#
+	# Del tick que le hace LLEGAR solo puede comerse del café el SOBRANTE — los minutos que pasan ya
+	# sentado —, nunca el trayecto. Aquí se comprueba con un tick que se pasa 1.0 min: llega y se le
+	# resta ese 1.0, no los 3.0 del tick ni los 26.7 del camino.
 	var mundo: Array = _mundo()
 	var personal: Node = mundo[0]
 	var agente: RefCounted = mundo[1]
@@ -111,10 +115,52 @@ func test_tras_cubrir_el_camino_pero_no_la_pausa_le_queda_la_pausa_entera() -> v
 	personal.cansar(agente, 180.0)
 	personal.enviar_a_descansar(agente)
 
-	personal._al_tick(camino)                                    # cubre el camino EXACTO, no la pausa
+	personal._al_tick(camino - 2.0)                       # a falta de 2.0 min de camino, sigue andando
+	assert_bool(personal.va_de_camino_al_descanso(agente)).is_true()
+	assert_float(personal.minutos_de_descanso_restantes(agente)).is_equal(30.0)  # la pausa que le espera
+
+	personal._al_tick(3.0)                                # le sobraba 2.0 de camino: se pasa 1.0 min
 	assert_bool(personal.va_de_camino_al_descanso(agente)).is_false()   # ya llegó
 	assert_str(String(agente.estado)).is_equal("descansando")
+	assert_float(personal.minutos_de_descanso_restantes(agente)).is_equal_approx(29.0, 0.01)
+
+
+func test_un_solo_tick_que_cubre_el_camino_justo_no_se_come_nada_de_la_pausa() -> void:
+	# EL CASO LÍMITE, y la regresión de un bug real (2026-07-29): con UN SOLO tick que cubra el
+	# camino de punta a punta, `_avanzar_caminos_al_descanso` sienta al agente y el bucle de
+	# `_descansando` de ESE MISMO `_al_tick` le restaba el delta ENTERO a la pausa recién arrancada
+	# -> quedaban 3.3 min en vez de 30.0, o sea, el camino SE DESCONTABA del café. Justo lo contrario
+	# de la decisión de diseño del usuario (opción A: el camino es tiempo AÑADIDO).
+	# En el juego real casi no se dispara (los deltas son fracciones de minuto), pero un error que
+	# solo aparece en el caso límite sigue siendo un error.
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+
+	var camino: float = personal.minutos_de_camino_al_descanso(&"doc_1")
+	personal.cansar(agente, 180.0)
+	personal.enviar_a_descansar(agente)
+
+	personal._al_tick(camino)                             # llega EXACTAMENTE con este tick
+	assert_bool(personal.va_de_camino_al_descanso(agente)).is_false()
+	# Sobrante 0 -> la pausa sigue ENTERA: acaba de sentarse.
 	assert_float(personal.minutos_de_descanso_restantes(agente)).is_equal_approx(30.0, 0.01)
+
+
+func test_un_tick_enorme_solo_descuenta_del_cafe_lo_que_paso_ya_sentado() -> void:
+	# La otra mitad del caso límite: un tick que se pasa MUCHO del camino. Debe descontarse del café
+	# exactamente el exceso (5.0), ni el tick entero ni cero.
+	var mundo: Array = _mundo()
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+
+	var camino: float = personal.minutos_de_camino_al_descanso(&"doc_1")
+	personal.cansar(agente, 180.0)
+	personal.enviar_a_descansar(agente)
+
+	personal._al_tick(camino + 5.0)
+	assert_bool(personal.va_de_camino_al_descanso(agente)).is_false()
+	assert_float(personal.minutos_de_descanso_restantes(agente)).is_equal_approx(25.0, 0.01)
 
 
 func test_con_el_knob_a_cero_se_sienta_al_instante_como_antes() -> void:

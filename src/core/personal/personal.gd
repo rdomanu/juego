@@ -454,11 +454,21 @@ func _avanzar_caminos_al_descanso(delta_juego_min: float) -> void:
 		return
 	_llegados_al_descanso.clear()
 	for agente: RefCounted in _yendo_a_descansar:
-		var restante: float = float(_yendo_a_descansar[agente]) - delta_juego_min
-		if restante > 0.0:
-			_yendo_a_descansar[agente] = restante
+		var le_quedaba: float = float(_yendo_a_descansar[agente])
+		if le_quedaba > delta_juego_min:
+			_yendo_a_descansar[agente] = le_quedaba - delta_juego_min
 			continue
 		_llegados_al_descanso.append(agente)
+		# 🐛 Corregido 2026-07-29 (lo destapó el test del camino): el bucle de `_descansando` que
+		# viene JUSTO DESPUÉS en este mismo tick le va a restar el delta ENTERO a la pausa recién
+		# arrancada — es decir, se comía el trayecto del café, justo lo contrario de la decisión de
+		# diseño (el camino es tiempo AÑADIDO, no descontado). Se compensa apuntando la pausa MÁS los
+		# minutos de camino que le quedaban: al restar el delta completo, solo se le come el SOBRANTE
+		# (el tiempo que de verdad pasó ya sentado), que es lo correcto.
+		# Solo se nota cuando un tick cubre el camino de punta a punta — con los deltas pequeños del
+		# juego real casi nunca, pero con ticks manuales grandes (los tests) salta enseguida. Un
+		# error que solo aparece en el caso límite sigue siendo un error.
+		_pausa_pendiente[agente] = float(_pausa_pendiente.get(agente, 0.0)) + le_quedaba
 	for agente: RefCounted in _llegados_al_descanso:
 		_yendo_a_descansar.erase(agente)
 		# Ya está sentado: AHORA empieza a contar el café.
