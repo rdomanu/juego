@@ -170,6 +170,7 @@ func _ready() -> void:
 	_panel_horario.name = "PanelHorario"
 	add_child(_panel_horario)
 	_panel_horario.configurar(_documentacion, Tiempo, EventBus, _personal)
+	_panel_horario.usar_flujo(_flujo)   # para poder abrir/cerrar cada ventanilla desde el panel
 	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
 	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
 	# ningún jugador puede abrirlo ni tocar los números del balance. Mismo patrón que la captura de
@@ -510,24 +511,22 @@ func _anadir_ventanillas_al_menu(sala_id: StringName) -> void:
 		return
 	var hay: bool = false
 	for elemento_id: StringName in _construccion.contenido_de_sala(sala_id):
-		if _flujo.estado_de_puesto(elemento_id) == &"cerrado":
-			if not hay:
-				_menu_sala.add_separator()
-				hay = true
-			_menu_sala.add_item(
-				"🔓 Abrir la ventanilla %s" % elemento_id,
-				ID_SALA_VENTANILLA_BASE + _ventanillas_del_menu.size()
-			)
-			_ventanillas_del_menu.append(elemento_id)
-			continue
-		# Solo son ventanillas las que Flujo conoce: un asiento o un sofa no salen aqui.
-		if Datos.obtener_silencioso(&"TipoPuesto", _construccion.catalogo_de_elemento(elemento_id)) == null:
-			continue
+		# 🐛 Corregido 2026-07-29 (el usuario: "no entiendo lo de abrir la ventanilla del asiento X"):
+		# antes se preguntaba primero si estaba CERRADO y solo despues si era una ventanilla... y
+		# `estado_de_puesto` responde "cerrado" a cualquier id que Flujo no conozca — incluidos los
+		# asientos y las comodidades. Resultado: el menu ofrecia "abrir la ventanilla asiento_3".
+		# El filtro de QUE ES va SIEMPRE primero.
+		var catalogo: StringName = _construccion.catalogo_de_elemento(elemento_id)
+		var tipo_puesto: Resource = Datos.obtener_silencioso(&"TipoPuesto", catalogo)
+		if tipo_puesto == null:
+			continue   # un asiento, un sofa o una lampara no son una ventanilla que abrir o cerrar
 		if not hay:
 			_menu_sala.add_separator()
 			hay = true
+		# Y con su NOMBRE del catalogo, no con el id interno: "Ventanilla Documentacion", no "doc_1".
+		var cerrada: bool = _flujo.estado_de_puesto(elemento_id) == &"cerrado"
 		_menu_sala.add_item(
-			"🔒 Cerrar la ventanilla %s" % elemento_id,
+			("🔓 Abrir %s" if cerrada else "🔒 Cerrar %s") % tipo_puesto.nombre,
 			ID_SALA_VENTANILLA_BASE + _ventanillas_del_menu.size()
 		)
 		_ventanillas_del_menu.append(elemento_id)
@@ -542,6 +541,31 @@ func _anadir_ventanillas_al_menu(sala_id: StringName) -> void:
 ## nada; decir "aguantan 37 min" si. La conversion la hace Paciencia con SU formula (ADR-0001).
 ## Los minutos que aguantarian si se anadiera `extra` puntos de confort a esta sala — para poder
 ## decir en el menu lo que GANAS comprando ese objeto, en vez de un numero abstracto.
+## Lo que duraria la pausa reglamentaria (30 min) con `extra` puntos mas de calidad en la sala de
+## descanso. Sirve para decir en MINUTOS lo que acorta cada mueble, en vez de en puntos abstractos.
+func _minutos_de_pausa_con_extra(extra: float) -> float:
+	if _personal == null or _construccion == null:
+		return 0.0
+	var calidad: float = _construccion.descanso_instalado() + extra
+	var mult: float = clampf(
+		1.0 - _personal.k_confort_pausa * calidad, _personal.mult_pausa_min, 1.0
+	)
+	return float(_personal.min_pausa_normal) * mult
+
+
+## Cuanto MAS RAPIDO se atiende en esta sala con `extra` puntos mas de equipamiento, en tanto por
+## ciento. El equipamiento divide la duracion del tramite, y cada tramite dura distinto, asi que el
+## porcentaje informa mejor que unos minutos que solo valdrian para un tramite concreto.
+func _pct_mas_rapido_con_extra(sala_id: StringName, extra: float) -> float:
+	if _flujo == null or _construccion == null:
+		return 0.0
+	var rendimiento: float = _construccion.equipamiento_de_sala(sala_id) + extra
+	var mult: float = clampf(
+		1.0 - _flujo.k_equipamiento * rendimiento, _flujo.mult_equipamiento_min, 1.0
+	)
+	return (1.0 - mult) * 100.0
+
+
 func _minutos_de_espera_con_extra(sala_id: StringName, extra: float) -> int:
 	if _paciencia == null or _construccion == null:
 		return 0
@@ -614,8 +638,25 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource, sala_id: StringName) -> vo
 				etiqueta += ") · +%d min de espera" % (despues - ahora)
 			else:
 				etiqueta += ") · ya estas al tope de confort"
+		elif familia == "descanso":
+			# Los muebles de descanso ACORTAN el cafe: se dice en minutos, no en puntos (el usuario:
+			# "+2 unidades de eso no son +2 minutos, deberia ser el equivalente"). Se usa la pausa
+			# reglamentaria de 30 min como referencia, que es la del agente tipico.
+			var pausa_ahora: float = _minutos_de_pausa_con_extra(0.0)
+			var pausa_luego: float = _minutos_de_pausa_con_extra(comodidad.aporte)
+			if pausa_ahora - pausa_luego >= 0.05:
+				etiqueta += ") · %.1f min menos de cafe" % (pausa_ahora - pausa_luego)
+			else:
+				etiqueta += ") · ya estas al tope de descanso"
 		else:
-			etiqueta += ") · %s +%d" % [concepto, roundi(comodidad.aporte)]
+			# El equipamiento acelera los tramites: se dice en % de rapidez, no en puntos. En % y no
+			# en minutos porque cada tramite dura distinto (un DNI 12 min, un pasaporte 15).
+			var pct_ahora: float = _pct_mas_rapido_con_extra(sala_id, 0.0)
+			var pct_luego: float = _pct_mas_rapido_con_extra(sala_id, comodidad.aporte)
+			if pct_luego - pct_ahora >= 0.05:
+				etiqueta += ") · atienden un %.1f %% mas rapido" % (pct_luego - pct_ahora)
+			else:
+				etiqueta += ") · ya estas al tope de equipamiento"
 		# Las plazas son la otra mitad de la decisión: un sofá no solo mejora el café, es sitio donde
 		# sentarse. Sin plazas suficientes, el tercero que quiere café se queda en la ventanilla.
 		if comodidad.plazas > 0:

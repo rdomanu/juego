@@ -40,6 +40,10 @@ const PASO_MARGEN_MIN := 5
 var _documentacion: Node = null
 var _tiempo: Node = null
 ## Personal: de él salen el nombre del tipo de cada ventanilla y si está dotada (solo LECTURA).
+## Flujo: para poder ABRIR y CERRAR cada ventanilla desde aquí (petición del usuario 2026-07-29:
+## *"lo que se podría cerrar son las ventanillas en las opciones de documentación o la de odac no?"*
+## — el sitio natural es este panel, donde ya se decide el horario de cada una).
+var _flujo: Node = null
 var _personal: Node = null
 
 # ── Nodos de UI (construidos en configurar; el panel nace oculto) ────────────────────────────
@@ -69,6 +73,13 @@ func configurar(documentacion: Node, tiempo: Node, bus: Node = null, personal: N
 	if bus != null:
 		bus.aviso_division.connect(_al_aviso_division)
 	visible = false
+
+
+## Inyecta Flujo DESPUES de `configurar`: Main crea el panel antes que Flujo, asi que en el momento
+## de configurarlo todavia no existe (se le pasaba `null` y el boton de abrir/cerrar no aparecia).
+func usar_flujo(flujo: Node) -> void:
+	_flujo = flujo
+	_refrescar_ventanillas()
 
 
 # ── Entrada (toggle con H) ───────────────────────────────────────────────────────────────────
@@ -267,6 +278,18 @@ func _refrescar_ventanillas() -> void:
 
 
 ## Una fila: casilla "se queda por la tarde" + nombre del puesto + su coste o su motivo de no costar.
+## Alterna abierta/cerrada esa ventanilla y repinta la lista para que el boton refleje el estado
+## nuevo (o el "cerrara al acabar" si habia alguien delante).
+func _al_pulsar_ventanilla(puesto_id: StringName) -> void:
+	if _flujo == null:
+		return
+	if _flujo.estado_de_puesto(puesto_id) == &"cerrado":
+		_flujo.abrir_puesto(puesto_id)
+	else:
+		_flujo.cerrar_puesto(puesto_id)
+	_refrescar_ventanillas()
+
+
 func _fila_ventanilla(puesto_id: StringName) -> HBoxContainer:
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 8)
@@ -276,6 +299,19 @@ func _fila_ventanilla(puesto_id: StringName) -> HBoxContainer:
 	casilla.focus_mode = Control.FOCUS_NONE   # si no, Espacio la vuelve a pulsar en vez de pausar
 	casilla.toggled.connect(func(activo: bool) -> void: _al_marcar_ventanilla(puesto_id, activo))
 	fila.add_child(casilla)
+	# Abrir / cerrar la ventanilla a mano. `cerrar_puesto` respeta el compromiso de servicio: si esta
+	# atendiendo, Flujo deja el cierre PENDIENTE y la persiana baja al terminar con ese ciudadano — por
+	# eso el boton dice "cerrara al acabar" en ese caso, para que el jugador no crea que su clic no ha
+	# hecho nada (que es justo lo que parece si no se le explica).
+	if _flujo != null:
+		var cerrada: bool = _flujo.estado_de_puesto(puesto_id) == &"cerrado"
+		var pendiente: bool = not cerrada and _flujo.cierre_pendiente_de(puesto_id)
+		var boton := Button.new()
+		boton.focus_mode = Control.FOCUS_NONE
+		boton.text = "Abrir" if cerrada else ("Cerrara al acabar" if pendiente else "Cerrar")
+		boton.disabled = pendiente
+		boton.pressed.connect(func() -> void: _al_pulsar_ventanilla(puesto_id))
+		fila.add_child(boton)
 	var detalle := Label.new()
 	detalle.add_theme_font_size_override("font_size", 11)
 	detalle.mouse_filter = Control.MOUSE_FILTER_IGNORE

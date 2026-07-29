@@ -493,6 +493,15 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 ## visible ADAPTE su paso y llegue a la mesa justo al agotarse — enmienda 2026-07-25, 2ª calibración).
 ## LLAMADA ANTICIPADA: la persona reservada como SIGUIENTE de este puesto (null si no hay). Getter
 ## de solo lectura, para los tests y para que la capa visual sepa quien viene de camino.
+## ¿Este puesto tiene un CIERRE PENDIENTE? (story 006: cerrar con alguien delante no interrumpe la
+## atencion — la persiana baja al terminar). Lo consulta el panel de horario para poder decirle al
+## jugador "cerrara al acabar" en vez de dejarle pensando que su clic no ha hecho nada.
+func cierre_pendiente_de(puesto_id: StringName) -> bool:
+	if not _puestos_flujo.has(puesto_id):
+		return false
+	return bool(_puestos_flujo[puesto_id]["cierre_pendiente"])
+
+
 func siguiente_de(puesto_id: StringName) -> RefCounted:
 	if not _puestos_flujo.has(puesto_id):
 		return null

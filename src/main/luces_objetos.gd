@@ -70,6 +70,14 @@ func _sincronizar_luces() -> void:
 	if firma == _firma:
 		return
 	_firma = firma
+	# 🐛 Corregido 2026-07-29 (el usuario: "si pongo una luz de noche no se enciende hasta la
+	# siguiente noche"). `_aplicar_energia` se salta el trabajo cuando la energia global no ha
+	# cambiado — que es lo normal a media noche cerrada. Una lampara recien comprada nacia entonces
+	# con su energia por defecto y se quedaba APAGADA hasta el siguiente amanecer/anochecer, cuando
+	# la energia volviera a moverse. Al cambiar lo construido se invalida esa cache para que la luz
+	# nueva reciba la energia de ESTE momento: si la pones de noche, alumbra ya; si la pones de dia,
+	# nace apagada, que es lo que toca.
+	_energia_vista = -1.0
 	# Fuera las que ya no están (objeto demolido).
 	for elemento_id: StringName in _luz_de.keys():
 		if not luminosos.has(elemento_id):
