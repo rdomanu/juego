@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_gwqkl"]
+
+[resource]
+script = ExtResource("1_gwqkl")
+id = &"sillas_office"
+nombre = "Sillas de office"
+descripcion = "Cuatro sillas y una mesa: lo minimo para no tomarse el cafe de pie."
+familia = "descanso"
+coste_construccion_eur = 90
+plazas = 2

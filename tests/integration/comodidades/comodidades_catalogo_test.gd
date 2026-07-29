@@ -47,10 +47,16 @@ func _sala_oficina(construccion: Node) -> StringName:
 	return construccion.sala_en(Vector2i(2, 2))
 
 
-# ── AC-CM01 · El catálogo trae los 8 objetos con sus números ─────────────────────────────
+# ── AC-CM01 · El catálogo trae los 8 objetos de Comodidades #15 con sus números ──────────
+# Cuenta las DOS familias de este epic, no el total del catálogo: Bienestar #13 (bien-005) añadió
+# después una tercera familia ("descanso": sillas, sofá, nevera…). Contar el total hacía que este
+# test se rompiera cada vez que OTRO epic añade objetos, que no es lo que quiere vigilar.
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
-	assert_int(todos.size()).is_equal(8)
+	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
+		return c.familia == "ciudadano" or c.familia == "funcionario"
+	)
+	assert_int(de_este_epic.size()).is_equal(8)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")

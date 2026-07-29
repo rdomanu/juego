@@ -45,8 +45,10 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ]
 
 ## Nº de archivos que se esperan generados (para el resumen final). 3 trámites + 14 denuncias + 4 puestos
-## + 5 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 8 comodidades = 41.
-const TOTAL_ESPERADO := 41
+## + 5 salas + 3 agentes + 1 costes + 1 escenario + 2 eventos + 14 comodidades = 47.
+## Las comodidades son 8 de sala de espera/oficina (Comodidades #15) + 6 de sala de descanso
+## (Bienestar #13, familia "descanso" — petición del usuario 2026-07-29).
+const TOTAL_ESPERADO := 47
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -351,6 +353,37 @@ func _generar_comodidades() -> void:
 		&"impresora_dni", "Impresora de DNI moderna", "El documento sale en la mitad de tiempo.",
 		"funcionario", 2200, 3, 6.0
 	), "comodidades")
+	# Familia "descanso" (Bienestar #13, peticion del usuario 2026-07-29): lo que se pone en la sala
+	# de descanso. Cuanto mejor montada, MENOS dura la pausa: el cafe cunde y vuelven antes a la
+	# ventanilla. Los que tienen `plazas` son ademas sitio donde sentarse (aforo del descanso).
+	_guardar(_comodidad(
+		&"prensa_diaria", "Prensa del dia", "El periodico y unas revistas. Desconectar tambien descansa.",
+		"descanso", 50, 1, 1.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"sillas_office", "Sillas de office", "Cuatro sillas y una mesa: lo minimo para no tomarse el cafe de pie.",
+		"descanso", 90, 0, 1.0, false, 0.0, 3.0, 0.0,
+		false, Color(1.0, 0.9, 0.7), 90.0, 2    # 2 plazas
+	), "comodidades")
+	_guardar(_comodidad(
+		&"dispensador_agua", "Dispensador de agua", "Agua fria para el personal. Barato y se agradece.",
+		"descanso", 180, 1, 1.5, false, 0.0, 3.0, 0.0,
+		true, Color(0.85, 0.95, 1.0), 60.0      # un piloto blanco tenue
+	), "comodidades")
+	_guardar(_comodidad(
+		&"nevera", "Nevera", "Para el tupper y las bebidas frias. La media hora cunde el doble.",
+		"descanso", 320, 2, 2.0
+	), "comodidades")
+	_guardar(_comodidad(
+		&"maquina_cafe", "Maquina de cafe", "El cafe de verdad, el que da nombre a la pausa.",
+		"descanso", 380, 3, 3.0, false, 0.0, 3.0, 0.0,
+		true, Color(1.0, 0.85, 0.55), 75.0      # el piloto ambar de la maquina
+	), "comodidades")
+	_guardar(_comodidad(
+		&"sofa_descanso", "Sofa", "Se sientan tres y se levantan nuevos. La pieza cara de la sala.",
+		"descanso", 550, 0, 4.0, false, 0.0, 3.0, 0.0,
+		false, Color(1.0, 0.9, 0.7), 90.0, 3    # 3 plazas
+	), "comodidades")
 
 
 func _comodidad(
@@ -358,7 +391,8 @@ func _comodidad(
 	coste: int, mantenimiento: int, aporte: float,
 	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
 	recupera: float = 0.0,
-	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0
+	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0,
+	plazas: int = 0
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -375,6 +409,7 @@ func _comodidad(
 	r.emite_luz = emite_luz
 	r.color_luz = color_luz
 	r.radio_luz = radio_luz
+	r.plazas = plazas
 	return r
 
 

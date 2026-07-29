@@ -465,6 +465,14 @@ func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
 			_construccion.aforo_de_sala(sala_id),
 			roundi(_construccion.confort_de_sala(sala_id)),
 		]
+	# Bienestar #13: en la sala de descanso lo que importa es cuánto ACORTA el café y cuánta gente
+	# cabe a la vez — los dos números que el jugador está comprando cuando pone un sofá.
+	if tipo != null and tipo.tipo == "descanso":
+		return "%s · %d×%d · %d plazas · el café dura un %d %% de lo normal" % [
+			nombre, rect.size.x, rect.size.y,
+			_personal.plazas_de_descanso(),
+			roundi(_personal.mult_pausa_por_sala() * 100.0),
+		]
 	return "%s · %d×%d · equipamiento %d" % [
 		nombre, rect.size.x, rect.size.y, roundi(_construccion.equipamiento_de_sala(sala_id)),
 	]
@@ -475,7 +483,21 @@ func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
 func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
 	if tipo_sala == null:
 		return
-	var familia: String = "ciudadano" if tipo_sala.tipo == "espera" else "funcionario"
+	# Bienestar #13 (bien-005): la sala de descanso tiene su propia familia de objetos — sillas, sofá,
+	# nevera, máquina de café. No son confort del ciudadano ni material de oficina: son lo que hace
+	# que el café CUNDA y el funcionario vuelva antes a su ventanilla.
+	var familia: String = "funcionario"
+	var icono: String = "🖥"
+	var concepto: String = "rendimiento"
+	match tipo_sala.tipo:
+		"espera":
+			familia = "ciudadano"
+			icono = "🛋"
+			concepto = "confort"
+		"descanso":
+			familia = "descanso"
+			icono = "☕"
+			concepto = "descanso"
 	var catalogo: Array = Datos.obtener_todos(&"Comodidad")
 	catalogo.sort_custom(func(a: Resource, b: Resource) -> bool:
 		return a.coste_construccion_eur < b.coste_construccion_eur   # de lo barato a lo caro
@@ -484,15 +506,15 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
 		if comodidad.familia != familia:
 			continue
 		var etiqueta: String = "%s %s (%d €" % [
-			"🛋" if familia == "ciudadano" else "🖥",
-			comodidad.nombre,
-			comodidad.coste_construccion_eur,
+			icono, comodidad.nombre, comodidad.coste_construccion_eur,
 		]
 		if comodidad.coste_mantenimiento_dia_eur > 0:
 			etiqueta += " + %d €/día" % comodidad.coste_mantenimiento_dia_eur
-		etiqueta += ") · %s +%d" % [
-			"confort" if familia == "ciudadano" else "rendimiento", roundi(comodidad.aporte),
-		]
+		etiqueta += ") · %s +%d" % [concepto, roundi(comodidad.aporte)]
+		# Las plazas son la otra mitad de la decisión: un sofá no solo mejora el café, es sitio donde
+		# sentarse. Sin plazas suficientes, el tercero que quiere café se queda en la ventanilla.
+		if comodidad.plazas > 0:
+			etiqueta += " · %d plazas" % comodidad.plazas
 		_menu_sala.add_item(etiqueta, ID_SALA_COMODIDAD_BASE + _comodidades_del_menu.size())
 		_comodidades_del_menu.append(comodidad.id)
 

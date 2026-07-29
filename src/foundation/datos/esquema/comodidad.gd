@@ -1,11 +1,15 @@
 class_name Comodidad extends Resource
 ## Comodidad — un objeto que el jugador **compra y coloca** dentro de una sala (Comodidades #15).
 ##
-## Dos familias, mismo catálogo y mismo modo de colocarse:
+## Tres familias, mismo catálogo y mismo modo de colocarse:
 ##   • **ciudadano**  — va en salas de **espera** y aporta **confort**: la gente aguanta más antes de
 ##     largarse (baja el `mult_comodidad` de Paciencia F1).
 ##   • **funcionario** — va en salas con **puestos** y aporta **rendimiento**: se atiende más rápido
 ##     (baja la duración efectiva de Flujo F1).
+##   • **descanso**   — va en la **sala de descanso** y aporta **calidad del café** (Bienestar #13):
+##     con la sala bien montada la pausa CUNDE más y el funcionario vuelve antes a su ventanilla.
+##     Petición del usuario 2026-07-29: *"no hay objetos para esa sala, sillas, sofás, nevera,
+##     revistas… cosas que puedan hacer descansar, agua"*.
 ##
 ## El `aporte` es un número **abstracto** a propósito: cada sistema decide qué hace con él (ADR-0001).
 ## Construcción solo suma los aportes de cada sala; Paciencia y Flujo los convierten con SU fórmula.
@@ -20,8 +24,9 @@ class_name Comodidad extends Resource
 @export var nombre: String
 ## Qué hace, en una línea, para el menú de compra.
 @export var descripcion: String
-## A quién beneficia: "ciudadano" (confort de la espera) o "funcionario" (rendimiento del puesto).
-@export_enum("ciudadano", "funcionario") var familia: String
+## A quién beneficia: "ciudadano" (confort de la espera), "funcionario" (rendimiento del puesto) o
+## "descanso" (calidad del café en la sala de descanso).
+@export_enum("ciudadano", "funcionario", "descanso") var familia: String
 ## Precio de compra, en euros (lo cobra Construcción por el gate E4 de Economía).
 @export var coste_construccion_eur: int
 ## Lo que cuesta tenerlo encendido cada jornada. **0 = no consume** (papelera, revistero): se paga una
@@ -31,6 +36,13 @@ class_name Comodidad extends Resource
 @export var aporte: float = 1.0
 ## Celdas que ocupa (como el resto de elementos colocables). 1 en todo el catálogo semilla.
 @export var superficie: int = 1
+
+# ── Aforo del descanso (familia "descanso", Bienestar #13) ───────────────────────────────────
+## Cuánta gente puede descansar A LA VEZ gracias a este objeto. Solo lo tienen los objetos donde uno
+## se **sienta**: un sofá son 3 plazas, unas sillas 2; una nevera mejora el café de todos pero no es
+## sitio donde sentarse, así que 0. Si la sala está llena, el que necesita café **se queda en su
+## ventanilla atendiendo** hasta que quede sitio — no se pierde el descanso, se retrasa.
+@export var plazas: int = 0
 
 # ── Objetos de USO (story com-003): a estos la gente se ACERCA ───────────────────────────────
 ## ¿Hay que ir hasta él para aprovecharlo? La tele y el hilo musical se disfrutan **desde el

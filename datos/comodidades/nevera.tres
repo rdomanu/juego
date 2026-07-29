@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_3l6et"]
+
+[resource]
+script = ExtResource("1_3l6et")
+id = &"nevera"
+nombre = "Nevera"
+descripcion = "Para el tupper y las bebidas frias. La media hora cunde el doble."
+familia = "descanso"
+coste_construccion_eur = 320
+coste_mantenimiento_dia_eur = 2
+aporte = 2.0

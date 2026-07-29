@@ -47,6 +47,12 @@ var mult_cansancio_horas_extra: float = 1.5
 ## es obligatoria (la partida arranca sin ella y se puede jugar), pero construirla SE NOTA.
 var mult_pausa_sin_sala: float = 1.5
 var k_cansancio_rendimiento: float = 0.25
+## Cuánto acorta la pausa cada punto de calidad instalada en la sala de descanso (bien-005).
+var k_confort_pausa: float = 0.03
+## Suelo del multiplicador de pausa: por muy montada que esté la sala, el café no baja de aquí.
+var mult_pausa_min: float = 0.7
+## Plazas que da la sala de descanso VACÍA (uno de pie). Las de verdad se compran.
+var plazas_descanso_base: int = 1
 ## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
 ## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
 ## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
@@ -173,15 +179,53 @@ func hay_sala_descanso() -> bool:
 	return _construccion.hay_sala_de_tipo("descanso")
 
 
+## Lo que dura el café según CÓMO esté la sala (bien-005). Tres tramos, de peor a mejor:
+##   • **sin sala** → `mult_pausa_sin_sala` (1.5): se van a la calle y tardan más en volver.
+##   • **sala pelada** → 1.0: hay sitio, pero no hay nada. El café dura lo reglamentario.
+##   • **sala montada** → baja `k_confort_pausa` por punto instalado, con suelo `mult_pausa_min`.
+## La conversión "calidad instalada → minutos" vive AQUÍ y no en Construcción: Construcción solo
+## suma lo que hay puesto; qué hace ese número con el cansancio es de Personal, que es su dueño
+## (ADR-0001). Es la misma frontera que ya separa el confort de Paciencia del rendimiento de Flujo.
+func mult_pausa_por_sala() -> float:
+	if not hay_sala_descanso():
+		return mult_pausa_sin_sala
+	var calidad: float = 0.0
+	if _construccion != null and _construccion.has_method("descanso_instalado"):
+		calidad = maxf(_construccion.descanso_instalado(), 0.0)
+	return clampf(1.0 - k_confort_pausa * calidad, mult_pausa_min, 1.0)
+
+
+## Cuánta gente cabe A LA VEZ tomándose el café: la plaza base de la sala más las que se han comprado
+## (sofá 3, sillas 2). **Sin sala construida no hay tope**: la calle es infinita — el castigo de no
+## tener sala ya es que la pausa dura un 50 % más, no hace falta cobrárselo dos veces.
+func plazas_de_descanso() -> int:
+	if not hay_sala_descanso():
+		return 0   # 0 = "sin tope", lo interpreta `hay_sitio_para_descansar`
+	var compradas: int = 0
+	if _construccion != null and _construccion.has_method("plazas_de_descanso"):
+		compradas = _construccion.plazas_de_descanso()
+	return plazas_descanso_base + maxi(compradas, 0)
+
+
+## ¿Queda sitio en la sala de descanso? Si no, el que necesita café **se queda en su ventanilla
+## atendiendo** y lo reintentará luego: no pierde su descanso, lo retrasa. Es la decisión de juego que
+## pidió el usuario — la sala no es solo cuestión de calidad, también de TAMAÑO.
+func hay_sitio_para_descansar() -> bool:
+	if not hay_sala_descanso():
+		return true   # a la calle caben todos
+	return _descansando.size() < plazas_de_descanso()
+
+
 ## Manda al agente a su pausa: deja de dotar su puesto (el gate FL4 ya exige ASIGNADO, así que Flujo
-## deja de llamarle solo) y arranca su cronómetro. Sin sala de descanso la pausa se alarga.
-## Devuelve los minutos que va a durar, o 0 si no procede (ya está fuera, o no le toca).
+## deja de llamarle solo) y arranca su cronómetro. Sin sala de descanso la pausa se alarga; con la
+## sala bien montada, se acorta. Si la sala está LLENA no se va: sigue atendiendo y lo reintenta.
+## Devuelve los minutos que va a durar, o 0 si no procede (ya está fuera, no le toca, o no hay sitio).
 func enviar_a_descansar(agente: RefCounted) -> float:
 	if agente == null or agente.estado != AgenteScript.ESTADO_ASIGNADO:
 		return 0.0
-	var minutos: float = float(minutos_de_pausa(agente))
-	if not hay_sala_descanso():
-		minutos *= mult_pausa_sin_sala
+	if not hay_sitio_para_descansar():
+		return 0.0
+	var minutos: float = float(minutos_de_pausa(agente)) * mult_pausa_por_sala()
 	agente.estado = AgenteScript.ESTADO_DESCANSANDO
 	agente.pausas_gastadas += 1
 	_descansando[agente] = minutos
@@ -920,6 +964,9 @@ func aplicar_config(config: Resource) -> void:
 	mult_cansancio_horas_extra = clampf(config.mult_cansancio_horas_extra, 1.0, 5.0)
 	mult_pausa_sin_sala = clampf(config.mult_pausa_sin_sala, 1.0, 5.0)
 	k_cansancio_rendimiento = clampf(config.k_cansancio_rendimiento, 0.0, 2.0)
+	k_confort_pausa = clampf(config.k_confort_pausa, 0.0, 1.0)
+	mult_pausa_min = clampf(config.mult_pausa_min, 0.1, 1.0)
+	plazas_descanso_base = maxi(config.plazas_descanso_base, 0)
 	if config.minutos_aguante < 1:
 		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")

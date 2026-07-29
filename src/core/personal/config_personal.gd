@@ -54,6 +54,21 @@ class_name ConfigPersonal extends Resource
 ## gente a descansar — mientras aguantan, rinden peor, y eso se nota en la cola antes que el café.
 @export var k_cansancio_rendimiento: float = 0.25
 
+# ── Calidad de la sala de descanso (bien-005, petición del usuario 2026-07-29) ───────────────
+## Cuánto ACORTA la pausa cada punto de calidad instalada en la sala de descanso (sofá, máquina de
+## café, nevera…). 0.03 = cada punto recorta un 3 % del café. Con la sala bien montada (~10 puntos)
+## la media hora se queda en 21 min: el funcionario vuelve antes a su ventanilla, que es exactamente
+## lo que el jugador ha comprado. Sala pelada = 1.0 (nada cambia); sin sala, `mult_pausa_sin_sala`.
+@export var k_confort_pausa: float = 0.03
+## Suelo del multiplicador: por muy montada que esté la sala, la pausa nunca baja de aquí. 0.7 = un
+## 30 % menos como mucho. El tope existe para que el sistema NO pierda su tensión — el epic entero
+## nace de que la ventanilla se queda sola, y un descanso de 5 minutos no obligaría a decidir nada.
+@export var mult_pausa_min: float = 0.7
+## Plazas de descanso que da la sala VACÍA, sin muebles: uno de pie, apoyado en la pared. Existe para
+## que una sala recién construida no bloquee a nadie; las plazas de verdad se compran (sofá 3,
+## sillas 2). Si no hay sitio, el que necesita café **sigue atendiendo** hasta que quede libre.
+@export var plazas_descanso_base: int = 1
+
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.
 @export var n_candidatos: int = 4

@@ -140,13 +140,18 @@ func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringN
 			return false
 		# F3 (story 003): el asiento por encima del tope físico por área NO cabe — se rechaza.
 		return _asientos_en(sala_id, ignorar) < _plazas_max_de(sala_id)
-	# Comodidades #15 (story com-001): cada familia va donde tiene sentido — una tele en la sala de
-	# espera, un equipo informático donde trabaja la gente. Al revés no se permite.
+	# Comodidades #15 (story com-001) + Bienestar #13 (bien-005): cada familia va donde tiene sentido
+	# — una tele en la sala de espera, un equipo informático donde trabaja la gente, un sofá en la
+	# sala de descanso. Cruzarlas no se permite: un sofá en la sala de espera sería otra cosa.
 	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
 	if comodidad != null:
-		if comodidad.familia == "ciudadano":
-			return tipo_sala.tipo == "espera"
-		return tipo_sala.tipo != "espera"
+		match comodidad.familia:
+			"ciudadano":
+				return tipo_sala.tipo == "espera"
+			"descanso":
+				return tipo_sala.tipo == "descanso"
+			_:
+				return tipo_sala.tipo == "oficina"
 	var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", id_catalogo)
 	if tipo_puesto == null:
 		return false   # Datos ya avisó
@@ -187,6 +192,36 @@ func confort_de_sala(sala_id: StringName) -> float:
 ## Rendimiento instalado en una sala (familia "funcionario"): lo consume Flujo #4.
 func equipamiento_de_sala(sala_id: StringName) -> float:
 	return aporte_de_sala(sala_id, "funcionario")
+
+
+# ── Bienestar #13 (story bien-005): lo que hay montado en la sala de DESCANSO ────────────────
+
+## Calidad instalada en la sala de descanso (familia "descanso"): lo consume Personal, que decide con
+## SU fórmula cuánto acorta la pausa (ADR-0001 — aquí no vive el multiplicador de nadie). Sumado de
+## TODAS las salas de descanso: la comisaría tiene una, pero si hay dos el jugador no pierde lo puesto.
+func descanso_instalado() -> float:
+	var total: float = 0.0
+	for sala_id: StringName in salas_de_tipo("descanso"):
+		total += aporte_de_sala(sala_id, "descanso")
+	return total
+
+
+## Plazas de descanso: cuánta gente cabe A LA VEZ tomándose el café. Es la suma de las `plazas` de los
+## objetos donde uno se sienta (sofá 3, sillas 2; la nevera mejora el café pero no es sitio donde
+## sentarse). **No incluye la plaza base de la sala** — esa la pone Personal, que es quien conoce su
+## propio knob: aquí solo se cuenta lo que el jugador ha comprado.
+func plazas_de_descanso() -> int:
+	var total: int = 0
+	for sala_id: StringName in salas_de_tipo("descanso"):
+		for elemento_id: StringName in _elementos:
+			if _elementos[elemento_id]["sala"] != sala_id:
+				continue
+			var comodidad: Resource = Datos.obtener_silencioso(
+				&"Comodidad", _elementos[elemento_id]["catalogo"]
+			)
+			if comodidad != null and comodidad.familia == "descanso":
+				total += comodidad.plazas
+	return total
 
 
 ## Confort MEDIO de las salas de espera de un servicio (0 si no tiene ninguna). Media y no suma: dos
