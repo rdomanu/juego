@@ -90,6 +90,9 @@ var _suscrito_al_tick: bool = false
 var _descansando: Dictionary = {}
 ## Buffer reutilizado entre ticks (regla del proyecto: cero allocs en el bucle de simulación).
 var _vueltos_del_descanso: Array[RefCounted] = []
+## Reusada cada tick (cero asignaciones en el bucle): a quienes el cierre de su ventanilla les pilla
+## tomando café y se marchan a casa con el descanso a medias.
+var _cerrados_del_descanso: Array[RefCounted] = []
 
 ## Tipos contratables del MVP (los 2 perfiles operativos del catálogo; `ag_seguridad` queda fuera del
 ## mercado — el vigilante llegará con su sistema).
@@ -223,6 +226,10 @@ func hay_sitio_para_descansar() -> bool:
 func enviar_a_descansar(agente: RefCounted) -> float:
 	if agente == null or agente.estado != AgenteScript.ESTADO_ASIGNADO:
 		return 0.0
+	# Con el turno ya terminado no se empieza un café: se va uno a casa. Sin esto, alguien podría
+	# irse a la sala de descanso justo al cerrar su ventanilla y quedarse ahí de adorno.
+	if turno_terminado(agente.puesto_id):
+		return 0.0
 	if not hay_sitio_para_descansar():
 		return 0.0
 	var minutos: float = float(minutos_de_pausa(agente)) * mult_pausa_por_sala()
@@ -261,18 +268,56 @@ func puestos_en_descanso() -> Array[StringName]:
 	return resultado
 
 
+## A qué minuto del día cierra cada ventanilla. Lo empuja Main por el mismo canal que ya se lo dice a
+## Flujo (`_al_cambiar_horario_doc`): las ventanillas que no hacen la tarde cierran antes que las que
+## sí. Sin entrada para un puesto, se asume que no cierra (ODAC y el resto de servicios de momento).
+var _cierre_de_puesto: Dictionary[StringName, int] = {}
+
+
+## Le dice a Personal a qué hora termina el turno de una ventanilla. Petición del usuario 2026-07-29:
+## *"cuando termina el turno de los que no vuelven hasta el día siguiente como documentación se tienen
+## que marchar aunque estén descansando"*.
+func fijar_cierre_de_puesto(puesto_id: StringName, minuto_del_dia: int) -> void:
+	_cierre_de_puesto[puesto_id] = clampi(minuto_del_dia, 0, 1439)
+
+
+## ¿Ha terminado ya el turno de este puesto? Sin reloj o sin horario conocido, no cierra nunca.
+func turno_terminado(puesto_id: StringName) -> bool:
+	if _tiempo == null or not _cierre_de_puesto.has(puesto_id):
+		return false
+	return fposmod(_tiempo.minutos_juego, 1440.0) >= float(_cierre_de_puesto[puesto_id])
+
+
 ## El tick: descuenta el café y devuelve a su puesto a quien ya ha terminado, con la barra a cero.
 ## En Pausa no corre (Tiempo no empuja el tick), que es justo lo que se espera.
+##
+## Y **manda a casa a quien le pille el cierre de su ventanilla tomando café**: el turno de
+## Documentación no continúa hasta el día siguiente, así que quedarse en la sala de descanso pasada
+## esa hora no tiene sentido — se marcha con el café a medias, como cualquiera. Su barra NO se pone a
+## cero (no llegó a terminar el descanso); da igual, porque el reinicio diario la limpia de todos modos.
 func _al_tick(delta_juego_min: float) -> void:
 	if _descansando.is_empty() or delta_juego_min <= 0.0:
 		return
 	_vueltos_del_descanso.clear()
+	_cerrados_del_descanso.clear()
 	for agente: RefCounted in _descansando:
+		if turno_terminado(agente.puesto_id):
+			_cerrados_del_descanso.append(agente)
+			continue
 		var restante: float = float(_descansando[agente]) - delta_juego_min
 		if restante > 0.0:
 			_descansando[agente] = restante
 			continue
 		_vueltos_del_descanso.append(agente)
+	# Los que se van a casa: salen de la sala de descanso (dejan de pintarse con su taza) y quedan
+	# como el resto de su turno — con el puesto cerrado, Flujo no les manda a nadie y el mostrador se
+	# queda vacío igual. No se les avisa por el bus: irse a la hora no es una incidencia.
+	for agente: RefCounted in _cerrados_del_descanso:
+		_descansando.erase(agente)
+		if agente.puesto_id != &"" and _asignaciones.get(agente.puesto_id) == agente:
+			agente.estado = AgenteScript.ESTADO_ASIGNADO
+		else:
+			agente.estado = AgenteScript.ESTADO_LIBRE
 	for agente: RefCounted in _vueltos_del_descanso:
 		_descansando.erase(agente)
 		agente.cansancio = 0.0

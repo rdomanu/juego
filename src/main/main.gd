@@ -988,10 +988,16 @@ func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -
 		# La jornada base: a partir de esa hora, atender es peonada y cansa más (Bienestar #13).
 		_flujo.fijar_cierre_base_doc(_documentacion.cierre_base_min)
 		for puesto_id: StringName in _documentacion.puestos_de_doc():
-			_flujo.fijar_cierre_de_puesto(
-				puesto_id,
-				cierre if _documentacion.puesto_de_tarde(puesto_id) else _documentacion.cierre_base_min
+			var cierre_puesto: int = (
+				cierre if _documentacion.puesto_de_tarde(puesto_id)
+				else _documentacion.cierre_base_min
 			)
+			_flujo.fijar_cierre_de_puesto(puesto_id, cierre_puesto)
+			# Y Personal necesita el MISMO dato (Bienestar #13, petición del usuario 2026-07-29): a
+			# quien le pille el cierre de su ventanilla tomándose el café, se le manda a casa — el
+			# turno de Documentación no sigue hasta el día siguiente.
+			if _personal != null:
+				_personal.fijar_cierre_de_puesto(puesto_id, cierre_puesto)
 	if _demanda != null:
 		_demanda.fijar_ventana_doc(apertura, ultima_admision)
 

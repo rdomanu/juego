@@ -83,9 +83,37 @@ var _plaza_de: Dictionary[Vector2i, Node] = {}
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
 ## Segunda línea del rótulo de un puesto (hoy: los minutos que le quedan al que está de café).
 var _rotulo_extra: Dictionary[StringName, String] = {}
-## Capa donde se pintan los que están de café + firma para no repoblarla cada frame.
+## Capa donde cuelgan los muñecos que caminan al descanso (hereda el z_index 1 de `configurar`, así
+## se dibujan por encima de las salas como el resto de NPCs).
 var _capa_descansos: Node2D = null
-var _firma_descansos: String = ""
+
+# ── Trayecto cosmético del descanso (feedback demo 2026-07-29: *"debe estar la animación del
+# abandono del puesto y estar en la sala de descanso sin el puesto atendido"*) ───────────────────
+## `agente` (RefCounted de Personal) → Dictionary del viaje EN CURSO. Se crea UNA vez al empezar el
+## descanso y se REUSA hasta que vuelve — nunca se reconstruye por frame (regla de rendimiento del
+## archivo: si nada cambió, cero toques a nodos; aquí "nada cambió" es "sigue siendo el mismo viaje",
+## así que el muñeco simplemente se MUEVE, nunca se recrea). Claves de cada viaje:
+##   "muneco": CharacterBody2D — el cuerpo que anda (torso+cabeza+NavigationAgent2D hijo, "Nav").
+##   "nav": NavigationAgent2D  — su agente de navegación (mismo patrón que npc_ciudadano).
+##   "fase": StringName        — &"yendo" (mostrador→sala/calle), &"en_sala" (quieto con su taza)
+##                                o &"volviendo" (sala/calle→mostrador).
+##   "puesto_id": StringName   — a qué mostrador pertenece y a qué punto vuelve.
+##   "celda_sala": Vector2i    — su asiento reservado en la sala de descanso (CELDA_NULA sin sala).
+##   "listo": bool             — false en su primer physics frame (gotcha del NavigationServer: no
+##                                sincroniza hasta ahí — engine-reference/.../navigation.md).
+##   "destino_pendiente": Vector2 (opcional) — target aún no aplicado a `nav` (se aplica en el primer
+##                                frame ya "listo", o de inmediato si el viaje ya llevaba rato andando).
+## Dictionary SIN TIPAR a propósito (valores mixtos) — mismo criterio que `Personal._descansando`.
+var _camino_descanso: Dictionary = {}
+## Celdas de la sala de descanso YA ocupadas por alguien que llegó o va de camino → su agente. Se
+## libera al empezar la vuelta. Dict APARTE de `_plaza_de`: son dos salas distintas (espera/descanso)
+## y aquí el ocupante es un Agente de Personal, no un NPC de Flujo.
+var _asiento_descanso: Dictionary[Vector2i, RefCounted] = {}
+## Puestos cuyo titular ya terminó su descanso PERO el muñeco aún no ha llegado de vuelta: mientras
+## esté aquí, `_actualizar_visual_puesto` mantiene el mostrador VACÍO aunque el modelo ya diga que el
+## agente está `asignado` — si no, se verían DOS policías a la vez (el fijo del mostrador + el que
+## todavía anda). Se pone en `_iniciar_vuelta` y se quita en `_cerrar_camino_descanso`.
+var _regreso_en_curso: Dictionary[StringName, bool] = {}
 
 
 ## El objeto que esta persona está usando ahora (`&""` si ninguno) — lo LEE el NPC para saber si
@@ -421,7 +449,10 @@ func _refrescar_puestos() -> void:
 		if contenedor.get_meta(&"celda", Vector2i(-9999, -9999)) != celda:
 			contenedor.set_meta(&"celda", celda)
 			contenedor.position = _construccion.centro_de_celda(celda) + Vector2(0, -_tam_celda * 0.55)
-		_actualizar_visual_puesto(puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""), cansancio)
+		_actualizar_visual_puesto(
+			puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""), cansancio,
+			_regreso_en_curso.has(puesto_id)
+		)
 		if de_cafe == null:
 			_rotulo_extra.erase(puesto_id)
 	# Retira los visuales de puestos que ya no están registrados (demolidos / cargados fuera).
@@ -431,41 +462,40 @@ func _refrescar_puestos() -> void:
 			_visual_de_puesto.erase(puesto_id)
 
 
-## Los que están de café, dibujados DENTRO de la sala de descanso (Bienestar #13). Si no hay sala
-## construida no se pinta a nadie: es que se han ido a la calle, y esa ausencia también informa.
-## Se repuebla por DIFF (solo cuando cambia quién está descansando), nunca por frame.
+## El trayecto cosmético del descanso (Bienestar #13 + feedback demo 2026-07-29). YA NO se reconstruye
+## por firma de conteo (ese patrón creaba un muñeco NUEVO directamente puesto dentro de la sala → el
+## teletransporte que reportó el usuario en la demo). Ahora cada agente tiene COMO MUCHO un viaje
+## activo en `_camino_descanso`, creado una vez al empezar el descanso y REUSADO (solo se MUEVE) hasta
+## que vuelve. Tres pasadas, cada una O(agentes activos), nunca O(reconstruir la sala entera):
+##   1) ALTAS   — quien acaba de pasar a `descansando` sin viaje todavía → nace en su mostrador.
+##   2) BAJAS   — quien ya no está `descansando` pero su viaje seguía "yendo"/"en_sala" → media
+##                vuelta hacia el mostrador (si aún iba de camino a la sala, gira EN EL SITIO: el
+##                viaje es solo visual, no espera a "llegar" para empezar a volver — no alarga ni
+##                acorta la pausa, que sigue siendo 100% de `Personal`).
+##   3) AVANCE  — cada viaje vivo se mueve un paso (mismo NavigationAgent2D + get_next_path_position
+##                + move_and_slide que npc_ciudadano), o se cierra si ya ha llegado del todo.
+## Sin sala construida: el viaje de ida termina en la calle y el muñeco desaparece ahí — sin sala no
+## se pinta a nadie dentro (esa ausencia informa; no se inventa una sala fantasma). La vuelta, en ese
+## caso, NO se anima (no hay desde dónde) y el mostrador recupera a su titular de golpe, igual que
+## pasa hoy — el teletransporte que se elimina aquí es el de la sala, no el de la calle.
 func _refrescar_descansos() -> void:
 	if _personal == null or _construccion == null:
 		return
-	var descansando: Array[RefCounted] = []
 	for agente: RefCounted in _personal.plantilla:
-		if agente.estado == &"descansando":
-			descansando.append(agente)
-	var firma: String = "%d" % descansando.size()
-	if firma == _firma_descansos:
-		return
-	_firma_descansos = firma
-	for hijo: Node in _capa_descansos.get_children():
-		hijo.queue_free()
-	var sala: StringName = _sala_de_descanso()
-	if sala == &"":
-		return   # sin sala: están fuera del edificio, no hay nada que pintar
-	var rect: Rect2i = _construccion.rect_de_sala(sala)
-	for i: int in range(descansando.size()):
-		# Se reparten en fila dentro de la sala, sin salirse de su rectángulo.
-		var celda: Vector2i = Vector2i(
-			rect.position.x + (i % maxi(rect.size.x, 1)),
-			rect.position.y + mini(i / maxi(rect.size.x, 1), maxi(rect.size.y - 1, 0))
-		)
-		var muneco: Node2D = _crear_muneco_policia()
-		muneco.position = _construccion.centro_de_celda(celda)
-		_capa_descansos.add_child(muneco)
-		var taza := Label.new()
-		taza.text = "☕"
-		taza.add_theme_font_size_override("font_size", 10)
-		taza.position = Vector2(-6, -26)
-		taza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		muneco.add_child(taza)
+		if agente.estado == &"descansando" and not _camino_descanso.has(agente):
+			_iniciar_camino_descanso(agente)
+	for agente: RefCounted in _camino_descanso:
+		var viaje: Dictionary = _camino_descanso[agente]
+		var sigue_descansando: bool = agente.estado == &"descansando" and _personal.plantilla.has(agente)
+		if not sigue_descansando and viaje["fase"] != &"volviendo":
+			_iniciar_vuelta(viaje)
+	var terminados: Array[RefCounted] = []
+	for agente: RefCounted in _camino_descanso:
+		if _avanzar_camino_descanso(_camino_descanso[agente]):
+			terminados.append(agente)
+	for agente: RefCounted in terminados:
+		_cerrar_camino_descanso(_camino_descanso[agente])
+		_camino_descanso.erase(agente)
 
 
 ## La primera sala de tipo "descanso" construida (`&""` si no hay ninguna).
@@ -474,21 +504,184 @@ func _sala_de_descanso() -> StringName:
 	return salas[0] if not salas.is_empty() else &""
 
 
-## Un muñeco de policía suelto (torso + cabeza), el mismo que se planta en los mostradores.
-func _crear_muneco_policia() -> Node2D:
-	var muneco := Node2D.new()
+## Arranca el viaje de IDA: crea el muñeco caminante UNA vez, exactamente en el punto al que ya
+## navegan los ciudadanos que van a esa ventanilla (`_punto_de_su_puesto`) — el mismo punto garantiza
+## que el arranque cae dentro del polígono navegable (el mostrador en sí está recortado como
+## obstáculo en `_bakear_navegacion`; el punto EXACTO donde se planta el muñeco quieto del mostrador
+## no lo está, y no vale para pathfinding). El target real se aplica un frame más tarde (`listo`,
+## gotcha del NavigationServer) — este frame solo se deja el viaje listo para que lo recoja
+## `_avanzar_camino_descanso`.
+func _iniciar_camino_descanso(agente: RefCounted) -> void:
+	var puesto_id: StringName = agente.puesto_id
+	var muneco: CharacterBody2D = _crear_muneco_caminante()
+	muneco.position = _punto_de_su_puesto(puesto_id)
+	_capa_descansos.add_child(muneco)
+	var sala: StringName = _sala_de_descanso()
+	var celda_sala: Vector2i = CELDA_NULA
+	var destino: Vector2
+	if sala != &"":
+		celda_sala = _asiento_descanso_libre(sala)
+		_asiento_descanso[celda_sala] = agente
+		destino = _construccion.centro_de_celda(celda_sala)
+	else:
+		# Sin sala: a la calle, con reparto determinista por la fila de su puesto para que varios sin
+		# sala a la vez no salgan pegados unos a otros.
+		destino = _punto_calle(_construccion.posicion_de(puesto_id).y)
+	_camino_descanso[agente] = {
+		"muneco": muneco,
+		"nav": muneco.get_node("Nav") as NavigationAgent2D,
+		"fase": &"yendo",
+		"puesto_id": puesto_id,
+		"celda_sala": celda_sala,
+		"listo": false,
+		"destino_pendiente": destino,
+	}
+
+
+## Da la vuelta a un viaje YA EXISTENTE (nunca crea un muñeco nuevo): libera el asiento si lo tenía y
+## le quita la taza, y reapunta su destino al mostrador. Si aún iba "yendo" (la pausa terminó antes de
+## llegar a la sala), gira desde donde esté — no hace falta que "llegue" primero.
+func _iniciar_vuelta(viaje: Dictionary) -> void:
+	if viaje["celda_sala"] != CELDA_NULA:
+		_asiento_descanso.erase(viaje["celda_sala"])
+		_quitar_taza(viaje["muneco"])
+		viaje["celda_sala"] = CELDA_NULA
+	viaje["fase"] = &"volviendo"
+	viaje["destino_pendiente"] = _punto_de_su_puesto(viaje["puesto_id"])
+	_regreso_en_curso[viaje["puesto_id"]] = true
+
+
+## Avanza un viaje un paso: MISMO patrón que npc_ciudadano (NavigationAgent2D +
+## get_next_path_position + move_and_slide, respetando la Pausa/velocidad de Tiempo — en Pausa nadie
+## anda, igual que el resto de NPCs de este archivo). Devuelve `true` si el viaje ha terminado del
+## todo (se cierra fuera, en `_refrescar_descansos`, para no borrar del dict mientras se itera).
+func _avanzar_camino_descanso(viaje: Dictionary) -> bool:
+	var nav: NavigationAgent2D = viaje["nav"] as NavigationAgent2D
+	if not viaje["listo"]:
+		viaje["listo"] = true   # el NavigationServer sincroniza EN este frame: el target va al siguiente
+		return false
+	if viaje.has("destino_pendiente"):
+		nav.target_position = viaje["destino_pendiente"]
+		viaje.erase("destino_pendiente")
+	if viaje["fase"] == &"en_sala":
+		return false   # quieto con su taza: nada que mover ni que comprobar
+	var mult: float = Tiempo.multiplicador_velocidad
+	if mult <= 0.0:
+		return false
+	var muneco: CharacterBody2D = viaje["muneco"] as CharacterBody2D
+	if not nav.is_navigation_finished():
+		var siguiente: Vector2 = nav.get_next_path_position()
+		muneco.velocity = muneco.global_position.direction_to(siguiente) * _flujo.velocidad_npc_px_s * mult
+		muneco.move_and_slide()
+		return false
+	# Llegó: "yendo" CON sala → se queda ("en_sala", con su taza); "yendo" SIN sala o "volviendo" →
+	# viaje completo.
+	if viaje["fase"] == &"yendo" and viaje["celda_sala"] != CELDA_NULA:
+		viaje["fase"] = &"en_sala"
+		_poner_taza(muneco)
+		return false
+	return true
+
+
+## Cierra un viaje terminado: borra el muñeco y, si terminaba una VUELTA, libera la supresión del
+## mostrador (`_regreso_en_curso`) — a partir de aquí el DIFF de `_actualizar_visual_puesto` decide si
+## el mostrador vuelve a enseñar a su titular real. (La entrada en `_camino_descanso` la borra el
+## llamador — este método no toca ese dict, solo lo que cuelga del viaje.)
+func _cerrar_camino_descanso(viaje: Dictionary) -> void:
+	if viaje["fase"] == &"volviendo":
+		_regreso_en_curso.erase(viaje["puesto_id"])
+	(viaje["muneco"] as Node).queue_free()
+
+
+## El punto al que YA navegan los ciudadanos atendidos en este puesto (`_frente_del_puesto`, pero sin
+## necesitar una `persona`): el mostrador en sí está recortado como obstáculo, así que este es el
+## único punto garantizado dentro del polígono navegable para ese puesto. Puesto inexistente
+## (despedido/desasignado/demolido mientras descansaba) → un punto de calle, como cualquier NPC sin
+## destino real.
+func _punto_de_su_puesto(puesto_id: StringName) -> Vector2:
+	if puesto_id == &"":
+		return _punto_calle(0)
+	var celda: Vector2i = _construccion.posicion_de(puesto_id)
+	if celda == CELDA_NULA:
+		return _punto_calle(0)
+	return _construccion.centro_de_celda(celda + Vector2i(0, 1))
+
+
+## Primera celda LIBRE de la sala de descanso (mismo barrido en lectura que usa `_hueco_de_pie_libre`
+## para la sala de espera, pero en su propio dict — son salas distintas). Sin hueco no debería pasar
+## nunca (`Personal.hay_sitio_para_descansar` ya limita el aforo antes de mandar a nadie aquí); si
+## pasara, mejor una superposición rara en la esquina que un crash.
+func _asiento_descanso_libre(sala_id: StringName) -> Vector2i:
+	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
+	if rect.get_area() <= 0:
+		return rect.position
+	for indice: int in range(rect.get_area()):
+		var celda: Vector2i = _celda_del_rect(rect, indice)
+		if not _asiento_descanso.has(celda):
+			return celda
+	return rect.position
+
+
+## Añade la taza (☕) al llegar a la sala — el mismo indicador que ya existía, ahora sobre el muñeco
+## que de verdad caminó hasta allí en vez de uno recién creado en el sitio.
+func _poner_taza(muneco: Node2D) -> void:
+	var taza := Label.new()
+	taza.name = "Taza"
+	taza.text = "☕"
+	taza.add_theme_font_size_override("font_size", 10)
+	taza.position = Vector2(-6, -26)
+	taza.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	muneco.add_child(taza)
+
+
+## Quita la taza al levantarse a volver (defensivo: si el viaje era sin sala, nunca la tuvo — no hay
+## nada que hacer).
+func _quitar_taza(muneco: Node2D) -> void:
+	var taza: Node = muneco.get_node_or_null("Taza")
+	if taza != null:
+		taza.queue_free()
+
+
+## Torso + cabeza del uniforme (las mismas piezas, pixel a pixel) añadidas a `destino`: lo comparten
+## el muñeco QUIETO del mostrador (`_asegurar_visual_puesto`) y el CAMINANTE de esta sección
+## (`_crear_muneco_caminante`), para que sea el mismo cuerpo se mire donde se mire.
+func _anadir_cuerpo_policia(destino: Node2D) -> void:
 	var torso := ColorRect.new()
 	torso.color = COLOR_POLICIA_TORSO
 	torso.size = Vector2(12, 16)
 	torso.position = Vector2(-6, -8)
 	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	muneco.add_child(torso)
+	destino.add_child(torso)
 	var cabeza := ColorRect.new()
 	cabeza.color = COLOR_POLICIA_TORSO.lightened(0.55)
 	cabeza.size = Vector2(8, 6)
 	cabeza.position = Vector2(-4, -14)
 	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	muneco.add_child(cabeza)
+	destino.add_child(cabeza)
+
+
+## Un muñeco de policía que CAMINA: mismo cuerpo que el fijo del mostrador, pero sobre un
+## CharacterBody2D con NavigationAgent2D hijo — el MISMO sistema que npc_ciudadano (ADR-0004): fantasma
+## (collision_layer/mask 0, sin avoidance — MVP) y movido a mano desde `_avanzar_camino_descanso` con
+## get_next_path_position + move_and_slide (no tiene su propio `_physics_process`: lo empuja este
+## archivo, que es quien controla la cadencia del DIFF).
+func _crear_muneco_caminante() -> CharacterBody2D:
+	var muneco := CharacterBody2D.new()
+	muneco.collision_layer = 0
+	muneco.collision_mask = 0
+	var forma := CollisionShape2D.new()
+	var circulo := CircleShape2D.new()
+	circulo.radius = 7.0
+	forma.shape = circulo
+	muneco.add_child(forma)
+	var nav := NavigationAgent2D.new()
+	nav.name = "Nav"
+	nav.radius = 7.0
+	nav.path_desired_distance = 4.0
+	nav.target_desired_distance = 6.0
+	nav.avoidance_enabled = false   # manifiesto: OFF (Experimental en 4.6), igual que npc_ciudadano
+	muneco.add_child(nav)
+	_anadir_cuerpo_policia(muneco)
 	return muneco
 
 
@@ -504,18 +697,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# El muñeco policía (torso + cabeza, estilo npc_ciudadano); se muestra solo si el puesto está dotado.
 	var policia := Node2D.new()
 	policia.name = "Policia"
-	var torso := ColorRect.new()
-	torso.color = COLOR_POLICIA_TORSO
-	torso.size = Vector2(12, 16)
-	torso.position = Vector2(-6, -8)
-	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	policia.add_child(torso)
-	var cabeza := ColorRect.new()
-	cabeza.color = COLOR_POLICIA_TORSO.lightened(0.55)
-	cabeza.size = Vector2(8, 6)
-	cabeza.position = Vector2(-4, -14)
-	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	policia.add_child(cabeza)
+	_anadir_cuerpo_policia(policia)
 	contenedor.add_child(policia)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto.
 	var lbl_nombre := _label_centrada(9, Vector2(-30, 10))
@@ -563,7 +745,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 ## exactamente la cadencia con la que tiene sentido que el jugador la vea moverse.
 func _actualizar_visual_puesto(
 	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName, extra: String,
-	cansancio: float = 0.0
+	cansancio: float = 0.0, oculto_por_regreso: bool = false
 ) -> void:
 	var contenedor: Node2D = _visual_de_puesto[puesto_id]
 	var visto_dotado: bool = contenedor.get_meta(&"dotado", false)
@@ -572,22 +754,30 @@ func _actualizar_visual_puesto(
 	var visto_extra: String = contenedor.get_meta(&"extra", "")
 	var paso_cansancio: int = int(cansancio / 5.0)
 	var visto_paso_cansancio: int = contenedor.get_meta(&"paso_cansancio", -1)
+	var visto_regreso: bool = contenedor.get_meta(&"oculto_por_regreso", false)
 	if (
 		visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado
 		and visto_extra == extra and visto_paso_cansancio == paso_cansancio
+		and visto_regreso == oculto_por_regreso
 	):
-		return   # nada cambió (ni siquiera el TRAMO de cansancio): cero toques a nodos este frame
+		return   # nada cambió (ni siquiera el TRAMO de cansancio ni el regreso): cero toques este frame
 	contenedor.set_meta(&"dotado", dotado)
 	contenedor.set_meta(&"nombre", nombre)
 	contenedor.set_meta(&"estado", estado)
 	contenedor.set_meta(&"extra", extra)
 	contenedor.set_meta(&"paso_cansancio", paso_cansancio)
+	contenedor.set_meta(&"oculto_por_regreso", oculto_por_regreso)
 	# Horario provisional 2026-07-25 "los funcionarios se van": con el puesto cerrado (por horario o
 	# por el jugador) el muñeco y su nombre desaparecen del mostrador — caminar a casa es juice futuro.
 	var policia: Node2D = contenedor.get_node("Policia")
-	# De café, el mostrador se queda VACÍO (el muñeco se va) pero el nombre sigue: es SU ventanilla,
-	# solo que ahora mismo no hay nadie.
-	var en_activo: bool = dotado and estado != &"cerrado" and estado != &"descansando"
+	# De café, el mostrador se queda VACÍO (quien se ve es el muñeco CAMINANTE de `_refrescar_descansos`)
+	# pero el nombre sigue: es SU ventanilla, solo que ahora mismo no hay nadie. `oculto_por_regreso`
+	# (feedback demo 2026-07-29) tapa el hueco entre "el modelo ya dice que ha vuelto" y "el muñeco
+	# caminante todavía no ha llegado": sin esto se verían DOS policías un instante (el fijo del
+	# mostrador + el que aún anda) si le llaman justo al terminar la pausa.
+	var en_activo: bool = (
+		dotado and estado != &"cerrado" and estado != &"descansando" and not oculto_por_regreso
+	)
 	policia.visible = en_activo
 	var lbl_nombre: Label = contenedor.get_node("Nombre")
 	lbl_nombre.visible = estado == &"descansando" or (dotado and estado != &"cerrado")

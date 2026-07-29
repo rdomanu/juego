@@ -11,6 +11,7 @@ const ConstruccionScript := preload("res://src/core/construccion/construccion.gd
 const ConfigConstruccionScript := preload("res://src/core/construccion/config_construccion.gd")
 const EconomiaScript := preload("res://src/core/economia/economia.gd")
 const ConfigEconomiaScript := preload("res://src/core/economia/config_economia.gd")
+const TiempoScript := preload("res://src/foundation/tiempo/tiempo.gd")
 
 
 # ── Fixture (mismo molde que personal_descanso_test.gd) ──────────────────────────────────────────
@@ -69,6 +70,23 @@ func _sumar_tercer_agente(personal: Node) -> RefCounted:
 	personal.plantilla.append(tercero)
 	personal.asignar(tercero, &"doc_3")
 	return tercero
+
+
+## Igual que `_mundo()`, pero con un RELOJ inyectado a `minuto_del_dia` — lo necesitan los tests del
+## cierre de turno (`fijar_cierre_de_puesto`/`turno_terminado`). Sin este helper, `_mundo()` no
+## inyecta reloj y `turno_terminado` cree que siempre son las 00:00 (gotcha ya sufrido en el
+## proyecto). Sin árbol (Tiempo no empuja solo — los tests avanzan `minutos_juego` a mano y llaman
+## a `_al_tick`). Devuelve [personal, agente, construccion, tiempo].
+func _mundo_con_reloj(
+	minuto_del_dia: float, motivacion: int = 3, con_sala: bool = true, muebles: Array[StringName] = []
+) -> Array:
+	var mundo: Array = _mundo(motivacion, con_sala, muebles)
+	var personal: Node = mundo[0]
+	var tiempo: Node = auto_free(TiempoScript.new())
+	tiempo.minutos_juego = minuto_del_dia
+	personal.usar_tiempo(tiempo)
+	mundo.append(tiempo)
+	return mundo
 
 
 # ── Los tres tramos de mult_pausa_por_sala() ──────────────────────────────────────────────────────
@@ -196,3 +214,89 @@ func test_los_knobs_de_la_sala_se_clampan_sin_romper_la_formula() -> void:
 	# Calidad 1.0 (una prensa) x k 1.0 tocaria 0.0, pero el suelo clampado (0.1) frena el cafe en seco.
 	assert_float(personal.mult_pausa_por_sala()).is_equal_approx(0.1, 0.001)
 	assert_int(personal.plazas_de_descanso()).is_equal(0)    # base 0 + 0 comprado (la prensa no da plazas)
+
+
+# ── Cierre de turno: a quien le pilla el cierre de su ventanilla se marcha ───────────────────────
+# Petición del usuario 2026-07-29: "cuando termina el turno de los que no vuelven hasta el dia
+# siguiente como documentacion se tienen que marchar aunque esten descansando". Reloj inyectado vía
+# el helper nuevo `_mundo_con_reloj` (el fixture `_mundo()` de arriba sigue sin reloj, intacto).
+func test_el_cierre_de_la_ventanilla_saca_del_cafe_al_agente_y_le_deja_asignado() -> void:
+	var mundo: Array = _mundo_con_reloj(500.0, 3, true, [])
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	var tiempo: Node = mundo[3]
+	personal.fijar_cierre_de_puesto(&"doc_1", 510)
+
+	personal.cansar(agente, 180.0)
+	assert_float(personal.enviar_a_descansar(agente)).is_equal(30.0)
+	assert_array(personal.puestos_en_descanso()).contains_exactly([&"doc_1"])
+
+	tiempo.minutos_juego = 511.0                        # cruza el cierre a mitad de café
+	personal._al_tick(1.0)
+
+	assert_int(personal.puestos_en_descanso().size()).is_equal(0)
+	assert_str(String(agente.estado)).is_equal("asignado")
+
+
+func test_a_quien_se_marcha_por_cierre_no_se_le_pone_el_cansancio_a_cero_al_contrario_de_quien_si_acaba_su_cafe() -> void:
+	# El contraste es la parte importante: Ana no llega a terminar su café (se la lleva el cierre) y
+	# se queda con la barra tal cual; Carlos SÍ lo apura entero y a él, como siempre, se la ponen a 0.
+	var mundo: Array = _mundo_con_reloj(500.0, 3, false, [])   # sin sala: aforo ilimitado, caben los dos
+	var personal: Node = mundo[0]
+	var ana: RefCounted = mundo[1]
+	var tiempo: Node = mundo[3]
+	var carlos: RefCounted = _sumar_segundo_agente(personal)
+	personal.fijar_cierre_de_puesto(&"doc_1", 510)      # doc_2 (Carlos) se queda SIN horario fijado
+
+	personal.cansar(ana, 180.0)
+	personal.cansar(carlos, 180.0)
+	assert_float(personal.enviar_a_descansar(ana)).is_equal_approx(45.0, 0.001)
+	assert_float(personal.enviar_a_descansar(carlos)).is_equal_approx(45.0, 0.001)
+
+	tiempo.minutos_juego = 511.0
+	personal._al_tick(5.0)                              # a Ana le pilla el cierre; Carlos sigue en su café
+	assert_str(String(ana.estado)).is_equal("asignado")
+	assert_float(ana.cansancio).is_equal(100.0)         # NO se puso a cero: el café quedó a medias
+	assert_str(String(carlos.estado)).is_equal("descansando")
+
+	personal._al_tick(40.0)                             # Carlos SÍ apura su café entero (45 - 5 - 40 = 0)
+	assert_str(String(carlos.estado)).is_equal("asignado")
+	assert_float(carlos.cansancio).is_equal(0.0)        # contraste: quien SÍ termina, se la ponen a 0
+
+
+func test_con_el_turno_ya_terminado_no_se_empieza_un_cafe_nuevo() -> void:
+	var mundo: Array = _mundo_con_reloj(511.0, 3, true, [])   # el reloj ya pasó el cierre de doc_1
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	personal.fijar_cierre_de_puesto(&"doc_1", 510)
+
+	personal.cansar(agente, 180.0)
+	assert_float(personal.enviar_a_descansar(agente)).is_equal(0.0)
+	assert_str(String(agente.estado)).is_equal("asignado")
+	assert_int(agente.pausas_gastadas).is_equal(0)      # no ha gastado una pausa por un café que no empezó
+
+
+func test_un_puesto_sin_horario_fijado_el_cafe_transcurre_con_normalidad() -> void:
+	var mundo: Array = _mundo_con_reloj(1000.0, 3, true, [])  # reloj real corriendo, SIN fijar_cierre_de_puesto
+	var personal: Node = mundo[0]
+	var agente: RefCounted = mundo[1]
+	assert_bool(personal.turno_terminado(&"doc_1")).is_false()
+
+	personal.cansar(agente, 180.0)
+	assert_float(personal.enviar_a_descansar(agente)).is_equal(30.0)
+	assert_str(String(agente.estado)).is_equal("descansando")
+
+	personal._al_tick(30.0)                              # nadie se marcha: el café termina como siempre
+	assert_str(String(agente.estado)).is_equal("asignado")
+	assert_float(agente.cansancio).is_equal(0.0)
+
+
+func test_fijar_cierre_de_puesto_clampa_un_minuto_absurdo_al_rango_del_dia() -> void:
+	var mundo: Array = _mundo(3, true, [])
+	var personal: Node = mundo[0]
+
+	personal.fijar_cierre_de_puesto(&"doc_1", 5000)
+	assert_int(personal._cierre_de_puesto[&"doc_1"]).is_equal(1439)
+
+	personal.fijar_cierre_de_puesto(&"doc_2", -10)
+	assert_int(personal._cierre_de_puesto[&"doc_2"]).is_equal(0)
