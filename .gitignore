@@ -150,3 +150,6 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+
+# Capturas automaticas de arranque (dev): NO son evidencia de QA.
+production/qa/capturas/

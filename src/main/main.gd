@@ -1035,6 +1035,13 @@ func _programar_captura_evidencia() -> void:
 		if img == null:
 			push_warning("Main: no se pudo capturar la evidencia (sin textura de viewport)")
 			return
-		DirAccess.make_dir_recursive_absolute("res://production/qa/evidence")
-		img.save_png("res://production/qa/evidence/flujo-demo-2026-07-24.png")
+		DirAccess.make_dir_recursive_absolute("res://production/qa/capturas")
+		# 🐛 BUG DE TRAZABILIDAD corregido 2026-07-29: esto escribía en
+		# `production/qa/evidence/flujo-demo-2026-07-24.png`, que es la EVIDENCIA FIRMADA de la demo
+		# de la story flujo-008. Cada arranque en ventana la pisaba, así que la imagen que el repo
+		# guardaba como prueba de aquella demo era en realidad una foto del último arranque — se
+		# había colado ya en cinco commits. La evidencia de QA es un REGISTRO: no la puede reescribir
+		# un proceso automático. Ahora va a una carpeta de trabajo, con nombre neutro e ignorada por
+		# git; la evidencia de verdad se guarda a mano cuando se firma una demo.
+		img.save_png("res://production/qa/capturas/ultimo-arranque.png")
 	)

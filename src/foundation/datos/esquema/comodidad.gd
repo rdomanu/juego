@@ -34,7 +34,12 @@ class_name Comodidad extends Resource
 @export var coste_mantenimiento_dia_eur: int = 0
 ## Cuánto aporta a su familia (confort o rendimiento). Se SUMA con el resto de objetos de la sala.
 @export var aporte: float = 1.0
-## Celdas que ocupa (como el resto de elementos colocables). 1 en todo el catálogo semilla.
+## Celdas que ocupa en la rejilla. Construcción LEE este campo al colocar: la celda de clic es el
+## ANCLA y el cuerpo se extiende hacia +X `superficie - 1` celdas más (sin rotación ni formas en L —
+## MVP, suficiente porque nada del catálogo mide más de 1×N). Bug corregido 2026-07-29 (petición del
+## usuario jugando: "el sofá de 3 plazas debe ocupar 3 huecos, ahora solo ocupa 1, se amontonan") —
+## el campo ya existía pero nadie lo leía. Coincide a propósito con `plazas` en los objetos donde uno
+## se sienta (sofá 3, sillas 2): se lee solo. El resto del catálogo se queda en el default 1.
 @export var superficie: int = 1
 
 # ── Aforo del descanso (familia "descanso", Bienestar #13) ───────────────────────────────────

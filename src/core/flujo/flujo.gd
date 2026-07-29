@@ -749,6 +749,12 @@ func _avanzar_atenciones(delta_min: float) -> void:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_EN_ATENCION:
+			# 🐛 Bienestar #13 (2026-07-29): el puesto está LIBRE y aquí no había nada que hacer, así
+			# que un agente con la barra llena pero sin cola **no se iba nunca** al café — el descanso
+			# solo se comprobaba al COMPLETAR un trámite (más abajo), y sin cliente no se completa
+			# ninguno. Se quedaba en rojo indefinidamente. Y es justo al revés: sin nadie esperando es
+			# el MEJOR momento para irse, porque no deja a nadie plantado.
+			_pedir_cafe_si_toca(puesto_id)
 			continue
 		# Atender CANSA (Bienestar #13): quien despacha se desgasta; quien espera cliente, no. En
 		# horas extra desgasta más (lo modula el precio que el jugador paga por la peonada).
@@ -775,6 +781,18 @@ func _avanzar_atenciones(delta_min: float) -> void:
 			_personal.enviar_a_descansar(agente)
 	for puesto_id: StringName in _puestos_a_retirar:
 		_puestos_flujo.erase(puesto_id)
+
+
+## Le pide el café al titular de este puesto si le toca (Bienestar #13). Se llama desde DOS sitios y
+## por motivos distintos: al **completar** un trámite (el compromiso de servicio: nunca a media
+## atención) y con el puesto **libre** (sin cliente no hay a quien dejar plantado, así que es el mejor
+## momento). Personal decide de verdad — aquí solo se pregunta.
+func _pedir_cafe_si_toca(puesto_id: StringName) -> void:
+	if _personal == null or not _personal.has_method("necesita_descanso"):
+		return
+	var agente: RefCounted = _personal.agente_de(puesto_id)
+	if agente != null and _personal.necesita_descanso(agente):
+		_personal.enviar_a_descansar(agente)
 
 
 ## AC-CO13: si Construcción tiene demoliciones PENDIENTES (el gate `puede_demoler` las frenó por

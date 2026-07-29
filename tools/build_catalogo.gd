@@ -363,7 +363,7 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"sillas_office", "Sillas de office", "Cuatro sillas y una mesa: lo minimo para no tomarse el cafe de pie.",
 		"descanso", 90, 0, 1.0, false, 0.0, 3.0, 0.0,
-		false, Color(1.0, 0.9, 0.7), 90.0, 2    # 2 plazas
+		false, Color(1.0, 0.9, 0.7), 90.0, 2, 2    # 2 plazas, superficie 2 (coinciden a proposito)
 	), "comodidades")
 	_guardar(_comodidad(
 		&"dispensador_agua", "Dispensador de agua", "Agua fria para el personal. Barato y se agradece.",
@@ -382,7 +382,7 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"sofa_descanso", "Sofa", "Se sientan tres y se levantan nuevos. La pieza cara de la sala.",
 		"descanso", 550, 0, 4.0, false, 0.0, 3.0, 0.0,
-		false, Color(1.0, 0.9, 0.7), 90.0, 3    # 3 plazas
+		false, Color(1.0, 0.9, 0.7), 90.0, 3, 3    # 3 plazas, superficie 3 (coinciden a proposito)
 	), "comodidades")
 
 
@@ -392,7 +392,7 @@ func _comodidad(
 	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
 	recupera: float = 0.0,
 	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0,
-	plazas: int = 0
+	plazas: int = 0, superficie: int = 1
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -410,6 +410,7 @@ func _comodidad(
 	r.color_luz = color_luz
 	r.radio_luz = radio_luz
 	r.plazas = plazas
+	r.superficie = superficie
 	return r
 
 

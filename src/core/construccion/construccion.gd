@@ -128,12 +128,18 @@ func validar_sala(tipo_sala_id: StringName, rect: Rect2i) -> bool:
 ## asiento → sala de tipo "espera") y está libre de otros elementos. Id de catálogo inexistente →
 ## inválido con aviso. `ignorar` excluye un elemento de los chequeos (mover_elemento se valida a sí
 ## mismo sin contarse — story 004).
+## Bug corregido 2026-07-29 (petición del usuario jugando: "el sofá de 3 plazas debe ocupar 3 huecos,
+## ahora solo ocupa 1, se amontonan"): `celda` es solo el ANCLA — el cuerpo entero (`_celdas_de`,
+## `superficie` celdas hacia +X) tiene que caer DENTRO DE LA MISMA sala que el ancla (ni salirse del
+## edificio ni pisar la sala de al lado) y estar libre de otros elementos (su cuerpo cuenta como
+## ocupado — CO4).
 func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringName = &"") -> bool:
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
 		return false   # fuera de toda sala (los elementos viven dentro de salas — CO4)
-	if _celda_ocupada(celda, ignorar):
-		return false   # no solapan (CO4)
+	for c: Vector2i in _celdas_de(id_catalogo, celda):
+		if sala_en(c) != sala_id or _celda_ocupada(c, ignorar):
+			return false   # el cuerpo no cabe entero: se sale de la sala o pisa algo (CO4)
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
 	if id_catalogo == ASIENTO_BASICO:
 		if tipo_sala.tipo != "espera":
@@ -327,12 +333,43 @@ func tipo_de_sala(sala_id: StringName) -> StringName:
 	return _salas[sala_id]["tipo"]
 
 
-## ¿Hay ya un elemento en esta celda? (`ignorar` excluye a uno — para revalidar al moverlo).
+## ¿Hay ya un elemento CUYO CUERPO cubra esta celda? (`ignorar` excluye a uno — para revalidar al
+## moverlo). Un sofá de superficie 3 ocupa sus 3 celdas para este chequeo, no solo su ancla —
+## petición del usuario 2026-07-29.
 func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 	for elemento_id: StringName in _elementos:
-		if elemento_id != ignorar and _elementos[elemento_id]["celda"] == celda:
+		if elemento_id == ignorar:
+			continue
+		var elemento: Dictionary = _elementos[elemento_id]
+		if celda in _celdas_de(elemento["catalogo"], elemento["celda"]):
 			return true
 	return false
+
+
+## Superficie (celdas) de un id de catálogo. `Comodidad.superficie` y `TipoPuesto.superficie`
+## comparten el mismo campo (ambos default 1); el asiento básico no vive en el catálogo (MVP) y
+## siempre ocupa 1. Id inexistente → 1 (validar_elemento ya avisa por su cuenta; no se duplica aquí).
+func _superficie_de(id_catalogo: StringName) -> int:
+	if id_catalogo == ASIENTO_BASICO:
+		return 1
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	if comodidad != null:
+		return maxi(comodidad.superficie, 1)
+	var tipo_puesto: Resource = Datos.obtener_silencioso(&"TipoPuesto", id_catalogo)
+	if tipo_puesto != null:
+		return maxi(tipo_puesto.superficie, 1)
+	return 1
+
+
+## Las celdas del CUERPO de un elemento: la celda de colocación es el ANCLA y el cuerpo se extiende
+## hacia +X `superficie - 1` celdas más — sin rotación ni formas en L (MVP: nada del catálogo mide
+## más de 1×N). SIEMPRE se recalcula desde el catálogo, nunca se guarda (ver `save`/`load_state`) —
+## así el cuerpo no puede desincronizarse del dato de superficie si este cambia de valor.
+func _celdas_de(id_catalogo: StringName, celda_ancla: Vector2i) -> Array[Vector2i]:
+	var celdas: Array[Vector2i] = []
+	for i: int in range(_superficie_de(id_catalogo)):
+		celdas.append(celda_ancla + Vector2i(i, 0))
+	return celdas
 
 
 ## ¿El rectángulo cabe entero en el edificio? (CO1: toda construcción ocurre dentro).
@@ -583,10 +620,12 @@ func puestos_utiles(tasa_llegadas_pico: float, throughput_hora_puesto: float) ->
 	return ceili(tasa_llegadas_pico / throughput_hora_puesto)
 
 
-## El elemento que ocupa una celda (&"" si ninguno) — lo usa la herramienta de demolición (007).
+## El elemento cuyo CUERPO cubre una celda (&"" si ninguno) — lo usa la herramienta de demolición
+## (007). Un clic en CUALQUIER celda de un sofá de 3 lo encuentra, no solo en su ancla.
 func elemento_en(celda: Vector2i) -> StringName:
 	for elemento_id: StringName in _elementos:
-		if _elementos[elemento_id]["celda"] == celda:
+		var elemento: Dictionary = _elementos[elemento_id]
+		if celda in _celdas_de(elemento["catalogo"], elemento["celda"]):
 			return elemento_id
 	return &""
 
@@ -792,6 +831,11 @@ func _abonar(cantidad: float) -> void:
 ## la sala de cada elemento se re-deriva de su celda, los aforos de los asientos, y los costes de
 ## catálogo/config no se guardan (solo `coste_pagado`, que es histórico). Vector2i/Rect2i → arrays
 ## de ints (limitación JSON — ADR-0002).
+## DECISIÓN (bug superficie, 2026-07-29): el CUERPO de un elemento (sofá de 3 celdas, etc.) tampoco
+## se guarda — solo su celda ANCLA, igual que siempre. `_celdas_de` lo recalcula en cada consulta
+## leyendo `superficie` del catálogo vigente. Guardar las 3 celdas sería redundante (se derivan de la
+## ancla + el catálogo) y crearía la posibilidad de que se desincronizaran si el catálogo cambia de
+## valor entre partidas; recalcular es menos dato y no puede quedar obsoleto.
 func save() -> Dictionary:
 	var salas: Array = []
 	for sala_id: StringName in _salas:
@@ -848,8 +892,17 @@ func load_state(d: Dictionary) -> void:
 		var catalogo: StringName = StringName(String(datos.get("catalogo", "")))
 		var celda_datos: Variant = datos.get("celda", [])
 		var es_asiento: bool = catalogo == ASIENTO_BASICO
-		if (not es_asiento and Datos.obtener(&"TipoPuesto", catalogo) == null) \
-				or not (celda_datos is Array) or celda_datos.size() != 2:
+		# 🐛 BUG GRAVE corregido 2026-07-29: aquí se exigía que todo lo que no fuera asiento fuese un
+		# `TipoPuesto`… y las COMODIDADES no lo son. Resultado: **todo lo comprado en Comodidades #15
+		# (vending, tele, fuente, equipos, y ahora los muebles de descanso) se PERDÍA al cargar la
+		# partida** — el jugador podía gastarse miles de euros, guardar, cargar y encontrarse las
+		# salas vacías. Es el mismo error que ya se cazó el 2026-07-28 en el gate de colocación
+		# (`_puede_colocar`): "no ser asiento" NO implica "ser puesto". Lo destapó el test de
+		# persistencia del sofá de 3 celdas.
+		var es_comodidad: bool = Datos.obtener_silencioso(&"Comodidad", catalogo) != null
+		var catalogo_valido: bool = es_asiento or es_comodidad \
+				or Datos.obtener(&"TipoPuesto", catalogo) != null
+		if not catalogo_valido or not (celda_datos is Array) or celda_datos.size() != 2:
 			push_warning("Construccion: elemento '%s' invalido en el save -> descartado" % datos.get("id", "?"))
 			continue
 		var elemento_id: StringName = StringName(String(datos.get("id", "")))
@@ -858,7 +911,10 @@ func load_state(d: Dictionary) -> void:
 			"catalogo": catalogo, "celda": celda, "sala": sala_en(celda),
 			"coste_pagado": float(datos.get("coste_pagado", 0.0)),
 		}
-		if not es_asiento:
+		# Solo los PUESTOS se registran en Personal: ni un asiento ni una máquina de vending son una
+		# vacante que cubrir. (Antes bastaba con `not es_asiento` porque las comodidades ni llegaban
+		# hasta aquí — se descartaban arriba. Ahora que sí llegan, hay que excluirlas explícitamente.)
+		if not es_asiento and not es_comodidad:
 			if _personal != null:
 				_personal.registrar_puesto(elemento_id, catalogo)
 			else:

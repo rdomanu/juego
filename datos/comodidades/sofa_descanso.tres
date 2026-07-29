@@ -10,4 +10,5 @@ descripcion = "Se sientan tres y se levantan nuevos. La pieza cara de la sala."
 familia = "descanso"
 coste_construccion_eur = 550
 aporte = 4.0
+superficie = 3
 plazas = 3

@@ -9,4 +9,5 @@ nombre = "Sillas de office"
 descripcion = "Cuatro sillas y una mesa: lo minimo para no tomarse el cafe de pie."
 familia = "descanso"
 coste_construccion_eur = 90
+superficie = 2
 plazas = 2

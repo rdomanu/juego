@@ -28,15 +28,21 @@ func _mundo(motivacion: int = 3, con_sala: bool = true, muebles: Array[StringNam
 	construccion.usar_economia(economia)
 	construccion.construir_de_oficio_sala(&"sala_documentacion", Rect2i(1, 1, 6, 4))
 	if con_sala:
-		construccion.construir_de_oficio_sala(&"sala_descanso", Rect2i(9, 1, 4, 3))
+		# Sala de 6×3: desde que los muebles OCUPAN celdas de verdad (bien-005, el sofá son 3 y las
+		# sillas 2), una de 4×3 ya no da para el catálogo entero y los últimos se rechazaban en
+		# silencio — el test medía entonces menos calidad instalada de la que creía. El avance ahora
+		# es por la `superficie` REAL de cada mueble, no de uno en uno.
+		construccion.construir_de_oficio_sala(&"sala_descanso", Rect2i(9, 1, 6, 3))
 		var x: int = 9
 		var y: int = 1
 		for mueble: StringName in muebles:
-			construccion.construir_de_oficio_elemento(mueble, Vector2i(x, y))
-			x += 1
-			if x >= 13:
+			var comodidad: Resource = Datos.obtener(&"Comodidad", mueble)
+			var ancho: int = comodidad.superficie if comodidad != null else 1
+			if x + ancho > 15:   # la sala llega hasta x=14 (9 + 6 - 1): lo que no cabe, a la fila siguiente
 				x = 9
 				y += 1
+			construccion.construir_de_oficio_elemento(mueble, Vector2i(x, y))
+			x += ancho
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
 	personal.usar_construccion(construccion)
