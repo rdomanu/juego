@@ -1030,6 +1030,20 @@ func _refrescar_visual() -> void:
 			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
 			var texto: Label = instancia.get_node("Etiqueta")
 			texto.text = tipo_puesto.nombre if tipo_puesto != null else String(elemento["catalogo"])
+			# BUG corregido 2026-07-29 (el usuario, jugando: "el sofa sigue ocupando 1 lugar"): el
+			# MODELO ya reservaba las 3 celdas del sofa desde bien-005, pero el DIBUJO seguia siendo
+			# una caja de 1 celda -- y lo que el jugador juzga es el dibujo. Los tests comprobaban la
+			# reserva de espacio, no la representacion, por eso pasaban en verde. ADR-0004: el visual
+			# REFLEJA el modelo; aqui no lo estaba haciendo.
+			var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", elemento["catalogo"])
+			var celdas: int = maxi(comodidad.superficie, 1) if comodidad != null else 1
+			if celdas > 1:
+				# El cuerpo crece hacia +X desde el ancla (misma convencion que la validacion de
+				# colocacion), asi que la caja se estira a la derecha y la etiqueta se recentra.
+				var caja: ColorRect = instancia.get_node("Caja")
+				caja.size.x = float(_tam_celda * celdas)
+				caja.position.x = -float(_tam_celda) / 2.0
+				texto.position.x += float(_tam_celda * (celdas - 1)) / 2.0
 		_capa_elementos.add_child(instancia)
 
 

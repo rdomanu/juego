@@ -82,7 +82,14 @@ const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 		[PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO, PersonaFlujoScript.ESTADO_ABANDONANDO],
 	PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO:
 		[PersonaFlujoScript.ESTADO_LLAMADA, PersonaFlujoScript.ESTADO_ABANDONANDO],
-	PersonaFlujoScript.ESTADO_LLAMADA: [PersonaFlujoScript.ESTADO_EN_ATENCION],
+	# LLAMADA → ESPERANDO_DENTRO existe por la LLAMADA ANTICIPADA (2026-07-29): al siguiente ya
+	# llamado se le puede devolver a la cola si su ventanilla cierra, se queda sin agente (café) o se
+	# demuele ANTES de que llegue. Es una reserva blanda: todavía no le han empezado a atender, así
+	# que devolverlo a la cola no rompe el compromiso de servicio (el que SÍ está siendo atendido
+	# nunca recorre esta ruta — sale por EN_ATENCION → RESUELTA como siempre).
+	PersonaFlujoScript.ESTADO_LLAMADA: [
+		PersonaFlujoScript.ESTADO_EN_ATENCION, PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO,
+	],
 	PersonaFlujoScript.ESTADO_EN_ATENCION: [PersonaFlujoScript.ESTADO_RESUELTA],
 	PersonaFlujoScript.ESTADO_RESUELTA: [],
 	PersonaFlujoScript.ESTADO_ABANDONANDO: [],
@@ -92,6 +99,13 @@ const TRANSICIONES_VALIDAS: Dictionary[StringName, Array] = {
 ## Velocidad del camino Llamada→puesto en CELDAS de juego por MINUTO de juego (enmienda 2026-07-25
 ## "en camino no se tramita"). 0 = camino instantáneo (compat). Ver `_minutos_de_camino`.
 var velocidad_camino_celdas_min: float = 0.375
+## LLAMADA ANTICIPADA (2026-07-29): margen EXTRA, en minutos, con el que se llama al siguiente antes
+## de que el actual termine. Se llama cuando `restante <= camino_estimado + este margen`, asi que 0
+## ya significa "justo a tiempo": sale de la cola con el tiempo exacto para llegar al terminar.
+## Existe porque medimos que el agente pasaba 17 min PARADO por cada cliente (mas que los 13 que
+## tardaba en atenderle): llamaba solo cuando ya estaba libre y se quedaba mirando como venia.
+## Negativo lo desactiva de hecho (nunca se adelanta) — util para aislar la variable en tests.
+var margen_llamada_anticipada_min: float = 0.0
 var habilitar_aging_odac: bool = false
 var tope_cola_exterior: int = 0
 ## ── El horario de Documentación (lo POSEE Documentación #8; Flujo solo lo EJECUTA) ──────────
@@ -362,7 +376,9 @@ func atendiendo_total() -> int:
 ## visible (story 008) para saber A QUÉ ventanilla caminar — lectura cosmética, jamás decide (FL5).
 func puesto_de(persona: RefCounted) -> StringName:
 	for puesto_id: StringName in _puestos_flujo:
-		if _puestos_flujo[puesto_id]["persona"] == persona:
+		# Tambien el reservado por la LLAMADA ANTICIPADA: ya va andando hacia ESA ventanilla, asi que
+		# el NPC visible tiene que poder preguntar hacia donde camina (lectura cosmetica, FL5).
+		if _puestos_flujo[puesto_id]["persona"] == persona 				or _puestos_flujo[puesto_id]["siguiente"] == persona:
 			return puesto_id
 	return &""
 
@@ -459,6 +475,11 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 		"persona": null,
 		"restante": 0.0,
 		"camino_restante": 0.0,        # enmienda 2026-07-25: minutos que la persona aún camina al puesto
+		# LLAMADA ANTICIPADA (2026-07-29): el SIGUIENTE ciudadano, llamado mientras aun se atiende al
+		# actual, para que vaya andando y no haya tiempo muerto. Es una RESERVA BLANDA: si la
+		# ventanilla cierra, se queda sin agente o se demuele antes de que llegue, vuelve a la cola.
+		"siguiente": null,
+		"siguiente_camino": 0.0,
 		"cierre_pendiente": false,     # story 006: cerrar espera al fin de la atención
 		"retirada_pendiente": false,   # story 006: retirar (demoler) espera al fin de la atención
 		"override": sin_override,      # story 006: reconfiguración FL9 (vacío = catálogo)
@@ -470,6 +491,22 @@ func registrar_puesto_flujo(puesto_id: StringName, tipo_puesto_id: StringName) -
 
 ## Minutos de camino que le quedan a la persona de un puesto (getter read-only para que el NPC
 ## visible ADAPTE su paso y llegue a la mesa justo al agotarse — enmienda 2026-07-25, 2ª calibración).
+## LLAMADA ANTICIPADA: la persona reservada como SIGUIENTE de este puesto (null si no hay). Getter
+## de solo lectura, para los tests y para que la capa visual sepa quien viene de camino.
+func siguiente_de(puesto_id: StringName) -> RefCounted:
+	if not _puestos_flujo.has(puesto_id):
+		return null
+	return _puestos_flujo[puesto_id]["siguiente"]
+
+
+## Minutos de camino que le quedan a esa reserva (0.0 si no hay ninguna). Gemelo de
+## `camino_restante_de`, pero para el siguiente en vez de para la persona ya asignada.
+func siguiente_camino_restante_de(puesto_id: StringName) -> float:
+	if not _puestos_flujo.has(puesto_id):
+		return 0.0
+	return float(_puestos_flujo[puesto_id]["siguiente_camino"])
+
+
 func camino_restante_de(puesto_id: StringName) -> float:
 	if not _puestos_flujo.has(puesto_id):
 		return 0.0
@@ -489,6 +526,9 @@ func puestos_registrados() -> Array[StringName]:
 func quitar_puesto_flujo(puesto_id: StringName) -> bool:
 	if not _puestos_flujo.has(puesto_id):
 		return true
+	# LLAMADA ANTICIPADA: si demuelen la ventanilla, el reservado vuelve a la cola. Si no, se quedaria
+	# caminando hacia un mostrador que ya no existe (y su entrada del diccionario se borra abajo).
+	_liberar_siguiente(puesto_id)
 	if _puestos_flujo[puesto_id]["persona"] != null:
 		_puestos_flujo[puesto_id]["retirada_pendiente"] = true
 		return false
@@ -510,6 +550,10 @@ func abrir_puesto(puesto_id: StringName) -> void:
 func cerrar_puesto(puesto_id: StringName) -> void:
 	if not _puestos_flujo.has(puesto_id):
 		return
+	# LLAMADA ANTICIPADA: al reservado se le devuelve a la cola YA, tanto si el cierre es inmediato
+	# como si queda pendiente del fin de la atencion. No tiene compromiso de servicio (aun no le han
+	# atendido) y dejarle caminando hacia una ventanilla que va a cerrar seria mandarle a nada.
+	_liberar_siguiente(puesto_id)
 	if _puestos_flujo[puesto_id]["persona"] != null:
 		_puestos_flujo[puesto_id]["cierre_pendiente"] = true
 		return
@@ -658,6 +702,44 @@ func _emparejar() -> void:
 		_transicionar(persona, PersonaFlujoScript.ESTADO_LLAMADA)
 		puesto["persona"] = persona
 		puesto["camino_restante"] = _minutos_de_camino(StringName(tipo.servicio), puesto_id, persona)
+	_llamar_a_los_siguientes()
+
+
+## LLAMADA ANTICIPADA: a los puestos que ESTAN ATENDIENDO y les queda poco se les adelanta el
+## siguiente ciudadano, para que camine MIENTRAS. Asi, al terminar el tramite, el siguiente ya esta
+## llegando en vez de empezar entonces a andar. Es lo que hace una oficina de verdad: se llama al
+## siguiente numero mientras se termina con el anterior.
+##
+## Usa EXACTAMENTE la misma seleccion de cola que `_emparejar` (`elegir_de_cola` con las atenciones
+## admitidas del puesto): Documentacion FIFO, ODAC por prioridad. No hay criterio nuevo, asi que no
+## se puede colar nadie por esta via.
+func _llamar_a_los_siguientes() -> void:
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		if puesto["siguiente"] != null:
+			continue                                  # ya tiene a alguien de camino
+		if estado_de_puesto(puesto_id) != PUESTO_ATENDIENDO:
+			continue                                  # solo se adelanta desde una atencion en curso
+		if puesto["cierre_pendiente"] or puesto["retirada_pendiente"]:
+			continue                                  # va a cerrar: no se llama a nadie mas
+		var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+		if tipo == null:
+			continue
+		var admitidas: Array[StringName] = puesto["override"]
+		if admitidas.is_empty():
+			admitidas = tipo.atenciones_admitidas
+		var candidata: RefCounted = elegir_de_cola(StringName(tipo.servicio), admitidas)
+		if candidata == null:
+			continue
+		# Se calcula su camino ANTES de sacarla de la cola: si todavia no toca, se queda donde estaba
+		# y otro puesto podra elegirla. `elegir_de_cola` no retira, solo mira.
+		var camino: float = _minutos_de_camino(StringName(tipo.servicio), puesto_id, candidata)
+		if float(puesto["restante"]) > camino + margen_llamada_anticipada_min:
+			continue                                  # aun le queda demasiado tramite: todavia no
+		retirar_de_cola(candidata)
+		_transicionar(candidata, PersonaFlujoScript.ESTADO_LLAMADA)
+		puesto["siguiente"] = candidata
+		puesto["siguiente_camino"] = camino
 
 
 ## Minutos de JUEGO que la persona tarda en llegar al puesto tras la Llamada (enmienda 2026-07-25
@@ -779,6 +861,15 @@ func _avanzar_atenciones(delta_min: float) -> void:
 		# estar dotado solo — el gate FL4 exige ASIGNADO, y descansando ya no lo está.
 		if _personal != null and _personal.has_method("necesita_descanso") 				and _personal.necesita_descanso(agente):
 			_personal.enviar_a_descansar(agente)
+		# LLAMADA ANTICIPADA: el cafe se pide ANTES de esto a proposito. Si el agente se acaba de
+		# levantar, la ventanilla ya no puede atender y al reservado hay que devolverle a la cola en
+		# vez de mandarle a un mostrador vacio. `estado_de_puesto` resuelve las tres causas de un
+		# golpe (cerrado por horario o por el jugador / sin agente por el cafe / retirado): solo si
+		# queda LIBRE —abierto Y dotado— puede empalmar con el siguiente.
+		if estado_de_puesto(puesto_id) == PUESTO_LIBRE:
+			_promover_siguiente(puesto_id)
+		else:
+			_liberar_siguiente(puesto_id)
 	for puesto_id: StringName in _puestos_a_retirar:
 		_puestos_flujo.erase(puesto_id)
 
@@ -793,6 +884,37 @@ func _pedir_cafe_si_toca(puesto_id: StringName) -> void:
 	var agente: RefCounted = _personal.agente_de(puesto_id)
 	if agente != null and _personal.necesita_descanso(agente):
 		_personal.enviar_a_descansar(agente)
+
+
+## Devuelve a la cola al SIGUIENTE reservado de un puesto (llamada anticipada), si lo hay. Se usa
+## cuando la ventanilla deja de poder atenderle ANTES de que llegue: cierra, la demuelen, o su
+## agente se va al cafe. La reserva es blanda a proposito — todavia no le han empezado a atender,
+## asi que devolverle a la cola no rompe ningun compromiso de servicio. Conserva su numero de turno,
+## asi que no pierde su sitio: vuelve por donde estaba.
+func _liberar_siguiente(puesto_id: StringName) -> void:
+	if not _puestos_flujo.has(puesto_id):
+		return
+	var puesto: Dictionary = _puestos_flujo[puesto_id]
+	var reservada: RefCounted = puesto["siguiente"]
+	if reservada == null:
+		return
+	puesto["siguiente"] = null
+	puesto["siguiente_camino"] = 0.0
+	if _transicionar(reservada, PersonaFlujoScript.ESTADO_ESPERANDO_DENTRO):
+		encolar(reservada)
+
+
+## Promueve al SIGUIENTE a persona del puesto: hereda el camino que le quedara. Si ya habia llegado
+## (camino 0), `_avanzar_caminos` arrancara su atencion en ESTE MISMO tick — que es justo el punto
+## de todo esto: empalmar sin tiempo muerto.
+func _promover_siguiente(puesto_id: StringName) -> void:
+	var puesto: Dictionary = _puestos_flujo[puesto_id]
+	if puesto["siguiente"] == null:
+		return
+	puesto["persona"] = puesto["siguiente"]
+	puesto["camino_restante"] = puesto["siguiente_camino"]
+	puesto["siguiente"] = null
+	puesto["siguiente_camino"] = 0.0
 
 
 ## AC-CO13: si Construcción tiene demoliciones PENDIENTES (el gate `puede_demoler` las frenó por
@@ -816,6 +938,10 @@ func _reintentar_demoliciones() -> void:
 func _avanzar_caminos(delta_min: float) -> void:
 	for puesto_id: StringName in _puestos_flujo:
 		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		# El SIGUIENTE (llamada anticipada) tambien anda, aunque el puesto siga ocupado. No transiciona
+		# al llegar: se queda en Llamada, esperando a que su ventanilla se libere y le promueva.
+		if puesto["siguiente"] != null:
+			puesto["siguiente_camino"] = maxf(float(puesto["siguiente_camino"]) - delta_min, 0.0)
 		var persona: RefCounted = puesto["persona"]
 		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_LLAMADA:
 			continue
@@ -912,6 +1038,14 @@ func save() -> Dictionary:
 		if puesto["persona"] != null:
 			personas.append(_persona_a_dict(puesto["persona"]))
 			persona_turno = puesto["persona"].numero_turno
+		# El RESERVADO de la llamada anticipada no esta en ninguna cola (se le retiro al llamarle) ni es
+		# `puesto["persona"]`: si no se serializa AQUI, al cargar no existe en ninguna parte y se PIERDE
+		# — un ciudadano borrado del mundo por haber guardado en el momento justo. Lo cazo el test de
+		# persistencia: guardaba su numero de turno pero no a la persona a la que ese numero apunta.
+		var siguiente_turno: int = -1
+		if puesto["siguiente"] != null:
+			personas.append(_persona_a_dict(puesto["siguiente"]))
+			siguiente_turno = puesto["siguiente"].numero_turno
 		var override_json: Array = []
 		for atencion: StringName in puesto["override"]:
 			override_json.append(String(atencion))
@@ -925,6 +1059,11 @@ func save() -> Dictionary:
 			"persona_turno": persona_turno,
 			"restante": float(puesto["restante"]),
 			"camino_restante": float(puesto["camino_restante"]),   # enmienda 2026-07-25 (en camino)
+			# LLAMADA ANTICIPADA (2026-07-29): el reservado se guarda por su NUMERO DE TURNO, igual que
+			# la persona atendida. Asi al cargar se le vuelve a atar a SU ventanilla y no se pierde ni
+			# se duplica — que es lo unico innegociable de un save.
+			"siguiente_turno": siguiente_turno,
+			"siguiente_camino": float(puesto["siguiente_camino"]),
 		})
 	var turnos: Dictionary = {}
 	for servicio: StringName in _turnos:
@@ -1013,6 +1152,21 @@ func load_state(d: Dictionary) -> void:
 		for atencion: Variant in entrada.get("override", []):
 			override_cargado.append(StringName(String(atencion)))
 		puesto["override"] = override_cargado
+		puesto["siguiente_camino"] = maxf(float(entrada.get("siguiente_camino", 0.0)), 0.0)
+		var siguiente_turno: int = int(entrada.get("siguiente_turno", -1))
+		if siguiente_turno >= 0:
+			var tipo_s: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])
+			var clave_s: String = "%s/%d" % [StringName(tipo_s.servicio), siguiente_turno]
+			if atendidas.has(clave_s):
+				puesto["siguiente"] = atendidas[clave_s]
+				atendidas.erase(clave_s)
+			else:
+				# No esta en el save: la reserva se descarta y el puesto queda sin siguiente. Nadie se
+				# pierde — si esa persona sigue en la cola, se le volvera a llamar en el proximo tick.
+				push_warning(
+					"Flujo: el siguiente del puesto '%s' (turno %d) no esta en el save -> sin reserva"
+					% [puesto_id, siguiente_turno]
+				)
 		var persona_turno: int = int(entrada.get("persona_turno", -1))
 		if persona_turno >= 0:
 			var tipo: Resource = Datos.obtener(&"TipoPuesto", puesto["tipo"])

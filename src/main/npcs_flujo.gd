@@ -64,6 +64,10 @@ const POS_Y_BARRA_CANSANCIO: float = 23.0
 ## rótulo de café, que solo aparece cuando ya se ha ido.
 const UMBRAL_CANSANCIO_AVISO: float = 70.0
 const UMBRAL_CANSANCIO_CRITICO: float = 90.0
+## `POS_Y_BARRA_CANSANCIO` la comparte TAMBIÉN la etiqueta "Extra" (minutos de descanso restantes,
+## ver `_asegurar_visual_puesto`): son mutuamente excluyentes (la barra solo se ve dotado/activo; el
+## extra solo con el titular de café, que es justo cuando la barra está oculta), así que reusar la
+## misma franja no las hace competir por el espacio — evita solape #2026-07-29 sin sumar altura.
 
 var _flujo: Node = null
 var _construccion: Node = null
@@ -685,9 +689,11 @@ func _crear_muneco_caminante() -> CharacterBody2D:
 	return muneco
 
 
-## Crea (una vez) el contenedor del puesto con sus tres piezas hijas fijas: muñeco policía (torso +
-## cabeza), etiqueta de nombre (font 9, bajo el muñeco) y rótulo de estado (font 9, sobre el
-## mostrador). El contenedor se ancla sobre la celda del puesto; las piezas van en local.
+## Crea (una vez) el contenedor del puesto con sus piezas hijas fijas: muñeco policía (torso +
+## cabeza), etiqueta de nombre (font 8, bajo el muñeco), rótulo de estado (font 9, sobre el
+## mostrador) y etiqueta "Extra" (font 9, minutos de descanso restantes — franja compartida con la
+## barra de cansancio, ver su comentario de const). El contenedor se ancla sobre la celda del
+## puesto; las piezas van en local.
 func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	if _visual_de_puesto.has(puesto_id):
 		return
@@ -699,8 +705,10 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	policia.name = "Policia"
 	_anadir_cuerpo_policia(policia)
 	contenedor.add_child(policia)
-	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto.
-	var lbl_nombre := _label_centrada(9, Vector2(-30, 10))
+	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
+	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
+	# accionable (feedback 2026-07-29 de solape) — si algo tiene que ceder espacio, es él.
+	var lbl_nombre := _label_centrada(8, Vector2(-30, 10))
 	lbl_nombre.name = "Nombre"
 	contenedor.add_child(lbl_nombre)
 	# Barra de cansancio (bienestar-013, feedback anticipatorio): bajo la etiqueta de nombre. Dos
@@ -725,6 +733,15 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	barra_relleno.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	barra_relleno.visible = false
 	contenedor.add_child(barra_relleno)
+	# Minutos de descanso restantes, en SU PROPIA etiqueta (feedback 2026-07-29: *"el tiempo restante
+	# que le queda de descanso se sobrepone con otras letras"*). Antes se concatenaba como segunda
+	# línea de "Estado" con un salto de línea — esa línea extra crecía hacia abajo e invadía el
+	# nombre. Con etiqueta propia, "Estado" mide SIEMPRE una sola línea (ver `_actualizar_visual_
+	# puesto`) y esta ocupa la franja de la barra de cansancio (mutuamente excluyentes, ver la const).
+	var lbl_extra := _label_centrada(9, Vector2(-30, POS_Y_BARRA_CANSANCIO))
+	lbl_extra.name = "Extra"
+	lbl_extra.visible = false
+	contenedor.add_child(lbl_extra)
 	# Rótulo de estado (sobre el mostrador). Texto SIEMPRE + color de acento (respaldo daltónico).
 	var lbl_estado := _label_centrada(9, Vector2(-30, -_tam_celda * 0.5))
 	lbl_estado.name = "Estado"
@@ -735,7 +752,8 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 
 ## Aplica el estado por DIFF: solo toca los nodos si el nombre, estado, extra o el TRAMO de
 ## cansancio vistos cambiaron (metas en el contenedor). El muñeco se muestra/oculta con `dotado`;
-## el rótulo siempre visible.
+## el rótulo siempre visible. `extra` (minutos de descanso) vive en SU PROPIA etiqueta ("Extra"),
+## nunca concatenado a "Estado" — feedback 2026-07-29: la línea extra invadía el nombre de abajo.
 ##
 ## `cansancio` se CUANTIZA a pasos del 5 % (`int(cansancio / 5.0)`) antes de entrar en la firma:
 ## el cansancio del agente sube cada physics_process (bienestar-013), así que meterlo crudo (float)
@@ -784,10 +802,14 @@ func _actualizar_visual_puesto(
 	lbl_nombre.text = nombre
 	var lbl_estado: Label = contenedor.get_node("Estado")
 	lbl_estado.text = ROTULO_ESTADO.get(estado, String(estado).to_upper())
-	if extra != "":
-		lbl_estado.text += "
-" + extra
 	lbl_estado.modulate = COLOR_ESTADO.get(estado, Color.WHITE)
+	# Los minutos van en SU PROPIA etiqueta (ver comentario en `_asegurar_visual_puesto`): "Estado" ya
+	# NO le añade un salto de línea — así su bloque mide siempre una línea, dotado o no de café, y no
+	# puede crecer hacia la franja del nombre.
+	var lbl_extra: Label = contenedor.get_node("Extra")
+	lbl_extra.visible = extra != ""
+	lbl_extra.text = extra
+	lbl_extra.modulate = COLOR_ESTADO.get(estado, Color.WHITE)
 	# Barra de cansancio: MISMA condición que el muñeco (`en_activo`) — quien está de café ya tiene
 	# su rótulo con la cuenta atrás, y un puesto sin dotar o cerrado no tiene a nadie a quien medir.
 	var barra_fondo: ColorRect = contenedor.get_node("BarraCansancioFondo")

@@ -516,14 +516,25 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
 		return a.coste_construccion_eur < b.coste_construccion_eur   # de lo barato a lo caro
 	)
 	for comodidad: Resource in catalogo:
-		if comodidad.familia != familia:
+		# BUG corregido 2026-07-29 (el usuario: "las luces no se pueden poner o por lo menos no se
+		# hacerlo yo"): el menu ofrecia UNA sola familia por sala, asi que la familia `iluminacion`
+		# --que puede ir en CUALQUIER sala-- no aparecia en ninguna parte y no habia forma de
+		# comprarla. Se habia aplicado la regla de DONDE se pueden colocar, pero no la de donde se
+		# OFRECEN. Una funcion existe y es invisible: para el jugador, es que no existe.
+		var es_luz: bool = comodidad.familia == "iluminacion"
+		if comodidad.familia != familia and not es_luz:
 			continue
 		var etiqueta: String = "%s %s (%d €" % [
-			icono, comodidad.nombre, comodidad.coste_construccion_eur,
+			("💡" if es_luz else icono), comodidad.nombre, comodidad.coste_construccion_eur,
 		]
 		if comodidad.coste_mantenimiento_dia_eur > 0:
 			etiqueta += " + %d €/día" % comodidad.coste_mantenimiento_dia_eur
-		etiqueta += ") · %s +%d" % [concepto, roundi(comodidad.aporte)]
+		# Una lampara no aporta a ningun sistema (aporte 0): lo que compra el jugador es VER de noche.
+		# Ensenar "luz +0" seria decir que no sirve para nada, asi que se dice lo que de verdad hace.
+		if es_luz:
+			etiqueta += ") · alumbra de noche"
+		else:
+			etiqueta += ") · %s +%d" % [concepto, roundi(comodidad.aporte)]
 		# Las plazas son la otra mitad de la decisión: un sofá no solo mejora el café, es sitio donde
 		# sentarse. Sin plazas suficientes, el tercero que quiere café se queda en la ventanilla.
 		if comodidad.plazas > 0:
