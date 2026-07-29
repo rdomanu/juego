@@ -56,10 +56,16 @@ class_name ConfigPersonal extends Resource
 
 # ── Calidad de la sala de descanso (bien-005, petición del usuario 2026-07-29) ───────────────
 ## Cuánto ACORTA la pausa cada punto de calidad instalada en la sala de descanso (sofá, máquina de
-## café, nevera…). 0.03 = cada punto recorta un 3 % del café. Con la sala bien montada (~10 puntos)
-## la media hora se queda en 21 min: el funcionario vuelve antes a su ventanilla, que es exactamente
-## lo que el jugador ha comprado. Sala pelada = 1.0 (nada cambia); sin sala, `mult_pausa_sin_sala`.
-@export var k_confort_pausa: float = 0.03
+## café, nevera…). 0.024 = cada punto recorta un 2,4 % del café. Sala pelada = 1.0 (nada cambia);
+## sin sala, `mult_pausa_sin_sala`.
+##
+## **Por qué 0.024 y no un redondo**: el catálogo de descanso suma **12,5 puntos** con los seis
+## objetos (prensa 1 + sillas 1 + agua 1,5 + nevera 2 + café 3 + sofá 4), y 12,5 × 0.024 = **0,30
+## exacto** → el multiplicador aterriza justo en el suelo de 0,7 con la sala COMPLETA. Con el 0.03
+## original se tocaba el suelo a los ~10 puntos y **los dos últimos muebles no hacían nada**: quien
+## los comprara todos pagaba de más (y mantenimiento eterno) por cero efecto. Ajuste del usuario
+## 2026-07-29 al ver el número: que cada compra cuente hasta la última.
+@export var k_confort_pausa: float = 0.024
 ## Suelo del multiplicador: por muy montada que esté la sala, la pausa nunca baja de aquí. 0.7 = un
 ## 30 % menos como mucho. El tope existe para que el sistema NO pierda su tensión — el epic entero
 ## nace de que la ventanilla se queda sola, y un descanso de 5 minutos no obligaría a decidir nada.

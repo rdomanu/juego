@@ -31,6 +31,21 @@ const COLOR_BORDE_TARJETA := Color(1, 1, 1, 0.12)
 const ESCALA_ATRIBUTOS := 5
 const COLOR_BARRA_LLENA := Color(0.85, 0.85, 0.92)
 const COLOR_BARRA_VACIA := Color(1, 1, 1, 0.14)
+## Cansancio (Bienestar #13, feedback 2026-07-29: "el cansancio existe y afecta al juego —
+## ralentiza hasta un 25 % y manda al café— pero no se ve en ninguna parte"). La barra reutiliza el
+## MISMO lenguaje visual que los atributos de arriba (casillas + cifra con su escala explícita);
+## aquí la escala es 0-100 en vez de 1-5.
+const ESCALA_CANSANCIO := 5
+## Tramos de color: normal por debajo, ÁMBAR 70-90 (empieza a acusarse el bajón de rendimiento),
+## ROJO 90+ (a un paso de la barra llena). SIEMPRE con la cifra al lado — la barra sola no basta.
+const UMBRAL_CANSANCIO_AMBAR := 70.0
+const UMBRAL_CANSANCIO_ROJO := 90.0
+## Ámbar "café/descanso": el MISMO tono que ya usa NPCsFlujo para el rótulo "☕ DESCANSO" de una
+## ventanilla (`COLOR_ESTADO[&"descansando"]`) — "ni alarma ni normalidad", igual aquí.
+const COLOR_CANSANCIO_AMBAR := Color(0.85, 0.7, 0.45)
+## Rojo de alarma: el MISMO tono que ya usa NPCsFlujo cuando la paciencia de un ciudadano toca fondo
+## (`COLOR_ANIMO[&"al_limite"]`) — "esto se rompe ya", igual para el cansancio al 90 %+.
+const COLOR_CANSANCIO_ROJO := Color(0.90, 0.35, 0.35)
 
 # ── Refs a los sistemas Core (inyectadas por Main; la UI solo lee y ordena — ADR-0001) ───────
 var _personal: Node = null
@@ -381,6 +396,7 @@ func _linea_atributos(agente: RefCounted) -> VBoxContainer:
 	caja.add_child(_barra_atributo("Motivación", agente.motivacion))
 	if agente.rango == AgenteScript.RANGO_OFICIAL:
 		caja.add_child(_barra_atributo("Mando", agente.mando))
+	caja.add_child(_bloque_cansancio(agente))
 	var salario := Label.new()
 	salario.add_theme_font_size_override("font_size", 10)
 	salario.modulate = COLOR_TENUE
@@ -390,34 +406,105 @@ func _linea_atributos(agente: RefCounted) -> VBoxContainer:
 
 
 ## Una fila "Nombre [▮▮▮▮▯] 4/5": casillas llenas hasta el valor, vacías hasta el máximo. El número va
-## SIEMPRE al lado (la barra sola no es accesible: texto + forma, nunca solo color).
+## SIEMPRE al lado (la barra sola no es accesible: texto + forma, nunca solo color). Delega en
+## `_fila_barra` — la misma construcción que reutiliza el cansancio con su propia escala/color.
 func _barra_atributo(nombre: String, valor: int) -> HBoxContainer:
+	return _fila_barra(
+		nombre, valor, ESCALA_ATRIBUTOS, COLOR_BARRA_LLENA,
+		"%d/%d" % [valor, ESCALA_ATRIBUTOS], COLOR_TENUE
+	)
+
+
+## La fila genérica "Nombre [▮▮▮▮▯] cifra": casillas llenas hasta `llenas` de `total`, vacías el
+## resto, con la cifra SIEMPRE al lado (texto + forma, nunca solo color — respaldo daltónico).
+## `color_llena` tiñe las casillas rellenas; `color_texto` tiñe la etiqueta y la cifra (por defecto
+## tenue; el cansancio lo sube a ámbar/rojo cuando toca destacar el tramo).
+func _fila_barra(
+	nombre: String, llenas: int, total: int, color_llena: Color, texto_cifra: String,
+	color_texto: Color
+) -> HBoxContainer:
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 4)
 
 	var etiqueta := Label.new()
 	etiqueta.text = nombre
 	etiqueta.add_theme_font_size_override("font_size", 10)
-	etiqueta.modulate = COLOR_TENUE
+	etiqueta.modulate = color_texto
 	etiqueta.custom_minimum_size = Vector2(66, 0)   # columna fija: las barras quedan alineadas
 	fila.add_child(etiqueta)
 
 	var casillas := HBoxContainer.new()
 	casillas.add_theme_constant_override("separation", 2)
-	for i: int in ESCALA_ATRIBUTOS:
+	for i: int in total:
 		var casilla := ColorRect.new()
 		casilla.custom_minimum_size = Vector2(11, 8)
-		casilla.color = COLOR_BARRA_LLENA if i < valor else COLOR_BARRA_VACIA
+		casilla.color = color_llena if i < llenas else COLOR_BARRA_VACIA
 		casilla.mouse_filter = Control.MOUSE_FILTER_IGNORE   # gotcha: decorativo → no se traga clics
 		casillas.add_child(casilla)
 	fila.add_child(casillas)
 
 	var cifra := Label.new()
-	cifra.text = "%d/%d" % [valor, ESCALA_ATRIBUTOS]
+	cifra.text = texto_cifra
 	cifra.add_theme_font_size_override("font_size", 10)
-	cifra.modulate = COLOR_TENUE
+	cifra.modulate = color_texto
 	fila.add_child(cifra)
 	return fila
+
+
+## Bloque de cansancio (Bienestar #13): la barra (mismo lenguaje visual que los atributos, escala
+## 0-100 explícita en la cifra) + su patrón de descanso en llano (sale de la Motivación — hasta hoy
+## invisible) y cuántas pausas le quedan hoy. Sin este último dato, un agente al 100 % que sigue
+## plantado en su ventanilla parece un bug: se le acabó el cupo de cafés, no que el cansancio deje de
+## importar (`necesita_descanso` exige barra llena Y pausas disponibles).
+func _bloque_cansancio(agente: RefCounted) -> VBoxContainer:
+	var caja := VBoxContainer.new()
+	caja.add_theme_constant_override("separation", 1)
+
+	var cansancio: float = agente.cansancio
+	var llenas: int = clampi(roundi(cansancio / 100.0 * ESCALA_CANSANCIO), 0, ESCALA_CANSANCIO)
+	# Tramos (siempre con la cifra al lado, coloreada igual — la barra sola no es accesible).
+	var color_barra: Color = COLOR_BARRA_LLENA
+	var color_texto: Color = COLOR_TENUE
+	if cansancio >= UMBRAL_CANSANCIO_ROJO:
+		color_barra = COLOR_CANSANCIO_ROJO
+		color_texto = COLOR_CANSANCIO_ROJO
+	elif cansancio >= UMBRAL_CANSANCIO_AMBAR:
+		color_barra = COLOR_CANSANCIO_AMBAR
+		color_texto = COLOR_CANSANCIO_AMBAR
+	caja.add_child(_fila_barra(
+		"Cansancio", llenas, ESCALA_CANSANCIO, color_barra,
+		"%d/100 %%" % roundi(cansancio), color_texto
+	))
+
+	var pausas_totales: int = _personal.pausas_de(agente)
+	var pausas_restantes: int = maxi(pausas_totales - agente.pausas_gastadas, 0)
+	var linea := Label.new()
+	linea.add_theme_font_size_override("font_size", 10)
+	linea.modulate = COLOR_TENUE
+	linea.autowrap_mode = TextServer.AUTOWRAP_WORD
+	linea.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linea.text = "%s · le quedan %d de %d pausas hoy" % [
+		_patron_legible(agente), pausas_restantes, pausas_totales,
+	]
+	caja.add_child(linea)
+	return caja
+
+
+## El patrón de descanso en llano, con los minutos REALES de la pausa (`minutos_de_pausa` — ya
+## resuelve qué duración toca según el patrón). El caradura se marca con ⚠: es el conflicto de
+## gestión que este sistema representa (motivación baja → el doble de tiempo fuera de la ventanilla).
+func _patron_legible(agente: RefCounted) -> String:
+	var minutos: int = _personal.minutos_de_pausa(agente)
+	# Los ids (&"dos_cafes"/&"caradura"/&"un_cafe") son el contrato de `Personal.patron_de` — no se
+	# referencia la clase Personal aquí para no acoplar la UI a su tipo concreto (ADR-0001: la UI
+	# LEE por la API pública, "Node" inyectado en `_personal`).
+	match _personal.patron_de(agente):
+		&"dos_cafes":
+			return "2 cafés de %d min" % minutos
+		&"caradura":
+			return "1 café de %d min ⚠" % minutos
+		_:
+			return "1 café de %d min" % minutos
 
 
 ## Línea 3 (font 10): estado legible con su color (SIEMPRE texto + color — daltónicos).
@@ -438,6 +525,13 @@ func _linea_estado(agente: RefCounted) -> Label:
 		AgenteScript.ESTADO_CUBRIENDO:
 			lbl.text = "Cubriendo en %s" % donde
 			lbl.modulate = COLOR_CUBRIENDO
+		AgenteScript.ESTADO_DESCANSANDO:
+			# Bienestar #13 (feedback 2026-07-29): que se note que está de café AHORA MISMO — si no,
+			# una ventanilla parada sin nadie visible en ella parece un bug. Mismo ámbar "café" que
+			# la barra de cansancio y que el rótulo de NPCsFlujo — un solo lenguaje de color.
+			var restante: int = roundi(_personal.minutos_de_descanso_restantes(agente))
+			lbl.text = "☕ De descanso — vuelve a %s en %d min" % [donde, restante]
+			lbl.modulate = COLOR_CANSANCIO_AMBAR
 		_:
 			lbl.text = String(agente.estado)
 	return lbl

@@ -52,6 +52,19 @@ const COLOR_COLADO := Color(0.45, 0.75, 1.0)
 ## Sentinela de "sin celda" (fuera de todo rect de sala: las celdas del edificio son ≥ 0).
 const CELDA_NULA := Vector2i(-1, -1)
 
+## Barra de cansancio sobre el puesto (bienestar-013, feedback ANTICIPATORIO 2026-07-29): hoy el
+## cansancio existe en el modelo y afecta al juego (ralentiza, manda al café) pero no se veía en
+## ninguna parte — el jugador solo se enteraba cuando YA era demasiado tarde (rótulo ☕ DESCANSO).
+## Tamaño fijo (no depende de a qué % esté el agente), bajo la etiqueta de nombre.
+const ANCHO_BARRA_CANSANCIO: float = 50.0
+const ALTO_BARRA_CANSANCIO: float = 4.0
+const POS_Y_BARRA_CANSANCIO: float = 23.0
+## Tramos de color (mismo criterio que Bienestar #13 usa para mandar al café): normal hasta 70,
+## ámbar de aviso de 70 a 90, rojo crítico desde 90 — así se ve "está a punto de irse" ANTES del
+## rótulo de café, que solo aparece cuando ya se ha ido.
+const UMBRAL_CANSANCIO_AVISO: float = 70.0
+const UMBRAL_CANSANCIO_CRITICO: float = 90.0
+
 var _flujo: Node = null
 var _construccion: Node = null
 var _personal: Node = null
@@ -384,9 +397,11 @@ func _refrescar_puestos() -> void:
 		vivos[puesto_id] = true
 		var dotado: bool = _personal != null and _personal.puesto_dotado(puesto_id)
 		var nombre: String = ""
+		var cansancio: float = 0.0
 		if dotado:
 			var agente: RefCounted = _personal.agente_de(puesto_id)
 			nombre = agente.nombre if agente != null else ""
+			cansancio = agente.cansancio if agente != null else 0.0
 		var estado: StringName = _flujo.estado_de_puesto(puesto_id)
 		# Bienestar #13: si su titular está de café, se DICE — y con los minutos que le quedan. Una
 		# ventanilla parada sin explicación parece un bug; con el motivo delante, es una decisión de
@@ -406,7 +421,7 @@ func _refrescar_puestos() -> void:
 		if contenedor.get_meta(&"celda", Vector2i(-9999, -9999)) != celda:
 			contenedor.set_meta(&"celda", celda)
 			contenedor.position = _construccion.centro_de_celda(celda) + Vector2(0, -_tam_celda * 0.55)
-		_actualizar_visual_puesto(puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""))
+		_actualizar_visual_puesto(puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""), cansancio)
 		if de_cafe == null:
 			_rotulo_extra.erase(puesto_id)
 	# Retira los visuales de puestos que ya no están registrados (demolidos / cargados fuera).
@@ -506,6 +521,28 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var lbl_nombre := _label_centrada(9, Vector2(-30, 10))
 	lbl_nombre.name = "Nombre"
 	contenedor.add_child(lbl_nombre)
+	# Barra de cansancio (bienestar-013, feedback anticipatorio): bajo la etiqueta de nombre. Dos
+	# piezas — un FONDO oscuro que marca dónde está el 100 % (respaldo NO cromático: en escala de
+	# grises se sigue viendo cuánto le falta al relleno para llegar al borde) y un RELLENO que se
+	# encoge y cambia de color según el cansancio real. Ambas nacen ocultas: `_actualizar_visual_
+	# puesto` decide si procede enseñarlas (puesto dotado, no cerrado, agente no está de café).
+	var pos_barra := Vector2(-ANCHO_BARRA_CANSANCIO * 0.5, POS_Y_BARRA_CANSANCIO)
+	var barra_fondo := ColorRect.new()
+	barra_fondo.name = "BarraCansancioFondo"
+	barra_fondo.color = Color(0.08, 0.08, 0.08, 0.85)
+	barra_fondo.size = Vector2(ANCHO_BARRA_CANSANCIO, ALTO_BARRA_CANSANCIO)
+	barra_fondo.position = pos_barra
+	barra_fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	barra_fondo.visible = false
+	contenedor.add_child(barra_fondo)
+	var barra_relleno := ColorRect.new()
+	barra_relleno.name = "BarraCansancioRelleno"
+	barra_relleno.color = COLOR_ESTADO[&"libre"]
+	barra_relleno.size = Vector2(ANCHO_BARRA_CANSANCIO, ALTO_BARRA_CANSANCIO)
+	barra_relleno.position = pos_barra
+	barra_relleno.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	barra_relleno.visible = false
+	contenedor.add_child(barra_relleno)
 	# Rótulo de estado (sobre el mostrador). Texto SIEMPRE + color de acento (respaldo daltónico).
 	var lbl_estado := _label_centrada(9, Vector2(-30, -_tam_celda * 0.5))
 	lbl_estado.name = "Estado"
@@ -514,28 +551,44 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	_visual_de_puesto[puesto_id] = contenedor
 
 
-## Aplica el estado por DIFF: solo toca los nodos si el nombre visto o el estado visto cambiaron
-## (metas en el contenedor). El muñeco se muestra/oculta con `dotado`; el rótulo siempre visible.
+## Aplica el estado por DIFF: solo toca los nodos si el nombre, estado, extra o el TRAMO de
+## cansancio vistos cambiaron (metas en el contenedor). El muñeco se muestra/oculta con `dotado`;
+## el rótulo siempre visible.
+##
+## `cansancio` se CUANTIZA a pasos del 5 % (`int(cansancio / 5.0)`) antes de entrar en la firma:
+## el cansancio del agente sube cada physics_process (bienestar-013), así que meterlo crudo (float)
+## en la comparación rompería el DIFF por completo — cualquier variación de una centésima ya sería
+## "distinto", y el contenedor se repintaría 60 veces por segundo en vez de cero. Cuantizado, la
+## barra solo se toca ~20 veces en TODA la vida útil del agente (100 % / 5 % por paso), que es
+## exactamente la cadencia con la que tiene sentido que el jugador la vea moverse.
 func _actualizar_visual_puesto(
-	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName, extra: String = ""
+	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName, extra: String,
+	cansancio: float = 0.0
 ) -> void:
 	var contenedor: Node2D = _visual_de_puesto[puesto_id]
 	var visto_dotado: bool = contenedor.get_meta(&"dotado", false)
 	var visto_nombre: String = contenedor.get_meta(&"nombre", "")
 	var visto_estado: StringName = contenedor.get_meta(&"estado", &"")
 	var visto_extra: String = contenedor.get_meta(&"extra", "")
-	if visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado 			and visto_extra == extra:
-		return   # nada cambió: cero toques a nodos este frame
+	var paso_cansancio: int = int(cansancio / 5.0)
+	var visto_paso_cansancio: int = contenedor.get_meta(&"paso_cansancio", -1)
+	if (
+		visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado
+		and visto_extra == extra and visto_paso_cansancio == paso_cansancio
+	):
+		return   # nada cambió (ni siquiera el TRAMO de cansancio): cero toques a nodos este frame
 	contenedor.set_meta(&"dotado", dotado)
 	contenedor.set_meta(&"nombre", nombre)
 	contenedor.set_meta(&"estado", estado)
 	contenedor.set_meta(&"extra", extra)
+	contenedor.set_meta(&"paso_cansancio", paso_cansancio)
 	# Horario provisional 2026-07-25 "los funcionarios se van": con el puesto cerrado (por horario o
 	# por el jugador) el muñeco y su nombre desaparecen del mostrador — caminar a casa es juice futuro.
 	var policia: Node2D = contenedor.get_node("Policia")
 	# De café, el mostrador se queda VACÍO (el muñeco se va) pero el nombre sigue: es SU ventanilla,
 	# solo que ahora mismo no hay nadie.
-	policia.visible = dotado and estado != &"cerrado" and estado != &"descansando"
+	var en_activo: bool = dotado and estado != &"cerrado" and estado != &"descansando"
+	policia.visible = en_activo
 	var lbl_nombre: Label = contenedor.get_node("Nombre")
 	lbl_nombre.visible = estado == &"descansando" or (dotado and estado != &"cerrado")
 	lbl_nombre.text = nombre
@@ -545,6 +598,29 @@ func _actualizar_visual_puesto(
 		lbl_estado.text += "
 " + extra
 	lbl_estado.modulate = COLOR_ESTADO.get(estado, Color.WHITE)
+	# Barra de cansancio: MISMA condición que el muñeco (`en_activo`) — quien está de café ya tiene
+	# su rótulo con la cuenta atrás, y un puesto sin dotar o cerrado no tiene a nadie a quien medir.
+	var barra_fondo: ColorRect = contenedor.get_node("BarraCansancioFondo")
+	var barra_relleno: ColorRect = contenedor.get_node("BarraCansancioRelleno")
+	barra_fondo.visible = en_activo
+	barra_relleno.visible = en_activo
+	if en_activo:
+		var fraccion: float = clampf(cansancio, 0.0, 100.0) / 100.0
+		barra_relleno.size.x = ANCHO_BARRA_CANSANCIO * fraccion
+		barra_relleno.color = _color_cansancio(cansancio)
+
+
+## Color del RELLENO de la barra de cansancio, por tramo. Reutiliza tonos que YA existen en este
+## archivo — nunca uno nuevo: el ámbar es LITERALMENTE `COLOR_ESTADO[&"descansando"]`, el mismo que
+## pinta el rótulo "☕ DESCANSO" (un único "ámbar de aviso" en toda la pantalla, no dos matices para
+## la misma idea); el rojo crítico es el mismo que el ánimo "al_limite" de paciencia (mismo
+## significado: cuidado, esto se acaba). Por debajo del umbral de aviso, el verde de "LIBRE".
+func _color_cansancio(cansancio: float) -> Color:
+	if cansancio >= UMBRAL_CANSANCIO_CRITICO:
+		return COLOR_ANIMO[&"al_limite"]
+	elif cansancio >= UMBRAL_CANSANCIO_AVISO:
+		return COLOR_ESTADO[&"descansando"]
+	return COLOR_ESTADO[&"libre"]
 
 
 ## Una Label decorativa de ancho fijo (60 px) y centrada: mismo tamaño ocupe lo que ocupe el texto

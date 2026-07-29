@@ -95,18 +95,21 @@ func test_sala_pelada_sin_muebles_la_pausa_es_la_reglamentaria() -> void:
 
 
 func test_con_muebles_la_pausa_se_acorta_en_proporcion_a_lo_instalado() -> void:
-	# Una sola prensa diaria: calidad 1.0 -> 1.0 - 0.03*1.0 = 0.97.
+	# Una sola prensa diaria: calidad 1.0 -> 1.0 - 0.024*1.0 = 0.976.
 	var mundo: Array = _mundo(3, true, [&"prensa_diaria"])
 	var personal: Node = mundo[0]
 	var agente: RefCounted = mundo[1]
-	assert_float(personal.mult_pausa_por_sala()).is_equal_approx(0.97, 0.001)
+	assert_float(personal.mult_pausa_por_sala()).is_equal_approx(0.976, 0.001)
 
 	personal.cansar(agente, 180.0)
-	assert_float(personal.enviar_a_descansar(agente)).is_equal_approx(29.1, 0.001)
+	assert_float(personal.enviar_a_descansar(agente)).is_equal_approx(29.28, 0.001)
 
 
 func test_por_muchos_muebles_que_se_metan_la_pausa_no_baja_del_suelo() -> void:
-	# Los 6 objetos del catálogo: calidad 1.0+1.0+1.5+2.0+3.0+4.0 = 12.5 -> muy por debajo del suelo.
+	# Los 6 objetos del catálogo: calidad 1.0+1.0+1.5+2.0+3.0+4.0 = 12.5, y 12.5 x 0.024 = 0.30 EXACTO
+	# -> aterriza justo en el suelo con la sala COMPLETA. Ese cuadre es a propósito (ajuste del usuario
+	# 2026-07-29): con el 0.03 anterior se tocaba el suelo a los ~10 puntos y los dos últimos muebles
+	# eran dinero tirado. Si alguien cambia un aporte del catálogo, este test lo cazará.
 	var mundo: Array = _mundo(3, true, [
 		&"prensa_diaria", &"sillas_office", &"dispensador_agua",
 		&"nevera", &"maquina_cafe", &"sofa_descanso",
