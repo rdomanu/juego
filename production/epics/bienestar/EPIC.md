@@ -4,8 +4,25 @@
 > **GDD**: *pendiente* — hoy solo existe el gancho en `design/gdd/documentation.md` (DO6) y el
 > `motivacion` estático de `design/gdd/staff-agents.md`
 > **Architecture Module**: Horarios/Bienestar #13/#15 (Vertical Slice, **fuera del MVP 12**)
-> **Status**: Esbozado — **no planificado**; a la espera de decisión de alcance del usuario
+> **Status**: **Implementado 4/4 stories — PENDIENTE de demo en ventana y sign-off del usuario**
 > **Origen**: petición del usuario 2026-07-28
+
+> **Nota de proceso (2026-07-29)**: este epic se implementó **antes** de escribir sus stories. La 001
+> se redactó al empezar; las **002, 003 y 004 se escribieron a posteriori** (2026-07-29) documentando
+> los commits `f738c53`, `3a4322a` y `bb4b7bd`+`6442505`. Los AC de las tres describen lo que YA se
+> cumple, verificado contra el diff real y contra tests que existen y pasan. **Lo único que falta para
+> cerrar el epic es la demo en ventana con el usuario y su sign-off.**
+
+## Stories
+
+| # | Story | Tipo | AC | Commit | Estado |
+|---|---|---|---|---|---|
+| 001 | [La barra de cansancio y el patrón de cada uno](story-001-barra-de-cansancio.md) | Logic | AC-BI01–06 | `a4eb42c` | ✅ Complete |
+| 002 | [El precio de la hora extra lo elige el jugador](story-002-el-precio-de-la-peonada.md) | Integration | AC-BI07–14 | `f738c53` | ✅ Complete |
+| 003 | [La sala de descanso — se levantan de verdad](story-003-la-sala-de-descanso.md) | Integration | AC-BI15–24 | `3a4322a` | ✅ Complete |
+| 004 | [Ver quién está de café — y notarlo en la cola](story-004-verlo-en-pantalla.md) | Visual/UI + Logic | AC-BI25–34 | `bb4b7bd`, `6442505` | 🔸 Lógica ✅ · **visual pendiente de demo** |
+
+**Estado de la suite al documentar (2026-07-29)**: 591/591, 75 archivos, exit 0. Arranque headless limpio.
 
 ## Overview
 

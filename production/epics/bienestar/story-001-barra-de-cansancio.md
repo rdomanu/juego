@@ -1,12 +1,12 @@
 # Story 001: La barra de cansancio y el patrón de cada uno
 
 > **Epic**: Bienestar #13
-> **Status**: Ready
+> **Status**: Complete
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: M (~2 h)
 > **Manifest Version**: 2026-07-22
-> **Last Updated**: 2026-07-28 — creada
+> **Last Updated**: 2026-07-29 — implementada y testeada (a4eb42c); AC verificados al cerrar el epic
 
 ## Context
 
@@ -56,17 +56,17 @@ Así los tres patrones consumen su presupuesto en una jornada normal, que es lo 
 
 ## Acceptance Criteria
 
-- [ ] **AC-BI01** `[Unit]` — GIVEN un agente que atiende THEN su cansancio sube
+- [x] **AC-BI01** `[Unit]` — GIVEN un agente que atiende THEN su cansancio sube
       `100 / minutos_aguante_efectivo` por minuto **de atención**; parado no sube nada.
-- [ ] **AC-BI02** `[Unit]` — GIVEN motivación 5 / 3 / 1 THEN su patrón es `dos_cafes` (2×15) /
+- [x] **AC-BI02** `[Unit]` — GIVEN motivación 5 / 3 / 1 THEN su patrón es `dos_cafes` (2×15) /
       `un_cafe` (1×30) / `caradura` (1×60).
-- [ ] **AC-BI03** `[Unit]` — GIVEN el patrón `dos_cafes` (2 pausas) y `minutos_aguante` 180 THEN su
+- [x] **AC-BI03** `[Unit]` — GIVEN el patrón `dos_cafes` (2 pausas) y `minutos_aguante` 180 THEN su
       aguante efectivo es **90 min** (se agota dos veces por jornada); con `un_cafe`, 180.
-- [ ] **AC-BI04** `[Unit]` — GIVEN el cansancio a 100 THEN `necesita_descanso(agente)` es `true` y
+- [x] **AC-BI04** `[Unit]` — GIVEN el cansancio a 100 THEN `necesita_descanso(agente)` es `true` y
       `minutos_de_pausa(agente)` devuelve los de su patrón.
-- [ ] **AC-BI05** `[Unit]` — GIVEN un agente que ya ha gastado todas las pausas de su jornada THEN no
+- [x] **AC-BI05** `[Unit]` — GIVEN un agente que ya ha gastado todas las pausas de su jornada THEN no
       vuelve a pedir descanso aunque su barra se agote otra vez (aguanta hasta el cierre).
-- [ ] **AC-BI06** `[Unit]` — GIVEN un `.tres` con valores fuera de rango THEN se clampan con aviso y
+- [x] **AC-BI06** `[Unit]` — GIVEN un `.tres` con valores fuera de rango THEN se clampan con aviso y
       el sistema queda en un estado válido (patrón del proyecto).
 
 ---
@@ -113,7 +113,7 @@ Así los tres patrones consumen su presupuesto en una jornada normal, que es lo 
 **Story Type**: Logic
 **Required evidence**: `tests/unit/personal/personal_cansancio_test.gd` — debe existir y pasar.
 
-**Status**: [ ] Not yet created
+**Status**: [x] Passing — `tests/unit/personal/personal_cansancio_test.gd`, 15 tests, dentro de la suite 591/591 exit 0 (verificado 2026-07-29)
 
 ---
 

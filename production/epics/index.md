@@ -57,6 +57,7 @@ testeado pero aún sin sistema que lo gobierne.
 | Epic | Qué es | Stories | Estado |
 |---|---|---|---|
 | [Comodidades #15](comodidades/EPIC.md) | Objetos que compras y colocas: **comodidades del ciudadano** (asientos, vending, radio, papeleras → aguanta más, y algunas se **usan** de verdad) y **equipamiento del funcionario** (mejor material → atiende más rápido) | 3/3 (catálogo, efecto, uso) | **Complete** (3 stories, 2026-07-28) |
+| [Bienestar #13](bienestar/EPIC.md) | **Cansancio y sala de descanso**: la barra sube solo atendiendo, el patrón sale de la MOTIVACIÓN (15+15 / 30 seguidos / **1 h los caraduras**), se levantan de verdad al terminar el trámite, la sala cuesta 300 € y sin ella la pausa se alarga ×1,5; el cansancio además ralentiza hasta un 25 % | 4/4 (barra, precio de la peonada, sala, verlo) | 🔸 **Implementado — pendiente demo + sign-off** (stories 002-004 escritas a posteriori el 2026-07-29) |
 
 > **Dependencia de diseño viva:** el sign-off de Paciencia (`tolerancia_base_min = 30`) se dio
 > **contando con Comodidades #15**. El epic ya está implementado, demostrado y firmado (2026-07-28,
@@ -70,7 +71,6 @@ preguntas de diseño abiertas. **A la espera de decisión de alcance del usuario
 
 | Epic | Qué es | Origen | Depende de |
 |---|---|---|---|
-| [Bienestar #13](bienestar/EPIC.md) | **Cansancio y sala de descanso**: 30 min de café por jornada (15+15 / 30 seguidos / **1 hora los caraduras**); al agotarse la barra se levantan y la ventanilla se queda sola | usuario 2026-07-28 | mejor después de Comodidades |
 | [Retos del Comisario](retos-comisario/EPIC.md) | Marrones con nombre y apellidos: te **endosan un funcionario castigado** con atributos malos unos meses y no lo puedes despedir. ¿Tragas, compensas con otra ventanilla o lo escondes? | usuario 2026-07-28 | gana mucho después de Bienestar |
 
 ## Presentation (envuelve el juego — depende de Feature/Core)
