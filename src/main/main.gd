@@ -467,7 +467,7 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	_menu_sala.add_separator()
 	# Comodidades #15 (story com-003): los objetos que puede comprar ESTA sala. La familia depende
 	# del tipo de sala — en la de espera se compra confort; en la oficina, material de trabajo.
-	_anadir_comodidades_al_menu(tipo)
+	_anadir_comodidades_al_menu(tipo, sala_id)
 	_anadir_ventanillas_al_menu(sala_id)
 	_menu_sala.add_item("❌ Demoler esta sala", ID_SALA_DEMOLER)
 	_menu_sala.add_separator()
@@ -482,10 +482,10 @@ func _titulo_de_sala(sala_id: StringName, tipo: Resource) -> String:
 	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
 	var nombre: String = tipo.nombre if tipo != null else String(sala_id)
 	if tipo != null and tipo.tipo == "espera":
-		return "%s · %d×%d · aforo %d · confort %d" % [
+		return "%s · %d×%d · aforo %d · aguantan %d min" % [
 			nombre, rect.size.x, rect.size.y,
 			_construccion.aforo_de_sala(sala_id),
-			roundi(_construccion.confort_de_sala(sala_id)),
+			_minutos_de_espera_de_sala(sala_id),
 		]
 	# Bienestar #13: en la sala de descanso lo que importa es cuánto ACORTA el café y cuánta gente
 	# cabe a la vez — los dos números que el jugador está comprando cuando pone un sofá.
@@ -533,9 +533,38 @@ func _anadir_ventanillas_al_menu(sala_id: StringName) -> void:
 		_ventanillas_del_menu.append(elemento_id)
 
 
+## Cuantos MINUTOS aguanta la gente en una sala de espera con el confort que tiene instalado.
+##
+## Peticion del usuario 2026-07-29: *"el confort yo creo que lo debemos calcular por minutos de
+## paciencia, asi se entiende mejor"*. Tiene razon y ademas hay un motivo de fondo: el efecto del
+## confort NO ES LINEAL — el multiplicador divide la tasa de drenaje, asi que cada punto vale MAS
+## cuantos mas tengas (de 0 a 5 puntos son +3 min; de 15 a 20, +7). Decir "confort +5" no informa de
+## nada; decir "aguantan 37 min" si. La conversion la hace Paciencia con SU formula (ADR-0001).
+## Los minutos que aguantarian si se anadiera `extra` puntos de confort a esta sala — para poder
+## decir en el menu lo que GANAS comprando ese objeto, en vez de un numero abstracto.
+func _minutos_de_espera_con_extra(sala_id: StringName, extra: float) -> int:
+	if _paciencia == null or _construccion == null:
+		return 0
+	var confort: float = _construccion.confort_de_sala(sala_id) + extra
+	var mult: float = clampf(
+		1.0 - _paciencia.k_confort * confort, _paciencia.mult_comodidad_min, 1.0
+	)
+	return roundi(_paciencia.minutos_hasta_agotar(1.0, mult))
+
+
+func _minutos_de_espera_de_sala(sala_id: StringName) -> int:
+	if _paciencia == null or _construccion == null:
+		return 0
+	var confort: float = _construccion.confort_de_sala(sala_id)
+	var mult: float = clampf(
+		1.0 - _paciencia.k_confort * confort, _paciencia.mult_comodidad_min, 1.0
+	)
+	return roundi(_paciencia.minutos_hasta_agotar(1.0, mult))
+
+
 ## Pinta las comodidades que ESTA sala admite, con su precio, lo que aporta y lo que cuesta tenerla
 ## encendida. El catálogo manda: si mañana se añade un objeto nuevo, aparece aquí solo.
-func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
+func _anadir_comodidades_al_menu(tipo_sala: Resource, sala_id: StringName) -> void:
 	if tipo_sala == null:
 		return
 	# Bienestar #13 (bien-005): la sala de descanso tiene su propia familia de objetos — sillas, sofá,
@@ -575,6 +604,16 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource) -> void:
 		# Ensenar "luz +0" seria decir que no sirve para nada, asi que se dice lo que de verdad hace.
 		if es_luz:
 			etiqueta += ") · alumbra de noche"
+		elif familia == "ciudadano":
+			# En MINUTOS, no en puntos abstractos (peticion del usuario 2026-07-29). Y calculado SOBRE
+			# ESTA SALA: como el efecto no es lineal, el mismo objeto da mas minutos en una sala ya
+			# amueblada que en una pelada. El numero que se ensena es el que de verdad vas a ganar.
+			var ahora: int = _minutos_de_espera_de_sala(sala_id)
+			var despues: int = _minutos_de_espera_con_extra(sala_id, comodidad.aporte)
+			if despues > ahora:
+				etiqueta += ") · +%d min de espera" % (despues - ahora)
+			else:
+				etiqueta += ") · ya estas al tope de confort"
 		else:
 			etiqueta += ") · %s +%d" % [concepto, roundi(comodidad.aporte)]
 		# Las plazas son la otra mitad de la decisión: un sofá no solo mejora el café, es sitio donde
@@ -774,8 +813,8 @@ func _texto_etiqueta_sala(sala_id: StringName) -> String:
 		# dice al jugador que ese número EXISTE y sube comprando comodidades; escondiéndolo hasta
 		# que abra el menú es exactamente el problema que reportó ("no se sabe cuánta comodidad
 		# hay ahí" — un hueco vacío no enseña nada, un "0" sí).
-		return "🛋 confort %d · aforo %d" % [
-			roundi(_construccion.confort_de_sala(sala_id)), _construccion.aforo_de_sala(sala_id),
+		return "🛋 aguantan %d min · aforo %d" % [
+			_minutos_de_espera_de_sala(sala_id), _construccion.aforo_de_sala(sala_id),
 		]
 	if tipo != null and tipo.tipo == "descanso":
 		# Bienestar #13: estos dos getters son GLOBALES (suman TODAS las salas de descanso, no solo
@@ -1175,6 +1214,9 @@ func _al_cambiar_horario_doc(apertura: int, cierre: int, ultima_admision: int) -
 			# turno de Documentación no sigue hasta el día siguiente.
 			if _personal != null:
 				_personal.fijar_cierre_de_puesto(puesto_id, cierre_puesto)
+				# Y la APERTURA, para que su titular salga de casa con tiempo de cruzar la comisaria y
+				# estar sentado antes de abrir (peticion del usuario 2026-07-29).
+				_personal.fijar_apertura_de_puesto(puesto_id, apertura)
 	if _demanda != null:
 		_demanda.fijar_ventana_doc(apertura, ultima_admision)
 

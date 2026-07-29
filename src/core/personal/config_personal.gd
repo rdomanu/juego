@@ -94,6 +94,11 @@ class_name ConfigPersonal extends Resource
 ## Es además el primer ladrillo del **sistema de turnos** que pidió el usuario (turnos de reloj
 ## mañana/tarde/noche): cuando ese sistema exista, heredará esta misma idea.
 @export var horas_por_turno: int = 8
+## Minutos de cortesia con que el funcionario quiere estar YA en su ventanilla antes de que abra.
+## Peticion del usuario 2026-07-29: *"hay que calcular lo que tarda a su puesto y de ahi calcular
+## cuanto tiempo de antelacion tiene que llegar antes con 5 minutos de margen antes"*. Sale de casa
+## a la hora de apertura MENOS lo que tarde en cruzar la comisaria MENOS estos 5 minutos.
+@export var margen_llegada_min: float = 5.0
 
 # ── Mercado de fichajes (story 002 — knobs ya definidos aquí, patrón ConfigDemanda) ──────────
 ## Candidatos que ofrece el mercado (F5). Semilla 4.

@@ -59,6 +59,8 @@ var plazas_descanso_base: int = 1
 var min_por_celda_a_descanso: float = 2.67
 ## Cada cuántas horas de reloj se renueva el cupo de cafés (el "turno").
 var horas_por_turno: int = 8
+## Minutos de cortesia con que el funcionario quiere estar ya en su puesto antes de abrir.
+var margen_llegada_min: float = 5.0
 ## Cómo de generoso es el pago de la hora extra que ha elegido el jugador (0 = el mínimo del
 ## convenio · 1 = el techo autorizado). Lo empuja Documentación #8 al mover su slider de precio.
 ## Con 0, la hora extra cansa lo máximo; con 1, cansa como una hora normal: la gente va a gusto.
@@ -280,6 +282,41 @@ func enviar_a_descansar(agente: RefCounted) -> float:
 ## Lo que tarda en llegar de su ventanilla a la sala de descanso, en minutos de juego. Sin sala
 ## construida se va a la calle: se usa la misma distancia hasta el borde del edificio, porque salir
 ## también cuesta. Sin Construcción inyectada (tests que miden otra cosa) → 0 = llega al instante.
+## La puerta del edificio: por donde entra TODO el mundo, funcionarios incluidos. Misma celda que
+## usa Flujo para la entrada de los ciudadanos (`CELDA_ENTRADA`), duplicada aqui como constante
+## propia para no crear una dependencia de Personal hacia Flujo por un dato de geometria.
+const CELDA_PUERTA := Vector2i(0, 6)
+
+
+## Lo que tarda un funcionario en llegar ANDANDO desde la puerta hasta su ventanilla.
+##
+## Se calcula AL VUELO leyendo la posicion ACTUAL del puesto, nunca de un valor guardado — peticion
+## expresa del usuario (2026-07-29): *"si quito esa sala donde esta y la pongo en otro lado mas
+## lejano se debe calcular igual"*. Asi, mover la comisaria cambia solo la cuenta del dia siguiente,
+## sin que haya que avisar a nadie, y poner las ventanillas lejos de la puerta pasa a costar
+## minutos de verdad: tu gente tiene que madrugar mas.
+func minutos_de_camino_al_puesto(puesto_id: StringName) -> float:
+	if _construccion == null or min_por_celda_a_descanso <= 0.0:
+		return 0.0
+	if not _construccion.has_method("posicion_de"):
+		return 0.0
+	var destino: Vector2i = _construccion.posicion_de(puesto_id)
+	if destino == Vector2i(-1, -1):
+		return 0.0   # el puesto ya no esta en el layout (lo movieron o lo demolieron)
+	var d: Vector2i = destino - CELDA_PUERTA
+	return float(maxi(absi(d.x), absi(d.y))) * min_por_celda_a_descanso
+
+
+## A que minuto del dia tiene que cruzar la puerta para estar sentado en su ventanilla ANTES de
+## abrir: la hora de apertura menos lo que tarda en llegar menos el margen de cortesia que pidio el
+## usuario (*"con 5 minutos de margen antes"*). Devuelve -1.0 si ese puesto no tiene horario.
+func hora_de_entrada_de_puesto(puesto_id: StringName) -> float:
+	if not _apertura_de_puesto.has(puesto_id):
+		return -1.0
+	var apertura: float = float(_apertura_de_puesto[puesto_id])
+	return apertura - minutos_de_camino_al_puesto(puesto_id) - margen_llegada_min
+
+
 func minutos_de_camino_al_descanso(puesto_id: StringName) -> float:
 	if _construccion == null or min_por_celda_a_descanso <= 0.0:
 		return 0.0
@@ -301,6 +338,17 @@ func minutos_de_camino_al_descanso(puesto_id: StringName) -> float:
 
 ## ¿Va de camino a la sala de descanso ahora mismo (todavía no ha llegado)? Lo usa la UI para decir
 ## "va al descanso" en vez de enseñar una cuenta atrás que aún no ha empezado.
+## ¿Viene ahora mismo andando a incorporarse a su puesto? Lo pinta la capa visual: se le ve entrar
+## por la puerta y cruzar la comisaria hasta su ventanilla, en vez de aparecer de la nada.
+func va_de_camino_al_puesto(agente: RefCounted) -> bool:
+	return _viniendo_a_trabajar.has(agente)
+
+
+## Minutos que le quedan para llegar a su puesto (0.0 si ya esta o no viene).
+func minutos_para_incorporarse(agente: RefCounted) -> float:
+	return float(_viniendo_a_trabajar.get(agente, 0.0))
+
+
 func va_de_camino_al_descanso(agente: RefCounted) -> bool:
 	return _yendo_a_descansar.has(agente)
 
@@ -337,6 +385,12 @@ func puestos_en_descanso() -> Array[StringName]:
 ## Flujo (`_al_cambiar_horario_doc`): las ventanillas que no hacen la tarde cierran antes que las que
 ## sí. Sin entrada para un puesto, se asume que no cierra (ODAC y el resto de servicios de momento).
 var _cierre_de_puesto: Dictionary[StringName, int] = {}
+## A que minuto del dia ABRE cada ventanilla (lo empuja Main por el mismo canal que el cierre).
+var _apertura_de_puesto: Dictionary[StringName, int] = {}
+## Quien viene ANDANDO a incorporarse a su puesto: `agente -> minutos de camino que le quedan`.
+var _viniendo_a_trabajar: Dictionary[RefCounted, float] = {}
+## Reusada cada tick: los que acaban de llegar a su ventanilla.
+var _llegados_al_puesto: Array[RefCounted] = []
 
 
 ## Le dice a Personal a qué hora termina el turno de una ventanilla. Petición del usuario 2026-07-29:
@@ -344,6 +398,12 @@ var _cierre_de_puesto: Dictionary[StringName, int] = {}
 ## que marchar aunque estén descansando"*.
 func fijar_cierre_de_puesto(puesto_id: StringName, minuto_del_dia: int) -> void:
 	_cierre_de_puesto[puesto_id] = clampi(minuto_del_dia, 0, 1439)
+
+
+## Le dice a Personal a que hora ABRE una ventanilla, para calcular cuando tiene que salir de casa
+## su titular. Mismo canal que el cierre: lo empuja Main desde `_al_cambiar_horario_doc`.
+func fijar_apertura_de_puesto(puesto_id: StringName, minuto_del_dia: int) -> void:
+	_apertura_de_puesto[puesto_id] = clampi(minuto_del_dia, 0, 1439)
 
 
 ## ¿Ha terminado ya el turno de este puesto? Sin reloj o sin horario conocido, no cierra nunca.
@@ -364,6 +424,7 @@ func _al_tick(delta_juego_min: float) -> void:
 	if delta_juego_min <= 0.0:
 		return
 	_renovar_cupo_si_cambia_el_turno()
+	_gestionar_incorporaciones(delta_juego_min)
 	_mandar_a_casa_a_los_que_van_de_camino()
 	_avanzar_caminos_al_descanso(delta_juego_min)
 	if _descansando.is_empty():
@@ -426,6 +487,55 @@ func _renovar_cupo_si_cambia_el_turno() -> void:
 		return
 	for agente: RefCounted in plantilla:
 		agente.pausas_gastadas = 0
+
+
+## Los funcionarios ENTRAN POR LA PUERTA y caminan hasta su ventanilla, en vez de aparecer sentados
+## de la nada (petición del usuario 2026-07-29). Salen de casa con la antelación justa: lo que
+## tardan en cruzar la comisaría MÁS `margen_llegada_min`, así que llegan siempre unos minutos antes
+## de abrir. Como el camino se mide sobre la posición ACTUAL del puesto, mover la sala cambia la
+## cuenta sola — y ponerla lejos de la puerta obliga a su titular a madrugar más.
+##
+## Casos raros cubiertos: si le quitan el puesto, lo demuelen o lo mueven MIENTRAS viene andando, se
+## le saca del trayecto (no se queda caminando hacia un mostrador que ya no existe); y no se le hace
+## entrar dos veces el mismo día porque solo se dispara al CRUZAR la hora de salida, no mientras sea
+## mayor que ella.
+func _gestionar_incorporaciones(delta_juego_min: float) -> void:
+	if _tiempo == null:
+		return
+	var ahora: float = fposmod(_tiempo.minutos_juego, 1440.0)
+	var antes: float = fposmod(ahora - delta_juego_min, 1440.0)
+	for puesto_id: StringName in _asignaciones:
+		var agente: RefCounted = _asignaciones[puesto_id]
+		if agente == null or _viniendo_a_trabajar.has(agente):
+			continue
+		if agente.estado != AgenteScript.ESTADO_ASIGNADO:
+			continue   # de café, de baja o lo que sea: hoy no le toca entrar
+		var hora_salida: float = hora_de_entrada_de_puesto(puesto_id)
+		if hora_salida < 0.0:
+			continue   # ese puesto no tiene horario (ODAC): no hay hora de entrada que calcular
+		# Solo en el instante en que se CRUZA la hora, no en todo el rato posterior.
+		if not (antes < hora_salida and ahora >= hora_salida):
+			continue
+		var camino: float = minutos_de_camino_al_puesto(puesto_id)
+		if camino > 0.0:
+			_viniendo_a_trabajar[agente] = camino
+	# Y los que ya venían: avanzan, y llegan.
+	if _viniendo_a_trabajar.is_empty():
+		return
+	_llegados_al_puesto.clear()
+	for agente: RefCounted in _viniendo_a_trabajar:
+		# Si perdió su puesto mientras venía (despido, reasignación, demolición), se le saca del
+		# trayecto: no tiene sentido seguir andando hacia una ventanilla que ya no es suya.
+		if agente.puesto_id == &"" or _asignaciones.get(agente.puesto_id) != agente:
+			_llegados_al_puesto.append(agente)
+			continue
+		var restante: float = float(_viniendo_a_trabajar[agente]) - delta_juego_min
+		if restante > 0.0:
+			_viniendo_a_trabajar[agente] = restante
+			continue
+		_llegados_al_puesto.append(agente)
+	for agente: RefCounted in _llegados_al_puesto:
+		_viniendo_a_trabajar.erase(agente)
 
 
 ## Si a alguien le cierra la ventanilla MIENTRAS va andando al café, da media vuelta y se va a casa:
@@ -662,6 +772,7 @@ func _reiniciar_cansancio() -> void:
 	# día para otro (su estado se corrige en el bucle de abajo, como el de los que ya estaban dentro).
 	_yendo_a_descansar.clear()
 	_pausa_pendiente.clear()
+	_viniendo_a_trabajar.clear()
 	for agente: RefCounted in plantilla:
 		agente.cansancio = 0.0
 		agente.pausas_gastadas = 0
@@ -1170,6 +1281,7 @@ func aplicar_config(config: Resource) -> void:
 	plazas_descanso_base = maxi(config.plazas_descanso_base, 0)
 	min_por_celda_a_descanso = clampf(config.min_por_celda_a_descanso, 0.0, 60.0)
 	horas_por_turno = clampi(config.horas_por_turno, 1, 24)
+	margen_llegada_min = clampf(config.margen_llegada_min, 0.0, 120.0)
 	if config.minutos_aguante < 1:
 		push_warning("Personal: knob 'minutos_aguante' fuera de rango (%d) -> 1" % config.minutos_aguante)
 	k_motivacion_rapidez = _clamp_knob(config.k_motivacion_rapidez, "k_motivacion_rapidez")
