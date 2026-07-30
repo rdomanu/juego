@@ -56,51 +56,113 @@ const ALTURA_BOTE: float = 1.6
 const SUAVIZADO: float = 0.15
 
 
+## ── LA PALETA, SACADA DE LA REFERENCIA REAL (2026-07-31) ──────────────────────────────────────
+## Muestreada píxel a píxel sobre `design/art/referencias/policia_recortado.png`, que es el render
+## del uniforme del CNP verificado. No son colores inventados: son los del uniforme.
+##
+## ⚠️ PERO ACLARADOS A PROPÓSITO. El azul real del polo es casi negro (#242331). A tamaño de juego,
+## sobre un suelo oscuro, un muñeco casi negro **desaparece**: se convierte en una mancha sin forma.
+## Así que se sube el tono lo justo para que la silueta se lea, conservando que SIGA leyéndose como
+## azul marino y no como azul medio. Es la primera vez que este proyecto tiene que elegir entre
+## fidelidad y legibilidad — y a este tamaño gana la legibilidad, siempre.
+const AZUL_UNIFORME := Color(0.20, 0.21, 0.30)      # real #242331, aclarado para que se vea
+const AZUL_PANTALON := Color(0.16, 0.17, 0.25)      # real #1e1d29, un punto más oscuro que el polo
+const NEGRO_BOTA := Color(0.13, 0.13, 0.14)         # real #323031
+const PIEL := Color(0.64, 0.45, 0.40)               # real #a47366, cara y antebrazos
+## La franja clara del pecho: es el "POLICÍA NACIONAL" serigrafiado. A este tamaño no se puede leer,
+## pero la MANCHA clara sí se ve, y es lo que dice "este lleva algo escrito en el pecho".
+const ROTULO_PECHO := Color(0.86, 0.87, 0.90)
+## Qué fracción del brazo es MANGA. El polo es de manga corta, así que el antebrazo va descubierto —
+## un detalle diminuto que a tamaño de juego se nota, porque parte el brazo en dos tonos.
+const FRACCION_MANGA: float = 0.42
+## Qué fracción de la pierna es BOTA (son de media caña).
+const FRACCION_BOTA: float = 0.42
+
+
 ## Monta un muñeco completo y lo devuelve. `color` es el del torso (el del servicio, en los
 ## ciudadanos; el del uniforme, en los policías); la cabeza sale de aclararlo, que es la convención
 ## que ya venía de los rectángulos anteriores.
 ##
 ## ⚠️ Todo Control decorativo del mundo IGNORA el ratón: si no, se traga los clics del modo
 ## construcción (gotcha ya registrado en el proyecto).
-static func construir(color: Color, con_gorra: bool = false) -> Node2D:
+static func construir(
+	color: Color, con_gorra: bool = false, color_piel: Color = PIEL,
+	color_pantalon: Color = Color(0, 0, 0, 0), color_calzado: Color = NEGRO_BOTA
+) -> Node2D:
+	var pantalon: Color = color.darkened(0.3) if color_pantalon.a == 0.0 else color_pantalon
 	var raiz := Node2D.new()
 	# Las piernas van las PRIMERAS para que el torso las tape por delante: sin eso se ve el corte
 	# entre pierna y cadera cuando la pierna se adelanta.
-	raiz.add_child(_extremidad(
-		"PiernaIzq", Vector2(-SEPARACION_PIERNAS, Y_CADERA), ANCHO_PIERNA, ALTO_PIERNA,
-		color.darkened(0.35)
-	))
-	raiz.add_child(_extremidad(
-		"PiernaDer", Vector2(SEPARACION_PIERNAS, Y_CADERA), ANCHO_PIERNA, ALTO_PIERNA,
-		color.darkened(0.45)
-	))
+	raiz.add_child(_pierna("PiernaIzq", -SEPARACION_PIERNAS, pantalon, color_calzado, 0.0))
+	raiz.add_child(_pierna("PiernaDer", SEPARACION_PIERNAS, pantalon.darkened(0.12), color_calzado, 0.08))
 	# Los brazos, TAMBIÉN antes del torso: uno de los dos queda por detrás del cuerpo y así el
 	# muñeco tiene algo de volumen en vez de parecer un recortable plano.
-	raiz.add_child(_extremidad(
-		"BrazoIzq", Vector2(-ANCHO_TORSO * 0.5, Y_HOMBRO), ANCHO_BRAZO, ALTO_BRAZO,
-		color.darkened(0.2)
-	))
-	raiz.add_child(_extremidad(
-		"BrazoDer", Vector2(ANCHO_TORSO * 0.5, Y_HOMBRO), ANCHO_BRAZO, ALTO_BRAZO,
-		color.darkened(0.3)
-	))
+	raiz.add_child(_brazo("BrazoIzq", -ANCHO_TORSO * 0.5, color, color_piel, 0.0))
+	raiz.add_child(_brazo("BrazoDer", ANCHO_TORSO * 0.5, color.darkened(0.12), color_piel, 0.1))
 	raiz.add_child(_caja(
 		"Torso", Vector2(-ANCHO_TORSO * 0.5, Y_CADERA - ALTO_TORSO),
 		Vector2(ANCHO_TORSO, ALTO_TORSO), color
 	))
+	if con_gorra:
+		# El rótulo del pecho: solo para quien lleva uniforme (un ciudadano no lleva nada escrito).
+		raiz.add_child(_caja(
+			"Rotulo", Vector2(-0.5, Y_CADERA - ALTO_TORSO + 3.0), Vector2(5.0, 2.0), ROTULO_PECHO
+		))
 	var y_cabeza: float = Y_CADERA - ALTO_TORSO - ALTO_CABEZA
 	raiz.add_child(_caja(
 		"Cabeza", Vector2(-ANCHO_CABEZA * 0.5, y_cabeza), Vector2(ANCHO_CABEZA, ALTO_CABEZA),
-		color.lightened(0.35)
+		color_piel
 	))
 	if con_gorra:
 		# La gorra es lo que distingue al funcionario de un vistazo, incluso a tamaño diminuto: es
 		# lo primero que sobrevive cuando el muñeco se ve pequeño (art bible: la silueta manda).
+		# Dos piezas, copa y VISERA, porque la visera es lo que la hace inconfundiblemente una gorra
+		# de béisbol y no un gorro cualquiera.
 		raiz.add_child(_caja(
-			"Gorra", Vector2(-ANCHO_CABEZA * 0.5 - 1.0, y_cabeza - 2.5),
-			Vector2(ANCHO_CABEZA + 2.0, 3.0), color.darkened(0.25)
+			"Gorra", Vector2(-ANCHO_CABEZA * 0.5, y_cabeza - 3.0),
+			Vector2(ANCHO_CABEZA, 3.5), color.darkened(0.35)
+		))
+		raiz.add_child(_caja(
+			"Visera", Vector2(-ANCHO_CABEZA * 0.5 - 1.5, y_cabeza - 0.5),
+			Vector2(ANCHO_CABEZA + 3.0, 1.5), color.darkened(0.5)
 		))
 	return raiz
+
+
+## Una pierna: pantalón arriba y BOTA abajo, colgando de la cadera. `tono` desempata levemente la
+## pierna de atrás para que no se confundan cuando se cruzan.
+static func _pierna(nombre: String, x: float, color_tela: Color, color_bota: Color, tono: float) -> Node2D:
+	var pivote := Node2D.new()
+	pivote.name = nombre
+	pivote.position = Vector2(x, Y_CADERA)
+	var largo_bota: float = ALTO_PIERNA * FRACCION_BOTA
+	pivote.add_child(_caja(
+		"Tela", Vector2(-ANCHO_PIERNA * 0.5, 0.0),
+		Vector2(ANCHO_PIERNA, ALTO_PIERNA - largo_bota), color_tela.darkened(tono)
+	))
+	pivote.add_child(_caja(
+		"Bota", Vector2(-ANCHO_PIERNA * 0.5 - 0.5, ALTO_PIERNA - largo_bota),
+		Vector2(ANCHO_PIERNA + 1.0, largo_bota), color_bota.darkened(tono)
+	))
+	return pivote
+
+
+## Un brazo: MANGA CORTA arriba y antebrazo de piel abajo. Es un detalle diminuto que a tamaño de
+## juego se nota mucho, porque parte el brazo en dos tonos y da la lectura de "va en manga corta".
+static func _brazo(nombre: String, x: float, color_manga: Color, color_piel: Color, tono: float) -> Node2D:
+	var pivote := Node2D.new()
+	pivote.name = nombre
+	pivote.position = Vector2(x, Y_HOMBRO)
+	var largo_manga: float = ALTO_BRAZO * FRACCION_MANGA
+	pivote.add_child(_caja(
+		"Manga", Vector2(-ANCHO_BRAZO * 0.5, 0.0), Vector2(ANCHO_BRAZO, largo_manga),
+		color_manga.darkened(tono)
+	))
+	pivote.add_child(_caja(
+		"Antebrazo", Vector2(-ANCHO_BRAZO * 0.5, largo_manga),
+		Vector2(ANCHO_BRAZO, ALTO_BRAZO - largo_manga), color_piel.darkened(tono)
+	))
+	return pivote
 
 
 ## Mueve las piezas. `fase` avanza con el camino recorrido y `andando` va de 0 (parado) a 1
@@ -125,19 +187,6 @@ static func animar(muneco: Node2D, fase: float, andando: float) -> void:
 ## `absf` y no `sin` a secas: se bota una vez por CADA PIE, o sea el doble de veces que zancadas.
 static func bote(fase: float, andando: float) -> float:
 	return absf(sin(fase)) * ALTURA_BOTE * andando
-
-
-## Una extremidad: un pivote en la articulación con la pieza colgando hacia abajo. Girar el pivote
-## mueve la extremidad entera desde el hombro o la cadera, que es lo que hace que parezca una
-## articulación y no una pieza que se desliza.
-static func _extremidad(
-	nombre: String, articulacion: Vector2, ancho: float, largo: float, color: Color
-) -> Node2D:
-	var pivote := Node2D.new()
-	pivote.name = nombre
-	pivote.position = articulacion
-	pivote.add_child(_caja("Pieza", Vector2(-ancho * 0.5, 0.0), Vector2(ancho, largo), color))
-	return pivote
 
 
 static func _caja(nombre: String, pos: Vector2, tam: Vector2, color: Color) -> ColorRect:

@@ -1043,7 +1043,13 @@ func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 ## de la celda donde de verdad está de pie. Antes iba centrado a media altura (torso en y=-8): en
 ## cenital daba igual, en isométrico el policía parecería flotar por encima de su mostrador.
 func _anadir_cuerpo_policia(destino: Node2D) -> void:
-	destino.add_child(MunecoScript.construir(COLOR_POLICIA_TORSO, true))
+	# Uniforme del CNP con los colores sacados de la referencia real (ver `Muneco`): polo azul
+	# marino, pantalón un punto más oscuro, botas negras, piel en cara y antebrazos (manga corta) y
+	# gorra con visera.
+	destino.add_child(MunecoScript.construir(
+		MunecoScript.AZUL_UNIFORME, true, MunecoScript.PIEL,
+		MunecoScript.AZUL_PANTALON, MunecoScript.NEGRO_BOTA
+	))
 
 
 ## Un muñeco de policía que CAMINA: mismo cuerpo que el fijo del mostrador, pero sobre un

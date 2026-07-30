@@ -198,3 +198,83 @@ entrenar, y eso es exactamente lo que estás empezando a hacer ahora con los cr�
 
 **Mi recomendación**: gasta los 50 gratis en este lote. Si el resultado te convence, **Starter**.
 El salto a Pro, cuando tengas 20-30 imágenes de estilo cerrado con las que entrenar.
+
+---
+
+## 7. ⭐ LO QUE DE VERDAD HAY QUE PEDIRLE A SCENARIO (2026-07-31)
+
+> Pregunta literal del usuario: *"no sé muy bien qué tengo que pedir en Scenario para que nos sirva
+> un diseño de NPC"*. Es LA pregunta buena, y la respuesta ha cambiado dos veces esta noche porque
+> hemos ido aprendiendo. Esto es lo aprendido.
+
+### Lo que ya hemos probado, y qué salió
+
+| Se pidió | Resultado | ¿Sirve como arte del juego? |
+|---|---|---|
+| **Ilustración del personaje** (pose en A, realista) | Excelente: uniforme clavado, texto legible | ❌ **No.** Sirve como REFERENCIA, y ya cumplió: de ahí salieron los colores del muñeco |
+| **Modelo 3D** desde esa imagen | Bajorrelieve: la cuarta parte del fondo que debería, **sin esqueleto** | ❌ **No.** Solo se ve bien de frente y no puede andar |
+
+Las dos veces el fallo fue el mismo: **pedir el personaje entero**. Un personaje entero no encaja en
+un juego isométrico, porque hace falta verlo desde 4-8 ángulos y moviéndose, y eso una IA no lo da
+coherente.
+
+### Lo que SÍ hay que pedir: **LAS PIEZAS**
+
+El juego ya monta a cada persona con **piezas sueltas articuladas** (`src/main/muneco.gd`): dos
+piernas, dos brazos, torso, cabeza y gorra. El código las mueve y ya andan. Hoy esas piezas son
+rectángulos de color.
+
+**Lo que hace falta de Scenario son esas mismas piezas, pero dibujadas.** Siete imágenes pequeñas.
+
+Y esto cambia todo, porque ahora sí juega a favor de la IA:
+
+| Pedir el personaje entero | Pedir las piezas |
+|---|---|
+| Necesita coherencia entre 8 ángulos → la IA falla | Cada pieza es **independiente**: no hay coherencia que romper |
+| Hay que animarlo | **La animación ya existe** y no se toca |
+| Si sale mal, se tira entero | Si una pieza sale mal, **se regenera solo esa** |
+| Semanas | Una tarde |
+
+### El prompt
+
+```
+flat 2D game sprite sheet of separated character body parts for a cut-out puppet,
+Spanish National Police officer, orthographic front view, parts laid out separately with
+clear space between them, not connected, on a plain white background
+
+parts: head with face, navy blue baseball cap, torso wearing a dark navy blue short-sleeve
+polo shirt, one left arm, one right arm, one left leg with black boot, one right leg with
+black boot
+
+simple stylised cartoon shapes, thick clean outlines, flat colours, minimal shading,
+readable at small size, dark navy blue uniform, no gradients, no background scenery
+```
+
+**Negative:**
+
+```
+connected body, full character, single figure, standing person, realistic, photorealistic,
+3d render, background scenery, shadows, text, labels, watermark, multiple characters,
+overlapping parts
+```
+
+### Reglas para que las piezas sirvan
+
+1. **Separadas y sin tocarse.** Si salen pegadas, hay que recortar a mano.
+2. **Fondo blanco liso** (o transparente si te lo deja): se recorta solo, como hice con la foto.
+3. **Vista frontal plana**, sin perspectiva: cada pieza es plana y la gira el código.
+4. **Formas simples y contorno grueso**: a tamaño de juego el detalle fino desaparece — lo aprendimos
+   con el sprite realista.
+5. **Pide 4, quédate con la mejor.** Como siempre.
+
+### Y para las direcciones, después
+
+Cuando las piezas de frente estén bien, se piden **los mismos brazos y piernas de PERFIL y de
+ESPALDAS**. Son otras tantas piezas pequeñas, no un personaje nuevo — y con eso el muñeco puede
+mirar hacia donde anda.
+
+### Lo que NO hay que pedir nunca más
+
+- El personaje entero como sprite de juego.
+- Modelos 3D generados desde una sola imagen (salen planos y sin huesos).
+- Ciclos de andar en fotogramas.
