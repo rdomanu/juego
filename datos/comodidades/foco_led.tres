@@ -13,3 +13,4 @@ aporte = 0.0
 emite_luz = true
 color_luz = Color(0.88, 0.94, 1, 1)
 radio_luz = 100.0
+en_techo = true

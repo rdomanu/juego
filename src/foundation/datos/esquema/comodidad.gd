@@ -84,3 +84,11 @@ class_name Comodidad extends Resource
 ## Es la forma de la luz contando la forma de la lámpara — y de paso lo que la distingue de la
 ## lámpara de pie, que cubre lo mismo pero en redondo y con luz cálida.
 @export var radio_luz_y: float = 0.0
+## ¿Va colgada del TECHO? (petición del usuario 2026-07-30: *"las luces pueden ir encima de otros
+## objetos, ya que están arriba, excepto la luz de suelo"*). Una pieza de techo —un fluorescente, un
+## foco— **no ocupa suelo**: se puede poner sobre un mostrador, un sofá o una máquina, porque no
+## está en medio. La lámpara DE PIE no lleva esta marca: esa sí se apoya en el suelo y estorba.
+##
+## Es lo que separa "está en la sala" de "ocupa sitio en la sala", y es de catálogo a propósito: si
+## mañana hay un ventilador de techo o un cartel colgado, basta con marcarlo aquí.
+@export var en_techo: bool = false

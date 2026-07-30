@@ -106,12 +106,21 @@ const MAX_REINTENTOS_CAMINO: int = 120
 ## (16 px) para que se lea como mesa de atención y no como un cajón, y tono madera-institucional.
 const ALTO_MOSTRADOR: float = 20.0
 const COLOR_MOSTRADOR := Color(0.42, 0.34, 0.27)
+## Cuánto de su celda ocupa el mostrador. 0.62 y no 1: una mesa no llena la baldosa entera, y con
+## la mesa llegando al borde del rombo el funcionario de la casilla de atrás quedaba pegado a ella y
+## parecía estar encima. Con margen alrededor, se ve claramente que están en dos casillas distintas.
+const ESCALA_MOSTRADOR: float = 0.62
 ## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
 ## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
 ## Agente → puesto por el que YA hizo su entrada andando. Es la invariante "1 puesto = 1
 ## funcionario que entra": mientras el modelo siga diciendo que ese agente viene de camino, no se
 ## le crea un segundo viaje aunque el primero se cierre por lo que sea. Ver `_refrescar_incorporaciones`.
 var _ya_entro: Dictionary[RefCounted, StringName] = {}
+## Ventanillas cuyo titular YA está plantado en ellas: entra al terminar su entrada andando y sale
+## cuando la ventanilla pasa de abierta a cerrada (fin de jornada). Es lo que distingue *"aún no ha
+## abierto, pero él ya está"* de *"ya cerró y se ha ido a casa"* — sin esto, el funcionario se
+## esfumaba justo en los minutos de cortesía con los que llega antes de abrir.
+var _en_su_puesto: Dictionary[StringName, bool] = {}
 var _capa_logica: Node2D = null
 var _capa_escena: Node2D = null
 
@@ -971,6 +980,9 @@ func _iniciar_camino_incorporacion(agente: RefCounted) -> void:
 ## `dotado`/`agente_de` ya no lo devuelven).
 func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 	_incorporacion_en_curso.erase(viaje["puesto_id"])
+	# Ya está en su ventanilla: a partir de aquí se le VE, tenga la ventanilla abierta o no (llega
+	# unos minutos antes de abrir a propósito). Ver `_actualizar_visual_puesto`.
+	_en_su_puesto[viaje["puesto_id"]] = true
 	_borrar_caminante(viaje["muneco"] as Node)
 
 
@@ -1073,6 +1085,12 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# El muñeco policía (torso + cabeza, estilo npc_ciudadano); se muestra solo si el puesto está dotado.
 	var policia := Node2D.new()
 	policia.name = "Policia"
+	# ⚠️ ESTA LÍNEA es la que le pone el cuerpo (torso + cabeza). Se perdió el 2026-07-30 al
+	# reordenar mesa y policía dentro del contenedor, y el resultado fue un nodo "Policia" existente,
+	# bien colocado y visible... pero VACÍO. El funcionario no se veía por ningún lado, y todo lo que
+	# se investigó después (orden de dibujo, tamaño de la mesa, capas, z_index) perseguía un fantasma
+	# — hasta que se midió `policia.get_child_count()` y salió 0.
+	_anadir_cuerpo_policia(policia)
 	# LA VENTANILLA SON TRES CASILLAS EN FILA (petición del usuario, 2026-07-30, viendo el
 	# isométrico: *"la mesa de atención debe ser como 3 casillas: 1 donde está el policía, otra la
 	# mesa y otra la silla con el ciudadano; ahora veo encima de la mesa al funcionario"*):
@@ -1098,7 +1116,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# se pintó después y le tapó. Este es el orden bueno: mesa, y encima quien atiende.
 	var mesa := PiezaIso.new()
 	mesa.name = "Mesa"
-	mesa.configurar(1, 1, ALTO_MOSTRADOR, COLOR_MOSTRADOR)
+	mesa.configurar(1, 1, ALTO_MOSTRADOR, COLOR_MOSTRADOR, ESCALA_MOSTRADOR)
 	contenedor.add_child(mesa)
 	policia.position = _POLICIA_DETRAS
 	contenedor.add_child(policia)
@@ -1195,8 +1213,24 @@ func _actualizar_visual_puesto(
 	# (petición del usuario 2026-07-29: que se les vea ENTRAR) es el mismo tapaagujeros pero para la
 	# incorporación: mientras el muñeco camina desde la puerta hasta su ventanilla, el mostrador debe
 	# seguir VACÍO aunque el puesto ya esté `dotado` en el modelo (lo está desde que se le asignó).
+	# ── EL FUNCIONARIO SE VE AUNQUE SU VENTANILLA ESTÉ CERRADA ─────────────────────────────────
+	# Petición del usuario (2026-07-30): *"los funcionarios siempre tienen que verse aunque su puesto
+	# esté cerrado. Hay unos minutos desde que entran que se desplazan a su puesto que está cerrado y
+	# desaparece el NPC, pero cuando abre aparecen; en todo momento tienen que verse"*.
+	#
+	# Y es lo lógico: sale de casa con antelación justamente para estar sentado ANTES de abrir. Que
+	# se esfumara en esos minutos era la regla vieja del horario ("con el puesto cerrado el muñeco
+	# desaparece"), que no distinguía entre *"todavía no ha abierto"* y *"ya se ha ido a casa"*.
+	#
+	# Ahora se distinguen con `_en_su_puesto`: entra al llegar andando y sale cuando su ventanilla
+	# pasa de ABIERTA a CERRADA, que es el momento en que termina su jornada y se marcha. Antes de
+	# abrir → está y se le ve; después de cerrar → se ha ido.
+	var cerrado: bool = estado == &"cerrado"
+	if cerrado and visto_estado != &"cerrado" and visto_estado != &"":
+		_en_su_puesto.erase(puesto_id)   # su ventanilla acaba de cerrar: fin de jornada, a casa
 	var en_activo: bool = (
-		dotado and estado != &"cerrado" and estado != &"descansando"
+		dotado and estado != &"descansando"
+		and (not cerrado or _en_su_puesto.has(puesto_id))
 		and not oculto_por_regreso and not oculto_por_llegada
 	)
 	policia.visible = en_activo

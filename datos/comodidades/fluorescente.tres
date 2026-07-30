@@ -15,3 +15,4 @@ emite_luz = true
 color_luz = Color(0.9, 0.96, 1, 1)
 radio_luz = 100.0
 radio_luz_y = 60.0
+en_techo = true

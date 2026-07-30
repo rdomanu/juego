@@ -2088,3 +2088,56 @@ código: era la herramienta. Revertido con `git restore -- datos/`.
 **Regla**: `--import` solo para registrar un `class_name` nuevo, y DESPUÉS comprobar
 `git status -- datos/` y revertir lo que haya tocado. Nunca dar por bueno un fallo de test sin mirar
 antes si el árbol de datos ha cambiado solo.
+
+### Luces de techo (2026-07-30)
+
+*"las luces pueden ir encima de otros objetos, ya que están arriba, excepto la luz de suelo. en
+lugar de ser un cuadrado entero se puede poner un punto en el centro amarillo para saber que es
+una luz"*.
+
+- Campo nuevo de catálogo **`Comodidad.en_techo`** (`true` en `fluorescente` y `foco_led`; la
+  `lampara_pie` NO lo lleva — esa se apoya en el suelo y estorba). Data-driven: si mañana hay un
+  ventilador de techo, basta con marcarlo en su `.tres`.
+- Modelo: una pieza de techo **no ocupa suelo** — se cuelga encima de lo que sea, y tener una
+  colgada tampoco impide amueblar debajo (funciona en los dos sentidos; si solo funcionara en uno,
+  el jugador tendría que acordarse de poner las luces las últimas).
+- Al pinchar en una celda con luz Y mueble, `elemento_en` devuelve **la luz** — es la que está
+  dibujada encima y a la que estás apuntando.
+- Visual: **punto ámbar con halo** (`PiezaIso.punto`), no una caja: marca dónde está sin comerse la
+  casilla ni tapar lo de debajo.
+- `tests/integration/construccion/construccion_luces_techo_test.gd` — 7 casos.
+
+### La mesa dejó de llenar su baldosa
+
+Última vuelta del problema del funcionario invisible: el mostrador se dibujaba ocupando el rombo
+ENTERO, así que el policía, plantado en la casilla de atrás, quedaba pegado a su borde y parecía
+estar encima. `PiezaIso` acepta ahora una **escala** (cuánto de su celda ocupa la pieza) y el
+mostrador va al **0,62** — un mueble no llena la baldosa entera.
+
+### Lucía Ortega: NO era un bug (revertido)
+
+Se llegó a tocar `Personal._gestionar_incorporaciones` para que entrara aunque la partida arrancase
+pasada su hora de salida. **El usuario lo paró**: *"lo de Lucía sí estaba bien así porque su puesto
+está más lejos, déjalo... porque si pongo Documentación más lejos deberá tener la misma lógica"*.
+Tiene razón y la lógica ya existía: cada uno sale de casa restando lo que tarda en cruzar la
+comisaría, así que **cuanto más lejos esté tu ventanilla, antes madruga su titular**. Revertido con
+`git restore`; `personal.gd` queda intacto.
+
+### 🐛 EL FUNCIONARIO INVISIBLE: era una línea borrada, no un problema de dibujo
+
+El usuario lo reportó **cinco veces** y acabó mandando una captura (`capturas/Captura funcionarios.PNG`)
+porque yo seguía dando vueltas. En la captura se ve lo importante: **los mostradores y los nombres
+están, y del funcionario no hay ni rastro** — no es que estuviera mal colocado, es que no se dibujaba.
+
+Medido (`policia.get_child_count()`): **0 hijos**. El nodo `Policia` existía, estaba bien colocado
+una casilla detrás y `is_visible_in_tree()` era `true`... pero estaba **VACÍO**. Al reordenar mesa y
+policía dentro del contenedor borré sin querer la línea `_anadir_cuerpo_policia(policia)`.
+
+Todo lo investigado después de ese borrado —orden de dibujo, tamaño de la mesa, capas, z_index—
+perseguía un fantasma. Los cambios que salieron de ahí (la mesa al 0,62 de su celda, el orden
+mesa→policía) se quedan porque son correctos por sí mismos, pero **ninguno era la causa**.
+
+**Lección de método, la más cara de la sesión**: cuando algo "no se ve", lo PRIMERO es comprobar que
+el nodo existe Y TIENE CONTENIDO (`get_child_count()`), antes de tocar una sola línea de posición,
+capa o z_index. Y cuando el usuario repite el mismo síntoma más de dos veces, hay que pedirle una
+captura en vez de seguir razonando sobre píxeles a ciegas.

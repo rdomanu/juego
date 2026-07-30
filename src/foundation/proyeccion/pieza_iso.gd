@@ -25,12 +25,29 @@ var celdas_x: int = 1
 var celdas_y: int = 1
 ## Alto de la caja en píxeles. 0 = pieza PLANA (solo la huella en el suelo, sin cuerpo).
 var alto: float = 18.0
+## Cuánto de su celda ocupa la pieza, de 0 a 1. Un mueble NO llena la baldosa entera: una mesa deja
+## sitio alrededor para pasar y para que se vea quién está al otro lado. Con 1.0 la pieza llega
+## justo a los bordes del rombo y se come el hueco de los vecinos — que es lo que hacía que el
+## funcionario, plantado en la casilla de atrás, pareciera estar encima del mostrador.
+var escala: float = 1.0
+## ¿Se dibuja como un PUNTO en vez de como una caja? Es lo que se usa para lo que cuelga del techo
+## (luces): marca dónde está sin ocupar la casilla ni tapar lo que haya debajo.
+var punto: bool = false
 ## Color de la tapa. Las dos caras frontales se derivan oscureciéndolo (sombreado isométrico
 ## clásico: la tapa recibe la luz, la cara izquierda algo menos, la derecha menos todavía).
 var color: Color = Color(0.5, 0.5, 0.5)
 
 
 func _draw() -> void:
+	if punto:
+		# PIEZA DE TECHO (petición del usuario 2026-07-30: *"en lugar de ser un cuadrado entero se
+		# puede poner un punto en el centro amarillo para saber que es una luz"*). Una luz no es un
+		# mueble: no ocupa suelo y no debe tapar lo que hay debajo. Se marca con un punto y su halo,
+		# que dice "aquí hay una" sin comerse la casilla.
+		draw_circle(Vector2.ZERO, RADIO_PUNTO * 2.2, Color(color.r, color.g, color.b, 0.18))
+		draw_circle(Vector2.ZERO, RADIO_PUNTO, color)
+		draw_arc(Vector2.ZERO, RADIO_PUNTO, 0.0, TAU, 12, color.lightened(0.5), 1.0, true)
+		return
 	var base: PackedVector2Array = _huella()
 	if alto <= 0.0:
 		draw_colored_polygon(base, color)
@@ -63,11 +80,13 @@ func _huella() -> PackedVector2Array:
 	var w: float = float(maxi(celdas_x, 1))
 	var h: float = float(maxi(celdas_y, 1))
 	var t: float = float(Proyeccion.TAM_CELDA)
+	# El margen que deja la pieza dentro de su celda, repartido a los dos lados.
+	var m: float = (1.0 - clampf(escala, 0.05, 1.0)) * 0.5 * t
 	return PackedVector2Array([
-		Proyeccion.proyectar(Vector2(-0.5 * t, -0.5 * t)),
-		Proyeccion.proyectar(Vector2((w - 0.5) * t, -0.5 * t)),
-		Proyeccion.proyectar(Vector2((w - 0.5) * t, (h - 0.5) * t)),
-		Proyeccion.proyectar(Vector2(-0.5 * t, (h - 0.5) * t)),
+		Proyeccion.proyectar(Vector2(-0.5 * t + m, -0.5 * t + m)),
+		Proyeccion.proyectar(Vector2((w - 0.5) * t - m, -0.5 * t + m)),
+		Proyeccion.proyectar(Vector2((w - 0.5) * t - m, (h - 0.5) * t - m)),
+		Proyeccion.proyectar(Vector2(-0.5 * t + m, (h - 0.5) * t - m)),
 	])
 
 
@@ -77,11 +96,20 @@ func _contorno(vertices: PackedVector2Array, tono: Color) -> void:
 	draw_polyline(cerrado, tono, 1.0, true)
 
 
+## Radio del punto con el que se marca una pieza de techo, en píxeles.
+const RADIO_PUNTO: float = 5.0
+
+
 ## Cambia lo que dibuja y pide repintado. Se llama una vez al crear la pieza — nunca por frame (el
 ## layout solo cambia cuando el jugador construye, demuele o carga partida).
-func configurar(p_celdas_x: int, p_celdas_y: int, p_alto: float, p_color: Color) -> void:
+func configurar(
+	p_celdas_x: int, p_celdas_y: int, p_alto: float, p_color: Color, p_escala: float = 1.0,
+	p_punto: bool = false
+) -> void:
 	celdas_x = p_celdas_x
 	celdas_y = p_celdas_y
 	alto = p_alto
 	color = p_color
+	escala = p_escala
+	punto = p_punto
 	queue_redraw()

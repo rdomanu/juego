@@ -170,9 +170,15 @@ func validar_elemento(
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
 		return false   # fuera de toda sala (los elementos viven dentro de salas — CO4)
+	# Una pieza de TECHO sí tiene que estar dentro de la sala, pero NO le importa lo que haya en el
+	# suelo: se cuelga encima. (`_celda_ocupada` ya ignora a las de techo en el otro sentido, así que
+	# tampoco impide colocar nada debajo de ellas.)
+	var de_techo: bool = es_de_techo(id_catalogo)
 	for c: Vector2i in _celdas_de(id_catalogo, celda, orientacion):
-		if sala_en(c) != sala_id or _celda_ocupada(c, ignorar):
-			return false   # el cuerpo no cabe entero: se sale de la sala o pisa algo (CO4)
+		if sala_en(c) != sala_id:
+			return false   # el cuerpo no cabe entero: se sale de la sala (CO4)
+		if not de_techo and _celda_ocupada(c, ignorar):
+			return false   # pisa algo que ya está en el suelo (CO4)
 		# La puerta no se tapia... salvo que la sala tenga OTRO sitio por donde abrirla. Asi el jugador
 		# nunca se queda con una sala sin salida, pero tampoco se le prohibe amueblar por una celda que
 		# se puede recolocar. (Y el montaje inicial de la DGP, que pone asientos antes de que nadie
@@ -389,6 +395,8 @@ func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 		if elemento_id == ignorar:
 			continue
 		var elemento: Dictionary = _elementos[elemento_id]
+		if es_de_techo(elemento["catalogo"]):
+			continue   # cuelga del techo: no ocupa suelo, así que no estorba a nadie
 		if celda in _celdas_de(
 			elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL)
 		):
@@ -409,6 +417,15 @@ func _superficie_de(id_catalogo: StringName) -> int:
 	if tipo_puesto != null:
 		return maxi(tipo_puesto.superficie, 1)
 	return 1
+
+
+## ¿Esta pieza del catálogo va colgada del TECHO? Una pieza de techo (un fluorescente, un foco) no
+## ocupa suelo: se puede poner encima de un mostrador o de un sofá, porque no está en medio. La
+## lámpara de pie NO lo es. Petición del usuario 2026-07-30. El dato vive en el catálogo (`Comodidad
+## .en_techo`), no aquí: si mañana hay un ventilador de techo, basta con marcarlo en su `.tres`.
+func es_de_techo(id_catalogo: StringName) -> bool:
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	return comodidad != null and comodidad.en_techo
 
 
 ## Las celdas del CUERPO de un elemento: la celda de colocación es el ANCLA y el cuerpo se extiende
@@ -1229,13 +1246,19 @@ func puestos_utiles(tasa_llegadas_pico: float, throughput_hora_puesto: float) ->
 ## El elemento cuyo CUERPO cubre una celda (&"" si ninguno) — lo usa la herramienta de demolición
 ## (007). Un clic en CUALQUIER celda de un sofá de 3 lo encuentra, no solo en su ancla.
 func elemento_en(celda: Vector2i) -> StringName:
+	var en_suelo: StringName = &""
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
-		if celda in _celdas_de(
+		if not (celda in _celdas_de(
 			elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL)
-		):
+		)):
+			continue
+		# Si en esa celda hay una pieza de TECHO y algo en el suelo, gana la de techo: es la que está
+		# dibujada encima y a la que el jugador está apuntando. Si no, la del suelo.
+		if es_de_techo(elemento["catalogo"]):
 			return elemento_id
-	return &""
+		en_suelo = elemento_id
+	return en_suelo
 
 
 ## Reembolso TOTAL de demoler una sala en cascada (sala + contenido, F4) — para el diálogo de
@@ -1601,6 +1624,8 @@ var _fuentes_tileset: Dictionary = {}
 ## mueble alto —a la altura del pecho de un muñeco de 22 px— y un asiento como algo bajo.
 const ALTO_MOSTRADOR: float = 16.0
 const ALTO_ASIENTO: float = 7.0
+## Ámbar del punto con el que se marca una luz de techo: el color universal de "aquí hay una luz".
+const COLOR_LUZ_TECHO := Color(1.0, 0.82, 0.35)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -1751,7 +1776,9 @@ func _refrescar_visual() -> void:
 		if Datos.obtener_silencioso(&"TipoPuesto", elemento["catalogo"]) != null:
 			continue
 		var orientacion: int = elemento.get("orientacion", HORIZONTAL)
-		var instancia: Node2D = _crear_pieza(es_asiento, celdas, orientacion)
+		var instancia: Node2D = _crear_pieza(
+			es_asiento, celdas, orientacion, es_de_techo(elemento["catalogo"])
+		)
 		instancia.position = Proyeccion.centro_iso(elemento["celda"])
 		if not es_asiento:
 			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
@@ -1795,7 +1822,9 @@ func _textura_de_celda(color: Color) -> ImageTexture:
 ## suelo y dos piezas contiguas encajan en vez de solaparse.
 ##
 ## Sigue siendo placeholder (TR-construction-003): el arte real llegará tras el art bible.
-func _crear_pieza(es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL) -> Node2D:
+func _crear_pieza(
+	es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL, de_techo: bool = false
+) -> Node2D:
 	var raiz := Node2D.new()
 	var caja := PiezaIso.new()
 	caja.name = "Caja"
@@ -1803,7 +1832,11 @@ func _crear_pieza(es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL) 
 	# el MISMO eje que reserva el modelo en `_celdas_de`, así que lo que se ve es lo que se ocupa.
 	var ancho: int = 1 if orientacion == VERTICAL else celdas
 	var largo: int = celdas if orientacion == VERTICAL else 1
-	if es_asiento:
+	if de_techo:
+		# Una luz se marca con un PUNTO ÁMBAR, no con una caja: cuelga del techo, no ocupa suelo y no
+		# debe tapar lo que haya debajo (petición del usuario 2026-07-30).
+		caja.configurar(1, 1, 0.0, COLOR_LUZ_TECHO, 1.0, true)
+	elif es_asiento:
 		caja.configurar(1, 1, ALTO_ASIENTO, Color(0.45, 0.42, 0.35))
 	else:
 		caja.configurar(ancho, largo, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
