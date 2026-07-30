@@ -1,7 +1,8 @@
 # Art Bible — Comisario *(título provisional)*
 
 *Created: 2026-07-19*
-*Status: Draft — núcleo visual (secciones 1–4) completado; secciones 5–9 pendientes*
+*Status: **COMPLETO** — secciones 1–9 cerradas (§1-4 el 2026-07-19; §5-9 con el usuario el 2026-07-30)*
+*Última sesión: 2026-07-30 (§5 con el usuario)*
 
 > **Art Director Sign-Off (AD-ART-BIBLE)**: N/A — modo *lean* (validación de director omitida).
 > **Nota de autoría**: el núcleo visual lo redactó el hilo principal (Opus 4.8) actuando como
@@ -106,10 +107,296 @@ posición. Los tipos de trámite y denuncia usan icono + etiqueta además del co
 
 ---
 
-## Secciones pendientes (para una próxima sesión)
+## 5. Dirección de Personajes
 
-5. Dirección de personajes · 6. Lenguaje de entornos · 7. Dirección visual de UI/HUD ·
-8. Estándares de assets (formatos, resoluciones, límites Godot) · 9. Referencias.
+*Decidido con el usuario el 2026-07-30.*
+
+### Perspectiva y silueta
+
+**Vista cenital 3/4: se ve la cabeza desde arriba y los hombros marcados** (la referencia es *Prison
+Architect*, ya acordada en §9). No es planta pura: la cabeza asoma lo justo para que el muñeco tenga
+orientación y se lea hacia dónde mira.
+
+**Por qué esta y no la planta pura**: la §3 ya fijó que *"la gente cuenta la historia"* y que si hay
+que invertir detalle, gana hacer legibles a las personas antes que el mobiliario. Una coronilla no
+transmite rol; unos hombros con gorra, sí.
+
+**Por qué no sprites de lado (2.5D)**: chocaría con la geometría ortogonal de §3 y multiplicaría el
+trabajo de animación (andar en 4 direcciones con perfil dibujado a mano).
+
+### Nivel de detalle
+
+**Pixel art legible, ~16-24 px de alto, 4-6 colores por personaje, SIN CARA.**
+
+- Encaja con el principio 1 de §1 (*claridad funcional antes que detalle*).
+- Es lo más barato de producir en volumen, y este juego tiene **17 tipos de trámite/denuncia** y
+  potencialmente decenas de personas en pantalla a la vez.
+- Envejece bien: el pixel art no se ve "de hace dos años" como sí le pasa a un vectorial de moda.
+- **Sin cara a propósito**: a ese tamaño una cara es ruido, y además obliga a resolver expresiones que
+  no aportan nada a un juego donde lo que importa es el ESTADO (esperando, cansado, atendido).
+
+### Cómo se distingue quién es quién
+
+Regla dura, heredada de §3: **el rol se lee por COLOR DE UNIFORME + UN ACCESORIO DE SILUETA**, nunca
+por la cara. Y el test sigue siendo el mismo: *si dos arquetipos se confunden de un vistazo, se
+refuerza la silueta o el color, no el detalle*.
+
+| Arquetipo | Color base | Accesorio de silueta |
+|---|---|---|
+| **Agente uniformado** | Azul marino CNP `#0B2A5B` | Gorra + hombros marcados |
+| **Ciudadano de a pie** | Neutros variados (gris, tierra, verdes apagados) | Ninguno — es la silueta base |
+| **Denunciante** | Neutro | Carpeta o papel en la mano |
+| **Abogado** | Oscuro sobrio | Maletín |
+| **Detenido** | Neutro apagado | Postura encorvada + esposas |
+
+> ⚠️ **Pendiente de decidir**: si los ciudadanos llevan color por SERVICIO (como hoy: azul
+> Documentación / naranja ODAC) o color libre "de calle" con el servicio indicado por otra vía. Hoy el
+> andamio usa color por servicio; el punto **U8** del backlog de pulido pide además **un icono por
+> tipo de trámite**, y las dos cosas juntas pueden ser demasiada información sobre una persona de
+> 20 px. **Hay que resolverlo con la §7 (UI/HUD), no aquí.**
+
+### Rangos: la regla de las divisas
+
+**Ya acordada y no negociable** (ver §9): las divisas de rango se representan con la **imagen real
+exacta** de cada divisa (Orden INT/430/2014) aplicando un filtro de estilo. **Nunca se dibujan a mano
+ni se aproximan.**
+
+Consecuencia práctica para el pixel art: **a 20 px una divisa no se ve**. Así que el rango NO se lee
+en el muñeco del mundo — se lee en el **panel de personal y en las fichas**, donde la divisa se
+muestra a tamaño suficiente. En el mundo, un Oficial se distingue (si hace falta) por un detalle de
+silueta, no por su divisa.
+
+### Animaciones mínimas (MVP)
+
+Lo que el juego YA necesita hoy, no una lista de deseos:
+
+| Animación | Para qué | Prioridad |
+|---|---|---|
+| **Andar, 4 direcciones** | Todo el mundo se mueve por la comisaría | **Crítica** |
+| **Quieto (idle)** | Esperar de pie en la cola, estar en la ventanilla | **Crítica** |
+| **Sentado** | Las sillas de la sala de espera se usan de verdad | Alta |
+| **Atender** (tras el mostrador) | El agente en su ventanilla | Alta |
+| **Tomando café** | La sala de descanso (Bienestar #13) — hoy es un muñeco con una taza | Media |
+
+*Nada de animaciones de transición elaboradas: a 20 px no se aprecian y multiplican el coste.*
+
+---
+
+## 6. Lenguaje de Entornos
+
+*Decidido con el usuario el 2026-07-30, justo después de cerrar el sistema de muros libres — antes no
+se sabía qué había que dibujar.*
+
+### Paredes: franja con grosor, no línea de plano
+
+**Una pared es una banda de 6-8 px con su cara superior y un lado sombreado** (referencia:
+*Prison Architect*). Se ve el grosor: el edificio se lee como un sitio, no como un esquema.
+
+Es coherente con la vista **cenital 3/4** elegida en §5 para los personajes: si la gente tiene volumen,
+las paredes no pueden ser un trazo plano o el conjunto se pelea consigo mismo.
+
+**Por qué no la pared con altura de canto** (la que se ve en perspectiva hacia el sur): taparía lo que
+hay detrás y obligaría a resolver qué pasa cuando una persona queda oculta. Con decenas de personas en
+pantalla y el principio 1 de §1 (*claridad funcional*), no compensa.
+
+**Implicación técnica ya resuelta**: el modelo pone el muro **en la arista entre dos celdas**, no
+dentro de una celda, así que la franja se dibuja centrada sobre esa arista y **dos salas pegadas
+comparten tabique** — se pinta una sola vez.
+
+### Puertas y ventanas
+
+- **Puerta**: hueco en la franja, con dos jambas cortas a los lados. Debe leerse desde lejos que ahí
+  se pasa: es el único punto por el que se entra a una sala cerrada.
+- **Ventana**: la franja en tono claro azulado y más fina, que se lea como cristal. **Se ve a través,
+  no se pasa** — y el dibujo tiene que contar exactamente eso.
+
+### Suelos: la textura dice para qué es la sala
+
+**Cada tipo de zona tiene su suelo.** Lo que distingue una sala de otra es la **textura**, no un tinte
+de color:
+
+| Zona | Suelo | Por qué |
+|---|---|---|
+| **Sala de espera** | Terrazo claro moteado | El suelo real de cualquier edificio público español |
+| **Oficina / ventanillas** | Moqueta institucional azul apagado | Zona de trabajo, absorbe ruido |
+| **Sala de descanso** | Baldosa clara de office | Se lee como "aquí se come y se toma café" |
+| **Pasillo / sin zona** | El suelo base del edificio | Lo que queda sin designar |
+
+**Por qué la textura y no el color**: la §3 dice que suelos y paredes **se retiran** (grises azulados,
+bajo contraste) para que atraigan la vista las personas y lo accionable. Un suelo tintado de naranja
+compite con la gente; una textura no. Y de paso resuelve la queja del usuario de que las salas
+*"parecían alfombras de colores"*.
+
+> ⚠️ **Consecuencia que hay que asumir**: hoy el color por servicio (azul Doc / naranja ODAC) es lo
+> único que distingue de quién es cada sala. Al retirarlo, **hace falta otra vía para saberlo** —
+> probablemente el rótulo de sala que ya existe, reforzado. **Se resuelve en §7 (UI/HUD).**
+
+### Densidad y desorden
+
+**La comisaría se ensucia con el uso, no de fábrica.** El estado *"fracaso / mala gestión"* de §2 pide
+*"caótico, saturado, agobiante"*: eso se consigue con **colas desbordadas, papeles y basura
+acumulados**, no con un tileset sucio de partida. Una comisaría recién montada debe verse **limpia y
+ordenada** — el desorden es información sobre cómo la estás llevando.
+
+---
+
+## 7. Dirección Visual de UI / HUD
+
+*Decidido con el usuario el 2026-07-30. Aquí caen sus tres quejas pendientes del backlog de pulido
+(**U2** panel de construcción, **U3** panel de empleados, **U4** el HUD "intuitivo como los tycoon") y
+las dos deudas que dejaron §5 y §6.*
+
+### El HUD: barra inferior con zonas FIJAS
+
+Franja abajo dividida en bloques que **siempre están en el mismo sitio**:
+
+| Zona | Qué lleva |
+|---|---|
+| **Izquierda** | Dinero y reloj (hora + día). Lo que consultas sin parar. |
+| **Centro** | Estado de la comisaría: colas, satisfacción, avisos (gente de café, nadie atendiendo). |
+| **Derecha** | Botonera de acciones: Construir, Personal, Horario, Guardar/Cargar. |
+
+**La regla es que nada cambie nunca de sitio.** Un dato que se mueve obliga a buscarlo cada vez; uno
+que siempre está en el mismo píxel se aprende una vez y ya no se piensa. Es lo que hace "intuitivo
+como los tycoon" (petición U4) y el patrón de *Prison Architect* y *Two Point*.
+
+**Por qué no arriba + lateral**: el panel lateral come ancho de pantalla, y el ancho es justo donde
+está la comisaría (el edificio es 24×13 celdas, apaisado).
+
+**Por qué no un HUD mínimo**: obligaría a abrir menús para saber cómo va la cosa, que es exactamente
+lo contrario de un tycoon.
+
+### Los paneles: expediente / dosier oficial
+
+Ya estaba fijado en §3 y se confirma: **fichas con pestañas, sellos, tipografía de oficina, aire de
+carpeta del Ministerio**. Base oscura institucional con acentos azul CNP y ámbar (§4).
+
+Refuerza el tono (*"realismo con alma"*, pilar 1) y **distingue el HUD del mundo** sin salirse de la
+paleta sobria. Un panel de software moderno sería más fácil, pero podría ser de cualquier juego.
+
+**Aquí es donde vive la divisa de rango**: §5 dejó dicho que a 20 px no se ve en el muñeco. En la ficha
+del panel de personal sí hay sitio para mostrarla a tamaño suficiente, con la **imagen real exacta**
+de la Orden INT/430/2014 y su filtro de estilo, como manda la regla ya acordada.
+
+### Las dos deudas que llegaban de §5 y §6
+
+**1. ¿De qué servicio es cada sala, si el suelo deja de ir tintado?** (deuda de §6)
+→ Lo dice el **rótulo de la sala**, que ya existe hoy sobre cada zona. Se refuerza: nombre + su color
+de servicio en el propio rótulo, no en el suelo. Así el color sigue estando, pero **en un sitio que no
+compite con la gente** — que era el motivo de retirarlo del suelo.
+
+**2. ¿Cómo se sabe a qué viene cada ciudadano?** (deuda de §5, y petición **U8** del usuario:
+*"habría que poner como un icono para saber a qué viene cada uno: documentación, TIE, sustracción,
+pérdida…"*)
+→ **Un icono sobre la cabeza, no un color más en el cuerpo.** Sobre una persona de 20 px conviven ya
+la barra de paciencia y el color de servicio; meter un tercer canal cromático la convierte en ruido.
+El icono va **junto a la barra de paciencia, resuelto como conjunto** (una "chapa" que agrupa las dos
+cosas), nunca como dos elementos sueltos peleándose por el mismo espacio.
+→ **Y debe distinguirse la urgencia**, no solo el tipo: una VioGén y un extravío de DNI no pueden
+pedir la misma atención visual (el modelo ya tiene el peso de prioridad: 2.5 frente a 1.0).
+
+### Reglas duras de UI
+
+- **U5, del backlog**: *ningún indicador numérico se da por bueno si el jugador no puede saber,
+  mirándolo, si ese número es bueno o malo.* Toda cifra lleva su escala visible (fue lo que convirtió
+  los atributos en barras de 5 casillas, y el confort en **minutos** de espera).
+- **Nada hover-only** (regla del proyecto): la información no puede depender de pasar el ratón, para
+  no cerrar la puerta a mando o táctil más adelante.
+- **Respaldo no cromático siempre** (§4): estado crítico = color **+** forma/icono/texto.
+- **Todo Control decorativo no captura el ratón**; los botones no retienen el foco. *(Gotcha ya
+  sufrido: adornos que se tragaban los clics e impedían construir.)*
+
+---
+
+## 8. Estándares de Assets
+
+*Decidido con el usuario el 2026-07-30.*
+
+### La rejilla: 40 px por celda, tamaño nativo
+
+*Decisión del usuario 2026-07-30, revisada: se mantienen los **40 px que el juego ya usa** en vez de
+bajar a 32.*
+
+| Qué | Valor |
+|---|---|
+| **Celda, tamaño de dibujo** | **40 × 40 px** |
+| **Celda, en pantalla** | 40 × 40 px (nativo, sin escalar) |
+| **Personaje** | ~24 px de alto (dentro de su celda) |
+| **Pared** | franja de 6-8 px sobre la arista |
+
+**Por qué 40 y no 32**: porque es lo que el juego ya usa (`TAM_CELDA` en `src/main/main.gd`), y bajarlo
+obligaría a repasar **todas las posiciones calculadas a mano de la capa visual** —rótulos de puesto,
+barras de cansancio, etiquetas de sala, luces, jambas de puerta— por una preferencia estética. **No se
+toca código que funciona para ganar una potencia de dos que aquí no aporta nada**: lo de las potencias
+de dos importa para mipmaps y compresión de texturas 3D, no para sprites 2D sueltos.
+
+**Ventaja añadida**: a 40 px un personaje mide ~24 px en vez de ~20, así que hay **más sitio para la
+gorra y el maletín** que la §5 necesita para distinguir arquetipos.
+
+**Coste asumido**: cada asset tiene un 56 % más de superficie que a 32 px, así que dibujar cuesta algo
+más. Se acepta a cambio de no tocar nada.
+
+**Sin escalado**: se dibuja a 40 y se muestra a 40. Es lo que mantiene el pixel art perfectamente
+nítido — el enemigo del pixel art es el escalado fraccionario, y aquí no hay ninguno. En una pantalla
+de 1920×1080 caben 48×27 celdas y el edificio mide 24×13: **cabe entero y sobra sitio** para el HUD.
+
+> ✅ **Sin deuda técnica.** Esta decisión, a diferencia de bajar a 32, no obliga a tocar ni una línea
+> de código antes de empezar a producir arte.
+
+### Formatos y organización
+
+- **PNG con transparencia**, sin compresión con pérdida.
+- **Filtro de textura: NEAREST** (en Godot, `texture_filter = TEXTURE_FILTER_NEAREST`). Con el filtro
+  lineal por defecto, el pixel art se ve borroso — es el error más común al importarlo.
+- **Nada de mipmaps** en sprites 2D: emborronan al alejar la cámara.
+- Ruta: `assets/art/[familia]/[id].png`, donde el `id` es **el mismo del catálogo** (`vending.png`,
+  `sofa_descanso.png`, `ag_doc.png`). Así el asset se encuentra desde el `.tres` sin tabla de traducción.
+- **Atlas**: agrupar por familia cuando haya volumen (personajes, mobiliario, suelos). No al principio:
+  primero que existan los sprites sueltos.
+
+### Presupuesto de color
+
+**4-6 colores por personaje** (§5) y paleta global la de §4. Nada de degradados suaves ni de cientos
+de tonos: el pixel art se sostiene por una paleta corta y disciplinada, y una paleta corta es además
+lo que hace que todo **parezca del mismo juego** aunque lo dibujen manos distintas.
+
+### Qué hay que producir (inventario real, no lista de deseos)
+
+Sale de los **7 andamios declarados** del backlog de pulido, que es lo que hoy está hecho con
+rectángulos de color:
+
+| Familia | Piezas | De dónde sale |
+|---|---|---|
+| **Personajes** | ~5 arquetipos × 4 direcciones × (andar + quieto + sentado) | §5 |
+| **Suelos** | 4 texturas (terrazo, moqueta, office, base) | §6 |
+| **Paredes** | franja + esquinas + puerta + ventana | §6 |
+| **Mobiliario** | 14 comodidades del catálogo + 4 puestos + asiento | catálogo actual |
+| **Iconos de trámite** | 17 (3 de Documentación + 14 de ODAC) | punto U8 del backlog |
+| **UI** | marco de expediente, pestañas, barras, botonera | §7 |
+
+---
+
+## 9. Referencias
+
+*Confirmadas con el usuario; las tres primeras ya estaban acordadas de antes.*
+
+| Referencia | Qué se toma | Qué NO se toma |
+|---|---|---|
+| **Prison Architect** | Vista cenital 3/4, paredes con grosor, construcción modular, HUD de zonas fijas | Su aspereza de prisión; su estética de "institución hostil" |
+| **This Is the Police** | Paleta sobria, tono de gestión policial adulta | El noir, los claroscuros de novela negra |
+| **Fotos reales de comisarías del CNP** | Autenticidad: mobiliario, señalética, azul corporativo, terrazo | — |
+| **Two Point Hospital** | *(anti-referencia)* | **Su caricatura.** Es el tono que hay que evitar: nada cómico ni exagerado |
+
+**Regla de las divisas (ya acordada, no negociable)**: las divisas de rango se representan con la
+**imagen real exacta** de cada divisa (Orden INT/430/2014) con un filtro de estilo. **Nunca se dibujan
+a mano ni se aproximan.** Son símbolos oficiales del Estado: **revisar el uso legal si el juego se
+comercializa**. Por resolución (§5, §8) la divisa **no se ve en el muñeco**: vive en las fichas del
+panel de personal.
+
+---
+
+## Notas heredadas
+
 
 **Referencias base ya acordadas**: *Prison Architect* (vista cenital, legibilidad institucional,
 construcción modular — evitar su aspereza de prisión); *This Is the Police* (paleta sobria, gestión

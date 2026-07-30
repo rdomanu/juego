@@ -1688,3 +1688,98 @@ archivos resultantes, no fiarse solo de su informe de vuelta.
 `production/epics/retos-comisario/`), **ODAC #9** (C3-13 en el backlog, la última pieza del MVP sin
 implementar) o una tanda de **juice** (números flotantes, rebotes — el usuario ha dicho que le gustan
 las animaciones de los juegos idle).
+
+---
+
+## 🧱 CIERRE DE SESIÓN (2026-07-30) — MUROS LIBRES COMPLETOS (5 FASES) + LLAMADA ANTICIPADA + BIENESTAR #13 SIGUE SIN CERRAR
+
+**Estado verificado en el hilo principal (no por informe de subagente): suite 643 casos, 0 fallos, exit
+code 0. Arranque headless limpio. Todo commiteado y pusheado. Catálogo 50/50 recursos.**
+
+### Bienestar #13 — implementado del todo, SIN SIGN-OFF todavía
+Hoy se completó lo visual y lo jugable que faltaba: la barra de cansancio se VE sobre cada
+funcionario (y en el panel P); el patrón de descanso (2 cafés cortos / 1 café largo / 1 café de
+caradura) sale de la MOTIVACIÓN del agente; el camino a la sala de descanso se ve andado de verdad
+(ya no hay teletransporte) y cuenta AL LLEGAR, no durante el trayecto; la sala tiene AFORO (si no cabe,
+el agente sigue atendiendo, no pierde su turno de café); los muebles de la sala ACORTAN la pausa hasta
+un 30 % (suelo calibrado para que cada compra cuente); el cupo de cafés se renueva por TURNO DE 8 HORAS
+(no por jornada completa, que dejaba a la gente de ODAC 24 h agotada); y quien está de café cuando
+cierra su ventanilla se marcha a casa sin terminarlo. **Falta la demo formal en ventana y el sign-off
+del usuario** — lo implementado está probado por test de integración, no por ojo humano viendo andar al
+muñeco.
+
+### La llamada anticipada (Flujo)
+Medido con números reales: un agente de Documentación pasaba **17 minutos parado** por cada cliente
+(esperando a que cruzara la comisaría) y solo 13 atendiendo — **trabajaba el 44 % de su jornada**, y de
+paso la barra de cansancio nunca llegaba a llenarse en ese servicio porque solo cansa el tiempo de
+atención. Se descartaron "meter más gente" (no falta cola) y "acelerar el camino x3" (rompería la
+velocidad calibrada del muñeco). La solución: cada ventanilla puede tener un SIGUIENTE ya llamado que
+viene andando mientras el actual termina, y empalma en el mismo tick si ya llegó — como una oficina de
+verdad que canta el número antes de que te levantes. Resuelto: la ventanilla ya no se queda parada
+esperando el paseo del próximo cliente.
+
+### Muros libres — las 5 fases (A-E), COMPLETAS
+Petición del usuario: "la construcción de las paredes debe ser libre y luego dentro poner las zonas".
+El flujo completo, cerrado hoy: **pintar muros** (fase A, arrastre por arista) → **una sala deja de ser
+un rectángulo** y pasa a ser un conjunto de celdas real (fase B) → **el hueco que encierras ES la zona**,
+con la forma que tenga, sin dibujar rectángulos (fase C) → **puertas y ventanas** en los muros ya
+levantados (fase D) → **los muros bloquean el paso de verdad** (fase E). Decisión clave: **el muro vive
+en la ARISTA entre dos celdas, no dentro de una celda** — así no come superficie útil, dos salas pegadas
+comparten tabique, y ni el coste ni el aforo (que se calculan por área) cambian. Y la distinción que
+hace funcionar todo el sistema: **`hay_muro()`** decide qué espacio encierras (una puerta cuenta como
+pared, si no la sala se "escaparía" por su propia puerta); **`deja_pasar()`** decide si SE PUEDE cruzar
+esa arista al moverse (por la puerta sí se pasa, por la ventana no). Son dos preguntas distintas sobre
+la misma arista.
+
+### Los bugs cazados hoy (la parte más valiosa del registro)
+- **Las comodidades se perdían al guardar**: al cargar, `load_state` daba por inválido todo lo que no
+  fuera un asiento NI un TipoPuesto — y una máquina de vending, una tele o un sofá no son ninguna de las
+  dos cosas. Guardabas con F5, cargabas con F9, y las salas amuebladas volvían vacías.
+- **El juego se comía su propia evidencia de QA**: un andamio de captura automática escribía SIEMPRE en
+  el mismo archivo que usaba una demo firmada como prueba — cada arranque pisaba la foto de aquel día.
+- **Las lámparas no salían en ningún menú**: no existía ninguna familia de iluminación comprable — solo
+  se encendían solas la tele, el vending, la fuente y el equipo. El usuario preguntó por las luces de
+  noche y sencillamente no había nada que comprar.
+- **El ciudadano plantado en ODAC**: efecto colateral de la llamada anticipada — el muñeco ya llamado
+  leía "me queda 0 de camino" (el dato de OTRO agente) y corría a paso acelerado, llegaba antes de
+  tiempo y se quedaba congelado hasta 60 minutos, encima pintado sobre el que sí atendían.
+- **El agente que no se iba al café sin cola**: el descanso solo se comprobaba al COMPLETAR un trámite,
+  y sin cliente esperando no se completa ninguno — con la ventanilla vacía era, paradójicamente, cuando
+  menos probable era que se fuera a descansar.
+- **El cupo agotado que dejaba a la gente en rojo 18 horas**: el cupo de cafés era por JORNADA completa
+  y ODAC no cierra nunca, así que un agente gastaba su única pausa y se quedaba al máximo de cansancio
+  (25 % más lento) durante toda la sesión sin salida.
+- **La luz que no se encendía al construirla de noche**: el cálculo de energía se saltaba el trabajo
+  cuando la energía global no había cambiado (lo normal a media noche) — una lámpara recién comprada
+  nacía apagada hasta el siguiente amanecer/anochecer.
+- **El menú que ofrecía "abrir la ventanilla asiento_3"**: se preguntaba primero si el elemento estaba
+  cerrado (cualquier id desconocido responde "cerrado") y solo después si era una ventanilla de verdad
+  — el orden de las preguntas estaba invertido, y encima mostraba el id interno en vez del nombre.
+
+### Deuda conocida y pendientes
+- **Los tres cronómetros del juego (llegar a la ventanilla, ir al café, entrar por la mañana) miden en
+  LÍNEA RECTA.** Con paredes que ahora obligan a rodear, el reloj puede decir que se tarda menos de lo
+  que de verdad se tarda. Se paga midiendo rutas reales y cacheándolas en el rebake de navegación, no
+  por frame.
+- **Punto U9 del backlog de pulido**: el usuario dijo que el trazado de muros "va mejor, no del todo
+  bien" y no concretó qué falla — pidió seguir. Hay que volver a preguntárselo antes de dar la
+  herramienta por definitivamente buena, porque es con la que se construye TODA la comisaría.
+- **ODAC #9**: la última pieza del MVP, todavía sin implementar (sin panel propio; se maneja por el
+  clic derecho sobre la sala mientras tanto).
+- **Bienestar #13**: implementado del todo, sin demo formal ni sign-off.
+- **Se puede encerrar gente cerrando un espacio sin puerta.** Es un comportamiento PERMITIDO a propósito
+  (el modelo no obliga a dejar salida), pero en partida se sentirá como un bug si le pasa a alguien sin
+  querer.
+
+### Próximo
+El usuario ha decidido pasar a **DISEÑO**: art bible §5-9 (dirección de personajes, lenguaje de
+entornos, dirección visual de UI/HUD, estándares de assets, referencias). Nota de contexto: `assets/`
+está VACÍO (0 archivos) y la regla del proyecto es explícita — nada de arte antes del art bible §5-9
+(condición 2 del gate Pre-Production → Production, todavía sin resolver).
+
+### Nota de método
+Hoy **ONCE subagentes se quedaron sin turno a mitad de tarea**. Uno de ellos dejó el juego SIN COMPILAR
+y sin la función central de la llamada anticipada (llamadas a una función inexistente) — se revirtió su
+trabajo y se rehízo entero en el hilo principal, sin delegar. Todo lo dado por bueno en esta sesión se
+verificó en el hilo principal con la suite completa y el arranque headless, **nunca por el informe de
+vuelta de un subagente**.
