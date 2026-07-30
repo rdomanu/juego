@@ -1,7 +1,8 @@
 # Art Bible — Comisario *(título provisional)*
 
 *Created: 2026-07-19*
-*Status: **COMPLETO** — secciones 1–9 cerradas (§1-4 el 2026-07-19; §5-9 con el usuario el 2026-07-30)*
+*Status: secciones 1–9 cerradas, pero **§5/§6/§8 EN REVISIÓN** por el cambio a isométrico (2026-07-30)*
+*Antes: completo — secciones 1–9 cerradas (§1-4 el 2026-07-19; §5-9 con el usuario el 2026-07-30)*
 *Última sesión: 2026-07-30 (§5 con el usuario)*
 
 > **Art Director Sign-Off (AD-ART-BIBLE)**: N/A — modo *lean* (validación de director omitida).
@@ -104,6 +105,59 @@ para que el HUD «mande» y no se confunda con la escena.
 Los pares problemáticos son **verde/rojo** (paciencia, OK/alerta) y **verde/ámbar**. Regla: **nunca**
 comunicar un estado crítico solo por color — respaldo obligatorio de **forma/icono/texto** (✓ ⏳ ⚠) y/o
 posición. Los tipos de trámite y denuncia usan icono + etiqueta además del color.
+
+---
+
+## ⚠️ CAMBIO DE RUMBO 2026-07-30 — ISOMÉTRICO, NO CENITAL
+
+> **Decisión del usuario, al final de la sesión**: *"quiero un theme hospital con la misma
+> visualización"*.
+
+**Theme Hospital es ISOMÉTRICO**, no cenital: "gráficos 3D isométricos, mismo punto de vista que
+Theme Park", con los sprites **pre-renderizados desde 3D**. Nuestro juego es hoy **cenital con rejilla
+cuadrada**. Son dos proyecciones distintas.
+
+**Las secciones 5, 6 y 8 de abajo se escribieron para CENITAL y quedan PARCIALMENTE OBSOLETAS.** Lo
+que sigue valiendo entero: §1 (identidad), §2 (mood), §3 (lenguaje de formas), §4 (color), §7 (UI) y
+§9 (referencias) — nada de eso depende de la proyección.
+
+### Qué cambia y qué NO
+
+**NO cambia el modelo.** Flujo, Personal, Paciencia, Economía, Demanda, Documentación, los muros en
+las aristas, las zonas, los recintos y los cronómetros **no saben qué es un píxel**. Los 643 tests
+siguen valiendo. Esto es mérito del ADR-0004 (*"el visual REFLEJA el modelo, jamás al revés"*): esa
+disciplina es lo que hace viable un cambio de proyección a estas alturas.
+
+**Cambia la capa visual entera**: la proyección celda↔píxel, todo lo que hoy se dibuja por código
+(suelos, paredes, muñecos, mostradores, rótulos, luces), el **orden de dibujo** (en isométrico lo que
+está más abajo tapa a lo que está detrás — hoy eso no existe) y la conversión clic→celda del modo
+construcción.
+
+### Revisión de §5 (personajes)
+
+- **Perspectiva**: isométrica, no "cenital 3/4".
+- **Producción**: **3D pre-renderizado a sprites**, que es como lo hicieron Theme Hospital,
+  RollerCoaster Tycoon y Age of Empires. Resuelve de raíz el problema de los 4 ángulos: es **el mismo
+  modelo girado**, no cuatro dibujos que deben parecerse.
+- **Detalle**: NO pixel art. El usuario lo descartó expresamente (*"lo veo muy pixel"*, *"realista
+  pero jugón"*). Sigue valiendo el resto de §5: sin cara, rol por color + accesorio de silueta, y la
+  regla de las divisas (que a este tamaño tampoco se ven en el muñeco: viven en las fichas).
+- **Direcciones**: en isométrico se suelen necesitar **4 u 8**; con 4 basta para empezar.
+
+### Revisión de §6 (entornos)
+
+- Las paredes isométricas **tienen altura visible** y se dibujan como caras, no como franjas. Aquí sí
+  hay que resolver **qué pasa cuando una pared tapa a alguien** (Theme Hospital baja las paredes del
+  lado más cercano a la cámara).
+- La decisión de fondo se mantiene: **la textura del suelo dice para qué es la sala**, y el color de
+  servicio vive en el rótulo, no en el suelo.
+
+### Revisión de §8 (estándares)
+
+- La celda deja de ser un cuadrado de 40×40 y pasa a ser un **rombo isométrico**. Proporción estándar
+  **2:1**: con la celda actual de 40 px de lado, el rombo sería **80 × 40 px**.
+- **Pendiente de fijar en la sesión de conversión**: alto de las paredes en píxeles, y punto de anclaje
+  de los sprites (los isométricos se anclan por la base, no por el centro).
 
 ---
 

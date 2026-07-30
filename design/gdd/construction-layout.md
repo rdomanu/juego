@@ -471,6 +471,53 @@ destaca, respaldo daltónico (icono/texto además del color).*
 > 📌 **Asset Spec** — Tras aprobar el art bible, `/asset-spec system:construction-layout` para tiles de
 > rejilla, suelos/paredes por servicio, mostradores de puesto, asiento básico, y VFX de construir/demoler.
 
+## ⚠️ CAMBIO DE PROYECCIÓN aprobado 2026-07-30 — A ISOMÉTRICO
+
+> **Usuario**: *"quiero un theme hospital con la misma visualización"* · *"realista pero jugón"* ·
+> *"lo veo muy pixel"* (descartando el pixel art) · *"quiero una experiencia tycoon total"*.
+
+**Verificado antes de decidir**: Theme Hospital es **isométrico** ("gráficos 3D isométricos, mismo
+punto de vista que Theme Park"), con sprites **pre-renderizados desde 3D**. Este GDD se escribió para
+una rejilla **cenital cuadrada**.
+
+### Lo que NO se toca (y por qué se puede hacer esto)
+
+**El modelo entero.** La rejilla de celdas, los muros en las aristas, las zonas por recinto, el aforo,
+los costes, los cronómetros por cuadrículas, la persistencia — nada de eso conoce la proyección. Los
+**643 tests siguen valiendo**.
+
+Esto es consecuencia directa del **ADR-0004**: *"el visual REFLEJA el modelo, jamás al revés"*. Sin esa
+disciplina, cambiar de proyección a estas alturas sería rehacer el juego.
+
+### Lo que hay que rehacer (capa visual)
+
+| Pieza | Qué cambia |
+|---|---|
+| **Proyección celda↔píxel** | De cuadrado a rombo isométrico (2:1). Es la función raíz de todo lo demás |
+| **Suelos de sala** | `TileMapLayer` en modo isométrico en vez de cuadrado |
+| **Paredes** | Dejan de ser franjas sobre la arista: pasan a ser **caras con altura** |
+| **Personajes y mostradores** | Sprites isométricos, anclados por la BASE (no por el centro) |
+| **Orden de dibujo** | NUEVO: en isométrico lo que está más abajo tapa a lo que está detrás. Hoy no existe |
+| **Clic → celda** | La conversión inversa de la proyección; de ella vive todo el modo construcción |
+| **Rótulos, barras, luces** | Reposicionar sobre la nueva proyección |
+
+### Problema conocido a resolver en la conversión
+
+**Las paredes taparán a la gente.** Theme Hospital lo resuelve **bajando las paredes del lado más
+cercano a la cámara**. Hay que decidirlo explícitamente: es la diferencia entre ver tu comisaría y ver
+una fila de muros.
+
+### Orden acordado
+
+1. **Primero la proyección**, con los rectángulos de colores que ya existen — para comprobar que todo
+   sigue funcionando en isométrico sin arte de por medio.
+2. **Después el arte**, en 3D pre-renderizado.
+
+Se hace AHORA porque el arte todavía no existe: **no se tira nada**. Cada semana que pasara habría más
+capa visual que convertir, y si se hiciera con 100 sprites cenitales ya producidos, se tirarían los 100.
+
+---
+
 ## Ampliación aprobada 2026-07-30 — MUROS LIBRES Y ZONAS
 
 > **Origen**: el usuario, jugando: *"ya he puesto paredes pero debe poder ponerse de manera libre como

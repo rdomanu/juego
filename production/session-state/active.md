@@ -1783,3 +1783,34 @@ y sin la función central de la llamada anticipada (llamadas a una función inex
 trabajo y se rehízo entero en el hilo principal, sin delegar. Todo lo dado por bueno en esta sesión se
 verificó en el hilo principal con la suite completa y el arranque headless, **nunca por el informe de
 vuelta de un subagente**.
+
+---
+
+## 🔄 CAMBIO DE RUMBO AL CIERRE (2026-07-30) — EL JUEGO PASA A ISOMÉTRICO
+
+**Decidido por el usuario en los últimos mensajes de la sesión**: *"quiero un theme hospital con la
+misma visualización"*, *"realista pero jugón"*, *"lo veo muy pixel"* (descarta el pixel art),
+*"quiero una experiencia tycoon total"*.
+
+**Verificado antes de decidir**: Theme Hospital es **isométrico** (sprites pre-renderizados desde 3D).
+El juego es hoy **cenital con rejilla cuadrada**.
+
+**NO se toca el modelo**: Flujo, Personal, Paciencia, Economía, Demanda, Documentación, los muros en
+aristas, las zonas, los cronómetros — nada conoce la proyección. **Los 643 tests siguen valiendo.**
+Es mérito del ADR-0004 (*el visual refleja el modelo, jamás al revés*).
+
+**Se rehace la capa visual**: proyección celda↔píxel (cuadrado → rombo 2:1), suelos, paredes (pasan a
+tener altura), sprites anclados por la base, **orden de dibujo por profundidad (nuevo)**, y la
+conversión clic→celda de la que vive el modo construcción.
+
+**Orden acordado**: (1) la proyección con los rectángulos de colores actuales, para comprobar que todo
+sigue funcionando sin arte de por medio; (2) el arte después, en 3D pre-renderizado.
+
+**Se hace AHORA porque el arte no existe todavía** (`assets/` = 0 archivos): no se tira nada.
+
+Anotado en `design/gdd/construction-layout.md` y en `design/art/art-bible.md` (§5/§6/§8 marcadas EN
+REVISIÓN; §1-4, §7 y §9 siguen valiendo enteras).
+
+**Herramientas de arte investigadas** (para la sesión de producción, no la de conversión): Scenario
+(45 $/mes, entrena modelo propio, tiene MCP), SpriteCook, Pixel Plugin + Aseprite. Aviso registrado:
+la IA generativa falla justo en personajes multiángulo consistentes — de ahí el 3D pre-renderizado.
