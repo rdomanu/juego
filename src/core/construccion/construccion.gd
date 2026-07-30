@@ -195,7 +195,9 @@ func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringN
 ## La sala que contiene una celda (&"" si ninguna). Determinista: las salas nunca solapan.
 func sala_en(celda: Vector2i) -> StringName:
 	for sala_id: StringName in _salas:
-		if (_salas[sala_id]["rect"] as Rect2i).has_point(celda):
+		# Por el CONJUNTO de celdas, no por el rectangulo: desde la fase B una sala puede tener forma
+		# no rectangular, y entonces su caja envolvente incluye huecos que NO son suyos.
+		if _salas[sala_id].get("celdas", {}).has(celda):
 			return sala_id
 	return &""
 
@@ -418,6 +420,7 @@ func _crear_sala(
 	var sala_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(&"sala")
 	var tipo: Resource = Datos.obtener_silencioso(&"TipoSala", tipo_sala_id)
 	_salas[sala_id] = {
+		"celdas": _celdas_del_rect(rect),
 		"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado,
 		"puerta": _puerta_automatica(rect),
 		# Las paredes son OPCIONALES por sala (usuario 2026-07-30). El tipo solo pone el valor de
@@ -426,6 +429,62 @@ func _crear_sala(
 	}
 	_refrescar_visual()
 	return sala_id
+
+
+## Celdas -> JSON (lista de pares [x, y]).
+func _celdas_a_json(celdas: Dictionary) -> Array:
+	var salida: Array = []
+	for celda: Vector2i in celdas:
+		salida.append([celda.x, celda.y])
+	return salida
+
+
+## JSON -> celdas. Sin datos validos, se reconstruyen del rect (compatibilidad con saves previos a
+## la fase B, donde toda sala era un rectangulo).
+func _celdas_desde_json(datos: Variant, rect: Rect2i) -> Dictionary[Vector2i, bool]:
+	var celdas: Dictionary[Vector2i, bool] = {}
+	if datos is Array and not (datos as Array).is_empty():
+		for par: Variant in datos:
+			if par is Array and (par as Array).size() == 2:
+				celdas[Vector2i(int(par[0]), int(par[1]))] = true
+	if celdas.is_empty():
+		return _celdas_del_rect(rect)
+	return celdas
+
+
+## Las celdas de un rectángulo, como diccionario (búsqueda O(1)).
+##
+## FASE B de los muros libres (2026-07-30): una sala pasa de ser SOLO un rectángulo a ser un
+## CONJUNTO DE CELDAS, para que pueda tener cualquier forma cuando las zonas se marquen dentro de lo
+## que el jugador haya cerrado con muros. El `rect` se conserva como CAJA ENVOLVENTE —lo siguen
+## usando el centro de sala que cronometra los caminos, el dibujo y la validación de solapes—, así
+## que la migración es aditiva: una sala rectangular tiene exactamente las celdas de su rect y todo
+## lo de antes sigue dando el mismo resultado.
+func _celdas_del_rect(rect: Rect2i) -> Dictionary[Vector2i, bool]:
+	var celdas: Dictionary[Vector2i, bool] = {}
+	for x: int in range(rect.position.x, rect.end.x):
+		for y: int in range(rect.position.y, rect.end.y):
+			celdas[Vector2i(x, y)] = true
+	return celdas
+
+
+## Las celdas que ocupa una sala (vacío si no existe). Lo consultan el aforo, el coste y el dibujo:
+## desde la fase B es ESTO —y no el área del rectángulo— lo que define cuánto mide una sala.
+func celdas_de_sala(sala_id: StringName) -> Array[Vector2i]:
+	var resultado: Array[Vector2i] = []
+	if not _salas.has(sala_id):
+		return resultado
+	for celda: Vector2i in _salas[sala_id].get("celdas", {}):
+		resultado.append(celda)
+	return resultado
+
+
+## Cuántas celdas mide una sala. Sustituye a `rect.get_area()` en aforo y coste: con formas no
+## rectangulares el área de la caja envolvente MIENTE (cuenta huecos que no son de la sala).
+func area_de_sala(sala_id: StringName) -> int:
+	if not _salas.has(sala_id):
+		return 0
+	return _salas[sala_id].get("celdas", {}).size()
 
 
 ## Dónde se abre la puerta de una sala recién creada (paredes y puertas, 2026-07-30).
@@ -673,7 +732,13 @@ func construir_sala(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
 		var coste_ampliar: float = coste_ampliacion(ampliable, rect)
 		if not _pagar(coste_ampliar):
 			return &""
+		# La caja envolvente se fusiona (merge) Y el conjunto de celdas se UNE: si solo se tocara el
+		# rect, la sala ampliada diria que mide mas de lo que de verdad ocupa (fase B).
 		_salas[ampliable]["rect"] = (_salas[ampliable]["rect"] as Rect2i).merge(rect)
+		var suyas: Dictionary = _salas[ampliable].get("celdas", {})
+		for celda: Vector2i in _celdas_del_rect(rect):
+			suyas[celda] = true
+		_salas[ampliable]["celdas"] = suyas
 		_salas[ampliable]["coste_pagado"] = float(_salas[ampliable]["coste_pagado"]) + coste_ampliar
 		_refrescar_visual()
 		return ampliable
@@ -803,7 +868,7 @@ func aforo_de_sala(sala_id: StringName) -> int:
 		push_warning("Construccion: aforo de una sala inexistente ('%s') -> 0" % sala_id)
 		return 0
 	var sentados: int = mini(_asientos_en(sala_id), _plazas_max_de(sala_id))
-	var area: int = (_salas[sala_id]["rect"] as Rect2i).get_area()
+	var area: int = area_de_sala(sala_id)   # celdas REALES, no el area de la caja envolvente
 	var de_pie: int = int(floor(float(area) * densidad_de_pie))
 	return sentados + de_pie
 
@@ -834,7 +899,7 @@ func _asientos_en(sala_id: StringName, ignorar: StringName = &"") -> int:
 
 ## Tope físico de plazas por área (F3): `floor(área × densidad_asientos)`.
 func _plazas_max_de(sala_id: StringName) -> int:
-	var area: int = (_salas[sala_id]["rect"] as Rect2i).get_area()
+	var area: int = area_de_sala(sala_id)   # celdas REALES, no el area de la caja envolvente
 	return int(floor(float(area) * densidad_asientos))
 
 
@@ -1076,6 +1141,9 @@ func save() -> Dictionary:
 			# sala mas adelante la puerta automatica saldria en otro sitio y se le moveria sola de un dia
 			# para otro. Donde esta la puerta de tu comisaria es parte de tu comisaria.
 			"paredes": sala.get("paredes", false),
+			# Las celdas REALES de la sala (fase B): con formas no rectangulares no se pueden deducir del
+			# rect, que es solo la caja envolvente. Se guardan como pares [x,y], igual que el resto.
+			"celdas": _celdas_a_json(sala.get("celdas", {})),
 			"puerta": [
 				sala.get("puerta", CELDA_NULA_PUERTA).x, sala.get("puerta", CELDA_NULA_PUERTA).y,
 			],
@@ -1142,6 +1210,9 @@ func load_state(d: Dictionary) -> void:
 			"tipo": tipo_sala, "rect": rect, "coste_pagado": float(datos.get("coste_pagado", 0.0)),
 			"puerta": puerta,
 			"paredes": bool(datos.get("paredes", false)),
+			# Si el save es viejo (o viene corrupto) se rellenan desde el rect: una sala guardada ANTES de
+			# la fase B era rectangular por definicion, asi que sus celdas son justo las de su rect.
+			"celdas": _celdas_desde_json(datos.get("celdas", []), rect),
 		}
 	for datos: Variant in d.get("elementos", []):
 		if not (datos is Dictionary):
@@ -1262,9 +1333,11 @@ func _refrescar_visual() -> void:
 		if not _fuentes_tileset.has(tipo_id):
 			continue
 		var rect: Rect2i = _salas[sala_id]["rect"]
-		for x: int in range(rect.position.x, rect.end.x):
-			for y: int in range(rect.position.y, rect.end.y):
-				_capa_salas.set_cell(Vector2i(x, y), _fuentes_tileset[tipo_id], Vector2i.ZERO)
+		# El suelo se pinta celda a celda por el CONJUNTO real, no recorriendo el rectangulo (fase B):
+		# con una sala de forma no rectangular, el rect es solo la caja envolvente y pintarlo entero
+		# coloreria huecos que no son de la sala.
+		for celda: Vector2i in _salas[sala_id].get("celdas", {}):
+			_capa_salas.set_cell(celda, _fuentes_tileset[tipo_id], Vector2i.ZERO)
 		# Etiqueta de la sala (respaldo daltónico: texto además del color).
 		var tipo_sala: Resource = Datos.obtener(&"TipoSala", tipo_id)
 		var etiqueta := Label.new()

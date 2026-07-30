@@ -66,6 +66,12 @@ del código):
 - El `reclamacion` merece distinguirse: es trabajo que **generó el propio jugador** al dejar irse a
   alguien; verlo acumularse en la sala es parte del castigo.
 
+## Feedback del usuario — 2026-07-30 (muros libres)
+
+| # | Petición | Tipo | Estado |
+|---|----------|------|--------|
+| **U9** | **El trazado de muros "va mejor, no del todo bien"** tras clavar el arrastre a un eje. El usuario no concretó qué sigue fallando y pidió continuar con las fases. **Volver a preguntarle qué le chirría exactamente** antes de dar la herramienta por buena — es la herramienta con la que se construye toda la comisaría, así que la comodidad importa más que en cualquier otro sitio | **Usabilidad — funcional** | ⬜ Pendiente de concretar con el usuario |
+
 ## Andamios conocidos que hay que sustituir
 
 Esto no es feedback: es deuda visual declarada, ya identificada por el equipo.
