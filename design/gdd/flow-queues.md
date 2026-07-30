@@ -144,6 +144,40 @@ atención (la termina — regla de cierre de servicio, ver Edge Cases); solo dej
 horarios que abren/cierran automáticamente los poseen Documentación/Horarios; Flujo solo ejecuta el estado
 abierto/cerrado.)*
 
+**FL11 · Llamada anticipada (adelantar al siguiente durante la atención).** Mientras un puesto está
+**Atendiendo** y a la atención en curso le queda poco, Flujo **adelanta** a la siguiente persona
+compatible de la cola (misma selección que FL3/F7 — nadie se cuela por esta vía) para que **camine
+mientras tanto**: así, cuando el trámite en curso termina, la siguiente persona ya está **llegando** en
+vez de empezar a andar en ese instante. Es lo que hace una ventanilla real: se llama al número siguiente
+mientras se remata al anterior.
+
+`condicion_llamar_ya = restante(puesto) ≤ camino(candidata) + margen_llamada_anticipada_min`
+
+| Variable | Tipo | Rango | Descripción |
+|----------|------|-------|-------------|
+| `restante(puesto)` | float | ≥ 0 min | Minutos que le quedan a la atención en curso de ese puesto |
+| `camino(candidata)` | float | ≥ 0 min | Minutos de camino de la siguiente compatible hasta ese puesto (FL5) |
+| `margen_llamada_anticipada_min` | float | **default 0.0** | Colchón extra antes de llamar; **0.0 = llamar exactamente cuando el resto del trámite iguala el camino del siguiente** (Tuning Knobs) |
+
+**Salida:** con margen 0.0, el siguiente llega **en teoría justo** cuando el anterior termina — ni antes
+ni después. *(Ver Open Questions de ODAC #9 sobre por qué, en la práctica, a veces se le ve esperando de
+pie: la estimación del camino usa el centro de la sala, FL5.)*
+
+> **🔧 ENMIENDA DE DISEÑO (aplicada en código 2026-07-29; documentada aquí 2026-07-30 — catch-up de
+> GDD):** esta regla ya estaba implementada y nunca se había anotado en el GDD.
+>
+> **🔧 REGLA DE PRESENTACIÓN (usuario, 2026-07-30 — aplicada en código):** *"queda mal que esté un
+> ciudadano denunciando y otro al lado pudiendo escuchar todo"*. El ciudadano llamado por anticipado
+> (esta regla, FL11) **ya no espera pegado al lado** del que está siendo atendido: espera **dos
+> casillas por detrás**, en la fila — como la línea amarilla de discreción de cualquier ventanilla
+> real. Es una regla de **presentación** (dónde se dibuja el muñeco); no cambia la selección de cola
+> (F7) ni la condición de arriba.
+>
+> **Nota de diseño:** en **ODAC #9**, esta discreción no es solo estética — es **temática**: una
+> denuncia es un **acto privado**, y que el siguiente denunciante pueda oír los detalles de la
+> denuncia en curso rompería esa privacidad. Si en el futuro hay **salas de denuncia cerradas**
+> (privacidad real, no solo distancia), esta línea de discreción es su **semilla**.
+
 ### States and Transitions
 
 **A. Estados de la Persona** (los mueve Flujo; el abandono lo dispara Paciencia #10)
@@ -461,6 +495,7 @@ diseñado; *(provisional)* = sin GDD aún, contrato definido aquí.*
 | ~~`duracion_desplazamiento_seg`~~ *(retirado 2026-07-25)* | — | — | Sustituido por `velocidad_camino_celdas_min`: era cosmético y no afectaba al balance | Flujo |
 | `habilitar_aging_odac` (anti-inanición de Normales tras Prioritarias) | **false** (MVP) | {false, true} | true = las Normales suben de prioridad al esperar mucho (evita inanición); MVP off (Edge Cases) | Flujo / ODAC |
 | `tope_cola_exterior` | **0 = sin tope** (MVP) | 0 (∞) – N | >0 pondría un muro a la afluencia; MVP sin tope (la válvula es paciencia, FL7). La cita #14 es el tope "de verdad" | Flujo / Demanda |
+| `margen_llamada_anticipada_min` (colchón antes de llamar al siguiente, FL11) | **0.0** min | sin validar aún (candidato: **negativo** — ver ODAC #9 Open Q) | ↑ (positivo) llama antes → el siguiente espera de pie más tiempo ya en camino / ↓ (negativo) llama más tarde → menos espera de pie pero riesgo de que el puesto quede un instante sin nadie llegando | Flujo |
 
 *(Regla **no tunable** —fija por determinismo—: el desempate entre puestos que compiten por la misma
 Persona es siempre por **menor `id` de puesto** (Edge Cases). No se expone como knob.)*

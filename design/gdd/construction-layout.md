@@ -101,6 +101,15 @@ confirmar (Formulas). **Sobredimensionar o hacinar es libre** (con consecuencias
 (`doc_general`/`tie` en `sala_documentacion`; `odac` en `sala_odac`). Un asiento, dentro de una sala de
 espera. Ocupan celdas; **no solapan**.
 
+> **📝 NOTA DE DISEÑO (usuario, 2026-07-30, jugando en isométrico):** *"la mesa de atención debe ser
+> como 3 casillas: 1 donde está el policía, otra la mesa y otra la silla con el ciudadano; ahora veo
+> encima de la mesa al funcionario"*. Ya corregido en el **visual** (hilo principal, mismo día): el
+> muñeco del funcionario se dibuja **una celda detrás** del mostrador (el ciudadano ya se dibujaba una
+> celda delante). Con eso la ventanilla **se LEE** como tres casillas en fila —
+> **funcionario / mesa / ciudadano**— aunque el **modelo** de esta regla (CO4) no cambia: el puesto
+> sigue ocupando **1 sola celda** (`superficie = 1`, CO2). Si el modelo debe **reservar de verdad**
+> esas tres celdas o basta con la lectura visual actual queda **abierto** — ver Open Questions #8.
+
 **CO5 · Aforo por asientos.** El **aforo** de una sala de espera = **nº de asientos colocados** (no un
 valor fijo). El **tamaño** de la sala limita cuántos caben. El `aforo_espera` de Datos (40/10) es
 **referencia** de aforo típico. *(Calidad/deterioro de asientos → Comodidades #15.)*
@@ -632,3 +641,4 @@ olvido de implementación.
 | 5 | **¿Construcción instantánea o con obra/tiempo?** MVP instantáneo; validar si la obra aporta o estorba | Diseño / playtest | 1er playtest | Abierta |
 | 6 | **Edificios de forma difícil / distinta por comisaría** (reto espacial Theme Hospital) — capturado en #26 | Escalado #26 | GDD #26 | Abierta |
 | 7 | **Ampliar edificio / múltiples plantas** (futuro) | Escalado #26 | GDD #26 | Abierta |
+| 8 | **¿Reservar de verdad las 3 celdas de la ventanilla (funcionario / mesa / ciudadano) o dejarlo solo visual?** (usuario, 2026-07-30, jugando: *"la mesa de atención debe ser como 3 casillas: 1 donde está el policía, otra la mesa y otra la silla con el ciudadano; ahora veo encima de la mesa al funcionario"*). Hoy el puesto ocupa **1 celda** (CO2/CO4, `superficie=1`); la lectura de 3 casillas es solo el offset visual del sprite (funcionario 1 celda detrás del mostrador, ciudadano 1 celda delante). **Opción A — reservar de verdad** (`superficie=3` orientada): nadie podría construir un asiento/objeto en la celda donde "debería" estar el funcionario — la ventanilla ocupa en el modelo lo que parece ocupar en pantalla. **Opción B — mantenerlo solo visual** (como hoy): más barato en superficie/coste, no toca la validación de colocación (F6) ni los tests existentes — pero, en teoría, cabría un objeto justo en esa celda "reservada" solo por el sprite. Cambiar a A implica tocar coste por superficie, F6 y varios tests. | usuario | — | Abierta |
