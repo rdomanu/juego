@@ -81,7 +81,13 @@ func configurar(construccion: Node, tam_celda: int, desplazamiento: Vector2) -> 
 	# DESPUÉS de instanciar Construcción y montar la comisaría inicial, así que las paredes se pintan
 	# encima del relleno de sala. Por DEBAJO de la gente/etiquetas (z_index 1) y de las luces
 	# (z_index 2) por tener un z_index menor — ahí el orden en el árbol ya no importa.
-	z_index = 0
+	# 🐛 Corregido 2026-07-30 (el usuario: "las paredes no las puedo poner en mitad de una sala, solo
+	# en los bordes"). SÍ se podían poner —el modelo lo permitía y hay test que lo prueba—, pero NO SE
+	# VEÍAN: con z_index 0 el suelo de las salas (TileMapLayer) se dibuja ENCIMA, así que un muro
+	# interior quedaba tapado y solo asomaban los del borde, donde el suelo ya termina. Es el mismo
+	# problema que ya tuvieron los NPCs ("se dibujan DEBAJO de las salas al cruzarlas").
+	# Orden de capas: suelo (0) < PAREDES (1) < gente (2) < luces (3).
+	z_index = 1
 	actualizar()
 
 

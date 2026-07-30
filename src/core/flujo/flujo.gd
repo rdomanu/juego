@@ -707,10 +707,13 @@ func _emparejar() -> void:
 		var persona: RefCounted = elegir_de_cola(StringName(tipo.servicio), admitidas)
 		if persona == null:
 			continue
+		var camino: float = _minutos_de_camino(StringName(tipo.servicio), puesto_id, persona)
+		if camino < 0.0:
+			continue   # ventanilla incomunicada: no se llama a nadie que no pueda llegar
 		retirar_de_cola(persona)
 		_transicionar(persona, PersonaFlujoScript.ESTADO_LLAMADA)
 		puesto["persona"] = persona
-		puesto["camino_restante"] = _minutos_de_camino(StringName(tipo.servicio), puesto_id, persona)
+		puesto["camino_restante"] = camino
 	_llamar_a_los_siguientes()
 
 
@@ -743,6 +746,8 @@ func _llamar_a_los_siguientes() -> void:
 		# Se calcula su camino ANTES de sacarla de la cola: si todavia no toca, se queda donde estaba
 		# y otro puesto podra elegirla. `elegir_de_cola` no retira, solo mira.
 		var camino: float = _minutos_de_camino(StringName(tipo.servicio), puesto_id, candidata)
+		if camino < 0.0:
+			continue   # incomunicada: tampoco se adelanta a nadie
 		if float(puesto["restante"]) > camino + margen_llamada_anticipada_min:
 			continue                                  # aun le queda demasiado tramite: todavia no
 		retirar_de_cola(candidata)
@@ -793,6 +798,12 @@ func _minutos_de_camino(servicio: StringName, puesto_id: StringName, persona: Re
 		)
 		if celdas >= 0:
 			return float(celdas) / velocidad_camino_celdas_min
+		# 🐛 SIN CAMINO (2026-07-30). El usuario: "el agente atiende como en la distancia aunque haya
+		# cerrado la sala por completo y no pueda acceder el ciudadano a realizar el tramite".
+		# Lo causaba MI salvaguarda anterior: cuando no habia ruta, se caia a la distancia en linea
+		# recta... y entonces el ciudadano "llegaba" atravesando la pared. Ahora se devuelve -1 y
+		# `_emparejar` NO llama a nadie: una ventanilla tapiada no atiende, que es lo unico coherente.
+		return -1.0
 	return origen.distance_to(destino) / velocidad_camino_celdas_min
 
 

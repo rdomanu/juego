@@ -39,7 +39,7 @@ func configurar(construccion: Node, tiempo: Node) -> void:
 	_construccion = construccion
 	_tiempo = tiempo
 	_textura = _crear_textura_luz()
-	z_index = 2   # por encima de las salas y de la gente: es luz, no un objeto
+	z_index = 3   # por encima de todo (suelo 0, paredes 1, gente 2): es luz, no un objeto
 
 
 func _process(_delta: float) -> void:

@@ -212,7 +212,7 @@ func configurar(
 	# Gotcha de orden de dibujo: las capas visuales de Construcción cuelgan de un nodo NO-CanvasItem
 	# → son RAÍCES de canvas aparte que se pintan después del bloque de Main (donde vivimos). Sin
 	# esto, los NPCs se dibujan DEBAJO de las salas al cruzarlas. z_index 1 los pone encima.
-	z_index = 1
+	z_index = 2   # sobre el suelo (0) y sobre las paredes (1): la gente nunca queda tapada
 	_flujo = flujo
 	_construccion = construccion
 	_personal = personal
