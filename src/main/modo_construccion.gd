@@ -143,6 +143,12 @@ func _al_pulsar(punto_mundo: Vector2) -> void:
 		_arista_arrastre_anterior = ""
 		_pintar_arista_muro(punto_mundo)
 		return
+	if _herramienta == &"puerta" or _herramienta == &"ventana":
+		# FASE D (2026-07-30): clic SUELTO, sin arrastre — convierte la arista de tabique más cercana
+		# al punto DEL EVENTO. No levanta muro nuevo (para eso está el pincel de muro): abre un hueco
+		# en uno que ya exista.
+		_convertir_arista_en(punto_mundo, _herramienta)
+		return
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	# Zona: el hueco que hayas cerrado con muros SE CONVIERTE en sala. No se dibuja nada — basta con
 	# pinchar dentro. (`celda_de_punto` sobre el punto DEL EVENTO, nunca el poll del cursor: gotcha ya
@@ -204,6 +210,23 @@ func _demoler_en(celda: Vector2i, punto_mundo: Vector2) -> void:
 	_dialogo_cascada.popup_centered()
 
 
+## Pincel de PUERTA/VENTANA (FASE D, 2026-07-30 — puertas y ventanas en los muros): convierte la
+## arista de tabique más cercana al punto DEL EVENTO en `tipo` (`&"puerta"`/`&"ventana"`, mismos
+## valores que `Construccion.PUERTA`/`VENTANA`). Reutiliza `_lado_mas_cercano` (el mismo cálculo que
+## ya usa el pincel de muro) — nunca `get_global_mouse_position()` ni `celda_bajo_cursor()` para la
+## ACCIÓN real (gotcha ya sufrido en este proyecto: eso es solo válido para el fantasma).
+## `fijar_tipo_de_muro` es quien decide si hay algo que convertir: si esa arista no tiene tabique
+## avisa y no hace nada — aquí se traduce ese resultado a un mensaje legible en vez de fallar en
+## silencio.
+func _convertir_arista_en(punto_mundo: Vector2, tipo: StringName) -> void:
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	if _construccion.fijar_tipo_de_muro(celda, lado, tipo):
+		_lbl_estado.text = "Puerta abierta" if tipo == &"puerta" else "Ventana abierta"
+	else:
+		_lbl_estado.text = "Primero levanta la pared ahí"
+
+
 ## Cancela por capas: primero el arrastre (sala O muro), luego suelta la herramienta, luego sale del modo.
 func _cancelar() -> void:
 	if _arrastrando or _arrastrando_muro:
@@ -260,7 +283,10 @@ func _process(_delta: float) -> void:
 	# poll (`get_global_mouse_position`) vale para un FANTASMA (no muta el modelo) — el gotcha de
 	# "usa el punto del evento" es para las ACCIONES (pintar/demoler de verdad), no para dibujar.
 	var lado: StringName = &"-"
-	if _herramienta == &"muro" or _herramienta == &"demoler":
+	if (
+		_herramienta == &"muro" or _herramienta == &"demoler"
+		or _herramienta == &"puerta" or _herramienta == &"ventana"
+	):
 		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
 	if (
 		celda == _celda_anterior and _herramienta == _herramienta_anterior
@@ -277,6 +303,8 @@ func _process(_delta: float) -> void:
 		_refrescar_preview_demoler(celda, lado)
 	elif _herramienta == &"muro":
 		_refrescar_preview_muro(celda, lado)
+	elif _herramienta == &"puerta" or _herramienta == &"ventana":
+		_refrescar_preview_puerta_ventana(celda, lado)
 	elif _es_sala and _arrastrando:
 		_refrescar_preview_sala(_rect_entre(_celda_inicio, celda))
 	else:
@@ -315,6 +343,24 @@ func _refrescar_preview_muro(celda: Vector2i, lado: StringName) -> void:
 	elif not con_caja:
 		motivo = "Sin caja"
 	_preview_texto.text = "%.0f € · %s" % [_construccion.coste_muro, motivo]
+
+
+## Fantasma del pincel de puerta/ventana: resalta la ARISTA (mismo recuadro fino que el muro) y avisa
+## si ahí no hay tabique que convertir o si ya es de ese tipo — mismo criterio que la acción real
+## (`fijar_tipo_de_muro`), así el jugador ve el "no" antes de hacer clic en vano.
+func _refrescar_preview_puerta_ventana(celda: Vector2i, lado: StringName) -> void:
+	var tipo_actual: StringName = _construccion.tipo_de_muro(celda, lado)
+	var hay_tabique: bool = tipo_actual != &""
+	var ya_es: bool = tipo_actual == _herramienta
+	var valido: bool = hay_tabique and not ya_es
+	_colocar_caja_arista(celda, lado, COLOR_VALIDO if valido else COLOR_INVALIDO)
+	var nombre: String = "Puerta" if _herramienta == &"puerta" else "Ventana"
+	var motivo: String = "Clic para convertir"
+	if not hay_tabique:
+		motivo = "Primero levanta la pared ahí"
+	elif ya_es:
+		motivo = "Ya hay " + nombre.to_lower() + " ahí"
+	_preview_texto.text = nombre + " · " + motivo
 
 
 ## Construye o demuele (según `_construyendo_arrastre_muro`) la arista más cercana al punto DEL
@@ -591,6 +637,11 @@ func _crear_ui() -> void:
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
 	_anadir_herramienta("🧱 Muro (%.0f €)" % _construccion.coste_muro, &"muro", false)
+	# PUERTA y VENTANA (FASE D, 2026-07-30): no levantan tabique nuevo, CONVIERTEN uno ya construido
+	# — por eso no llevan un coste propio en el rótulo (el gasto fue el muro; abrir el hueco es
+	# gratis, ver `Construccion.fijar_tipo_de_muro`).
+	_anadir_herramienta("🚪 Puerta", &"puerta", false)
+	_anadir_herramienta("🪟 Ventana", &"ventana", false)
 	# FASE C (2026-07-30): marcar ZONAS dentro de lo que has cerrado con muros. Un boton por tipo de
 	# sala del catalogo, con el prefijo "zona:" en el id para distinguirlo del pincel que DIBUJA la
 	# sala como rectangulo (que sigue existiendo: son dos formas validas de construir).

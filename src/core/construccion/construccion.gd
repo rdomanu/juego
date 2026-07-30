@@ -75,7 +75,7 @@ var _elementos: Dictionary[StringName, Dictionary] = {}
 ##        `"h:x:y"` = arista de ARRIBA de la celda (x,y), o sea entre (x,y-1) y (x,y).
 ## Con esas dos familias se puede describir cualquier tabique de la rejilla sin ambigüedad: cada
 ## arista tiene UNA sola clave posible, así que no hay muros duplicados por construcción.
-var _muros: Dictionary[String, bool] = {}
+var _muros: Dictionary[String, StringName] = {}
 
 ## Contador para generar ids únicos (se serializa en la story 005 para no pisar ids al cargar).
 var _contador_ids: int = 0
@@ -606,6 +606,49 @@ func _puerta_automatica(rect: Rect2i) -> Vector2i:
 
 # ── MUROS LIBRES (2026-07-30) ────────────────────────────────────────────────────────────────
 
+## Los tres tipos de tabique (fase D, 2026-07-30). Todos SON pared a efectos de recinto —una puerta
+## cierra la habitación igual que un muro—, pero solo la puerta deja PASAR (fase E).
+const TABIQUE := &"muro"
+const PUERTA := &"puerta"
+const VENTANA := &"ventana"
+
+
+## Qué hay en esa arista: `TABIQUE`, `PUERTA`, `VENTANA`, o `&""` si no hay nada.
+func tipo_de_muro(celda: Vector2i, lado: StringName) -> StringName:
+	return _muros.get(clave_de_muro(celda, lado), &"")
+
+
+## El tipo de una arista dada ya por su CLAVE (la capa visual recorre `muros()`, que devuelve claves,
+## y necesita saber cual es puerta para no recortarla de la navegacion).
+func tipo_muro_de_clave(clave: String) -> StringName:
+	return _muros.get(clave, &"")
+
+
+## ¿Se puede PASAR por esa arista? Solo por donde no hay nada... o por una puerta.
+##
+## Esta es la distinción que hace que el sistema funcione: para decidir QUÉ ESPACIO ENCIERRAS
+## (`recinto_de`) una puerta cuenta como pared —si no, la habitación se escaparía por su propia
+## puerta y no sería una habitación—; pero para MOVERSE, la puerta se cruza. Son dos preguntas
+## distintas y por eso hay dos funciones.
+func deja_pasar(celda: Vector2i, lado: StringName) -> bool:
+	var tipo: StringName = tipo_de_muro(celda, lado)
+	return tipo == &"" or tipo == PUERTA
+
+
+## Convierte un tabique YA construido en puerta o ventana (o al revés, con `TABIQUE`). No cuesta: el
+## gasto fue levantar el muro; abrir un hueco en él es parte de esa misma obra.
+func fijar_tipo_de_muro(celda: Vector2i, lado: StringName, tipo: StringName) -> bool:
+	var clave: String = clave_de_muro(celda, lado)
+	if clave == "" or not _muros.has(clave):
+		return false   # no hay muro que convertir: primero se levanta la pared
+	if tipo != TABIQUE and tipo != PUERTA and tipo != VENTANA:
+		push_warning("Construccion: tipo de muro desconocido ('%s')" % tipo)
+		return false
+	_muros[clave] = tipo
+	_refrescar_visual()
+	return true
+
+
 ## La clave de la arista entre `celda` y su vecina en la dirección `lado`. Normaliza a propósito:
 ## el tabique entre (3,5) y (4,5) es EL MISMO se mire desde la izquierda o desde la derecha, así que
 ## las dos formas de nombrarlo devuelven la misma clave. Sin esto se podrían pintar dos muros
@@ -649,7 +692,7 @@ func construir_muro(celda: Vector2i, lado: StringName) -> bool:
 		return false
 	if not _pagar(coste_muro):
 		return false
-	_muros[clave] = true
+	_muros[clave] = TABIQUE
 	_refrescar_visual()
 	return true
 
@@ -1248,7 +1291,9 @@ func save() -> Dictionary:
 	# reconstruye todo, y al ser texto plano viaja por el JSON del SaveManager sin conversiones.
 	var muros_json: Array = []
 	for clave: String in _muros:
-		muros_json.append(clave)
+		# Desde la fase D cada arista guarda TAMBIEN que es (tabique / puerta / ventana), asi que se
+		# serializa como par [clave, tipo]. Antes bastaba la clave suelta.
+		muros_json.append([clave, String(_muros[clave])])
 	return {
 		"salas": salas, "elementos": elementos, "contador_ids": _contador_ids,
 		"muros": muros_json,
@@ -1268,11 +1313,22 @@ func load_state(d: Dictionary) -> void:
 	_salas.clear()
 	_elementos.clear()
 	_muros.clear()
-	for clave: Variant in d.get("muros", []):
-		if not (clave is String) or not _arista_dentro_del_edificio(clave):
+	for entrada: Variant in d.get("muros", []):
+		# Se admiten los DOS formatos: la clave suelta (saves de la fase A, todos tabiques) y el par
+		# [clave, tipo] de la fase D. Asi una partida guardada esta manana sigue cargando.
+		var clave: String = ""
+		var tipo: StringName = TABIQUE
+		if entrada is String:
+			clave = entrada
+		elif entrada is Array and (entrada as Array).size() == 2:
+			clave = String(entrada[0])
+			var t := StringName(String(entrada[1]))
+			if t == PUERTA or t == VENTANA:
+				tipo = t
+		if clave == "" or not _arista_dentro_del_edificio(clave):
 			push_warning("Construccion: muro corrupto en el save -> descartado")
 			continue
-		_muros[clave] = true
+		_muros[clave] = tipo
 	for datos: Variant in d.get("salas", []):
 		if not (datos is Dictionary):
 			push_warning("Construccion: sala corrupta en el save -> descartada")

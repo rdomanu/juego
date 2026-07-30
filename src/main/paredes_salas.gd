@@ -29,6 +29,16 @@ const CELDA_SIN_PUERTA := Vector2i(-1, -1)
 ## zonas después). Gris de obra NEUTRO a propósito: a diferencia de `_color_de_pared`, un muro libre
 ## no pertenece a ninguna sala, así que no toma el tono de ningún servicio.
 const COLOR_MURO_LIBRE := Color(0.55, 0.55, 0.52)
+## Grosor de la línea de VENTANA (FASE D, 2026-07-30): más fina que `GROSOR_PARED` — se lee como
+## cristal, no como pared maciza.
+const GROSOR_VENTANA: float = 2.0
+## Color de una VENTANA (tono claro/azulado, a propósito distinto del gris neutro del tabique — se
+## lee como cristal: se ve a través pero NO se pasa, fase E).
+const COLOR_VENTANA := Color(0.62, 0.80, 0.95, 0.85)
+## Fracción de cada extremo del tramo que sigue pintándose como pared cuando es una PUERTA — el resto
+## (el centro) queda como hueco. 0.25 dueño de cada lado deja un hueco del 50% de la celda, ancho de
+## sobra para que se lea "por aquí se pasa".
+const PROPORCION_STUB_PUERTA: float = 0.25
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -47,7 +57,7 @@ func _draw() -> void:
 	for tramo: Dictionary in _tramos:
 		draw_line(
 			tramo["desde"] as Vector2, tramo["hasta"] as Vector2, tramo["color"] as Color,
-			GROSOR_PARED, true
+			tramo.get("grosor", GROSOR_PARED) as float, true
 		)
 	for jamba: Dictionary in _jambas:
 		draw_line(
@@ -115,9 +125,16 @@ func _firma_actual() -> String:
 	# redibujado igual que construir/demoler una sala. Se ORDENAN antes de unir — `Construccion.muros()`
 	# no promete un orden estable entre llamadas, y sin orden estable la firma podría "cambiar" (y
 	# redibujar de más) aunque el CONJUNTO de muros sea idéntico al de la vez anterior.
+	# FASE D (2026-07-30): el TIPO de cada muro (tabique/puerta/ventana) entra en la firma junto a su
+	# clave — sin esto, convertir un tabique en puerta con `fijar_tipo_de_muro` no cambia el CONJUNTO
+	# de claves (la arista sigue siendo la misma), así que la firma quedaría idéntica y el cambio
+	# jamás se pintaría.
 	var muros: Array[String] = _construccion.muros()
 	muros.sort()
-	partes.append("MUROS:" + ",".join(PackedStringArray(muros)))
+	var muros_con_tipo: PackedStringArray = PackedStringArray()
+	for clave: String in muros:
+		muros_con_tipo.append(clave + ":" + String(_construccion.tipo_muro_de_clave(clave)))
+	partes.append("MUROS:" + ",".join(muros_con_tipo))
 	return "|".join(partes)
 
 
@@ -178,7 +195,18 @@ func _recalcular_tramos() -> void:
 		var geo: Dictionary = _geometria_de_muro_libre(clave_construccion)
 		if geo.is_empty():
 			continue
-		_tramos.append({"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE})
+		# FASE D (2026-07-30): puertas y ventanas se DIBUJAN distinto de un tabique — el visual
+		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
+		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
+		if tipo == _construccion.PUERTA:
+			_agregar_puerta_libre(geo["desde"], geo["hasta"])
+		elif tipo == _construccion.VENTANA:
+			_tramos.append({
+				"desde": geo["desde"], "hasta": geo["hasta"],
+				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA,
+			})
+		else:
+			_tramos.append({"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE})
 
 
 ## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
@@ -212,6 +240,23 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 		var y: float = _gy(b)
 		return {"desde": Vector2(_gx(a), y), "hasta": Vector2(_gx(a + 1), y)}
 	return {}
+
+
+## Dibuja el HUECO de una PUERTA en un muro libre (FASE D, 2026-07-30): dos tramos cortos de pared en
+## los extremos del tramo —para que la arista siga leyéndose como el mismo tabique— dejando un hueco
+## central por el que se pasa, más dos jambas cortas marcando el marco (mismo recurso `_jamba` que ya
+## usan las puertas de sala). A diferencia de una puerta de sala, un muro libre no pertenece a
+## ninguna habitación — no hay un "lado de dentro" que priorizar—, así que las dos jambas apuntan al
+## MISMO lado (perpendicular al tabique): es un detalle decorativo, no una pista de navegación.
+func _agregar_puerta_libre(desde: Vector2, hasta: Vector2) -> void:
+	var direccion: Vector2 = hasta - desde
+	var inicio_hueco: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
+	var fin_hueco: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
+	_tramos.append({"desde": desde, "hasta": inicio_hueco, "color": COLOR_MURO_LIBRE})
+	_tramos.append({"desde": fin_hueco, "hasta": hasta, "color": COLOR_MURO_LIBRE})
+	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
+	_jambas.append(_jamba(inicio_hueco, perpendicular, COLOR_MURO_LIBRE))
+	_jambas.append(_jamba(fin_hueco, perpendicular, COLOR_MURO_LIBRE))
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el

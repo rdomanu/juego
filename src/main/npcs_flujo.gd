@@ -278,6 +278,35 @@ func _bakear_navegacion() -> void:
 			datos.add_obstruction_outline(PackedVector2Array([
 				esquina, esquina + Vector2(lado, 0), esquina + Vector2(lado, lado), esquina + Vector2(0, lado),
 			]))
+	# FASE E (2026-07-30): los MUROS bloquean de verdad. Cada tabique se recorta como una franja fina
+	# de obstáculo sobre su arista — las PUERTAS no se recortan, y por eso son lo único por donde se
+	# puede entrar en una sala cerrada. Las ventanas SÍ bloquean (se ve a través, no se pasa).
+	#
+	# El grosor es de un tercio de celda a propósito: si fuera un pelo, el agente (radio 8 px) se
+	# colaría entre dos tabiques contiguos por el hueco de la esquina; si fuera de una celda entera,
+	# se comería el suelo útil de las dos celdas vecinas y la gente no podría pegarse a la pared.
+	var grosor: float = float(_tam_celda) / 3.0
+	for clave: String in _construccion.muros():
+		var partes: PackedStringArray = clave.split(":")
+		if partes.size() != 3:
+			continue
+		if _construccion.tipo_muro_de_clave(clave) == &"puerta":
+			continue   # por la puerta SE PASA: no se recorta
+		var cx: int = int(partes[1])
+		var cy: int = int(partes[2])
+		var esq: Vector2 = _pos_suelo + Vector2(float(cx), float(cy)) * float(_tam_celda)
+		var largo := float(_tam_celda)
+		var a0: Vector2
+		var a1: Vector2
+		if partes[0] == "h":
+			a0 = esq - Vector2(0.0, grosor / 2.0)          # arista de ARRIBA: franja horizontal
+			a1 = a0 + Vector2(largo, grosor)
+		else:
+			a0 = esq - Vector2(grosor / 2.0, 0.0)          # arista IZQUIERDA: franja vertical
+			a1 = a0 + Vector2(grosor, largo)
+		datos.add_obstruction_outline(PackedVector2Array([
+			a0, Vector2(a1.x, a0.y), a1, Vector2(a0.x, a1.y),
+		]))
 	var poligono := NavigationPolygon.new()
 	poligono.agent_radius = 8.0
 	NavigationServer2D.bake_from_source_geometry_data(poligono, datos)
