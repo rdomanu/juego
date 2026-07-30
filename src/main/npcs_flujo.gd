@@ -12,6 +12,9 @@ class_name NPCsFlujo extends Node2D
 ## Story: production/epics/flujo/story-008-comisaria-viva-npcs.md · TR-flow-005 · ADR-0004
 
 const NPCScript := preload("res://src/main/npc_ciudadano.gd")
+## El muñeco de PIEZAS que anda de verdad (2026-07-31). Lo comparten ciudadanos y funcionarios:
+## el andar es el mismo para todos, solo cambian el color y si lleva gorra.
+const MunecoScript := preload("res://src/main/muneco.gd")
 
 ## Colores placeholder por servicio (los mismos tonos que las salas de Construcción).
 const COLOR_DOC := Color(0.35, 0.55, 0.9)
@@ -94,6 +97,23 @@ var _capa_descansos: Node2D = null
 ## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
 ## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
 const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## ── EL PASO (animación procedural, 2026-07-31) ──────────────────────────────────────────────
+## El usuario, viendo el primer sprite: *"dios qué feo, no hay ningún tipo de animación al caminar
+## ni nada"*. Y el problema no era el sprite: es que TODO EL MUNDO se deslizaba tieso por el suelo,
+## rectángulos incluidos. Un muñeco que patina se lee como una ficha de parchís; uno que bota un
+## poco al andar se lee como una persona, aunque sea un rectángulo.
+##
+## Se hace por CÓDIGO y no con fotogramas dibujados: no cuesta un solo píxel de arte, funciona hoy
+## con los rectángulos y seguirá funcionando el día que haya sprites de verdad (sumará al ciclo de
+## andar en vez de estorbarle).
+##
+## Cada cuánto camino recorrido se completa un paso, en píxeles del plano cuadrado. 26 ≈ zancada de
+## persona a la escala del juego: más corto parece que trota, más largo parece que se arrastra.
+const LARGO_ZANCADA: float = 26.0
+## Cuánto sube el cuerpo en lo alto del paso. 2 px: se nota que bota, no parece que dé saltos.
+const ALTURA_BOTE: float = 2.0
+## Cuánto se balancea, en radianes (~2,3°). Muy poco a propósito: es un vaivén, no un tentetieso.
+const VAIVEN_PASO: float = 0.04
 ## A qué distancia (px) de su destino se considera que un muñeco caminante HA LLEGADO. Un pelo por
 ## encima del `target_desired_distance` del agente de navegación (6 px), para que la comprobación
 ## física no contradiga a la del propio agente cuando este sí acierta.
@@ -291,6 +311,36 @@ func configurar(
 	_rebake_pendiente = true
 
 
+## Coloca un muñeco en pantalla A PARTIR de dónde está su cuerpo en el plano lógico, Y LE PONE EL
+## PASO: un bote y un vaivén que dependen del CAMINO RECORRIDO, no del reloj.
+##
+## Que dependa del camino y no del tiempo es la clave de que parezca andar: si se para, el bote se
+## para con él (no sigue botando en el sitio); si el juego va a 3×, camina más rápido y bota más
+## rápido, solo. Y en Pausa se queda quieto sin tener que comprobar la pausa en ningún sitio.
+func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
+	var destino: Vector2 = Proyeccion.proyectar(punto_cuadrado)
+	# Gotcha de Godot: `get_meta(clave, defecto)` avisa igualmente si la clave no existe, así que se
+	# pregunta primero con `has_meta` (el primer frame de cada muñeco no tiene posición previa).
+	var recorrido: float = float(visual.get_meta(&"recorrido")) if visual.has_meta(&"recorrido") else 0.0
+	var paso_frame: float = 0.0
+	if visual.has_meta(&"pos_previa"):
+		paso_frame = (destino - (visual.get_meta(&"pos_previa") as Vector2)).length()
+		recorrido += paso_frame
+	visual.set_meta(&"recorrido", recorrido)
+	visual.set_meta(&"pos_previa", destino)
+	# ¿Está andando ahora mismo? Se mide por lo que se ha movido ESTE frame, y se suaviza para que
+	# el ciclo arranque y pare sin tirones. Sin esto, al pararse se quedaría congelado a media
+	# zancada, como un maniquí de escaparate.
+	var andando: float = float(visual.get_meta(&"andando")) if visual.has_meta(&"andando") else 0.0
+	andando = lerpf(andando, 1.0 if paso_frame > 0.05 else 0.0, MunecoScript.SUAVIZADO)
+	visual.set_meta(&"andando", andando)
+	# Media zancada por bote: al andar se sube y se baja una vez por CADA pie, no una por paso.
+	var fase: float = recorrido / LARGO_ZANCADA * PI
+	visual.position = destino - Vector2(0.0, MunecoScript.bote(fase, andando))
+	visual.rotation = sin(fase) * VAIVEN_PASO * andando
+	MunecoScript.animar(visual, fase, andando)
+
+
 ## Cuelga un muñeco de la capa que SE VE. Lo llaman los cuerpos al nacer (npc_ciudadano) y los
 ## viajes de descanso/incorporación: el cuerpo se queda en el plano lógico y su muñeco viene aquí.
 func registrar_muneco(muneco: Node2D) -> void:
@@ -408,7 +458,7 @@ func spawn(persona: RefCounted) -> void:
 	# `registrar_muneco`, y la posición del muñeco se copia del cuerpo, que ya debe estar colocado.
 	_capa_logica.add_child(npc)
 	npc.configurar(persona, self, _flujo.velocidad_npc_px_s, color)
-	npc.muneco.position = Proyeccion.proyectar(npc.position)
+	colocar_muneco(npc.muneco, npc.position)
 
 
 ## El NPC llegó a la salida (Resuelta/Abandonando): libera su asiento y desaparece.
@@ -993,18 +1043,7 @@ func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 ## de la celda donde de verdad está de pie. Antes iba centrado a media altura (torso en y=-8): en
 ## cenital daba igual, en isométrico el policía parecería flotar por encima de su mostrador.
 func _anadir_cuerpo_policia(destino: Node2D) -> void:
-	var torso := ColorRect.new()
-	torso.color = COLOR_POLICIA_TORSO
-	torso.size = Vector2(12, 16)
-	torso.position = Vector2(-6, -16)
-	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	destino.add_child(torso)
-	var cabeza := ColorRect.new()
-	cabeza.color = COLOR_POLICIA_TORSO.lightened(0.55)
-	cabeza.size = Vector2(8, 6)
-	cabeza.position = Vector2(-4, -22)
-	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	destino.add_child(cabeza)
+	destino.add_child(MunecoScript.construir(COLOR_POLICIA_TORSO, true))
 
 
 ## Un muñeco de policía que CAMINA: mismo cuerpo que el fijo del mostrador, pero sobre un
@@ -1068,7 +1107,7 @@ func _sincronizar_caminantes() -> void:
 	for cuerpo: Node in _capa_descansos.get_children():
 		var visual: Node2D = _visual_caminante(cuerpo)
 		if visual != null:
-			visual.position = Proyeccion.proyectar((cuerpo as Node2D).position)
+			colocar_muneco(visual, (cuerpo as Node2D).position)
 
 
 ## Crea (una vez) el contenedor del puesto con sus piezas hijas fijas: muñeco policía (torso +

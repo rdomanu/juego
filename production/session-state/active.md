@@ -2141,3 +2141,49 @@ mesa→policía) se quedan porque son correctos por sí mismos, pero **ninguno e
 el nodo existe Y TIENE CONTENIDO (`get_child_count()`), antes de tocar una sola línea de posición,
 capa o z_index. Y cuando el usuario repite el mismo síntoma más de dos veces, hay que pedirle una
 captura en vez de seguir razonando sobre píxeles a ciegas.
+
+---
+
+## 🚶 2026-07-31 — EL MUÑECO DE PIEZAS: la gente ANDA
+
+### Cómo se llegó aquí (la parte útil)
+
+1. Se generó el **primer sprite realista** del policía con Gemini + la imagen del uniforme del CNP
+   como referencia. Salió **muy bien**: "POLICÍA NACIONAL" legible con tilde, escudo en la gorra,
+   polo azul casi negro, cargo, botas, pose en A. `capturas/policia.jpg`.
+2. Se metió en el juego a 72 px como prueba. Veredicto del usuario: ***"dios qué feo, no hay ningún
+   tipo de animación al caminar ni nada"***. Y tenía razón.
+3. **El diagnóstico correcto no era el sprite**: era que TODO EL MUNDO se deslizaba tieso, los
+   rectángulos incluidos. Un muñeco que patina se lee como una ficha de parchís.
+
+### Lo que se hizo: `src/main/muneco.gd`
+
+Muñeco de **piezas sueltas** (piernas, brazos, torso, cabeza, gorra) que el código mueve. Como un
+recortable de papel sujeto con encuadernadores: no se redibuja nada, se GIRA cada pieza sobre su
+articulación.
+
+- **Piernas** en oposición; **brazos** al revés que la pierna de su lado (así anda una persona);
+  **bote** una vez por cada pie.
+- Todo sale de **una fase que avanza con el CAMINO RECORRIDO, no con el reloj**. Consecuencias que
+  salen gratis: si se para, el ciclo se para; a 3× camina y bota más rápido solo; en Pausa se queda
+  quieto sin comprobar la pausa en ningún sitio.
+- **`andando` suavizado** (0→1): sin esto, al llegar a la ventanilla se quedaba congelado a media
+  zancada como un maniquí de escaparate.
+- La **gorra** distingue funcionario de ciudadano a tamaño diminuto — regla del art bible: a ese
+  tamaño solo sobrevive la silueta.
+- Lo comparten ciudadanos y funcionarios: el andar es el mismo para todos.
+
+**Coste de arte: CERO.** Y no se tira: cuando llegue el arte 3D, cada pieza se cambia por su sprite
+y el ciclo sigue siendo el mismo código.
+
+### La lección que deja
+
+El 90 % de la sensación de "está vivo" viene del **movimiento**, no del dibujo. Se comprobó al
+revés: un señor fotorrealista perfecto, deslizándose tieso, pareció feo. Rectángulos que mueven las
+piernas, no.
+
+### Pendiente de decidir con el usuario
+
+- **Las 8 direcciones**: hoy el muñeco no mira hacia donde anda. Es lo siguiente que se nota.
+- El sprite realista queda como **referencia de uniforme** (`design/art/referencias/`), no como arte
+  de juego. Sirve para el modelo 3D, que es otra sesión.

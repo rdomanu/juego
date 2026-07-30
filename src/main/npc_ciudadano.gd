@@ -46,6 +46,9 @@ var _ancho_visto: float = -1.0
 ## larga en `src/foundation/proyeccion/proyeccion.gd`.
 var muneco: Node2D = null
 
+## El muñeco de piezas que anda (compartido con los funcionarios: el andar es el mismo para todos).
+const MunecoScript := preload("res://src/main/muneco.gd")
+
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
 ## el agente de navegación y el "muñeco" placeholder con el color de su servicio.
@@ -70,22 +73,11 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	# comentario de `muneco` arriba). Todo lo que se dibuja va aquí dentro, nada en el cuerpo.
 	muneco = Node2D.new()
 	muneco.name = "MunecoCiudadano"
-	# Muñeco mínimo (torso + cabeza), ANCLADO POR LA BASE: los pies caen en (0,0) del nodo, que es
-	# el punto de la celda donde de verdad está pisando. Antes iba centrado a media altura, que en
-	# cenital daba igual y en isométrico haría que pareciera flotar. Todo Control decorativo del
-	# mundo IGNORA el ratón (gotcha registrado: si no, se traga los clics del modo construcción).
-	var torso := ColorRect.new()
-	torso.color = color
-	torso.size = Vector2(12, 16)
-	torso.position = Vector2(-6, -16)
-	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	muneco.add_child(torso)
-	var cabeza := ColorRect.new()
-	cabeza.color = color.lightened(0.35)
-	cabeza.size = Vector2(8, 6)
-	cabeza.position = Vector2(-4, -22)
-	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	muneco.add_child(cabeza)
+	# Muñeco de PIEZAS (2026-07-31): piernas, brazos, torso y cabeza que se mueven al andar. Va
+	# ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto de la celda donde de
+	# verdad está pisando. El ciudadano no lleva gorra: es lo que le distingue del funcionario de
+	# un vistazo, incluso a tamaño diminuto.
+	muneco.add_child(MunecoScript.construir(color, false))
 	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
 	# 2026-07-26: *"debe ser algo más intuitivo: que cuando se vacía la barra se vayan"*). Son DOS
 	# piezas: un fondo oscuro fijo —el "hueco" de la barra, que dice cuánto cabía— y un relleno que se
@@ -123,7 +115,9 @@ func _physics_process(_delta: float) -> void:
 	# esta función se corta antes de tiempo (nav aún no lista, persona nula), y si el muñeco no se
 	# sincronizara en esos frames se quedaría rezagado a tirones.
 	if muneco != null and is_instance_valid(muneco):
-		muneco.position = Proyeccion.proyectar(position)
+		# El PASO (bote + vaivén) lo pone el manager: es la misma cuenta para todo el que ande, y así
+		# ciudadanos y funcionarios caminan igual en vez de tener cada uno su propio andar.
+		_manager.colocar_muneco(muneco, position)
 	if not _nav_lista:
 		_nav_lista = true   # a partir de aquí el server ya sincronizó: los targets valen
 		return
