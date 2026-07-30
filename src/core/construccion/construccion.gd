@@ -42,6 +42,12 @@ const ASIENTO_BASICO := &"asiento_basico"
 const CELDA_PUERTA_EDIFICIO := Vector2i(0, 6)
 ## Centinela de "esta sala no tiene puerta" (ninguna celda del edificio es negativa).
 const CELDA_NULA_PUERTA := Vector2i(-1, -1)
+## Los cuatro vecinos de una celda, con el lado por el que se sale hacia cada uno. En 4 direcciones
+## a proposito: por una esquina en diagonal no se pasa, igual que en la vida real.
+const VECINOS_4: Array = [
+	[&"izquierda", Vector2i(-1, 0)], [&"derecha", Vector2i(1, 0)],
+	[&"arriba", Vector2i(0, -1)], [&"abajo", Vector2i(0, 1)],
+]
 
 # ── Tuning knobs (copiados del config con clamp; ver aplicar_config) ─────────────────────────
 var coste_por_celda: float = 20.0
@@ -485,6 +491,88 @@ func area_de_sala(sala_id: StringName) -> int:
 	if not _salas.has(sala_id):
 		return 0
 	return _salas[sala_id].get("celdas", {}).size()
+
+
+# ── FASE C: zonas dentro de lo que has cerrado con muros (2026-07-30) ────────────────────────
+
+## Las celdas del RECINTO al que pertenece `origen`: todo lo que se puede alcanzar desde ahí sin
+## cruzar un muro y sin salirse del edificio.
+##
+## Es el corazón del modelo que pidió el usuario (*"la construcción de las paredes debe ser libre y
+## luego dentro poner las zonas"*): primero levantas tabiques, y el hueco que queda encerrado ES la
+## zona. No hay que dibujar ningún rectángulo — la forma la decide lo que hayas construido.
+##
+## El perímetro del edificio cuenta como muro implícito, así que sin ningún tabique TODO el interior
+## es un único recinto. Cada muro que levantas lo subdivide.
+##
+## Relleno por inundación en 4 direcciones (nada de diagonales: por una esquina no se pasa).
+func recinto_de(origen: Vector2i) -> Array[Vector2i]:
+	var celdas: Array[Vector2i] = []
+	if not _celda_en_edificio(origen):
+		return celdas
+	var vistas: Dictionary[Vector2i, bool] = {}
+	var pila: Array[Vector2i] = [origen]
+	while not pila.is_empty():
+		var celda: Vector2i = pila.pop_back()
+		if vistas.has(celda):
+			continue
+		vistas[celda] = true
+		celdas.append(celda)
+		for paso: Array in VECINOS_4:
+			if hay_muro(celda, paso[0]):
+				continue                      # ese lado esta tabicado: por ahi no se sigue
+			var vecina: Vector2i = celda + (paso[1] as Vector2i)
+			if _celda_en_edificio(vecina) and not vistas.has(vecina):
+				pila.append(vecina)
+	return celdas
+
+
+## Convierte en ZONA (sala) el recinto que contiene esa celda, cobrándolo. Devuelve el id de la sala
+## nueva, o `&""` si no se pudo: recinto demasiado pequeño, tipo inexistente, sin caja, o el recinto
+## pisa una sala que ya existe (primero hay que demolerla — no se solapan zonas en silencio).
+func designar_zona(origen: Vector2i, tipo_sala_id: StringName) -> StringName:
+	if Datos.obtener(&"TipoSala", tipo_sala_id) == null:
+		return &""   # Datos ya avisó
+	var celdas: Array[Vector2i] = recinto_de(origen)
+	if celdas.size() < area_min_sala:
+		push_warning("Construccion: recinto demasiado pequeno (%d celdas) -> no se designa" % celdas.size())
+		return &""
+	for celda: Vector2i in celdas:
+		if sala_en(celda) != &"":
+			push_warning("Construccion: el recinto pisa una sala existente -> demolela antes")
+			return &""
+	var tipo: Resource = Datos.obtener(&"TipoSala", tipo_sala_id)
+	var coste: float = (
+		_clamp_coste(float(tipo.coste_construccion_eur), tipo_sala_id)
+		+ coste_por_celda * float(celdas.size())
+	)
+	if not _pagar(coste):
+		return &""
+	return _crear_sala_con_celdas(tipo_sala_id, celdas, coste)
+
+
+## Da de alta una sala con una FORMA CUALQUIERA (fase C). El `rect` que se guarda es su caja
+## envolvente —lo siguen usando el centro de sala de los cronómetros y el dibujo—, pero lo que manda
+## para el aforo, el coste y a quién pertenece cada celda es el conjunto.
+func _crear_sala_con_celdas(
+	tipo_sala_id: StringName, celdas: Array[Vector2i], coste_pagado: float
+) -> StringName:
+	var sala_id: StringName = _nuevo_id(&"sala")
+	var mapa: Dictionary[Vector2i, bool] = {}
+	var caja: Rect2i = Rect2i(celdas[0], Vector2i.ONE)
+	for celda: Vector2i in celdas:
+		mapa[celda] = true
+		caja = caja.merge(Rect2i(celda, Vector2i.ONE))
+	var tipo: Resource = Datos.obtener_silencioso(&"TipoSala", tipo_sala_id)
+	_salas[sala_id] = {
+		"celdas": mapa, "tipo": tipo_sala_id, "rect": caja, "coste_pagado": coste_pagado,
+		"puerta": _puerta_automatica(caja),
+		# Una zona designada dentro de muros ya esta cerrada por ellos: no se le pintan paredes
+		# propias encima, o se verian dos tabiques paralelos.
+		"paredes": false,
+	}
+	_refrescar_visual()
+	return sala_id
 
 
 ## Dónde se abre la puerta de una sala recién creada (paredes y puertas, 2026-07-30).

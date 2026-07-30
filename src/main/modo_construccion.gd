@@ -143,7 +143,22 @@ func _al_pulsar(punto_mundo: Vector2) -> void:
 		_arista_arrastre_anterior = ""
 		_pintar_arista_muro(punto_mundo)
 		return
-	var celda: Vector2i = _construccion.celda_bajo_cursor()
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	# Zona: el hueco que hayas cerrado con muros SE CONVIERTE en sala. No se dibuja nada — basta con
+	# pinchar dentro. (`celda_de_punto` sobre el punto DEL EVENTO, nunca el poll del cursor: gotcha ya
+	# sufrido en este proyecto.)
+	if String(_herramienta).begins_with("zona:"):
+		var tipo_id := StringName(String(_herramienta).substr(5))
+		var creada: StringName = _construccion.designar_zona(celda, tipo_id)
+		if creada == &"":
+			# Se dice POR QUE no se puede: un clic que no hace nada y no explica nada parece un bug.
+			_lbl_estado.text = (
+				"Aqui no: el hueco no esta cerrado del todo, es muy pequeno, "
+				+ "ya es de otra sala, o no hay caja"
+			)
+		else:
+			_lbl_estado.text = "Zona creada con %d celdas" % _construccion.area_de_sala(creada)
+		return
 	if _herramienta == &"demoler":
 		_demoler_en(celda, punto_mundo)
 	elif _es_sala:
@@ -576,6 +591,13 @@ func _crear_ui() -> void:
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
 	_anadir_herramienta("🧱 Muro (%.0f €)" % _construccion.coste_muro, &"muro", false)
+	# FASE C (2026-07-30): marcar ZONAS dentro de lo que has cerrado con muros. Un boton por tipo de
+	# sala del catalogo, con el prefijo "zona:" en el id para distinguirlo del pincel que DIBUJA la
+	# sala como rectangulo (que sigue existiendo: son dos formas validas de construir).
+	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
+		_anadir_herramienta(
+			"📍 Zona: %s" % tipo_sala.nombre, StringName("zona:" + String(tipo_sala.id)), false
+		)
 	_anadir_herramienta("❌ Demoler", &"demoler", false)
 
 	_dialogo_cascada = ConfirmationDialog.new()
