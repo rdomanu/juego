@@ -159,6 +159,162 @@ construcción.
 - **Pendiente de fijar en la sesión de conversión**: alto de las paredes en píxeles, y punto de anclaje
   de los sprites (los isométricos se anclan por la base, no por el centro).
 
+### Referencia visual confirmada: Two Point Campus / Two Point Hospital (usuario, 2026-07-30)
+
+> **Aporte del usuario**: capturas propias de *Two Point Campus* en la carpeta `capturas/` del repo
+> (`entorno.PNG`, `construccion.PNG`, `construccion 2.PNG`, `contratar.PNG`, `inicio.PNG`; se ha mirado
+> también una sexta, `clientes.PNG`, porque es la que mejor enseña el interior de una sala en uso) +
+> *"también estoy viendo Two Point Hospital que me gusta"* + *"animaciones graciosas, detalle y jugable"*.
+
+#### a) Qué se ve exactamente en las capturas
+
+Es la primera vez que tenemos una referencia visual CONCRETA (no solo el nombre de un juego) para el
+isométrico, así que merece describirse con detalle:
+
+- **Proyección**: isométrica clásica, cámara fija en un ángulo alto y diagonal — como mirar una casa de
+  muñecas desde una esquina elevada, sin mirar nunca "de frente" a una pared ni "en vertical" desde
+  arriba. Se confirma en las seis capturas: el ángulo de cámara es SIEMPRE el mismo.
+- **Suelos**: cada sala tiene su propio suelo, y aquí la referencia usa **color Y textura a la vez**, no
+  solo textura — en `entorno.PNG`/`contratar.PNG` el laboratorio tiene un suelo turquesa de baldosa, el
+  edificio general tiene un suelo morado con una trama sutil de rombos entrelazados (como una moqueta con
+  dibujo), y se asoma un suelo de madera en tonos miel en una sala de despacho. *(Esto entra en tensión
+  con una decisión ya tomada — ver la tabla del punto e.)*
+- **Paredes**: franjas con bastante ALTURA (aproximadamente una vez y media la de una persona), acabadas
+  en un remate superior más claro que marca el grosor (como el canto de una encimera), con textura de
+  panel/azulejo vertical. Tienen huecos de ventana (con marco, se ve el exterior a través) y huecos de
+  puerta (con marco; alguna con una hoja simple, `clientes.PNG`).
+- **El fantasma de construcción** (`construccion 2.PNG`): la sala que se está dibujando se pinta entera en
+  **azul translúcido** con una **rejilla de líneas discontinuas** encima, como un plano de arquitecto
+  calcado sobre el suelo; los huecos de puerta ya colocados se resaltan en **verde** cuando la posición es
+  válida. Es prácticamente el mismo lenguaje que ya tenemos decidido en nuestro F6 de Construcción (verde
+  válido / rojo inválido) — una coincidencia que reafirma esa decisión, no que la cambia.
+- **Paleta**: muy saturada y luminosa — césped verde intenso, setos redondeados más oscuros, paredes en
+  pasteles (crema, salmón, turquesa), suelos de colores puros. Una paleta de "folleto de universidad
+  soleada", casi sin grises. *(Tensión importante — ver el punto e.)*
+- **HUD**: franja inferior con reloj/calendario, dinero, un indicador de humor/satisfacción y un contador
+  de reputación (icono de birrete), controles de pausa/velocidad — bastante parecido a lo que decidimos en
+  §7. Pero además reparte cosas en las esquinas SUPERIORES: un panel de objetivo/misión arriba a la derecha
+  (`entorno.PNG`, `clientes.PNG`) y la barra de herramientas de construcción arriba a la izquierda cuando
+  ese modo está activo (`construccion.PNG`). Es decir, Two Point **no** mete todo abajo como decidimos en
+  §7 — reparte entre arriba y abajo.
+- **Tamaño de los personajes respecto a las salas** (`clientes.PNG` es la que mejor lo enseña): una persona
+  mide aproximadamente 1/4–1/5 de la altura de la pared, y una sala de 5×5 celdas (el dato "5 x 5" se lee
+  literalmente en `construccion.PNG`) aloja con holgura a tres personas y una máquina grande sin sentirse
+  abarrotada. Son pequeños respecto al edificio, pero grandes y legibles respecto al suelo: se leen bien
+  como individuos.
+- **Personajes en detalle** (`contratar.PNG`, `clientes.PNG`): proporciones "chibi" de cartoon 3D (cabeza
+  algo grande, cuerpo pequeño, sin llegar a la caricatura extrema de un dibujo animado infantil), **con
+  cara visible y expresiva** incluso en la ficha pequeña de contratación (la profesora salta con los
+  brazos en cruz y sonrisa marcada). En el mundo, a la distancia normal de juego, la cara se aprecia menos,
+  pero sigue estando dibujada.
+- *(Deducción, no dato de las capturas)*: la miniatura en inglés de la esquina inferior derecha de
+  `construccion.PNG`/`construccion 2.PNG` parece una captura de referencia que el propio usuario superpuso
+  para comparar, no forma parte del HUD real del juego.
+
+#### b) La regla de las paredes (la decisión importante)
+
+**Las paredes del lado CERCANO a la cámara no se dibujan — se ve el interior entero — y las del lado
+FONDO van a altura completa.** Se confirma mirando las tres capturas de construcción/interior:
+
+- En `construccion 2.PNG`, la sala en construcción (el rombo azul de 5×5) solo tiene paredes dibujadas en
+  sus DOS lados de arriba (los que se alejan de la cámara, con hueco de puerta y ventana ya marcados); los
+  dos lados de abajo (los más cercanos a la cámara) no tienen NINGUNA pared — el suelo llega hasta el
+  borde sin nada que lo bloquee.
+- En `clientes.PNG` (la sala de laboratorio ya construida y en uso, vista de cerca) pasa exactamente lo
+  mismo: solo se ven dos paredes con ventanas, en los lados que se alejan de cámara; los otros dos lados
+  están completamente abiertos, y por ahí se ve tanto el interior de la sala (la máquina, los tres
+  personajes) como el pasillo morado más allá.
+- En `entorno.PNG` (el edificio completo, visto de más lejos) se repite el patrón por ala del edificio: el
+  lado que da hacia la cámara no tiene fachada — ahí está la entrada y el camino — y el ala del fondo sí
+  muestra el muro completo.
+
+**Por qué hace falta esta regla**: en isométrico la cámara está fija en un ángulo, así que una pared es una
+superficie con volumen real, no una línea vista desde arriba. Si las CUATRO paredes de una sala se
+dibujaran a su altura completa, las dos que quedan entre la cámara y el interior **taparían literalmente
+todo lo que hay dentro** — la gente, el mostrador, los muebles — porque están geométricamente delante. Es
+la misma razón por la que una casa de muñecas solo enseña su interior cuando le quitas la pared que te
+mira a ti: si no se la quitas, no ves nada. Sin esta regla, jugar sería mirar una fila de muros en vez de
+ver la comisaría funcionando — exactamente el problema que ya se había anotado como pendiente en
+`construction-layout.md` ("las paredes taparán a la gente") y que estas capturas confirman cómo lo
+resuelve Two Point en la práctica.
+
+#### c) "Animaciones graciosas, detalle y jugable" — traducido a criterios de arte
+
+- **Poses con energía, no rígidas**: anticipación y remate marcados en cada acción (sentarse con un pequeño
+  rebote en vez de una transición lineal, un gesto de "listo" al terminar un trámite). Es "viveza", no
+  slapstick.
+- **Reacciones puntuales que refuerzan un dato, nunca lo sustituyen**: un ciudadano que se harta de esperar
+  puede mirar el reloj o cruzarse de brazos, igual que Two Point usa gestos puntuales de humor — pero en
+  nuestro caso el gesto tiene que reforzar la barra de paciencia que YA existe, nunca ser la única pista
+  (regla U5, ya fijada en §7: todo indicador necesita su escala visible).
+- **Mobiliario con micro-vida**: la máquina de `clientes.PNG` tiene vapor, luces y una pieza que se mueve.
+  Nuestras comodidades del catálogo (vending, hilo musical, fuente de agua — CO13 de Construcción) pueden
+  llevar un loop pequeño (una luz que parpadea, una gota de agua) que cuesta poco de producir y vende
+  "esto está encendido y en uso" — siempre dentro de la paleta semántica ya fijada en §4 (nada de colores
+  nuevos fuera de esa paleta).
+- **Un golpe de efecto puntual, no un tono de fondo**: el chispazo/nube rosa de `clientes.PNG` es un
+  EVENTO (algo salió mal en el experimento), no el estado permanente de la sala. Se puede tomar la idea de
+  "un efecto visual breve para un evento" (una redada con éxito, una alerta VioGén) sin que la comisaría
+  esté "de fiesta" todo el rato.
+- **Presupuesto de animación honesto**: Two Point anima un esqueleto 3D en tiempo real, así que añadir una
+  gracia más les cuesta poco. Nosotros pre-renderizamos sprites (ya decidido), así que cada gracia nueva es
+  una hoja de sprites más que dibujar — no es gratis. Toca priorizar, igual que ya se hizo en §5
+  ("Animaciones mínimas MVP"): mejor 1-2 detalles graciosos bien elegidos por arquetipo que una librería
+  grande.
+- **"Jugable" = se lee al zoom real de juego**: `clientes.PNG` está tomada muy de cerca; `construccion.PNG`
+  mucho más lejos. Cualquier gracia que solo se aprecie haciendo zoom no cuenta para la claridad funcional
+  que pide el principio 1 de §1.
+
+> ⚠️ **Tensión sin resolver, y hay que decirlo claro**: el principio 2 de §1 dice *"autenticidad contenida,
+> no espectáculo... nada cómico ni exagerado"*, y §9 lista explícitamente *Two Point Hospital* como
+> **anti-referencia** por su tono, con la nota *"su caricatura. Es el tono que hay que evitar"*. La
+> petición de hoy — *"animaciones graciosas"*, sobre una referencia visual que en sus propias capturas usa
+> textos de personalidad en tono de humor ("Vejiga de hierro", "Desecho humano") — **choca de frente con
+> esa decisión ya escrita**. No se resuelve aquí unilateralmente: **hace falta una decisión explícita del
+> usuario** sobre si el tono de "realismo con alma, sobrio" sigue siendo la frontera, o si se mueve hacia
+> algo más desenfadado ahora que hay dos referencias tirando en direcciones distintas del mismo proyecto
+> (Prison Architect / This Is the Police, serio, frente a Two Point, desenfadado).
+
+#### d) Qué NO copiamos (y por qué)
+
+Two Point es **3D en tiempo real con cámara rotable** — el jugador gira la vista con el ratón. Nosotros
+somos **2D con sprites pre-renderizados desde 3D y cámara FIJA** (ya decidido en la revisión de §5: "el
+mismo modelo girado, no cuatro dibujos que deben parecerse"). Es una diferencia de fondo, no de detalle, y
+tiene consecuencias concretas:
+
+- **Un único ángulo de cámara para siempre**: como no hay rotación, el edificio (paredes, mobiliario) solo
+  necesita renderizarse desde EL ángulo que elijamos — no hace falta generarlo desde 360°. Solo los
+  PERSONAJES necesitan varias direcciones (las 4 u 8 ya previstas en §5), porque ellos sí se mueven por la
+  rejilla; el edificio no "camina".
+- **La regla de paredes ocultas (b) es fija, no dinámica**: en Two Point, si el jugador gira la cámara,
+  cambia QUÉ pared se oculta (siempre la que queda entre la cámara y el interior). En nuestro juego, como
+  la cámara nunca gira, la pared que se oculta es **siempre la del mismo lado de la pantalla** — una única
+  regla, no cuatro variantes. La contrapartida: el jugador JAMÁS podrá "mirar por el otro lado" para ver
+  algo que esa pared fija le tape. Es una limitación que hay que aceptar, no resolver.
+- **Los efectos como el humo rosa de `clientes.PNG` no salen "gratis" de un motor 3D en vivo**: en 2D se
+  resuelven con una hoja de sprites de animación pre-dibujada, o con partículas 2D del motor (implementación
+  de `technical-artist`) — pero la implicación de ARTE es que cada chispazo es una animación que hay que
+  producir, no un efecto que el render 3D calcula solo.
+- **La iluminación de mood por estado (§2) no se recalcula en vivo sobre un modelo 3D**: se aplica como una
+  capa 2D encima del sprite ya pintado (`CanvasModulate` + `Light2D`, ya decidido en
+  `docs/engine-reference/godot/modules/rendering.md`). Two Point no obliga a cambiar esto — de hecho lo
+  confirma: sigue siendo el camino correcto para un juego 2D.
+
+#### e) Referencia → qué nos llevamos
+
+| De Two Point Campus / Hospital | Qué nos llevamos |
+|---|---|
+| Cámara isométrica fija, en ángulo alto | Confirma el cambio de rumbo ya decidido: sprites 3D pre-renderizados, vista isométrica fija |
+| Paredes con altura, remate superior claro, huecos de puerta/ventana | Confirma §6 revisado: paredes como caras con volumen, no franjas planas |
+| Paredes del lado cercano a cámara ocultas por completo | Se adopta como regla explícita (ver b) — pendiente fijar en qué lado exacto de la pantalla cae ese "lado cercano" |
+| Fantasma de construcción azul translúcido + rejilla + verde/rojo de validez | Confirma nuestro F6 (validación verde/rojo) ya decidido — coincidencia, no cambio |
+| Suelo de color y textura distintos por sala | Choca con la decisión de §6 ("la textura dice la sala, no el color") — pendiente reabrir con el usuario |
+| Paleta muy saturada tipo "folleto turístico" en césped, paredes y suelos | **No se adopta** — se mantiene la paleta sobria gris-azulada de §4 |
+| Personajes con cara visible y expresiva, proporciones chibi | Tensión con la regla "SIN CARA" de §5 — posible excepción solo en retratos de panel, igual que ya se hace con la divisa de rango |
+| Animaciones con energía, reacciones puntuales, mobiliario con micro-vida | Se adopta como criterio (ver c), acotado por el principio "nada cómico ni exagerado" — **tensión sin resolver** |
+| HUD repartido entre arriba y abajo (objetivo arriba-derecha, herramientas arriba-izquierda) | No se adopta tal cual — se mantiene la barra inferior única de §7, ya decidida |
+| *Two Point Hospital* como anti-referencia de tono (§9) | Sigue siendo una contradicción sin resolver frente a esta nueva referencia — ver (c) |
+
 ---
 
 ## 5. Dirección de Personajes

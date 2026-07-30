@@ -16,8 +16,19 @@ class_name ParedesSalas extends Node2D
 ## frame) y compara una FIRMA de lo dibujado; si no cambió, ni se recalculan tramos ni se llama a
 ## `queue_redraw()`. Mismo patrón DIFF que `npcs_flujo._firma` / `luces_objetos._firma`.
 
-## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px").
+## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px"). Con el isométrico se usa
+## para las jambas y como respaldo si algún tramo llegara sin altura.
 const GROSOR_PARED: float = 4.0
+## ── PAREDES CON ALTURA (ISOMÉTRICO, 2026-07-30) ────────────────────────────────────────────────
+## Alto de la cara de una pared, en píxeles. 34 px: más alto que un muñeco (22 px) para que se lea
+## como pared y no como bordillo, y menos que el alto del rombo (40) para que no ahogue el dibujo.
+const ALTO_PARED: float = 34.0
+## Grosor del remate superior de la pared (la franja clara de arriba, que es lo que da la sensación
+## de espesor — se ve claramente en `capturas/entorno.PNG`).
+const GROSOR_REMATE: float = 3.0
+## Alto de una pared CERCANA a la cámara. 10 px: se ve el pretil y las esquinas enlazan, pero no
+## llega ni a la cintura de un muñeco (22 px), así que no tapa a nadie de dentro de la sala.
+const ALTO_PARED_CERCANA: float = 10.0
 ## Largo de cada jamba (marco corto de puerta) — sobrio, sin arte elaborado (andamio hasta el art bible).
 const LARGO_JAMBA: float = 10.0
 ## Mismo centinela que `Construccion.CELDA_NULA_PUERTA` (-1,-1), referenciado por VALOR: el proyecto
@@ -54,11 +65,25 @@ var _jambas: Array[Dictionary] = []
 
 
 func _draw() -> void:
+	# Los tramos ya vienen ordenados de FONDO a FRENTE por `_recalcular_tramos` — en isométrico el
+	# orden de pintado ES la profundidad, y una pared del fondo pintada después taparía a la de
+	# delante.
 	for tramo: Dictionary in _tramos:
-		draw_line(
-			tramo["desde"] as Vector2, tramo["hasta"] as Vector2, tramo["color"] as Color,
-			tramo.get("grosor", GROSOR_PARED) as float, true
+		var desde: Vector2 = tramo["desde"]
+		var hasta: Vector2 = tramo["hasta"]
+		var color: Color = tramo["color"]
+		var alto: float = tramo.get("alto", ALTO_PARED)
+		if alto <= 0.0:
+			draw_line(desde, hasta, color, tramo.get("grosor", GROSOR_PARED) as float, true)
+			continue
+		# TODAS las paredes suben; lo que cambia es CUÁNTO (ver `_cara_de_arista`).
+		var subir := Vector2(0.0, -alto)
+		draw_colored_polygon(
+			PackedVector2Array([desde, hasta, hasta + subir, desde + subir]), color
 		)
+		# Remate claro en el canto de arriba (el espesor) y línea oscura abajo, que la asienta.
+		draw_line(desde + subir, hasta + subir, color.lightened(0.35), GROSOR_REMATE, true)
+		draw_line(desde, hasta, color.darkened(0.4), 1.5, true)
 	for jamba: Dictionary in _jambas:
 		draw_line(
 			jamba["desde"] as Vector2, jamba["hasta"] as Vector2, jamba["color"] as Color,
@@ -182,7 +207,11 @@ func _recalcular_tramos() -> void:
 			geometria[clave] = unidad
 	for clave: String in geometria:
 		var unidad: Dictionary = geometria[clave]
-		_tramos.append({"desde": unidad["desde"], "hasta": unidad["hasta"], "color": duenio[clave]})
+		var tramo: Dictionary = {
+			"desde": unidad["desde"], "hasta": unidad["hasta"], "color": duenio[clave],
+		}
+		tramo.merge(_cara_de_arista(unidad["detras"]))
+		_tramos.append(tramo)
 	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
 	for sala_id: StringName in salas:
 		_jambas.append_array(_jambas_de_puerta(sala_id))
@@ -204,15 +233,34 @@ func _recalcular_tramos() -> void:
 		# FASE D (2026-07-30): puertas y ventanas se DIBUJAN distinto de un tabique — el visual
 		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
+		var cara: Dictionary = _cara_de_arista(geo["detras"])
 		if tipo == _construccion.PUERTA:
-			_agregar_puerta_libre(geo["desde"], geo["hasta"])
+			_agregar_puerta_libre(geo["desde"], geo["hasta"], cara)
 		elif tipo == _construccion.VENTANA:
-			_tramos.append({
+			# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
+			# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
+			var ventana: Dictionary = {
 				"desde": geo["desde"], "hasta": geo["hasta"],
 				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA,
-			})
+			}
+			ventana.merge(cara)
+			_tramos.append(ventana)
 		else:
-			_tramos.append({"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE})
+			var libre: Dictionary = {
+				"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE,
+			}
+			libre.merge(cara)
+			_tramos.append(libre)
+	# 5) ORDEN POR PROFUNDIDAD (ISOMÉTRICO, 2026-07-30). Todas las paredes salen de UN solo `_draw`,
+	#    así que aquí el orden de la lista ES el orden de dibujo: lo que se pinta después, tapa. Se
+	#    ordenan de FONDO a FRENTE por el punto más bajo de su base — sin esto, una pared del fondo
+	#    calculada más tarde se pintaría encima de una que está delante de ella, y el dibujo se
+	#    leería del revés. (`_tramos` se recalcula solo al cambiar el layout, nunca por frame, así
+	#    que ordenar aquí no cuesta nada en partida.)
+	_tramos.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return maxf(a["desde"].y, a["hasta"].y) < maxf(b["desde"].y, b["hasta"].y)
+	)
 
 
 ## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
@@ -238,13 +286,20 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 	var a: int = int(partes[1])
 	var b: int = int(partes[2])
 	if partes[0] == "v":
-		# "v:col:row" — línea vertical en la columna `a`, del borde de fila `b` al `b + 1`.
-		var x: float = _gx(a)
-		return {"desde": Vector2(x, _gy(b)), "hasta": Vector2(x, _gy(b + 1))}
+		# "v:col:row" — arista del eje Y en la columna `a`, del borde de fila `b` al `b + 1`.
+		# (En pantalla ya no es vertical: baja hacia la IZQUIERDA. El nombre "v" se conserva
+		# porque es la clave del MODELO, que no sabe nada de proyecciones.)
+		return {
+			"desde": _esquina(a, b), "hasta": _esquina(a, b + 1),
+			"detras": Vector2i(a - 1, b),
+		}
 	if partes[0] == "h":
-		# "h:col:row" — línea horizontal en la fila `b`, de la columna `a` a la `a + 1`.
-		var y: float = _gy(b)
-		return {"desde": Vector2(_gx(a), y), "hasta": Vector2(_gx(a + 1), y)}
+		# "h:col:row" — arista del eje X en la fila `b`, de la columna `a` a la `a + 1`.
+		# (En pantalla baja hacia la DERECHA.)
+		return {
+			"desde": _esquina(a, b), "hasta": _esquina(a + 1, b),
+			"detras": Vector2i(a, b - 1),
+		}
 	return {}
 
 
@@ -254,12 +309,16 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 ## usan las puertas de sala). A diferencia de una puerta de sala, un muro libre no pertenece a
 ## ninguna habitación — no hay un "lado de dentro" que priorizar—, así que las dos jambas apuntan al
 ## MISMO lado (perpendicular al tabique): es un detalle decorativo, no una pista de navegación.
-func _agregar_puerta_libre(desde: Vector2, hasta: Vector2) -> void:
+func _agregar_puerta_libre(desde: Vector2, hasta: Vector2, cara: Dictionary) -> void:
 	var direccion: Vector2 = hasta - desde
 	var inicio_hueco: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
 	var fin_hueco: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
-	_tramos.append({"desde": desde, "hasta": inicio_hueco, "color": COLOR_MURO_LIBRE})
-	_tramos.append({"desde": fin_hueco, "hasta": hasta, "color": COLOR_MURO_LIBRE})
+	var izq: Dictionary = {"desde": desde, "hasta": inicio_hueco, "color": COLOR_MURO_LIBRE}
+	izq.merge(cara)
+	_tramos.append(izq)
+	var der: Dictionary = {"desde": fin_hueco, "hasta": hasta, "color": COLOR_MURO_LIBRE}
+	der.merge(cara)
+	_tramos.append(der)
 	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
 	_jambas.append(_jamba(inicio_hueco, perpendicular, COLOR_MURO_LIBRE))
 	_jambas.append(_jamba(fin_hueco, perpendicular, COLOR_MURO_LIBRE))
@@ -327,28 +386,30 @@ func _jambas_de_puerta(sala_id: StringName) -> Array[Dictionary]:
 	var rect: Rect2i = info["rect"]
 	var puerta: Vector2i = info["puerta"]
 	var color: Color = _color_de_pared(sala_id)
+	# ISOMÉTRICO: los puntos salen de `_esquina` y las direcciones "hacia dentro" pasan por
+	# `_direccion` — en rombos, "hacia dentro" ya no es horizontal ni vertical en pantalla.
 	if info["lado"] == "izquierda":
-		var x: float = _gx(rect.position.x)
+		var dentro: Vector2 = _direccion(Vector2(LARGO_JAMBA, 0.0))
 		return [
-			_jamba(Vector2(x, _gy(puerta.y)), Vector2(LARGO_JAMBA, 0.0), color),
-			_jamba(Vector2(x, _gy(puerta.y + 1)), Vector2(LARGO_JAMBA, 0.0), color),
+			_jamba(_esquina(rect.position.x, puerta.y), dentro, color),
+			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color),
 		]
 	if info["lado"] == "derecha":
-		var x: float = _gx(rect.end.x)
+		var dentro: Vector2 = _direccion(Vector2(-LARGO_JAMBA, 0.0))
 		return [
-			_jamba(Vector2(x, _gy(puerta.y)), Vector2(-LARGO_JAMBA, 0.0), color),
-			_jamba(Vector2(x, _gy(puerta.y + 1)), Vector2(-LARGO_JAMBA, 0.0), color),
+			_jamba(_esquina(rect.end.x, puerta.y), dentro, color),
+			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color),
 		]
 	if info["lado"] == "arriba":
-		var y: float = _gy(rect.position.y)
+		var dentro: Vector2 = _direccion(Vector2(0.0, LARGO_JAMBA))
 		return [
-			_jamba(Vector2(_gx(puerta.x), y), Vector2(0.0, LARGO_JAMBA), color),
-			_jamba(Vector2(_gx(puerta.x + 1), y), Vector2(0.0, LARGO_JAMBA), color),
+			_jamba(_esquina(puerta.x, rect.position.y), dentro, color),
+			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color),
 		]
-	var y: float = _gy(rect.end.y)   # "abajo"
+	var dentro_abajo: Vector2 = _direccion(Vector2(0.0, -LARGO_JAMBA))   # "abajo"
 	return [
-		_jamba(Vector2(_gx(puerta.x), y), Vector2(0.0, -LARGO_JAMBA), color),
-		_jamba(Vector2(_gx(puerta.x + 1), y), Vector2(0.0, -LARGO_JAMBA), color),
+		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color),
+		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color),
 	]
 
 
@@ -370,22 +431,55 @@ func _color_de_pared(sala_id: StringName) -> Color:
 	return base.darkened(0.4)
 
 
-## Un tramo de línea horizontal (grid-line en la fila `fila_gridline`, celda `celda_x`).
+## Un tramo del eje X (grid-line en la fila `fila_gridline`, celda `celda_x`). En pantalla baja
+## hacia la derecha; en el modelo sigue siendo la arista "h" de siempre.
 func _unidad_h(fila_gridline: int, celda_x: int) -> Dictionary:
-	var y: float = _gy(fila_gridline)
 	return {
 		"clave": "h:%d:%d" % [fila_gridline, celda_x],
-		"desde": Vector2(_gx(celda_x), y), "hasta": Vector2(_gx(celda_x + 1), y),
+		"desde": _esquina(celda_x, fila_gridline), "hasta": _esquina(celda_x + 1, fila_gridline),
+		"detras": Vector2i(celda_x, fila_gridline - 1),
 	}
 
 
-## Un tramo de línea vertical (grid-line en la columna `columna_gridline`, celda `celda_y`).
+## Un tramo del eje Y (grid-line en la columna `columna_gridline`, celda `celda_y`). En pantalla
+## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre.
 func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
-	var x: float = _gx(columna_gridline)
 	return {
 		"clave": "v:%d:%d" % [columna_gridline, celda_y],
-		"desde": Vector2(x, _gy(celda_y)), "hasta": Vector2(x, _gy(celda_y + 1)),
+		"desde": _esquina(columna_gridline, celda_y), "hasta": _esquina(columna_gridline, celda_y + 1),
+		"detras": Vector2i(columna_gridline - 1, celda_y),
 	}
+
+
+## ── LA REGLA DE LAS PAREDES QUE TAPAN (ISOMÉTRICO, 2026-07-30) ─────────────────────────────────
+##
+## El problema, en llano: una pared con altura sube hacia ARRIBA en pantalla, así que tapa lo que
+## tiene DETRÁS (más al fondo). Las paredes del fondo de una sala tapan la calle, y eso está bien;
+## pero las del lado de la cámara tapan el INTERIOR de la sala, y entonces no ves ni a tu gente ni
+## tus mostradores: ves una fila de muros.
+##
+## Cómo lo resuelven Theme Hospital y Two Point: las paredes del lado cercano a la cámara se
+## dibujan MUCHO MÁS BAJAS que las del fondo. Siguen ahí —marcan el recinto, y en las esquinas
+## enlazan con las altas— pero como no llegan ni a la cintura de un muñeco, no tapan a nadie.
+##
+## La regla, sin excepciones: **si lo que hay DETRÁS de esta pared es una sala, es una pared
+## CERCANA y va baja; si no, va a altura completa**. Sale sola de la geometría, sin marcar nada a
+## mano: las dos paredes del fondo de una sala tienen detrás la calle (→ altas, hacen de fondo) y
+## las dos del frente tienen detrás la propia sala (→ bajas, hacen de pretil). Un muro suelto en
+## mitad de la nada tiene detrás suelo vacío, así que va alto, que es lo que se espera de un
+## tabique aislado.
+##
+## ⚠️ Se probó ANTES a dibujar la pared cercana por su cara EXTERIOR (colgando hacia ABAJO en
+## pantalla, imitando la perspectiva 3D de Two Point). El usuario lo cazó al momento —*"unas salen
+## bien y otras como apuntando debajo del suelo, raro"*— y tenía razón: eso funciona con una cámara
+## 3D de verdad, que ve el muro por encima, pero en 2D plano una cara que baja se lee como una
+## solapa colgando, y encima descuadra las esquinas donde se junta con una pared que sube. Bajar
+## la altura es la solución 2D, y es exactamente lo que hacía Theme Hospital.
+##
+## Devuelve `{"alto": float}` — listo para fundirse en el diccionario del tramo.
+func _cara_de_arista(detras: Vector2i) -> Dictionary:
+	var cercana: bool = _construccion.sala_en(detras) != &""
+	return {"alto": ALTO_PARED_CERCANA if cercana else ALTO_PARED}
 
 
 ## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala.
@@ -393,11 +487,19 @@ func _jamba(desde: Vector2, hacia_dentro: Vector2, color: Color) -> Dictionary:
 	return {"desde": desde, "hasta": desde + hacia_dentro, "color": color}
 
 
-## Coordenada X local de una columna de rejilla (grid-line o celda, en píxeles).
-func _gx(columna: int) -> float:
-	return _desplazamiento.x + float(columna) * _tam_celda
+## El VÉRTICE de la rejilla en la intersección (columna, fila), en píxeles de PANTALLA.
+##
+## ISOMÉTRICO (2026-07-30): sustituye a las antiguas `_gx`/`_gy`, que devolvían una X y una Y por
+## separado porque en vista cenital una línea de rejilla era una recta horizontal o vertical y
+## bastaba con una coordenada. En rombos ya no: cada intersección es un punto de los dos ejes a la
+## vez, y las paredes se dibujan en DIAGONAL siguiendo los lados del rombo.
+func _esquina(columna: int, fila: int) -> Vector2:
+	return _desplazamiento + Proyeccion.esquina_iso(columna, fila)
 
 
-## Coordenada Y local de una fila de rejilla (grid-line o celda, en píxeles).
-func _gy(fila: int) -> float:
-	return _desplazamiento.y + float(fila) * _tam_celda
+## Un vector de desplazamiento (no un punto) llevado del plano cuadrado a la pantalla. Se usa para
+## las jambas, que apuntan "hacia dentro de la sala" — una dirección del PLANO, que en isométrico
+## deja de ser horizontal o vertical en pantalla. Al ser la proyección lineal, se puede aplicar
+## directamente al vector sin sumarle el origen.
+func _direccion(en_plano: Vector2) -> Vector2:
+	return Proyeccion.proyectar(en_plano)

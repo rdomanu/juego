@@ -1498,14 +1498,21 @@ var _capa_elementos: Node2D = null
 var _tam_celda: int = 40
 ## `tipo_sala_id -> source_id` del TileSet generado por código (un tile plano por tipo de sala).
 var _fuentes_tileset: Dictionary = {}
-var _escena_puesto: PackedScene = null
-var _escena_asiento: PackedScene = null
+## Alto en píxeles de las cajas placeholder (isométrico, 2026-07-30). Un mostrador se lee como
+## mueble alto —a la altura del pecho de un muñeco de 22 px— y un asiento como algo bajo.
+const ALTO_MOSTRADOR: float = 16.0
+const ALTO_ASIENTO: float = 7.0
+## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
+## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
+## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
+var _origen: Vector2 = Vector2.ZERO
 
 
 ## Crea la capa visual (la llama Main tras add_child): TileMapLayer "Salas" + Node2D "Elementos",
 ## alineados con el suelo del esqueleto (`desplazamiento` = posición del suelo; `tam_celda` = 40).
 func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
 	_tam_celda = tam_celda
+	_origen = desplazamiento
 	var tileset := TileSet.new()
 	tileset.tile_size = Vector2i(tam_celda, tam_celda)
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
@@ -1517,39 +1524,80 @@ func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
 	_capa_salas = TileMapLayer.new()
 	_capa_salas.name = "Salas"
 	_capa_salas.tile_set = tileset
-	_capa_salas.position = desplazamiento
+	# ISOMÉTRICO (2026-07-30): el TileSet sigue siendo CUADRADO de 40×40; lo que lo convierte en
+	# rombos es la transformada del nodo. Se hace así, y no con un TileSet isométrico nativo, por
+	# dos razones: (1) el suelo está PINTADO en el terreno, así que deformarlo con él es justo lo
+	# correcto —una celda cuadrada deformada por esta matriz da el rombo exacto de 80×40—, y (2)
+	# `local_to_map`/`to_local` siguen contestando en celdas del plano cuadrado, así que el clic
+	# del modo construcción sigue funcionando sin tocar una línea. Ver `Proyeccion.transformada`.
+	_capa_salas.transform = Proyeccion.transformada(desplazamiento)
 	add_child(_capa_salas)
 	_capa_elementos = Node2D.new()
 	_capa_elementos.name = "Elementos"
+	# Los elementos (mostradores, asientos, rótulos) están DE PIE sobre el suelo, no pintados en
+	# él: esta capa NO lleva la transformada — si la llevara saldrían tumbados. Cada hijo se coloca
+	# ya proyectado con `centro_en_pantalla()`, y se queda derecho.
 	_capa_elementos.position = desplazamiento
+	# Orden de dibujo por PROFUNDIDAD (nuevo con el isométrico): dentro de esta capa, lo que está
+	# más abajo en pantalla se pinta encima de lo que está detrás. Sin esto, un mostrador del fondo
+	# taparía al de delante según el orden en que se construyeron, que no significa nada.
+	_capa_elementos.y_sort_enabled = true
 	add_child(_capa_elementos)
-	_escena_puesto = _empaquetar_placeholder(int(tam_celda * 0.8), Color(0.16, 0.18, 0.22), true)
-	_escena_asiento = _empaquetar_placeholder(int(tam_celda * 0.4), Color(0.45, 0.42, 0.35), false)
 	_refrescar_visual()
 
 
-## La celda de la rejilla bajo el cursor (manifiesto ADR-0004: `local_to_map` del TileMapLayer).
-## Sin capa visual montada (headless/tests) → (-1,-1).
+## La celda de la rejilla bajo el cursor. Sin capa visual montada (headless/tests) → (-1,-1).
+##
+## ISOMÉTRICO (2026-07-30): sigue apoyándose en `local_to_map` del TileMapLayer, que ahora
+## deshace la proyección solo (la transformada del nodo la incluye) — por eso este código no
+## cambió al pasar a rombos.
 func celda_bajo_cursor() -> Vector2i:
 	if _capa_salas == null:
 		return Vector2i(-1, -1)
 	return _capa_salas.local_to_map(_capa_salas.get_local_mouse_position())
 
 
-## La celda que contiene un punto del MUNDO. ⚠️ Úsala (y no `celda_bajo_cursor`) siempre que la
+## La celda que contiene un punto de PANTALLA. ⚠️ Úsala (y no `celda_bajo_cursor`) siempre que la
 ## acción venga de un CLIC: `celda_bajo_cursor` lee el puntero del sistema *en ese instante*, no el
 ## punto donde se hizo clic — el bug del clic derecho del 2026-07-26, ya escrito en el manifiesto.
-func celda_de_punto(punto_mundo: Vector2) -> Vector2i:
-	if _capa_salas == null:
-		return Vector2i(-1, -1)
-	return _capa_salas.local_to_map(_capa_salas.to_local(punto_mundo))
+##
+## ISOMÉTRICO (2026-07-30): pasa a ser matemática pura (`Proyeccion`) en vez de preguntarle al
+## TileMapLayer. Da EXACTAMENTE el mismo resultado (la transformada del nodo sale de la misma
+## fórmula, y hay test que lo comprueba), pero además funciona en headless — antes devolvía
+## (-1,-1) sin capa montada, y eso hacía indemostrable por test todo el modo construcción.
+func celda_de_punto(punto_pantalla: Vector2) -> Vector2i:
+	return Proyeccion.celda_de_iso(punto_pantalla - _origen)
 
 
-## El centro de una celda en coordenadas de MUNDO (`map_to_local` — para posicionar previews).
+## El centro de una celda en el PLANO LÓGICO CUADRADO (el de la rejilla vista desde arriba).
+##
+## ⚠️ Esto NO es un punto de pantalla — para dibujar, usa `centro_en_pantalla()`. Este es el punto
+## que entienden la NAVEGACIÓN y las distancias: la gente sigue andando por un plano cuadrado con
+## celdas de 40 px, que es contra lo que están calibradas las velocidades y los cronómetros. La
+## conversión a isométrico (2026-07-30) deliberadamente NO tocó este plano: ver la explicación
+## larga en `src/foundation/proyeccion/proyeccion.gd`.
 func centro_de_celda(celda: Vector2i) -> Vector2:
-	if _capa_salas == null:
-		return Vector2.ZERO
-	return _capa_salas.to_global(_capa_salas.map_to_local(celda))
+	return Proyeccion.centro_cuadrado(celda)
+
+
+## El centro del rombo de una celda, en coordenadas de PANTALLA. Para colocar cualquier cosa que
+## se DIBUJE (mostradores, asientos, rótulos, luces, muñecos).
+func centro_en_pantalla(celda: Vector2i) -> Vector2:
+	return _origen + Proyeccion.centro_iso(celda)
+
+
+## El vértice de la rejilla en la intersección (columna, fila), en PANTALLA. Las paredes viven en
+## las ARISTAS entre celdas, así que se dibujan de vértice a vértice.
+func esquina_en_pantalla(columna: int, fila: int) -> Vector2:
+	return _origen + Proyeccion.esquina_iso(columna, fila)
+
+
+## Un punto de PANTALLA llevado al plano lógico cuadrado. Es la inversa de `centro_en_pantalla` sin
+## redondear a celda: `celda_de_punto` te dice EN QUÉ celda has pinchado, y esta, en qué punto
+## exacto DENTRO de ella — que es lo que necesita el pincel de muros para saber a qué arista
+## apuntas.
+func punto_cuadrado_de(punto_pantalla: Vector2) -> Vector2:
+	return Proyeccion.desproyectar(punto_pantalla - _origen)
 
 
 ## Redibuja TODO el visual desde el modelo (se llama en cada cambio de layout, nunca por frame —
@@ -1580,32 +1628,28 @@ func _refrescar_visual() -> void:
 		etiqueta.text = tipo_sala.nombre if tipo_sala != null else String(tipo_id)
 		etiqueta.add_theme_font_size_override("font_size", 10)
 		etiqueta.modulate = Color(1, 1, 1, 0.75)
-		etiqueta.position = _capa_salas.map_to_local(rect.position) - Vector2(_tam_celda, _tam_celda) / 2.0 + Vector2(3, 1)
+		# ISOMÉTRICO: el rótulo va sobre el vértice de ARRIBA de la caja que envuelve la sala (que en
+		# rombos es la esquina más alta del dibujo, no la de arriba-izquierda de un rectángulo).
+		etiqueta.position = Proyeccion.esquina_iso(rect.position.x, rect.position.y) + Vector2(-22, 2)
 		_capa_elementos.add_child(etiqueta)
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
 		var es_asiento: bool = elemento["catalogo"] == ASIENTO_BASICO
-		var escena: PackedScene = _escena_asiento if es_asiento else _escena_puesto
-		var instancia: Node2D = escena.instantiate()
-		instancia.position = _capa_salas.map_to_local(elemento["celda"])
+		# El cuerpo crece hacia +X desde la celda ancla (misma convención que la validación de
+		# colocación y que `_celdas_de`). Corregido 2026-07-29 ("el sofá sigue ocupando 1 lugar"):
+		# el MODELO ya reservaba las 3 celdas, pero el DIBUJO era de 1 — y lo que el jugador juzga
+		# es el dibujo (ADR-0004: el visual REFLEJA el modelo).
+		var celdas: int = 1
+		if not es_asiento:
+			var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", elemento["catalogo"])
+			if comodidad != null:
+				celdas = maxi(comodidad.superficie, 1)
+		var instancia: Node2D = _crear_pieza(es_asiento, celdas)
+		instancia.position = Proyeccion.centro_iso(elemento["celda"])
 		if not es_asiento:
 			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
 			var texto: Label = instancia.get_node("Etiqueta")
 			texto.text = tipo_puesto.nombre if tipo_puesto != null else String(elemento["catalogo"])
-			# BUG corregido 2026-07-29 (el usuario, jugando: "el sofa sigue ocupando 1 lugar"): el
-			# MODELO ya reservaba las 3 celdas del sofa desde bien-005, pero el DIBUJO seguia siendo
-			# una caja de 1 celda -- y lo que el jugador juzga es el dibujo. Los tests comprobaban la
-			# reserva de espacio, no la representacion, por eso pasaban en verde. ADR-0004: el visual
-			# REFLEJA el modelo; aqui no lo estaba haciendo.
-			var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", elemento["catalogo"])
-			var celdas: int = maxi(comodidad.superficie, 1) if comodidad != null else 1
-			if celdas > 1:
-				# El cuerpo crece hacia +X desde el ancla (misma convencion que la validacion de
-				# colocacion), asi que la caja se estira a la derecha y la etiqueta se recentra.
-				var caja: ColorRect = instancia.get_node("Caja")
-				caja.size.x = float(_tam_celda * celdas)
-				caja.position.x = -float(_tam_celda) / 2.0
-				texto.position.x += float(_tam_celda * (celdas - 1)) / 2.0
 		_capa_elementos.add_child(instancia)
 
 
@@ -1633,31 +1677,38 @@ func _textura_de_celda(color: Color) -> ImageTexture:
 	return ImageTexture.create_from_image(imagen)
 
 
-## Construye una PackedScene placeholder por código (caja centrada + etiqueta opcional). Escenas
-## de verdad (TR-construction-003) — el arte real llegará tras el art bible (condición 2 del gate).
-func _empaquetar_placeholder(lado: int, color: Color, con_etiqueta: bool) -> PackedScene:
+## Construye la pieza placeholder de un elemento: una CAJA ISOMÉTRICA (`PiezaIso`) que ocupa sus
+## `celdas` reales sobre la rejilla, más la etiqueta del nombre si es un puesto.
+##
+## ISOMÉTRICO (2026-07-30, tras el aviso del usuario *"los objetos deben seguir la dirección de las
+## cuadrículas, ahora mismo se superponen y se ponen en horizontal"*): antes esto era un `ColorRect`
+## —un rectángulo RECTO de pantalla—, que sobre la rejilla cuadrada coincidía con la celda pero
+## sobre rombos apuntaba a una dirección que no existe en el juego. Ahora la huella se calcula
+## proyectando las celdas de verdad, así que un sofá de 3 celdas se estira en DIAGONAL siguiendo el
+## suelo y dos piezas contiguas encajan en vez de solaparse.
+##
+## Sigue siendo placeholder (TR-construction-003): el arte real llegará tras el art bible.
+func _crear_pieza(es_asiento: bool, celdas: int) -> Node2D:
 	var raiz := Node2D.new()
-	var caja := ColorRect.new()
+	var caja := PiezaIso.new()
 	caja.name = "Caja"
-	caja.size = Vector2(lado, lado)
-	caja.position = -caja.size / 2.0
-	caja.color = color
-	# Gotcha: un ColorRect por defecto SE TRAGA los clics (mouse_filter STOP) → los clics sobre un
-	# puesto/asiento nunca llegaban a la herramienta de demoler. El placeholder es decorativo: IGNORE.
-	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if es_asiento:
+		caja.configurar(1, 1, ALTO_ASIENTO, Color(0.45, 0.42, 0.35))
+	else:
+		caja.configurar(celdas, 1, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
 	raiz.add_child(caja)
-	caja.owner = raiz
-	if con_etiqueta:
+	if not es_asiento:
 		var etiqueta := Label.new()
 		etiqueta.name = "Etiqueta"
 		etiqueta.add_theme_font_size_override("font_size", 9)
-		etiqueta.position = Vector2(-lado / 2.0, lado / 2.0 + 1)
+		# Justo DEBAJO de la huella: el nodo está en el centro del rombo, cuyo vértice de abajo cae
+		# medio alto de rombo más abajo.
+		etiqueta.position = Vector2(-30.0, Proyeccion.MEDIO_ALTO + 1.0)
+		# Gotcha: un Control decorativo del mundo SE TRAGA los clics por defecto → los clics sobre
+		# un puesto no llegaban a la herramienta de demoler. Decorativo: IGNORE.
+		etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		raiz.add_child(etiqueta)
-		etiqueta.owner = raiz
-	var escena := PackedScene.new()
-	escena.pack(raiz)
-	raiz.free()
-	return escena
+	return raiz
 
 
 # ── Config (patrón Economía/Demanda/Personal: aplicar con clamp defensivo + fallback) ────────

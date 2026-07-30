@@ -14,6 +14,15 @@ run/main_scene="res://src/main/Main.tscn"
 config/description="Tycoon de gestion de una comisaria del CNP (Godot 4.6, 2D top-down)."
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
+[display]
+
+; 1600x900 (2026-07-30, conversion a ISOMETRICO): el tablero de 24x13 celdas ocupa
+; (24+13) x 80/2 = 1480 px de ancho y 740 de alto en rombo isometrico 80x40 — no cabia
+; en los 1152x648 anteriores. Se agranda la ventana en vez de encoger el rombo para no
+; bajar la resolucion del arte, que el art bible ya fijo en 80x40 (§8).
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
 [autoload]
 
 EventBus="*res://src/foundation/event_bus/event_bus.gd"

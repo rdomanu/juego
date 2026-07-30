@@ -62,9 +62,20 @@ const LucesObjetosScript := preload("res://src/main/luces_objetos.gd")
 const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
-## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
-## Y arriba: el HUD vive ABAJO (estilo tycoon — petición del usuario 2026-07-24), el mundo despejado.
-const POS_SUELO := Vector2(96, 24)
+## Alto reservado abajo para la barra del HUD (estilo tycoon — petición del usuario 2026-07-24):
+## el mundo se centra en lo que queda por encima, no en la ventana entera.
+const ALTO_BARRA_HUD: float = 84.0
+## Posición en pantalla del ORIGEN de la rejilla — la esquina (0,0). La comparten el suelo de
+## fondo, las capas de Construcción, las paredes y todo lo que se dibuje.
+##
+## ISOMÉTRICO (2026-07-30): ya no es una constante a ojo. En rombos, el tablero de 24×13 mide
+## 1480×740 px (no 960×520) y la esquina (0,0) NO cae arriba a la izquierda del dibujo sino en el
+## vértice SUPERIOR del rombo grande, con el tablero abriéndose hacia los dos lados desde ahí. La
+## cuenta de dónde ponerla para que quede centrado la hace `Proyeccion.origen_centrado`.
+@onready var pos_suelo: Vector2 = Proyeccion.origen_centrado(
+	COLUMNAS, FILAS,
+	Vector2(get_viewport_rect().size.x, get_viewport_rect().size.y - ALTO_BARRA_HUD)
+)
 ## Colores del estado financiero (placeholder sobrio; SIEMPRE acompañados de texto — accesibilidad).
 const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
@@ -301,7 +312,7 @@ func _instanciar_mundo() -> void:
 	_construccion.name = "Construccion"
 	_construccion.usar_economia(_economia)
 	add_child(_construccion)
-	_construccion.montar_visual(TAM_CELDA, POS_SUELO)
+	_construccion.montar_visual(TAM_CELDA, pos_suelo)
 	# Personal (story personal-007): la plantilla REAL. Su _ready carga config, registra las ausencias
 	# en el dispatcher (nuevo_dia prio 30) y entra a Persist (clave "Personal"). La nómina que cobra
 	# Economía sale de los salarios F1 de estos agentes (fijar_salarios_dia, enmienda 006).
@@ -318,7 +329,7 @@ func _instanciar_mundo() -> void:
 	_paredes_salas = ParedesSalasScript.new()
 	_paredes_salas.name = "ParedesSalas"
 	add_child(_paredes_salas)
-	_paredes_salas.configurar(_construccion, TAM_CELDA, POS_SUELO)
+	_paredes_salas.configurar(_construccion, TAM_CELDA, pos_suelo)
 	_dotar_plantilla_inicial()
 	# Mercado disponible desde el día 1 (decisión de andamio aprobada): el panel de personal necesita
 	# candidatos que contratar de arranque; el refresco cada 3 jornadas ya lo hace la lógica de Personal.
@@ -363,7 +374,7 @@ func _instanciar_mundo() -> void:
 	# La capa cosmética: NPCs + navegación bakeada del layout real.
 	_npcs = NPCsFlujoScript.new()
 	_npcs.name = "NPCs"
-	_npcs.configurar(_flujo, _construccion, _personal, TAM_CELDA, POS_SUELO, COLUMNAS, FILAS)
+	_npcs.configurar(_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS)
 	_npcs.usar_paciencia(_paciencia)   # el aro de ánimo sobre cada ciudadano (story paciencia-008)
 	add_child(_npcs)
 	_sincronizar_puestos_flujo()
@@ -856,14 +867,13 @@ func _asegurar_etiqueta_sala(sala_id: StringName) -> Label:
 	etiqueta.add_theme_font_size_override("font_size", 9)   # mismo tamaño que los rótulos de puesto
 	etiqueta.modulate = COLOR_TENUE_HUD   # discreta: información de fondo, no un cartel
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE   # gotcha: decorativo, no roba clics al mundo
-	# Esquina inferior-izquierda del rectángulo (celdas → mundo, mismo cálculo que `_crear_suelo`):
-	# las ventanillas y sus rótulos de estado viven pegados a la fila de arriba de la sala (ver
-	# `_montar_comisaria_inicial`), así que el borde de ABAJO es el hueco más despejado para no
-	# tapar nada — un pelín hacia dentro (4 px) y hacia arriba (16 px) para no comerse la rejilla.
+	# ISOMÉTRICO (2026-07-30): el rótulo va sobre el vértice de ABAJO de la caja que envuelve la
+	# sala — en rombos ese es el punto más bajo del dibujo y, por tanto, el hueco más despejado
+	# (las ventanillas y sus rótulos de estado viven pegados a la fila de arriba de la sala, ver
+	# `_montar_comisaria_inicial`). Centrado bajo ese vértice y un pelín por debajo.
 	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
 	etiqueta.position = (
-		POS_SUELO + Vector2(rect.position.x, rect.position.y + rect.size.y) * TAM_CELDA
-		+ Vector2(4.0, -16.0)
+		_construccion.esquina_en_pantalla(rect.end.x, rect.end.y) + Vector2(-30.0, 2.0)
 	)
 	_capa_etiquetas_sala.add_child(etiqueta)
 	_etiqueta_de_sala[sala_id] = etiqueta
@@ -950,7 +960,7 @@ func _crear_suelo() -> void:
 	suelo.name = "Suelo"
 	suelo.tile_set = tileset
 	# Centrado aproximado en la ventana por defecto (1152×648).
-	suelo.position = POS_SUELO
+	suelo.transform = Proyeccion.transformada(pos_suelo)
 	for x in COLUMNAS:
 		for y in FILAS:
 			suelo.set_cell(Vector2i(x, y), id_fuente, Vector2i.ZERO)

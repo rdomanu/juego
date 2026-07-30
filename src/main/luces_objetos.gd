@@ -99,7 +99,9 @@ func _sincronizar_luces() -> void:
 			luz.scale = Vector2(1.0, comodidad.radio_luz_y / comodidad.radio_luz)
 		luz.energy = 0.0
 		luz.blend_mode = Light2D.BLEND_MODE_ADD          # suma luz, no repinta el suelo
-		luz.position = _construccion.centro_de_celda(_construccion.posicion_de(elemento_id))
+		# ISOMÉTRICO (2026-07-30): la luz se DIBUJA, así que va en pantalla (centro del rombo de su
+		# celda), no en el plano lógico cuadrado por el que anda la gente.
+		luz.position = _construccion.centro_en_pantalla(_construccion.posicion_de(elemento_id))
 		add_child(luz)
 		_luz_de[elemento_id] = luz
 

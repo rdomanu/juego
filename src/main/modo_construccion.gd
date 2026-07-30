@@ -72,9 +72,55 @@ var _fila_herramientas: HFlowContainer
 var _lbl_estado: Label
 var _boton_modo: Button
 var _botones_herramienta: Dictionary = {}
-var _preview_caja: Panel
-var _estilo_preview: StyleBoxFlat
+var _preview_caja: PreviewIso
 var _preview_texto: Label
+
+
+## El fantasma de construcción, dibujado a mano.
+##
+## ISOMÉTRICO (2026-07-30): antes era un `Panel` —un rectángulo recto de pantalla—, que sobre una
+## rejilla cuadrada coincidía exactamente con las celdas. En rombos ya no: la huella de una sala de
+## 5×4 es un ROMBO grande, y un rectángulo recto encima marcaría un trozo de suelo que no es el que
+## vas a comprar. Como el fantasma es justamente lo que promete dónde va a caer la obra, tiene que
+## dibujar la forma de verdad. Es el mismo criterio que usa Two Point Campus (captura de
+## referencia del usuario, `capturas/construccion.PNG`): la huella translúcida sigue el suelo.
+class PreviewIso extends Node2D:
+	## Vértices de la huella a rellenar (vacío = no se pinta relleno).
+	var poligono: PackedVector2Array = PackedVector2Array()
+	## Extremos del tramo a pintar como línea gruesa (pincel de muro). `grosor <= 0` = sin línea.
+	var linea_desde: Vector2 = Vector2.ZERO
+	var linea_hasta: Vector2 = Vector2.ZERO
+	var grosor: float = 0.0
+	var color: Color = Color.WHITE
+
+	func _draw() -> void:
+		if poligono.size() >= 3:
+			# Relleno translúcido + borde casi opaco: se distingue sobre cualquier color de sala
+			# (mismo criterio de contraste que tenía el StyleBox del Panel anterior).
+			draw_colored_polygon(poligono, Color(color.r, color.g, color.b, 0.30))
+			var cerrado: PackedVector2Array = poligono.duplicate()
+			cerrado.append(poligono[0])
+			draw_polyline(cerrado, Color(color.r, color.g, color.b, 0.95), 3.0, true)
+		if grosor > 0.0:
+			draw_line(
+				linea_desde, linea_hasta, Color(color.r, color.g, color.b, 0.85), grosor, true
+			)
+
+	## Pinta una huella cerrada (una sala, un elemento). Borra cualquier línea anterior.
+	func pintar_poligono(vertices: PackedVector2Array, nuevo_color: Color) -> void:
+		poligono = vertices
+		grosor = 0.0
+		color = nuevo_color
+		queue_redraw()
+
+	## Pinta un tramo de arista (el pincel de muro). Borra cualquier huella anterior.
+	func pintar_linea(desde: Vector2, hasta: Vector2, ancho: float, nuevo_color: Color) -> void:
+		poligono = PackedVector2Array()
+		linea_desde = desde
+		linea_hasta = hasta
+		grosor = ancho
+		color = nuevo_color
+		queue_redraw()
 var _dialogo_cascada: ConfirmationDialog
 var _sala_a_demoler: StringName = &""
 
@@ -470,8 +516,12 @@ func _refrescar_preview_linea_muro() -> void:
 ## posición del ratón DENTRO de la celda contra sus 4 bordes y devuelve el más próximo. Así el
 ## pincel resalta la ARISTA que se va a construir, no la celda entera.
 func _lado_mas_cercano(punto_mundo: Vector2, celda: Vector2i) -> StringName:
-	var esquina: Vector2 = _construccion.centro_de_celda(celda) - Vector2(_tam_celda, _tam_celda) / 2.0
-	var local: Vector2 = (punto_mundo - esquina) / float(_tam_celda)   # 0..1 dentro de la celda
+	# ISOMÉTRICO (2026-07-30): la cuenta de "¿a qué lado estoy más cerca?" solo tiene sentido en el
+	# plano CUADRADO — en pantalla los cuatro lados son diagonales y las distancias no se comparan
+	# igual. Así que primero se deshace la proyección y luego se hace la misma cuenta de siempre.
+	var cuadrado: Vector2 = _construccion.punto_cuadrado_de(punto_mundo)
+	var esquina := Vector2(float(celda.x), float(celda.y)) * float(_tam_celda)
+	var local: Vector2 = (cuadrado - esquina) / float(_tam_celda)   # 0..1 dentro de la celda
 	var dist_izquierda: float = local.x
 	var dist_derecha: float = 1.0 - local.x
 	var dist_arriba: float = local.y
@@ -523,28 +573,26 @@ func _punto_mundo_del_evento(pos_pantalla: Vector2) -> Vector2:
 ## centrado en la línea de rejilla) — reutiliza el mismo Panel/StyleBox que `_colocar_caja`, solo con
 ## otra geometría, así que no hace falta ningún nodo nuevo.
 func _colocar_caja_arista(celda: Vector2i, lado: StringName, color: Color) -> void:
-	var esquina: Vector2 = _construccion.centro_de_celda(celda) - Vector2(_tam_celda, _tam_celda) / 2.0
-	var mitad_grosor: float = GROSOR_PREVIEW_MURO / 2.0
-	var pos: Vector2
-	var tam: Vector2
+	# ISOMÉTRICO: la arista deja de ser un lado horizontal o vertical de un cuadrado y pasa a ser
+	# uno de los cuatro lados en diagonal del rombo. Se resalta como una LÍNEA gruesa de vértice a
+	# vértice, que es exactamente el tramo de muro que se va a construir.
+	var desde: Vector2
+	var hasta: Vector2
 	match lado:
 		&"izquierda":
-			pos = esquina + Vector2(-mitad_grosor, 0.0)
-			tam = Vector2(GROSOR_PREVIEW_MURO, _tam_celda)
+			desde = _construccion.esquina_en_pantalla(celda.x, celda.y)
+			hasta = _construccion.esquina_en_pantalla(celda.x, celda.y + 1)
 		&"derecha":
-			pos = esquina + Vector2(_tam_celda - mitad_grosor, 0.0)
-			tam = Vector2(GROSOR_PREVIEW_MURO, _tam_celda)
+			desde = _construccion.esquina_en_pantalla(celda.x + 1, celda.y)
+			hasta = _construccion.esquina_en_pantalla(celda.x + 1, celda.y + 1)
 		&"arriba":
-			pos = esquina + Vector2(0.0, -mitad_grosor)
-			tam = Vector2(_tam_celda, GROSOR_PREVIEW_MURO)
+			desde = _construccion.esquina_en_pantalla(celda.x, celda.y)
+			hasta = _construccion.esquina_en_pantalla(celda.x + 1, celda.y)
 		_:   # "abajo"
-			pos = esquina + Vector2(0.0, _tam_celda - mitad_grosor)
-			tam = Vector2(_tam_celda, GROSOR_PREVIEW_MURO)
-	_preview_caja.position = pos
-	_preview_caja.size = tam
-	_estilo_preview.bg_color = Color(color.r, color.g, color.b, 0.30)
-	_estilo_preview.border_color = Color(color.r, color.g, color.b, 0.95)
-	_preview_texto.position = pos + Vector2(2, -20)
+			desde = _construccion.esquina_en_pantalla(celda.x, celda.y + 1)
+			hasta = _construccion.esquina_en_pantalla(celda.x + 1, celda.y + 1)
+	_preview_caja.pintar_linea(desde, hasta, GROSOR_PREVIEW_MURO, color)
+	_preview_texto.position = (desde + hasta) / 2.0 + Vector2(-60.0, -30.0)
 
 
 func _refrescar_preview_sala(rect: Rect2i) -> void:
@@ -612,12 +660,17 @@ func _superficie_de_herramienta() -> int:
 ## Coloca la caja del preview cubriendo `tam` celdas desde `celda` (coordenadas de mundo). El color
 ## se aplica como relleno translúcido + BORDE casi opaco (visible sobre cualquier sala).
 func _colocar_caja(celda: Vector2i, tam: Vector2i, color: Color) -> void:
-	var esquina: Vector2 = _construccion.centro_de_celda(celda) - Vector2(_tam_celda, _tam_celda) / 2.0
-	_preview_caja.position = esquina
-	_preview_caja.size = Vector2(tam * _tam_celda)
-	_estilo_preview.bg_color = Color(color.r, color.g, color.b, 0.30)
-	_estilo_preview.border_color = Color(color.r, color.g, color.b, 0.95)
-	_preview_texto.position = esquina + Vector2(2, -20)
+	# ISOMÉTRICO: la huella de un bloque de celdas es el ROMBO que forman sus cuatro esquinas de
+	# rejilla proyectadas — no un rectángulo recto.
+	var arriba: Vector2 = _construccion.esquina_en_pantalla(celda.x, celda.y)
+	var derecha: Vector2 = _construccion.esquina_en_pantalla(celda.x + tam.x, celda.y)
+	var abajo: Vector2 = _construccion.esquina_en_pantalla(celda.x + tam.x, celda.y + tam.y)
+	var izquierda: Vector2 = _construccion.esquina_en_pantalla(celda.x, celda.y + tam.y)
+	_preview_caja.pintar_poligono(
+		PackedVector2Array([arriba, derecha, abajo, izquierda]), color
+	)
+	# El texto, sobre el vértice más alto de la huella (es el punto que nunca tapa el propio rombo).
+	_preview_texto.position = arriba + Vector2(-60.0, -26.0)
 
 
 func _rect_entre(a: Vector2i, b: Vector2i) -> Rect2i:
@@ -641,12 +694,8 @@ func _crear_ui() -> void:
 	# Preview fantasma POR ENCIMA del atenuador (feedback del usuario: no se veía dónde iba a caer).
 	# Sin cámara, las coordenadas de mundo y de pantalla coinciden → puede vivir en la CanvasLayer.
 	# Borde grueso + relleno translúcido: se distingue sobre cualquier color de sala.
-	_preview_caja = Panel.new()
-	_estilo_preview = StyleBoxFlat.new()
-	_estilo_preview.set_border_width_all(3)
-	_preview_caja.add_theme_stylebox_override("panel", _estilo_preview)
+	_preview_caja = PreviewIso.new()
 	_preview_caja.visible = false
-	_preview_caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	capa.add_child(_preview_caja)
 	_preview_texto = Label.new()
 	_preview_texto.visible = false

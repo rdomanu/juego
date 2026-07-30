@@ -1814,3 +1814,116 @@ REVISIÓN; §1-4, §7 y §9 siguen valiendo enteras).
 **Herramientas de arte investigadas** (para la sesión de producción, no la de conversión): Scenario
 (45 $/mes, entrena modelo propio, tiene MCP), SpriteCook, Pixel Plugin + Aseprite. Aviso registrado:
 la IA generativa falla justo en personajes multiángulo consistentes — de ahí el 3D pre-renderizado.
+
+---
+
+## 🔷 SESIÓN 2026-07-30 (2ª) — CONVERSIÓN A ISOMÉTRICO, EN CURSO
+
+**Decisión de ventana y rombo (usuario)**: ventana **1600×900** + rombo **80×40** (2:1, el del art
+bible §8). Motivo: el tablero de 24×13 celdas mide **1480×740 px** proyectado y no cabía en los
+1152×648 anteriores. Se agrandó la ventana en vez de encoger el rombo, para no bajar la resolución
+a la que se dibujará el arte. Escrito en `project.godot` → `[display]`.
+
+### La decisión de arquitectura de la sesión: DOS PLANOS
+
+Es lo que hay que entender para tocar cualquier cosa visual a partir de ahora.
+
+- **Plano lógico CUADRADO** (celdas de 40 px, `Proyeccion.TAM_CELDA`): la rejilla del modelo, la
+  NAVEGACIÓN, las distancias y las velocidades de los muñecos. **No se ha tocado.** Vive en el nodo
+  oculto `NPCs/PlanoLogico`.
+- **Pantalla ISOMÉTRICA** (rombos de 80×40): lo que se ve. Vive en `NPCs/Escena` (con
+  `y_sort_enabled`), en las capas de Construcción y en las paredes.
+
+**Por qué así y no metiendo el TileMap en modo isométrico** (la alternativa corta): en coordenadas
+isométricas, andar "en diagonal hacia abajo" recorre 40 px y "en diagonal hacia el lado" recorre 80.
+A la misma velocidad en px/s, un ciudadano cruzaría celdas al **doble de ritmo según hacia dónde
+ande**, y los cronómetros del modelo (que cuentan CUADRÍCULAS) dejarían de cuadrar con lo que se ve
+— la familia de bugs de "el ciudadano plantado en ODAC". Manteniendo la navegación en el plano
+cuadrado, la velocidad es la misma en toda dirección.
+
+Consecuencia práctica: cada cuerpo que anda tiene un **muñeco** aparte en la capa de escena, al que
+se le copia la posición ya proyectada cada physics frame (`npc_ciudadano._physics_process` para los
+ciudadanos; `NPCsFlujo._sincronizar_caminantes` para los funcionarios que van al café o entran a
+trabajar).
+
+### Piezas nuevas
+
+- **`src/foundation/proyeccion/proyeccion.gd`** (`Proyeccion`) — la única traducción cuadrado↔iso.
+  Matemática pura, sin dependencias. `proyectar` / `desproyectar` / `centro_iso` / `esquina_iso` /
+  `rombo_de_celda` / `profundidad` / `transformada` / `origen_centrado`.
+- **`tests/unit/proyeccion/proyeccion_test.gd`** — 15 casos: ida y vuelta, los 4 vértices, clic
+  dentro del rombo, aristas compartidas, profundidad, encaje del tablero. **Verdes.**
+- **`docs/engine-reference/godot/modules/isometrico-2d.md`** — API de Godot 4.6 verificada contra la
+  doc oficial. Gotcha capital: **`y_sort_enabled` NO es recursivo** (solo ordena hijos DIRECTOS) y
+  solo desempata **dentro del mismo `z_index`**.
+- **`design/art/herramientas-scenario.md`** — planes de Scenario verificados.
+
+### API nueva de Construcción (la frontera entre los dos planos)
+
+| Función | Devuelve | Para qué |
+|---|---|---|
+| `centro_de_celda(celda)` | plano CUADRADO | destinos de navegación, distancias |
+| `centro_en_pantalla(celda)` | PANTALLA | colocar cualquier cosa que se dibuje |
+| `esquina_en_pantalla(col, fila)` | PANTALLA | paredes (van de vértice a vértice) |
+| `celda_de_punto(punto)` | celda | de un CLIC (ahora funciona en headless) |
+| `punto_cuadrado_de(punto)` | plano CUADRADO | dónde exactamente DENTRO de la celda (pincel de muros) |
+
+### Convertido
+
+Suelo de fondo · suelos de sala · mostradores, asientos y comodidades (**anclados por la BASE**) ·
+rótulos de sala · paredes y jambas (siguen las aristas del rombo) · ciudadanos · funcionarios que
+andan · luces · el fantasma del modo construcción (pasa de `Panel` rectangular a **polígono
+dibujado**: la huella real, como en Two Point Campus) · el pincel de aristas · el clic derecho.
+
+### Referencia visual del usuario: `capturas/` (Two Point Campus)
+
+Metidas por el usuario a mitad de sesión. **Resuelven el problema de las paredes**: en Two Point,
+las paredes del lado CERCANO a la cámara sencillamente **no se dibujan** — se ve el interior entero;
+las del fondo van a altura completa con su remate superior. El fantasma de sala es una caja
+translúcida con **solo las dos paredes del fondo**. Esa es la regla a implementar.
+
+### PENDIENTE en la conversión
+
+1. **Paredes con ALTURA** + la regla de arriba (hoy son líneas planas sobre la arista).
+2. **Profundidad entre capas distintas**: hoy la gente (z 2) siempre se pinta sobre mostradores
+   (z 0) y paredes (z 1) porque son capas separadas, y el y-sort no cruza capas. Para que un
+   mostrador tape de verdad a quien está detrás, todo eso tiene que colgar de UNA capa y-sorted.
+3. Cámara (paneo/zoom) — no hace falta con 1600×900, pero llegará.
+
+### 🐛 Bug cazado por el usuario nada más abrir la ventana (2026-07-30)
+
+*"los funcionarios no están en sus puestos, están fuera de la comisaría"*. Causa: los mostradores
+(`_visual_de_puesto`) se colocaban con `Construccion.centro_en_pantalla()`, que YA suma el origen de
+la rejilla — pero cuelgan de `_capa_escena`, que también está puesta en `pos_suelo`. **El
+desplazamiento se sumaba dos veces** y los mostradores (con sus policías encima) se iban un tablero
+entero abajo a la derecha, fuera del edificio. Corregido: dentro de `_capa_escena` va la proyección
+PELADA (`Proyeccion.centro_iso`).
+
+**Regla que deja el bug, para no repetirlo**: `Construccion.centro_en_pantalla` / `esquina_en_pantalla`
+incluyen el origen → solo valen para nodos que cuelgan de algo colocado en (0,0). Para hijos de
+`_capa_escena` o de `Construccion._capa_elementos` (que ya llevan el origen) hay que usar
+`Proyeccion.centro_iso` / `esquina_iso` / `proyectar`, sin origen.
+
+Capas auditadas tras el fallo, una por una: suelo de fondo ✓ · `_capa_salas` ✓ · `_capa_elementos` ✓ ·
+`EtiquetasSala` ✓ · `ParedesSalas` ✓ · `LucesObjetos` ✓ · preview de construcción ✓ · muñecos ✓.
+El único caso mal era el de los mostradores.
+
+### 🐛 2º aviso del usuario: los objetos no seguían la rejilla
+
+*"los objetos deben seguir la dirección de las cuadrículas, ahora mismo se superponen y se ponen en
+horizontal sin seguir las cuadrículas"*. Causa: mostradores, asientos y comodidades se dibujaban con
+un `ColorRect`, que es un rectángulo RECTO de pantalla. Sobre rejilla cuadrada coincidía con la
+celda; sobre rombos apuntaba a una dirección que no existe en el juego, y un sofá de 3 celdas salía
+como una barra horizontal atravesando el suelo.
+
+Corregido con **`src/foundation/proyeccion/pieza_iso.gd`** (`PiezaIso`): dibuja cada objeto como
+caja isométrica sobre su huella REAL de celdas (tapa + las dos caras frontales + contorno, con
+sombreado por cara). Sustituye a `_empaquetar_placeholder`, que se ha eliminado.
+
+### Refinamiento de la regla de paredes tras ver `capturas/clientes.PNG`
+
+La primera versión RECORTABA las paredes cercanas (solo línea de suelo). La captura de cerca enseña
+que Two Point **sí las dibuja**, pero vistas por FUERA: su cara cuelga hacia ABAJO en pantalla,
+sobre el pasillo, en vez de subir sobre la sala. Se mantiene la sensación de recinto cerrado Y se ve
+el interior. Implementado así: `_cara_de_arista` devuelve `{alto, exterior}` y `_draw` crece hacia
+arriba o hacia abajo según eso.

@@ -34,6 +34,18 @@ var _animo_fondo: ColorRect = null
 var _animo_visto: StringName = &""
 var _ancho_visto: float = -1.0
 
+## ISOMÉTRICO (2026-07-30) — el muñeco que SE VE. Este nodo (el CharacterBody2D) anda por el plano
+## lógico CUADRADO, que es donde vive la navegación y donde están calibradas las velocidades; pero
+## no se dibuja ahí. Su cuerpo visible cuelga aparte, en la capa de escena isométrica, y cada
+## physics frame se le copia la posición ya proyectada. Es la misma persona contada dos veces: una
+## en el plano del arquitecto y otra en la foto en perspectiva.
+##
+## Por qué separados y no un solo nodo: si el cuerpo se dibujara donde anda, habría que deformar
+## todo el plano para verlo en rombos — y eso deformaría también al muñeco (saldría tumbado) y
+## haría que andar en diagonal costara el doble o la mitad según hacia dónde. Ver la explicación
+## larga en `src/foundation/proyeccion/proyeccion.gd`.
+var muneco: Node2D = null
+
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
 ## el agente de navegación y el "muñeco" placeholder con el color de su servicio.
@@ -54,20 +66,26 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	_nav.target_desired_distance = 6.0
 	_nav.avoidance_enabled = false   # manifiesto: OFF (Experimental en 4.6)
 	add_child(_nav)
-	# Muñeco mínimo (torso + cabeza). Todo Control decorativo del mundo IGNORA el ratón (gotcha
-	# registrado: si no, se traga los clics del modo construcción).
+	# El muñeco VISIBLE va en su propio nodo, que el manager cuelga de la capa isométrica (ver el
+	# comentario de `muneco` arriba). Todo lo que se dibuja va aquí dentro, nada en el cuerpo.
+	muneco = Node2D.new()
+	muneco.name = "MunecoCiudadano"
+	# Muñeco mínimo (torso + cabeza), ANCLADO POR LA BASE: los pies caen en (0,0) del nodo, que es
+	# el punto de la celda donde de verdad está pisando. Antes iba centrado a media altura, que en
+	# cenital daba igual y en isométrico haría que pareciera flotar. Todo Control decorativo del
+	# mundo IGNORA el ratón (gotcha registrado: si no, se traga los clics del modo construcción).
 	var torso := ColorRect.new()
 	torso.color = color
 	torso.size = Vector2(12, 16)
-	torso.position = Vector2(-6, -8)
+	torso.position = Vector2(-6, -16)
 	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(torso)
+	muneco.add_child(torso)
 	var cabeza := ColorRect.new()
 	cabeza.color = color.lightened(0.35)
 	cabeza.size = Vector2(8, 6)
-	cabeza.position = Vector2(-4, -14)
+	cabeza.position = Vector2(-4, -22)
 	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(cabeza)
+	muneco.add_child(cabeza)
 	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
 	# 2026-07-26: *"debe ser algo más intuitivo: que cuando se vacía la barra se vayan"*). Son DOS
 	# piezas: un fondo oscuro fijo —el "hueco" de la barra, que dice cuánto cabía— y un relleno que se
@@ -76,19 +94,36 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	_animo_fondo = ColorRect.new()
 	_animo_fondo.color = COLOR_BARRA_FONDO
 	_animo_fondo.size = Vector2(ANCHO_BARRA, ALTO_BARRA)
-	_animo_fondo.position = Vector2(-ANCHO_BARRA * 0.5, -20)
+	_animo_fondo.position = Vector2(-ANCHO_BARRA * 0.5, -28)
 	_animo_fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo_fondo.visible = false
-	add_child(_animo_fondo)
+	muneco.add_child(_animo_fondo)
 	_animo = ColorRect.new()
 	_animo.size = Vector2(ANCHO_BARRA, ALTO_BARRA)
-	_animo.position = Vector2(-ANCHO_BARRA * 0.5, -20)
+	_animo.position = Vector2(-ANCHO_BARRA * 0.5, -28)
 	_animo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo.visible = false
-	add_child(_animo)
+	muneco.add_child(_animo)
+	_manager.registrar_muneco(muneco)
+
+
+## El muñeco no cuelga de este nodo, así que no se borra solo cuando el ciudadano desaparece: hay
+## que llevárselo por delante a mano. `_exit_tree` cubre TODAS las formas de irse (despacho normal,
+## carga de partida, cierre del juego) — si esto se hiciera solo en `despachar`, cada F9 dejaría
+## la comisaría sembrada de muñecos huérfanos de gente que ya no existe.
+func _exit_tree() -> void:
+	if muneco != null and is_instance_valid(muneco):
+		muneco.queue_free()
+		muneco = null
 
 
 func _physics_process(_delta: float) -> void:
+	# Lo PRIMERO y sin condiciones: llevar el muñeco a donde está el cuerpo, ya proyectado. Va
+	# antes de cualquier `return` a propósito — el cuerpo se mueve también en frames en los que
+	# esta función se corta antes de tiempo (nav aún no lista, persona nula), y si el muñeco no se
+	# sincronizara en esos frames se quedaría rezagado a tirones.
+	if muneco != null and is_instance_valid(muneco):
+		muneco.position = Proyeccion.proyectar(position)
 	if not _nav_lista:
 		_nav_lista = true   # a partir de aquí el server ya sincronizó: los targets valen
 		return

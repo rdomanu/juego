@@ -90,6 +90,14 @@ var _rotulo_extra: Dictionary[StringName, String] = {}
 ## Capa donde cuelgan los muñecos que caminan al descanso (hereda el z_index 1 de `configurar`, así
 ## se dibujan por encima de las salas como el resto de NPCs).
 var _capa_descansos: Node2D = null
+## Desplazamiento del muñeco del funcionario respecto de la celda de SU mostrador: una casilla
+## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
+## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
+const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
+## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
+var _capa_logica: Node2D = null
+var _capa_escena: Node2D = null
 
 # ── Trayecto cosmético del descanso (feedback demo 2026-07-29: *"debe estar la animación del
 # abandono del puesto y estar en la sala de descanso sin el puesto atendido"*) ───────────────────
@@ -169,12 +177,15 @@ func animo_de(persona: RefCounted) -> StringName:
 func ciudadano_en(punto: Vector2, radio: float = 22.0) -> Node:
 	var mejor: Node = null
 	var mejor_dist: float = radio
-	for hijo: Node in get_children():
+	# ISOMÉTRICO (2026-07-30): los cuerpos viven en el plano lógico (oculto), así que ahora se
+	# buscan ahí — pero la distancia se mide en PANTALLA, contra el muñeco que el jugador está
+	# viendo. Comparar contra el cuerpo daría aciertos en un sitio donde no hay nadie dibujado.
+	for hijo: Node in _capa_logica.get_children():
 		if not (hijo is CharacterBody2D) or hijo.get("persona") == null:
 			continue
 		if animo_de(hijo.persona) == &"":
 			continue   # solo se puede colar a quien está esperando (a quien ya llamaron, no)
-		var dist: float = (hijo as Node2D).global_position.distance_to(punto)
+		var dist: float = a_pantalla((hijo as Node2D).position).distance_to(punto)
 		if dist < mejor_dist:
 			mejor_dist = dist
 			mejor = hijo
@@ -220,15 +231,51 @@ func configurar(
 	_pos_suelo = pos_suelo
 	_columnas = columnas
 	_filas = filas
+	# ── ISOMÉTRICO (2026-07-30): DOS capas, y esta separación es la clave de toda la conversión ──
+	#
+	# `_capa_logica` es el PLANO DEL ARQUITECTO: la comisaría vista desde arriba, celdas cuadradas
+	# de 40 px. Aquí viven la navegación y los cuerpos que andan. **Está oculta**: no se dibuja
+	# nunca, solo se calcula en ella. Sigue exactamente igual que antes de la conversión, y por eso
+	# ni las velocidades ni los cronómetros ni los 643 tests se han tenido que tocar.
+	#
+	# `_capa_escena` es LO QUE SE VE: la misma comisaría en rombos. Cada cuerpo de la capa lógica
+	# tiene aquí su muñeco, al que se le copia la posición ya proyectada en cada physics frame.
+	_capa_logica = Node2D.new()
+	_capa_logica.name = "PlanoLogico"
+	_capa_logica.visible = false
+	add_child(_capa_logica)
+	_capa_escena = Node2D.new()
+	_capa_escena.name = "Escena"
+	_capa_escena.position = pos_suelo
+	# Orden de dibujo por PROFUNDIDAD (nuevo con el isométrico): dentro de esta capa, quien está
+	# más abajo en pantalla tapa a quien está detrás — que es justo lo que hace que una vista
+	# isométrica se lea como un espacio y no como un collage. ⚠️ Verificado en la doc de Godot 4.6:
+	# `y_sort_enabled` NO es recursivo (solo ordena los hijos DIRECTOS) y solo desempata entre
+	# nodos del MISMO z_index. Por eso los muñecos cuelgan de aquí directamente, y no metidos cada
+	# uno en un subnodo suyo.
+	_capa_escena.y_sort_enabled = true
+	add_child(_capa_escena)
 	_region = NavigationRegion2D.new()
 	_region.name = "Navegacion"
-	add_child(_region)
-	# Capa de los que están de café (Bienestar #13): cuelga de aquí para heredar el z_index de los
-	# NPCs y dibujarse por encima de las salas, como el resto de la gente.
+	_capa_logica.add_child(_region)
+	# Capa de los que están de café (Bienestar #13): son CUERPOS que andan, así que van al plano
+	# lógico; sus muñecos visibles se registran aparte en `_capa_escena`.
 	_capa_descansos = Node2D.new()
 	_capa_descansos.name = "Descansos"
-	add_child(_capa_descansos)
+	_capa_logica.add_child(_capa_descansos)
 	_rebake_pendiente = true
+
+
+## Cuelga un muñeco de la capa que SE VE. Lo llaman los cuerpos al nacer (npc_ciudadano) y los
+## viajes de descanso/incorporación: el cuerpo se queda en el plano lógico y su muñeco viene aquí.
+func registrar_muneco(muneco: Node2D) -> void:
+	_capa_escena.add_child(muneco)
+
+
+## Un punto del plano lógico cuadrado, llevado a coordenadas de PANTALLA (globales). Lo usan el
+## acierto del clic derecho y cualquier cosa que tenga que comparar "dónde se ve" con "dónde está".
+func a_pantalla(punto_cuadrado: Vector2) -> Vector2:
+	return _pos_suelo + Proyeccion.proyectar(punto_cuadrado)
 
 
 ## Hook del cambio de layout (lo cablea Main): coalescido — como mucho un bake por frame.
@@ -258,6 +305,7 @@ func _physics_process(_delta: float) -> void:
 	_refrescar_puestos()
 	_refrescar_descansos()
 	_refrescar_incorporaciones()
+	_sincronizar_caminantes()
 
 
 ## Bake del polígono navegable: el suelo del edificio + dos celdas de "calle" a la izquierda
@@ -265,15 +313,20 @@ func _physics_process(_delta: float) -> void:
 ## (el NPC rodea el mostrador y se detiene en su borde). Los asientos NO se recortan: pisar la
 ## celda del banco es "sentarse".
 func _bakear_navegacion() -> void:
+	# ISOMÉTRICO (2026-07-30): la navegación vive en el PLANO LÓGICO CUADRADO, cuyo origen es la
+	# esquina (0,0) de la rejilla a secas — ya no se le suma `_pos_suelo`. Ese desplazamiento es de
+	# PANTALLA y ahora lo aplica la capa de escena al dibujar; metiéndolo aquí, los destinos (que
+	# salen de `Construccion.centro_de_celda`, sin desplazar) habrían caído fuera del polígono
+	# navegable y nadie habría podido moverse.
 	var datos := NavigationMeshSourceGeometryData2D.new()
-	var origen: Vector2 = _pos_suelo + Vector2(-2.0 * _tam_celda, 0.0)
-	var fin: Vector2 = _pos_suelo + Vector2(_columnas * _tam_celda, _filas * _tam_celda)
+	var origen := Vector2(-2.0 * _tam_celda, 0.0)
+	var fin := Vector2(_columnas * _tam_celda, _filas * _tam_celda)
 	datos.add_traversable_outline(PackedVector2Array([
 		origen, Vector2(fin.x, origen.y), fin, Vector2(origen.x, fin.y),
 	]))
 	for servicio: String in ["Documentacion", "ODAC", "Seguridad"]:
 		for puesto_id: StringName in _construccion.puestos_de_servicio(servicio):
-			var esquina: Vector2 = _pos_suelo + Vector2(_construccion.posicion_de(puesto_id)) * float(_tam_celda)
+			var esquina: Vector2 = Vector2(_construccion.posicion_de(puesto_id)) * float(_tam_celda)
 			var lado := float(_tam_celda)
 			datos.add_obstruction_outline(PackedVector2Array([
 				esquina, esquina + Vector2(lado, 0), esquina + Vector2(lado, lado), esquina + Vector2(0, lado),
@@ -294,7 +347,7 @@ func _bakear_navegacion() -> void:
 			continue   # por la puerta SE PASA: no se recorta
 		var cx: int = int(partes[1])
 		var cy: int = int(partes[2])
-		var esq: Vector2 = _pos_suelo + Vector2(float(cx), float(cy)) * float(_tam_celda)
+		var esq: Vector2 = Vector2(float(cx), float(cy)) * float(_tam_celda)
 		var largo := float(_tam_celda)
 		var a0: Vector2
 		var a1: Vector2
@@ -324,9 +377,13 @@ func spawn(persona: RefCounted) -> void:
 		color = COLOR_DOC
 	else:
 		color = COLOR_ODAC
-	npc.configurar(persona, self, _flujo.velocidad_npc_px_s, color)
 	npc.position = _punto_calle(persona.numero_turno)
-	add_child(npc)
+	# El cuerpo va al plano lógico (oculto); su muñeco se registra solo en la capa de escena desde
+	# `configurar`. ⚠️ ORDEN: primero `add_child` y luego `configurar` — `configurar` llama a
+	# `registrar_muneco`, y la posición del muñeco se copia del cuerpo, que ya debe estar colocado.
+	_capa_logica.add_child(npc)
+	npc.configurar(persona, self, _flujo.velocidad_npc_px_s, color)
+	npc.muneco.position = Proyeccion.proyectar(npc.position)
 
 
 ## El NPC llegó a la salida (Resuelta/Abandonando): libera su asiento y desaparece.
@@ -356,7 +413,16 @@ func destino_de(npc: Node) -> Vector2:
 			# llamado pero el de delante sigue. Sin esto los dos munecos se pintaban SUPERPUESTOS.
 			var suyo: StringName = _flujo.puesto_de(persona)
 			if _flujo.siguiente_de(suyo) == persona:
-				return _frente_del_puesto(persona) + Vector2(float(_tam_celda) * 0.8, 0.0)
+				# LA LÍNEA DE DISCRECIÓN (petición del usuario, 2026-07-30: *"queda mal que esté un
+				# ciudadano denunciando y otro al lado pudiendo escuchar todo"*). Antes el llamado
+				# por anticipado esperaba a UN LADO del mostrador, pegado a quien estaba siendo
+				# atendido — que en una comisaría de verdad es justo lo que no puede pasar: nadie
+				# pone la oreja mientras otro pone una denuncia.
+				#
+				# Ahora espera DOS CASILLAS más atrás, en la línea que hay pintada en el suelo de
+				# cualquier ventanilla real. Es una decisión de DIBUJO, no de modelo: el turno, el
+				# cronómetro y el momento de la llamada no cambian; solo dónde se planta el muñeco.
+				return _frente_del_puesto(persona) + Vector2(0.0, float(_tam_celda) * 2.0)
 			return _frente_del_puesto(persona)
 		_:
 			# Resuelta / Abandonando (o cualquier raro): a la calle; despawn al llegar.
@@ -367,7 +433,7 @@ func destino_de(npc: Node) -> Vector2:
 ## Un punto de la calle (el margen izquierdo, FUERA del edificio): entrada, cola exterior y
 ## salida. Repartido en vertical por turno para que la cola exterior se vea como grupito.
 func _punto_calle(turno: int) -> Vector2:
-	var base: Vector2 = _pos_suelo + Vector2(-1.0 * _tam_celda, 6.5 * _tam_celda)
+	var base := Vector2(-1.0 * _tam_celda, 6.5 * _tam_celda)
 	return base + Vector2(0.0, float(turno % 6) * 18.0 - 54.0)
 
 
@@ -514,7 +580,15 @@ func _refrescar_puestos() -> void:
 		var contenedor: Node2D = _visual_de_puesto[puesto_id]
 		if contenedor.get_meta(&"celda", Vector2i(-9999, -9999)) != celda:
 			contenedor.set_meta(&"celda", celda)
-			contenedor.position = _construccion.centro_de_celda(celda) + Vector2(0, -_tam_celda * 0.55)
+			# ISOMETRICO: el mostrador se DIBUJA, asi que va en pantalla; y se ancla por la BASE
+			# (el centro del rombo de su celda), no flotando media celda por encima como antes.
+			# OJO al origen: el contenedor cuelga de `_capa_escena`, que YA esta puesta en
+			# `pos_suelo` — asi que aqui va la proyeccion PELADA (`Proyeccion.centro_iso`) y NO
+			# `Construccion.centro_en_pantalla`, que ademas suma el origen. Sumarlo dos veces fue
+			# el bug que reporto el usuario nada mas abrir la ventana: "los funcionarios no estan
+			# en sus puestos, estan fuera de la comisaria" — los mostradores se iban un tablero
+			# entero hacia abajo a la derecha, y con ellos los policias que los atienden.
+			contenedor.position = Proyeccion.centro_iso(celda)
 		_actualizar_visual_puesto(
 			puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""), cansancio,
 			_regreso_en_curso.has(puesto_id), _incorporacion_en_curso.has(puesto_id)
@@ -669,7 +743,7 @@ func _avanzar_camino_descanso(viaje: Dictionary) -> bool:
 func _cerrar_camino_descanso(viaje: Dictionary) -> void:
 	if viaje["fase"] == &"volviendo":
 		_regreso_en_curso.erase(viaje["puesto_id"])
-	(viaje["muneco"] as Node).queue_free()
+	_borrar_caminante(viaje["muneco"] as Node)
 
 
 ## El punto al que YA navegan los ciudadanos atendidos en este puesto (`_frente_del_puesto`, pero sin
@@ -703,19 +777,25 @@ func _asiento_descanso_libre(sala_id: StringName) -> Vector2i:
 
 ## Añade la taza (☕) al llegar a la sala — el mismo indicador que ya existía, ahora sobre el muñeco
 ## que de verdad caminó hasta allí en vez de uno recién creado en el sitio.
-func _poner_taza(muneco: Node2D) -> void:
+func _poner_taza(cuerpo: Node2D) -> void:
+	var muneco: Node2D = _visual_caminante(cuerpo)
+	if muneco == null:
+		return
 	var taza := Label.new()
 	taza.name = "Taza"
 	taza.text = "☕"
 	taza.add_theme_font_size_override("font_size", 10)
-	taza.position = Vector2(-6, -26)
+	taza.position = Vector2(-6, -34)
 	taza.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	muneco.add_child(taza)
 
 
 ## Quita la taza al levantarse a volver (defensivo: si el viaje era sin sala, nunca la tuvo — no hay
 ## nada que hacer).
-func _quitar_taza(muneco: Node2D) -> void:
+func _quitar_taza(cuerpo: Node2D) -> void:
+	var muneco: Node2D = _visual_caminante(cuerpo)
+	if muneco == null:
+		return
 	var taza: Node = muneco.get_node_or_null("Taza")
 	if taza != null:
 		taza.queue_free()
@@ -776,23 +856,26 @@ func _iniciar_camino_incorporacion(agente: RefCounted) -> void:
 ## `dotado`/`agente_de` ya no lo devuelven).
 func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 	_incorporacion_en_curso.erase(viaje["puesto_id"])
-	(viaje["muneco"] as Node).queue_free()
+	_borrar_caminante(viaje["muneco"] as Node)
 
 
 ## Torso + cabeza del uniforme (las mismas piezas, pixel a pixel) añadidas a `destino`: lo comparten
 ## el muñeco QUIETO del mostrador (`_asegurar_visual_puesto`) y el CAMINANTE de esta sección
 ## (`_crear_muneco_caminante`), para que sea el mismo cuerpo se mire donde se mire.
+## ISOMÉTRICO (2026-07-30): ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto
+## de la celda donde de verdad está de pie. Antes iba centrado a media altura (torso en y=-8): en
+## cenital daba igual, en isométrico el policía parecería flotar por encima de su mostrador.
 func _anadir_cuerpo_policia(destino: Node2D) -> void:
 	var torso := ColorRect.new()
 	torso.color = COLOR_POLICIA_TORSO
 	torso.size = Vector2(12, 16)
-	torso.position = Vector2(-6, -8)
+	torso.position = Vector2(-6, -16)
 	torso.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	destino.add_child(torso)
 	var cabeza := ColorRect.new()
 	cabeza.color = COLOR_POLICIA_TORSO.lightened(0.55)
 	cabeza.size = Vector2(8, 6)
-	cabeza.position = Vector2(-4, -14)
+	cabeza.position = Vector2(-4, -22)
 	cabeza.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	destino.add_child(cabeza)
 
@@ -818,8 +901,47 @@ func _crear_muneco_caminante() -> CharacterBody2D:
 	nav.target_desired_distance = 6.0
 	nav.avoidance_enabled = false   # manifiesto: OFF (Experimental en 4.6), igual que npc_ciudadano
 	muneco.add_child(nav)
-	_anadir_cuerpo_policia(muneco)
+	# ISOMÉTRICO (2026-07-30): el CUERPO (esto) anda por el plano lógico cuadrado y no se dibuja;
+	# lo que se ve es este otro nodo, que cuelga de la capa de escena y al que se le copia la
+	# posición ya proyectada en `_sincronizar_caminantes`. Mismo reparto que en npc_ciudadano.
+	var visual := Node2D.new()
+	visual.name = "MunecoPolicia"
+	_anadir_cuerpo_policia(visual)
+	registrar_muneco(visual)
+	muneco.set_meta(&"visual", visual)
 	return muneco
+
+
+## El muñeco VISIBLE de un cuerpo caminante (null si ya no existe). Todo lo que sea DIBUJO sobre un
+## caminante (la taza del café, y mañana su sprite) va aquí, nunca en el cuerpo.
+func _visual_caminante(cuerpo: Node) -> Node2D:
+	if cuerpo == null or not is_instance_valid(cuerpo):
+		return null
+	var visual: Variant = cuerpo.get_meta(&"visual", null)
+	if visual == null or not is_instance_valid(visual):
+		return null
+	return visual as Node2D
+
+
+## Borra un cuerpo caminante Y su muñeco. Siempre por aquí: soltar solo el cuerpo dejaría el muñeco
+## dibujado para siempre en el sitio donde murió (un policía fantasma junto a la máquina de café).
+func _borrar_caminante(cuerpo: Node) -> void:
+	var visual: Node2D = _visual_caminante(cuerpo)
+	if visual != null:
+		visual.queue_free()
+	if cuerpo != null and is_instance_valid(cuerpo):
+		cuerpo.queue_free()
+
+
+## Copia la posición de cada cuerpo caminante a su muñeco, ya proyectada. Una pasada por physics
+## frame sobre los viajes VIVOS (descansos + incorporaciones): son unos pocos, no la plantilla
+## entera. Es el equivalente del `muneco.position = ...` que npc_ciudadano hace en su propio
+## `_physics_process` — los caminantes no tienen script propio, así que lo hace este archivo.
+func _sincronizar_caminantes() -> void:
+	for cuerpo: Node in _capa_descansos.get_children():
+		var visual: Node2D = _visual_caminante(cuerpo)
+		if visual != null:
+			visual.position = Proyeccion.proyectar((cuerpo as Node2D).position)
 
 
 ## Crea (una vez) el contenedor del puesto con sus piezas hijas fijas: muñeco policía (torso +
@@ -832,11 +954,22 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 		return
 	var contenedor := Node2D.new()
 	contenedor.name = "Puesto_%s" % puesto_id
-	contenedor.position = _construccion.centro_de_celda(celda) + Vector2(0, -_tam_celda * 0.55)
+	contenedor.position = Proyeccion.centro_iso(celda)
 	# El muñeco policía (torso + cabeza, estilo npc_ciudadano); se muestra solo si el puesto está dotado.
 	var policia := Node2D.new()
 	policia.name = "Policia"
-	_anadir_cuerpo_policia(policia)
+	# LA VENTANILLA SON TRES CASILLAS EN FILA (petición del usuario, 2026-07-30, viendo el
+	# isométrico: *"la mesa de atención debe ser como 3 casillas: 1 donde está el policía, otra la
+	# mesa y otra la silla con el ciudadano; ahora veo encima de la mesa al funcionario"*):
+	#
+	#     [ funcionario ]  ←  celda - (0,1),  DETRÁS del mostrador
+	#     [   MESA      ]  ←  la celda del puesto en el modelo
+	#     [  ciudadano  ]  ←  celda + (0,1),  donde ya le manda `_frente_del_puesto`
+	#
+	# El ciudadano ya iba a su casilla desde antes; lo que faltaba era sacar al funcionario de
+	# ENCIMA de la mesa. Se mueve solo el DIBUJO: el modelo sigue teniendo el puesto en una celda,
+	# así que ni costes, ni validación de colocación, ni un solo test cambian.
+	policia.position = _POLICIA_DETRAS
 	contenedor.add_child(policia)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
 	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
@@ -879,7 +1012,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var lbl_estado := _label_centrada(9, Vector2(-30, -_tam_celda * 0.5))
 	lbl_estado.name = "Estado"
 	contenedor.add_child(lbl_estado)
-	add_child(contenedor)
+	_capa_escena.add_child(contenedor)
 	_visual_de_puesto[puesto_id] = contenedor
 
 
