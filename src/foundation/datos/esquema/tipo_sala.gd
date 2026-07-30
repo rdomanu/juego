@@ -27,5 +27,14 @@ class_name TipoSala extends Resource
 @export var coste_construccion_eur: int
 ## Superficie que ocupa en la rejilla, en celdas.
 @export var superficie: int
+## ¿Este tipo de sala nace CON PAREDES? (2026-07-30, decisión del usuario: *"hay a veces que no
+## quiero paredes y solo quiero delimitar las salas... no me importa que no tengan paredes
+## documentación y odac ni tampoco la sala de espera pero sí la de descanso"*).
+##
+## Es solo el VALOR DE PARTIDA: cada sala ya construida se puede cambiar después una por una desde
+## su menú. La sala de descanso viene cerrada porque su razón de ser es la intimidad —que no se vea
+## a los funcionarios tomando café desde la sala de espera—; el resto nacen abiertas, en planta
+## diáfana, porque ahí lo que se quiere es DELIMITAR la zona, no aislarla.
+@export var paredes_por_defecto: bool = false
 ## Icono para la UI.
 @export var icono: Texture2D

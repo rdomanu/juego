@@ -37,6 +37,12 @@ const ConfigConstruccionScript := preload("res://src/core/construccion/config_co
 ## Id especial del asiento básico (no vive en el catálogo — MVP; Comodidades #15 lo formalizará).
 const ASIENTO_BASICO := &"asiento_basico"
 
+## La puerta del edificio, por donde entra todo el mundo (misma celda que usan Flujo y Personal).
+## Las puertas de las salas se abren en el punto de su perímetro más cercano a ella.
+const CELDA_PUERTA_EDIFICIO := Vector2i(0, 6)
+## Centinela de "esta sala no tiene puerta" (ninguna celda del edificio es negativa).
+const CELDA_NULA_PUERTA := Vector2i(-1, -1)
+
 # ── Tuning knobs (copiados del config con clamp; ver aplicar_config) ─────────────────────────
 var coste_por_celda: float = 20.0
 var densidad_asientos: float = 0.7
@@ -140,6 +146,12 @@ func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringN
 	for c: Vector2i in _celdas_de(id_catalogo, celda):
 		if sala_en(c) != sala_id or _celda_ocupada(c, ignorar):
 			return false   # el cuerpo no cabe entero: se sale de la sala o pisa algo (CO4)
+		# La puerta no se tapia... salvo que la sala tenga OTRO sitio por donde abrirla. Asi el jugador
+		# nunca se queda con una sala sin salida, pero tampoco se le prohibe amueblar por una celda que
+		# se puede recolocar. (Y el montaje inicial de la DGP, que pone asientos antes de que nadie
+		# piense en puertas, deja de ser invalido por accidente.)
+		if es_celda_de_puerta(c) and _perimetro_libre_alternativo(sala_id, _celdas_de(id_catalogo, celda)).is_empty():
+			return false
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
 	if id_catalogo == ASIENTO_BASICO:
 		if tipo_sala.tipo != "espera":
@@ -393,15 +405,132 @@ func _crear_sala(
 	tipo_sala_id: StringName, rect: Rect2i, coste_pagado: float = 0.0, id_forzado: StringName = &""
 ) -> StringName:
 	var sala_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(&"sala")
-	_salas[sala_id] = {"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado}
+	var tipo: Resource = Datos.obtener_silencioso(&"TipoSala", tipo_sala_id)
+	_salas[sala_id] = {
+		"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado,
+		"puerta": _puerta_automatica(rect),
+		# Las paredes son OPCIONALES por sala (usuario 2026-07-30). El tipo solo pone el valor de
+		# partida: la de descanso nace cerrada por intimidad, el resto en planta diafana.
+		"paredes": bool(tipo.paredes_por_defecto) if tipo != null else false,
+	}
 	_refrescar_visual()
 	return sala_id
+
+
+## Dónde se abre la puerta de una sala recién creada (paredes y puertas, 2026-07-30).
+##
+## Se elige AUTOMÁTICAMENTE, no la coloca el jugador: `construir_sala` es "dibujas un rectángulo y
+## pagas", y meter un paso obligatorio de "ahora pon la puerta" rompería ese gesto. Además hace
+## imposible por construcción una sala sin salida — no hay que validarlo después.
+##
+## Se pone en la celda del PERÍMETRO más cercana a la puerta del edificio, que es por donde entra
+## todo el mundo: así la puerta cae de forma natural del lado por el que se circula.
+##
+## Se guarda la celda INTERIOR que toca el hueco (no la arista): con el rect de la sala se deduce
+## solo en qué lado está, y así el dato es un Vector2i que ya sabe serializar el resto del save.
+func _puerta_automatica(rect: Rect2i) -> Vector2i:
+	var mejor: Vector2i = rect.position
+	var mejor_dist: float = -1.0
+	for x: int in range(rect.position.x, rect.end.x):
+		for y: int in range(rect.position.y, rect.end.y):
+			var en_borde: bool = (
+				x == rect.position.x or x == rect.end.x - 1
+				or y == rect.position.y or y == rect.end.y - 1
+			)
+			if not en_borde:
+				continue
+			var d: float = Vector2(Vector2i(x, y) - CELDA_PUERTA_EDIFICIO).length()
+			if mejor_dist < 0.0 or d < mejor_dist:
+				mejor_dist = d
+				mejor = Vector2i(x, y)
+	return mejor
+
+
+## ¿Esta sala tiene paredes dibujadas? (2026-07-30) Delimitar una zona y AISLARLA son dos cosas
+## distintas: Documentacion, ODAC y la sala de espera se leen bien en planta diafana; la de descanso
+## necesita cerrarse para que no se vea a los funcionarios de cafe desde la cola.
+func sala_con_paredes(sala_id: StringName) -> bool:
+	if not _salas.has(sala_id):
+		return false
+	return bool(_salas[sala_id].get("paredes", false))
+
+
+## Pone o quita las paredes de una sala YA construida. De momento es gratis y solo cambia como se
+## ve: las paredes todavia NO bloquean el paso (esa es una fase aparte que el usuario decidira).
+func fijar_paredes_de_sala(sala_id: StringName, con_paredes: bool) -> void:
+	if not _salas.has(sala_id):
+		push_warning("Construccion: paredes de una sala inexistente ('%s') -> ignorado" % sala_id)
+		return
+	if bool(_salas[sala_id].get("paredes", false)) == con_paredes:
+		return
+	_salas[sala_id]["paredes"] = con_paredes
+	_refrescar_visual()
+
+
+## La celda interior donde esa sala tiene su puerta (`CELDA_NULA_PUERTA` si la sala no existe).
+func puerta_de_sala(sala_id: StringName) -> Vector2i:
+	if not _salas.has(sala_id):
+		return CELDA_NULA_PUERTA
+	return _salas[sala_id].get("puerta", CELDA_NULA_PUERTA)
+
+
+## ¿Esta celda es la puerta de su sala? Lo consulta la validación de colocación: **una puerta no se
+## puede tapiar** con un mueble, o el jugador se dejaría una sala sin salida sin darse cuenta.
+func es_celda_de_puerta(celda: Vector2i) -> bool:
+	var sala_id: StringName = sala_en(celda)
+	if sala_id == &"":
+		return false
+	return puerta_de_sala(sala_id) == celda
+
+
+## Celdas del perímetro de la sala que podrían albergar la puerta y NO están ocupadas (ni por lo que
+## se va a colocar ahora, que llega en `reservadas`). Vacío = no hay dónde recolocarla.
+func _perimetro_libre_alternativo(sala_id: StringName, reservadas: Array) -> Array:
+	var libres: Array[Vector2i] = []
+	if not _salas.has(sala_id):
+		return libres
+	var rect: Rect2i = _salas[sala_id]["rect"]
+	for x: int in range(rect.position.x, rect.end.x):
+		for y: int in range(rect.position.y, rect.end.y):
+			var celda := Vector2i(x, y)
+			var en_borde: bool = (
+				x == rect.position.x or x == rect.end.x - 1
+				or y == rect.position.y or y == rect.end.y - 1
+			)
+			if not en_borde or celda in reservadas or _celda_ocupada(celda, &""):
+				continue
+			libres.append(celda)
+	return libres
+
+
+## Si lo que se acaba de colocar cae sobre la puerta, la puerta SE APARTA a otra celda libre del
+## perímetro (la más cercana a la entrada del edificio, mismo criterio que al crear la sala). La
+## validación ya garantizó que existe al menos una, así que esto no puede dejar la sala sin salida.
+func _reubicar_puerta_si_estorba(sala_id: StringName, celdas: Array) -> void:
+	if sala_id == &"" or not _salas.has(sala_id):
+		return
+	var puerta: Vector2i = _salas[sala_id].get("puerta", CELDA_NULA_PUERTA)
+	if not (puerta in celdas):
+		return
+	var libres: Array = _perimetro_libre_alternativo(sala_id, celdas)
+	if libres.is_empty():
+		return
+	var mejor: Vector2i = libres[0]
+	var mejor_dist: float = Vector2(mejor - CELDA_PUERTA_EDIFICIO).length()
+	for celda: Vector2i in libres:
+		var d: float = Vector2(celda - CELDA_PUERTA_EDIFICIO).length()
+		if d < mejor_dist:
+			mejor_dist = d
+			mejor = celda
+	_salas[sala_id]["puerta"] = mejor
 
 
 ## Da de alta un elemento YA validado y pagado (guarda `coste_pagado` — lo necesita el reembolso F4).
 func _crear_elemento(
 	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &""
 ) -> StringName:
+	# Si el mueble cae sobre la puerta, la puerta se aparta (la validacion ya comprobo que hay sitio).
+	_reubicar_puerta_si_estorba(sala_en(celda), _celdas_de(id_catalogo, celda))
 	var elemento_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(id_catalogo)
 	_elementos[elemento_id] = {
 		"catalogo": id_catalogo, "celda": celda, "sala": sala_en(celda), "coste_pagado": coste_pagado,
@@ -850,6 +979,13 @@ func save() -> Dictionary:
 			"id": String(sala_id), "tipo": String(sala["tipo"]),
 			"rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y],
 			"coste_pagado": sala["coste_pagado"],
+			# La puerta se guarda (2026-07-30): al cargar NO se recalcula, porque si el jugador amplia la
+			# sala mas adelante la puerta automatica saldria en otro sitio y se le moveria sola de un dia
+			# para otro. Donde esta la puerta de tu comisaria es parte de tu comisaria.
+			"paredes": sala.get("paredes", false),
+			"puerta": [
+				sala.get("puerta", CELDA_NULA_PUERTA).x, sala.get("puerta", CELDA_NULA_PUERTA).y,
+			],
 		})
 	var elementos: Array = []
 	for elemento_id: StringName in _elementos:
@@ -887,8 +1023,18 @@ func load_state(d: Dictionary) -> void:
 		var rect := Rect2i(
 			int(rect_datos[0]), int(rect_datos[1]), int(rect_datos[2]), int(rect_datos[3])
 		)
+		# Puerta: si el save es viejo (o viene corrupta) se recalcula, para que una partida guardada
+		# ANTES de que existieran las puertas siga cargando y salga con una puerta razonable.
+		var puerta_datos: Variant = datos.get("puerta", [])
+		var puerta: Vector2i = _puerta_automatica(rect)
+		if puerta_datos is Array and puerta_datos.size() == 2:
+			var guardada := Vector2i(int(puerta_datos[0]), int(puerta_datos[1]))
+			if rect.has_point(guardada):
+				puerta = guardada
 		_salas[StringName(String(datos.get("id", "")))] = {
 			"tipo": tipo_sala, "rect": rect, "coste_pagado": float(datos.get("coste_pagado", 0.0)),
+			"puerta": puerta,
+			"paredes": bool(datos.get("paredes", false)),
 		}
 	for datos: Variant in d.get("elementos", []):
 		if not (datos is Dictionary):

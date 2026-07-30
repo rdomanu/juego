@@ -78,3 +78,9 @@ class_name Comodidad extends Resource
 @export var color_luz: Color = Color(1.0, 0.9, 0.7)
 ## Radio de la luz en píxeles. Ninguna ilumina media comisaría: son toques, no farolas.
 @export var radio_luz: float = 90.0
+## Radio VERTICAL, para luces que no son redondas. **0 = redonda** (usa `radio_luz` en los dos ejes),
+## que es el caso de casi todo. Existe por el FLUORESCENTE (decisión del usuario 2026-07-30): un tubo
+## alumbra una franja alargada, no un círculo, así que su luz mide 5 casillas de ancho por 3 de alto.
+## Es la forma de la luz contando la forma de la lámpara — y de paso lo que la distingue de la
+## lámpara de pie, que cubre lo mismo pero en redondo y con luz cálida.
+@export var radio_luz_y: float = 0.0

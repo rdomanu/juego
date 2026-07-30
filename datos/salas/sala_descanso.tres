@@ -9,3 +9,4 @@ nombre = "Sala de Descanso"
 tipo = "descanso"
 servicio = "Comun"
 coste_construccion_eur = 300
+paredes_por_defecto = true

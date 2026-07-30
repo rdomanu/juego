@@ -92,6 +92,11 @@ func _sincronizar_luces() -> void:
 		luz.texture = _textura
 		luz.color = comodidad.color_luz
 		luz.texture_scale = comodidad.radio_luz / 64.0   # la textura base mide 128 px (radio 64)
+		# Luces NO redondas (decision del usuario 2026-07-30): el fluorescente es un TUBO y alumbra una
+		# franja, no un circulo. `texture_scale` es un unico numero, asi que el alto distinto se
+		# consigue achatando el propio nodo — la textura redonda sigue siendo la misma para todas.
+		if comodidad.radio_luz_y > 0.0 and comodidad.radio_luz > 0.0:
+			luz.scale = Vector2(1.0, comodidad.radio_luz_y / comodidad.radio_luz)
 		luz.energy = 0.0
 		luz.blend_mode = Light2D.BLEND_MODE_ADD          # suma luz, no repinta el suelo
 		luz.position = _construccion.centro_de_celda(_construccion.posicion_de(elemento_id))

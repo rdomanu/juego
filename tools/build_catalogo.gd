@@ -156,7 +156,7 @@ func _generar_salas() -> void:
 	# UNA sala de descanso, no una por departamento). Sin ella se descansa igual, pero mas despacio.
 	_guardar(_sala(
 		&"sala_descanso", "Sala de Descanso", "descanso", "Comun",
-		[], 0, 300), "salas")
+		[], 0, 300, true), "salas")
 
 
 ## F5 · Tipos de Agente.
@@ -252,7 +252,8 @@ func _puesto(
 
 func _sala(
 		id: StringName, nombre: String, tipo: String, servicio: String,
-		puestos: Array, aforo: int, coste_eur: int) -> Resource:
+		puestos: Array, aforo: int, coste_eur: int,
+		paredes: bool = false) -> Resource:
 	var r: Resource = TipoSalaScript.new()
 	r.id = id
 	r.nombre = nombre
@@ -265,6 +266,9 @@ func _sala(
 	r.aforo_espera = aforo
 	r.coste_construccion_eur = coste_eur
 	r.superficie = 0   # indicativa; la posee Construcción (F4 nota).
+	# Solo la sala de DESCANSO nace con paredes (decision del usuario 2026-07-30): su razon de ser es
+	# la intimidad. El resto nacen en planta diafana — ahi se quiere DELIMITAR la zona, no aislarla.
+	r.paredes_por_defecto = paredes
 	return r
 
 
@@ -404,7 +408,7 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"fluorescente", "Fluorescente", "El tubo de toda oficina. Barato y de sobra para ver.",
 		"iluminacion", 60, 1, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(0.90, 0.96, 1.0), 60.0     # frio de oficina - 3x3 casillas (radio 1,5 celdas x 40 px)
+		true, Color(0.90, 0.96, 1.0), 100.0, 0, 1, 60.0   # TUBO: 5 casillas de ancho x 3 de alto
 	), "comodidades")
 	_guardar(_comodidad(
 		&"lampara_pie", "Lampara de pie", "Luz calida, un rincon mas acogedor para pasar la noche.",
@@ -424,7 +428,7 @@ func _comodidad(
 	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
 	recupera: float = 0.0,
 	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0,
-	plazas: int = 0, superficie: int = 1
+	plazas: int = 0, superficie: int = 1, radio_luz_y: float = 0.0
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -442,6 +446,7 @@ func _comodidad(
 	r.color_luz = color_luz
 	r.radio_luz = radio_luz
 	r.plazas = plazas
+	r.radio_luz_y = radio_luz_y
 	r.superficie = superficie
 	return r
 

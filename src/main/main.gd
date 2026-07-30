@@ -58,6 +58,8 @@ const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
 const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
 ## Las luces de los objetos comprados, que se encienden de noche (petición del usuario 2026-07-28).
 const LucesObjetosScript := preload("res://src/main/luces_objetos.gd")
+## Las paredes de las salas (petición del usuario 2026-07-30): fase VISUAL, no bloquean el paso.
+const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Posición del suelo en pantalla (la comparten el TileMapLayer del suelo y las capas de Construcción).
@@ -90,6 +92,10 @@ const ID_SALA_COMODIDAD_BASE := 130
 ## existia desde la story 006 pero NO SE LLAMABA DESDE NINGUN SITIO de la interfaz: solo la usaba el
 ## cierre automatico por horario. Una funcion que el jugador no puede alcanzar, para el, no existe.
 const ID_SALA_VENTANILLA_BASE := 160
+## Poner o quitar las PAREDES de esta sala (2026-07-30). Las paredes son opcionales por sala: hay
+## zonas que solo se quieren delimitar (Documentacion, ODAC, las esperas) y otras que se quieren
+## cerrar de verdad (la de descanso, para que no se vea a los funcionarios de cafe desde la cola).
+const ID_SALA_PAREDES := 106
 
 ## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
@@ -144,6 +150,8 @@ var _lbl_reclamaciones: Label
 ## Label persistente por sala construida, indexado por su id (patrón de `npcs_flujo._visual_de_puesto`).
 var _capa_etiquetas_sala: Node2D
 var _etiqueta_de_sala: Dictionary[StringName, Label] = {}
+## Las paredes de las salas (2026-07-30): capa cosmética aparte, mismo hook de layout que las de arriba.
+var _paredes_salas: Node2D
 
 
 func _ready() -> void:
@@ -305,6 +313,12 @@ func _instanciar_mundo() -> void:
 	add_child(_personal)
 	_construccion.usar_personal(_personal)
 	_montar_comisaria_inicial()
+	# Las paredes de las salas (petición del usuario 2026-07-30: "si no todo el mundo ve a los
+	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte).
+	_paredes_salas = ParedesSalasScript.new()
+	_paredes_salas.name = "ParedesSalas"
+	add_child(_paredes_salas)
+	_paredes_salas.configurar(_construccion, TAM_CELDA, POS_SUELO)
 	_dotar_plantilla_inicial()
 	# Mercado disponible desde el día 1 (decisión de andamio aprobada): el panel de personal necesita
 	# candidatos que contratar de arranque; el refresco cada 3 jornadas ya lo hace la lógica de Personal.
@@ -452,6 +466,11 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	_menu_sala.add_separator()
 
 	_menu_sala.add_item("📐 Ampliar esta sala (dibuja pegado a ella)", ID_SALA_AMPLIAR)
+	_menu_sala.add_item(
+		"🧱 Quitar las paredes" if _construccion.sala_con_paredes(sala_id)
+		else "🧱 Poner paredes",
+		ID_SALA_PAREDES
+	)
 	if tipo != null and tipo.tipo == "espera":
 		_menu_sala.add_item("🪑 Añadir asientos", ID_SALA_ASIENTOS)
 	# Una ventanilla por cada tipo que ESTA sala admite (del catálogo, nunca hardcodeado).
@@ -692,6 +711,12 @@ func _al_elegir_del_menu_sala(id: int) -> void:
 			_avisar_accion("Elige dónde va la ventanilla dentro de la sala", COLOR_TENUE_HUD)
 		return
 	match id:
+		ID_SALA_PAREDES:
+			var con: bool = not _construccion.sala_con_paredes(_sala_del_menu)
+			_construccion.fijar_paredes_de_sala(_sala_del_menu, con)
+			_avisar_accion(
+				"Paredes puestas" if con else "Paredes quitadas", COLOR_TENUE_HUD
+			)
 		ID_SALA_AMPLIAR:
 			# Ampliar NO es una acción aparte: es dibujar con el pincel de ESE tipo de sala pegado a
 			# la que ya existe. Construcción fusiona y cobra solo las celdas nuevas (enmienda 007).
@@ -750,6 +775,7 @@ func _al_cambiar_layout() -> void:
 		_npcs.solicitar_rebake()
 	_sincronizar_puestos_flujo()
 	_actualizar_etiquetas_salas()
+	_paredes_salas.actualizar()
 
 
 ## Los puestos del flujo = los CONSTRUIDOS (fuente única: Construcción). Registra los nuevos
