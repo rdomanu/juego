@@ -782,6 +782,17 @@ func _minutos_de_camino(servicio: StringName, puesto_id: StringName, persona: Re
 		var camino_a_sala: float = entrada.distance_to(origen) / velocidad_camino_celdas_min
 		if esperado < camino_a_sala:
 			origen = entrada   # recién llegada/promovida: viene aún de la ENTRADA, no de la sala
+	# CUADRICULAS REALES del recorrido, esquivando muros (peticion del usuario 2026-07-30). Antes se
+	# media la distancia EUCLIDEA: con una pared de por medio, el reloj decia que el ciudadano tardaba
+	# menos de lo que de verdad tarda, y la ventanilla se quedaba esperando a alguien que aun venia
+	# dando la vuelta. Si no hay camino (sala incomunicada por muros sin puerta) se cae a la recta,
+	# para no dejar a nadie en camino eterno.
+	if _construccion.has_method("distancia_en_celdas"):
+		var celdas: int = _construccion.distancia_en_celdas(
+			Vector2i(roundi(origen.x), roundi(origen.y)), Vector2i(roundi(destino.x), roundi(destino.y))
+		)
+		if celdas >= 0:
+			return float(celdas) / velocidad_camino_celdas_min
 	return origen.distance_to(destino) / velocidad_camino_celdas_min
 
 

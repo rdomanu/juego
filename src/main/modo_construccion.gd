@@ -51,6 +51,9 @@ var _arrastrando_muro: bool = false
 var _eje_arrastre_muro: String = ""
 ## La coordenada que queda fija en ese trazo (la fila si es horizontal, la columna si es vertical).
 var _fija_arrastre_muro: int = 0
+## Principio y final del trazo actual, en el eje libre. Con esto se reconstruye la linea entera.
+var _desde_arrastre_muro: int = 0
+var _hasta_arrastre_muro: int = 0
 ## true = el arrastre CONSTRUYE (botón izquierdo); false = DEMUELE (botón derecho — "clic derecho
 ## quita un muro", igual que hace la herramienta de demoler con elementos/salas).
 var _construyendo_arrastre_muro: bool = true
@@ -122,6 +125,7 @@ func _unhandled_input(evento: InputEvent) -> void:
 			else:
 				_cancelar()
 		elif _arrastrando_muro and not _construyendo_arrastre_muro:
+			_aplicar_linea_muro()   # se construye AL SOLTAR, no mientras arrastras
 			_arrastrando_muro = false
 			_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	elif boton.button_index == MOUSE_BUTTON_LEFT:
@@ -129,6 +133,7 @@ func _unhandled_input(evento: InputEvent) -> void:
 			_al_pulsar(punto_mundo)
 		else:
 			if _arrastrando_muro and _construyendo_arrastre_muro:
+				_aplicar_linea_muro()   # se construye AL SOLTAR, no mientras arrastras
 				_arrastrando_muro = false
 				_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 			_al_soltar()
@@ -231,6 +236,8 @@ func _convertir_arista_en(punto_mundo: Vector2, tipo: StringName) -> void:
 func _cancelar() -> void:
 	if _arrastrando or _arrastrando_muro:
 		_arrastrando = false
+		# Al CANCELAR o salir del modo el trazo se DESCARTA (no se construye): es lo que
+		# espera quien pulsa Escape o cambia de herramienta a media linea.
 		_arrastrando_muro = false
 		_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	elif _herramienta != &"":
@@ -242,6 +249,8 @@ func _cancelar() -> void:
 func _alternar_modo() -> void:
 	_activo = not _activo
 	_arrastrando = false
+	# Al CANCELAR o salir del modo el trazo se DESCARTA (no se construye): es lo que
+	# espera quien pulsa Escape o cambia de herramienta a media linea.
 	_arrastrando_muro = false
 	_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	_fijar_herramienta(&"", false)
@@ -373,36 +382,82 @@ func _pintar_arista_muro(punto_mundo: Vector2) -> void:
 	var clave: String = _construccion.clave_de_muro(celda, lado)
 	if clave == "":
 		return
-	# 🐛 EL ARRASTRE SE BLOQUEA EN UN EJE (2026-07-30). El usuario, jugando: *"es dificil la herramienta
-	# del muro, muy dificil, no es predecible; cuando lo mantengo pulsado y trazo una linea si me salgo
-	# un poco me hace lineas laterales y transversales. La unica manera de hacerlo ordenado es ir de uno
-	# en uno"*. Y tenia razon: antes se pintaba la arista que hubiera bajo el raton EN CADA INSTANTE,
-	# asi que cualquier temblor de la mano metia un tabique perpendicular.
-	#
-	# Ahora la PRIMERA arista del trazo manda: su orientacion decide el eje y su coordenada fija queda
-	# CLAVADA. Un muro horizontal solo puede crecer a lo largo (misma fila); uno vertical, solo hacia
-	# arriba y abajo (misma columna). Desviarse en perpendicular ya no pinta nada — se ignora.
-	# No hace falta detectar "la direccion dominante": la orientacion de la arista donde pulsaste YA
-	# dice por que eje va la linea, sin ambiguedad.
 	var partes: PackedStringArray = clave.split(":")
 	if partes.size() != 3:
 		return
+	# El arrastre se CLAVA a un eje: la primera arista decide la orientacion y la coordenada fija.
+	# Desviarse en perpendicular se ignora, en vez de meter un tabique transversal.
 	if _eje_arrastre_muro == "":
-		_eje_arrastre_muro = partes[0]                       # "h" (horizontal) o "v" (vertical)
+		_eje_arrastre_muro = partes[0]
 		_fija_arrastre_muro = int(partes[2]) if partes[0] == "h" else int(partes[1])
-	else:
-		if partes[0] != _eje_arrastre_muro:
-			return                                           # la arista es del otro sentido: se ignora
-		var fija: int = int(partes[2]) if partes[0] == "h" else int(partes[1])
-		if fija != _fija_arrastre_muro:
-			return                                           # te has salido de la linea: se ignora
-	if clave == _arista_arrastre_anterior:
+		_desde_arrastre_muro = int(partes[1]) if partes[0] == "h" else int(partes[2])
+	elif partes[0] != _eje_arrastre_muro:
 		return
-	_arista_arrastre_anterior = clave
-	if _construyendo_arrastre_muro:
-		_construccion.construir_muro(celda, lado)
+	# 🐛 2026-07-30, el usuario: "la linea recta queda un poco rara porque se mueve un poco, deberia
+	# validar cuando se suelta el boton izq del raton y que dibuje lineas enteras". Antes se
+	# CONSTRUIA tramo a tramo segun pasabas: cada trozo quedaba puesto y PAGADO al instante, asi que
+	# el trazo "se movia" y no habia forma de corregirlo. Ahora esto solo ANOTA hasta donde llega la
+	# linea; lo que se construye se decide al SOLTAR (`_aplicar_linea_muro`).
+	_hasta_arrastre_muro = int(partes[1]) if partes[0] == "h" else int(partes[2])
+	_refrescar_preview_linea_muro()
+
+
+## Las aristas de la linea que se esta trazando ahora mismo, del principio al final del arrastre.
+## Vacio si no hay trazo. Es lo que se previsualiza y lo que se aplicara al soltar.
+func _aristas_de_la_linea() -> Array:
+	var salida: Array = []
+	if _eje_arrastre_muro == "":
+		return salida
+	var desde: int = mini(_desde_arrastre_muro, _hasta_arrastre_muro)
+	var hasta: int = maxi(_desde_arrastre_muro, _hasta_arrastre_muro)
+	for v: int in range(desde, hasta + 1):
+		if _eje_arrastre_muro == "h":
+			salida.append([Vector2i(v, _fija_arrastre_muro), &"arriba"])
+		else:
+			salida.append([Vector2i(_fija_arrastre_muro, v), &"izquierda"])
+	return salida
+
+
+## Aplica de una vez toda la linea trazada. Se llama AL SOLTAR el boton, nunca antes.
+func _aplicar_linea_muro() -> void:
+	var aristas: Array = _aristas_de_la_linea()
+	if aristas.is_empty():
+		return
+	var puestos: int = 0
+	var sin_caja: bool = false
+	for arista: Array in aristas:
+		if _construyendo_arrastre_muro:
+			if _construccion.construir_muro(arista[0], arista[1]):
+				puestos += 1
+			elif not _construccion.hay_muro(arista[0], arista[1]):
+				sin_caja = true   # no habia muro y aun asi fallo: se acabo el dinero
+		else:
+			if _construccion.demoler_muro(arista[0], arista[1]):
+				puestos += 1
+	if sin_caja:
+		_lbl_estado.text = "Se acabo el dinero: puestos %d tramos de %d" % [puestos, aristas.size()]
+	elif _construyendo_arrastre_muro:
+		_lbl_estado.text = "%d tramos de muro" % puestos
 	else:
-		_construccion.demoler_muro(celda, lado)
+		_lbl_estado.text = "%d tramos derribados" % puestos
+
+
+## Mientras arrastras: dice cuantos tramos llevas y lo que van a costar. Sin esto no hay forma de
+## saber el gasto de un trazo largo (cada tramo son `coste_muro` euros).
+func _refrescar_preview_linea_muro() -> void:
+	var aristas: Array = _aristas_de_la_linea()
+	if aristas.is_empty():
+		return
+	if not _construyendo_arrastre_muro:
+		_lbl_estado.text = "Derribar %d tramos" % aristas.size()
+		return
+	var nuevos: int = 0
+	for arista: Array in aristas:
+		if not _construccion.hay_muro(arista[0], arista[1]):
+			nuevos += 1
+	_lbl_estado.text = "%d tramos · %d €  (suelta para construir)" % [
+		nuevos, roundi(float(nuevos) * _construccion.coste_muro),
+	]
 
 
 ## El lado de `celda` (izquierda/derecha/arriba/abajo) más cercano a `punto_mundo`: compara la

@@ -303,6 +303,17 @@ func minutos_de_camino_al_puesto(puesto_id: StringName) -> float:
 	var destino: Vector2i = _construccion.posicion_de(puesto_id)
 	if destino == Vector2i(-1, -1):
 		return 0.0   # el puesto ya no esta en el layout (lo movieron o lo demolieron)
+	# CUADRICULAS REALES del recorrido, esquivando muros (peticion del usuario 2026-07-30: "tantas
+	# cuadriculas por X para saber lo que dura en recorrer su puesto de trabajo"). Antes se media en
+	# linea recta y, con paredes de por medio, el reloj mentia: decia que se tardaba menos de lo que
+	# de verdad se tarda, y el funcionario llegaba tarde a abrir.
+	if _construccion.has_method("distancia_en_celdas"):
+		var celdas: int = _construccion.distancia_en_celdas(CELDA_PUERTA, destino)
+		if celdas >= 0:
+			return float(celdas) * min_por_celda_a_descanso
+		# -1 = no hay camino (su ventanilla ha quedado incomunicada por muros sin puerta). Se cae a la
+		# linea recta para no bloquear la partida: llegara "por donde pueda", que es mejor que no
+		# llegar nunca y dejar la ventanilla sin dotar para siempre.
 	var d: Vector2i = destino - CELDA_PUERTA
 	return float(maxi(absi(d.x), absi(d.y))) * min_por_celda_a_descanso
 
@@ -330,6 +341,12 @@ func minutos_de_camino_al_descanso(puesto_id: StringName) -> float:
 		return float(maxi(origen.x, 0)) * min_por_celda_a_descanso
 	var rect: Rect2i = _construccion.rect_de_sala(salas[0])
 	var centro := Vector2i(rect.position.x + rect.size.x / 2, rect.position.y + rect.size.y / 2)
+	# Mismas cuadriculas reales que el camino de entrada: con la sala de descanso cerrada por muros,
+	# el rodeo cuenta. Si queda incomunicada, se cae a la linea recta (ver arriba el porque).
+	if _construccion.has_method("distancia_en_celdas"):
+		var celdas_d: int = _construccion.distancia_en_celdas(origen, centro)
+		if celdas_d >= 0:
+			return float(celdas_d) * min_por_celda_a_descanso
 	var d: Vector2i = centro - origen
 	# Distancia en celdas "a ojo de peatón" (diagonal contada como una celda: el suelo es abierto y
 	# nadie rodea nada salvo los mostradores). No hace falta pathfinding para cronometrar un café.

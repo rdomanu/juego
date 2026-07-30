@@ -527,6 +527,45 @@ func recinto_de(origen: Vector2i) -> Array[Vector2i]:
 	return celdas
 
 
+## CUÁNTAS CUADRÍCULAS hay que recorrer para ir de una celda a otra, esquivando muros.
+##
+## Petición del usuario (2026-07-30): *"los tiempos hay que poner una formula, tantas cuadriculas por
+## X para saber lo que dura en recorrer su puesto de trabajo y por lo tanto cuanto tiempo tiene que
+## entrar antes"*. Justo eso: esta función da las CUADRÍCULAS y quien pregunta las multiplica por sus
+## minutos por celda.
+##
+## Es un recorrido en anchura (BFS) sobre la rejilla, cruzando solo por donde `deja_pasar` — o sea,
+## por hueco libre o por PUERTA. Devuelve **-1 si no hay camino** (por ejemplo, un espacio cerrado sin
+## puerta): quien pregunta decide qué hacer con ese caso, en vez de recibir un número inventado.
+##
+## Antes de esto los tres cronómetros del juego medían en LÍNEA RECTA, así que en cuanto una pared
+## obligaba a rodear el reloj mentía. Se calcula sobre el MODELO (rejilla y muros), nunca sobre la
+## navegación visual: es determinista y funciona igual en headless.
+func distancia_en_celdas(origen: Vector2i, destino: Vector2i) -> int:
+	if not _celda_en_edificio(origen) or not _celda_en_edificio(destino):
+		return -1
+	if origen == destino:
+		return 0
+	var distancia: Dictionary[Vector2i, int] = {origen: 0}
+	var cola: Array[Vector2i] = [origen]
+	var cabeza: int = 0
+	while cabeza < cola.size():
+		var celda: Vector2i = cola[cabeza]
+		cabeza += 1
+		var d: int = distancia[celda]
+		for paso: Array in VECINOS_4:
+			if not deja_pasar(celda, paso[0]):
+				continue                       # tabique o ventana: por ahi no se pasa
+			var vecina: Vector2i = celda + (paso[1] as Vector2i)
+			if not _celda_en_edificio(vecina) or distancia.has(vecina):
+				continue
+			if vecina == destino:
+				return d + 1
+			distancia[vecina] = d + 1
+			cola.append(vecina)
+	return -1   # incomunicado: no hay forma de llegar
+
+
 ## Convierte en ZONA (sala) el recinto que contiene esa celda, cobrándolo. Devuelve el id de la sala
 ## nueva, o `&""` si no se pudo: recinto demasiado pequeño, tipo inexistente, sin caja, o el recinto
 ## pisa una sala que ya existe (primero hay que demolerla — no se solapan zonas en silencio).
@@ -746,8 +785,45 @@ func fijar_paredes_de_sala(sala_id: StringName, con_paredes: bool) -> void:
 		return
 	if bool(_salas[sala_id].get("paredes", false)) == con_paredes:
 		return
+	# 🐛 Corregido 2026-07-30 (el usuario: "al darle poner muros en la sala deben ponerse bien ya que
+	# hay que repasarlos con construir muro"). Antes esto solo encendia un flag y la capa visual
+	# DIBUJABA un perimetro: no eran muros de verdad, asi que no bloqueaban, no admitian puertas y
+	# habia que repasarlos a mano con la herramienta. Ahora "poner paredes" CONSTRUYE MUROS REALES en
+	# todo el perimetro de la sala — los mismos que pintarias tu, con su coste y su comportamiento.
 	_salas[sala_id]["paredes"] = con_paredes
+	for arista: Array in _aristas_del_perimetro(sala_id):
+		if con_paredes:
+			construir_muro(arista[0], arista[1])
+		else:
+			demoler_muro(arista[0], arista[1])
 	_refrescar_visual()
+
+
+## Las aristas EXTERIORES de una sala: por cada celda del borde, los lados que dan fuera de la sala.
+##
+## Se calcula sobre el CONJUNTO de celdas, no sobre el rectangulo, para que funcione igual con una
+## sala en forma de L designada dentro de muros (fase C).
+func _aristas_del_perimetro(sala_id: StringName) -> Array:
+	var salida: Array = []
+	if not _salas.has(sala_id):
+		return salida
+	var suyas: Dictionary = _salas[sala_id].get("celdas", {})
+	for celda: Vector2i in suyas:
+		for paso: Array in VECINOS_4:
+			var vecina: Vector2i = celda + (paso[1] as Vector2i)
+			if not suyas.has(vecina):
+				salida.append([celda, paso[0]])   # esa vecina no es de la sala: ahi hay borde
+	return salida
+
+
+## Cuantos tramos de muro hacen falta para cerrar una sala, y lo que costaria. Lo consulta la UI para
+## avisar ANTES de gastar: cerrar una sala grande son muchos tramos a 15 EUR.
+func coste_de_cerrar_sala(sala_id: StringName) -> Array:
+	var tramos: int = 0
+	for arista: Array in _aristas_del_perimetro(sala_id):
+		if not hay_muro(arista[0], arista[1]):
+			tramos += 1
+	return [tramos, float(tramos) * coste_muro]
 
 
 ## La celda interior donde esa sala tiene su puerta (`CELDA_NULA_PUERTA` si la sala no existe).
