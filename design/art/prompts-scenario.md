@@ -27,8 +27,13 @@ Entonces, ¿para qué sirve Scenario aquí? Para lo de antes:
 | Explorar variantes rápido (hombre/mujer, rangos, ODAC vs Documentación) | Animaciones |
 | Props estáticos, texturas de suelo, iconos de UI | Nada que necesite coherencia entre ángulos |
 
-**Consecuencia práctica**: en esta tanda pide **una vista de tres cuartos, de cuerpo entero, ficha de
-personaje**. Ni pixel art, ni isométrico, ni cuatro ángulos. Eso viene después y por otro camino.
+**Consecuencia práctica**: en esta tanda pide una **ficha de personaje de cuerpo entero, vista
+frontal y en POSE EN A** (brazos algo separados del cuerpo). Ni pixel art, ni isométrico, ni cuatro
+ángulos: eso viene después y por otro camino.
+
+*Por qué pose en A y no tres cuartos*: es la pose estándar de referencia para modelar y riggear —
+proporciones claras y brazos despejados. Lo confirmó el ejemplo que pasó el usuario
+(`capturas/ejemplo imagen.PNG`), que es exactamente eso.
 
 ---
 
@@ -71,23 +76,26 @@ estilizada partiendo de él.
 **Prompt (en inglés):**
 
 ```
-full body character reference sheet of a Spanish National Police officer (Policia Nacional),
-front three-quarter view, standing relaxed, neutral expression, office desk officer
+full body character model sheet of a Spanish National Police officer (Policia Nacional),
+front view, A-pose, arms slightly away from body, neutral expression, standing straight,
+symmetrical, office desk officer, european man
 
-uniform, modern 2021 Spanish police service uniform: dark navy blue short-sleeve polo shirt
-with flat collar, dark navy blue cargo trousers with thigh pockets, black mid-calf boots,
-navy blue baseball cap, shoulder rank slides, chest badge and identification number,
-"POLICIA NACIONAL" lettering printed on the chest
+modern 2021 Spanish police service uniform: very dark navy blue (almost black) short-sleeve
+polo shirt with flat collar, matching very dark navy cargo trousers with thigh pockets,
+black mid-calf boots, dark navy baseball cap, shoulder rank slides,
+chest badge and identification number, "POLICIA NACIONAL" lettering printed on the chest
 
-realistic proportions, realistic fabric folds, studio character concept art,
-clean neutral light grey background, even soft studio lighting, sharp focus,
-full figure visible head to feet, centered composition, european man
+realistic materials, realistic fabric folds, detailed stitching, character concept art for 3D
+modeling reference, plain dark grey studio background, even soft lighting, sharp focus,
+full figure visible from head to feet, centered composition
 ```
+
 
 **Negative prompt:**
 
 ```
-american police, sheriff, NYPD, light blue shirt, khaki, brown uniform, green uniform,
+fantasy, elf, armor, cape, medieval, american police, sheriff, NYPD, light blue shirt, khaki,
+brown uniform, green uniform, beret, checkered band, chequered pattern, sillitoe tartan,
 military camouflage, tricorn hat, peaked cap, necktie, cartoon, anime, cel shading, pixel art,
 weapon drawn, aggressive pose, sunglasses, dark moody lighting, cropped legs, cropped head,
 busy background, text, watermark, multiple characters, blurry, distorted hands, extra limbs
@@ -113,6 +121,20 @@ busy background, text, watermark, multiple characters, blurry, distorted hands, 
   de trabajo. Es exactamente la confusión que me señalaste: el comisario en un acto sí lleva plato;
   el policía de ventanilla, gorra de béisbol.
 - `tricorn hat` — el tricornio es de la Guardia Civil de gala. Fuera.
+- `beret` (**boina**) — la boina es icono de Guardia Civil, Mossos y Ertzaintza, **no** del CNP
+  actual, que usa gorra de béisbol (trabajo) o de plato (gala). Es un error muy fácil de cometer.
+- `checkered band, chequered pattern, sillitoe tartan` — la **franja de cuadros** (ese damero blanco
+  y azul del pecho o la espalda) es marca de **Policía Local/Municipal**, no del CNP. Sin excluirla
+  se cuela sola porque en las fotos de "policía español" sale muchísimo.
+- `fantasy, elf, armor, cape, medieval` — por la plantilla del ejemplo que pasaste: está entrenada
+  tirando a fantasía y te cuela capa o armadura sin que la pidas.
+
+> 💡 **El azul**: es azul marino **casi negro**, no un azul medio. Los dos uniformes históricos del
+> propio CNP —el **marrón** de 1978-1986 y el **azul más claro** de 1986-2021— son la trampa: el
+> modelo ha visto miles de fotos de los dos. Por eso el prompt dice *"very dark navy (almost
+> black)"* y el negativo excluye `light blue shirt` y `brown uniform`.
+> ⚠️ **No existe código Pantone/RGB oficial público** del azul actual (comprobado): el tono se
+> decidirá a ojo sobre las referencias.
 
 ## 3. VARIANTES (mismo prompt, cambiando una línea)
 
