@@ -46,6 +46,11 @@ var _lado_anterior: StringName = &"-"
 ## de tabiques seguidos, celda a celda, sin tener que hacer clic uno a uno.
 ## ¿Hay un arrastre de muro en curso? Independiente de `_arrastrando` (el rectángulo de SALA).
 var _arrastrando_muro: bool = false
+## Eje al que se ha CLAVADO el trazo actual de muro ("h" o "v"; "" = aun no se ha pulsado). Lo fija
+## la primera arista del arrastre y no cambia hasta soltar: es lo que hace el trazo predecible.
+var _eje_arrastre_muro: String = ""
+## La coordenada que queda fija en ese trazo (la fila si es horizontal, la columna si es vertical).
+var _fija_arrastre_muro: int = 0
 ## true = el arrastre CONSTRUYE (botón izquierdo); false = DEMUELE (botón derecho — "clic derecho
 ## quita un muro", igual que hace la herramienta de demoler con elementos/salas).
 var _construyendo_arrastre_muro: bool = true
@@ -118,12 +123,14 @@ func _unhandled_input(evento: InputEvent) -> void:
 				_cancelar()
 		elif _arrastrando_muro and not _construyendo_arrastre_muro:
 			_arrastrando_muro = false
+			_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	elif boton.button_index == MOUSE_BUTTON_LEFT:
 		if boton.pressed:
 			_al_pulsar(punto_mundo)
 		else:
 			if _arrastrando_muro and _construyendo_arrastre_muro:
 				_arrastrando_muro = false
+				_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 			_al_soltar()
 
 
@@ -187,6 +194,7 @@ func _cancelar() -> void:
 	if _arrastrando or _arrastrando_muro:
 		_arrastrando = false
 		_arrastrando_muro = false
+		_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	elif _herramienta != &"":
 		_fijar_herramienta(&"", false)
 	else:
@@ -197,6 +205,7 @@ func _alternar_modo() -> void:
 	_activo = not _activo
 	_arrastrando = false
 	_arrastrando_muro = false
+	_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	_fijar_herramienta(&"", false)
 	_actualizar_visibilidad()
 
@@ -301,7 +310,32 @@ func _pintar_arista_muro(punto_mundo: Vector2) -> void:
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
 	var clave: String = _construccion.clave_de_muro(celda, lado)
-	if clave == "" or clave == _arista_arrastre_anterior:
+	if clave == "":
+		return
+	# 🐛 EL ARRASTRE SE BLOQUEA EN UN EJE (2026-07-30). El usuario, jugando: *"es dificil la herramienta
+	# del muro, muy dificil, no es predecible; cuando lo mantengo pulsado y trazo una linea si me salgo
+	# un poco me hace lineas laterales y transversales. La unica manera de hacerlo ordenado es ir de uno
+	# en uno"*. Y tenia razon: antes se pintaba la arista que hubiera bajo el raton EN CADA INSTANTE,
+	# asi que cualquier temblor de la mano metia un tabique perpendicular.
+	#
+	# Ahora la PRIMERA arista del trazo manda: su orientacion decide el eje y su coordenada fija queda
+	# CLAVADA. Un muro horizontal solo puede crecer a lo largo (misma fila); uno vertical, solo hacia
+	# arriba y abajo (misma columna). Desviarse en perpendicular ya no pinta nada — se ignora.
+	# No hace falta detectar "la direccion dominante": la orientacion de la arista donde pulsaste YA
+	# dice por que eje va la linea, sin ambiguedad.
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return
+	if _eje_arrastre_muro == "":
+		_eje_arrastre_muro = partes[0]                       # "h" (horizontal) o "v" (vertical)
+		_fija_arrastre_muro = int(partes[2]) if partes[0] == "h" else int(partes[1])
+	else:
+		if partes[0] != _eje_arrastre_muro:
+			return                                           # la arista es del otro sentido: se ignora
+		var fija: int = int(partes[2]) if partes[0] == "h" else int(partes[1])
+		if fija != _fija_arrastre_muro:
+			return                                           # te has salido de la linea: se ignora
+	if clave == _arista_arrastre_anterior:
 		return
 	_arista_arrastre_anterior = clave
 	if _construyendo_arrastre_muro:
