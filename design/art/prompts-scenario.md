@@ -49,57 +49,70 @@ estilizada partiendo de él.
 
 ---
 
-## 2. PROMPT PRINCIPAL — Policía Nacional (Documentación, ventanilla)
+## 2. PROMPT PRINCIPAL — Policía Nacional (escala básica, oficina de Documentación)
 
-> ⚠️ **Verifica el uniforme tú antes de generar.** Yo puedo describir un uniforme genérico de
-> policía español, pero **no debo darte por seguros detalles concretos** del uniforme actual del CNP
-> (tonos exactos, colocación de emblemas, galones por rango). Búscate 2-3 fotos de referencia
-> oficiales y ajusta las líneas marcadas con 🔍 antes de tirar. Es lo que más va a mejorar el
-> resultado, mucho más que retocar el prompt.
+> ✅ **Uniforme verificado en Wikipedia** (enlace que pasaste). Esto ya NO es una descripción
+> genérica mía: son las prendas reales del uniforme de servicio ordinario del CNP **vigente desde
+> 2021**. Y es bastante distinto de lo que te di antes — cambia lo importante.
 
-**Prompt (en inglés — los modelos responden mejor):**
+### Lo que dice la fuente, y por qué importa para el prompt
+
+| Prenda | Detalle real | Qué cambia respecto a mi versión anterior |
+|---|---|---|
+| Torso | **Polo azul oscuro con botones falsos** | Yo puse "camisa". Es POLO: cuello blando, sin botonadura de verdad |
+| Piernas | **Pantalón azul oscuro con bolsillos de pernera** | Son pantalones tipo cargo, con bolsillos en el muslo |
+| Calzado | **Botas de media caña negras** | No zapato de vestir: bota |
+| Cabeza | **Gorra tipo "beisbolera"** | NO gorra de plato. La de plato es de gala/representación |
+| Identificación | Placa de plástico inyectado en el polo + **número personal en velcro** | |
+| Rotulación | **"POLICÍA NACIONAL" serigrafiado** en el pecho (delantera izquierda) **y en la espalda** | Detalle muy visible y muy español: sin él no se lee como CNP |
+| Rango | **Divisas en los hombros mediante manguitos** (desde 2014) | Van en hombreras, no en la manga |
+| Frío | Jersey de cuello de pico, cazadora o anorak, mismo color y elementos | Para la variante de invierno |
+
+**Prompt (en inglés):**
 
 ```
-full body character reference sheet of a Spanish national police officer, front three-quarter
-view, standing relaxed pose, neutral expression, administrative desk officer
+full body character reference sheet of a Spanish National Police officer (Policia Nacional),
+front three-quarter view, standing relaxed, neutral expression, office desk officer
 
-uniform: dark navy blue police uniform, navy blue trousers, navy blue short-sleeve polo shirt
-tucked in, black duty belt, black boots, shoulder patch insignia, chest name tape 🔍
+uniform, modern 2021 Spanish police service uniform: dark navy blue short-sleeve polo shirt
+with flat collar, dark navy blue cargo trousers with thigh pockets, black mid-calf boots,
+navy blue baseball cap, shoulder rank slides, chest badge and identification number,
+"POLICIA NACIONAL" lettering printed on the chest
 
-realistic proportions, realistic fabric folds and material, studio character concept art,
-clean neutral light grey background, even soft studio lighting, no harsh shadows,
-sharp focus, high detail on uniform, full figure visible head to feet, centered composition
+realistic proportions, realistic fabric folds, studio character concept art,
+clean neutral light grey background, even soft studio lighting, sharp focus,
+full figure visible head to feet, centered composition, european man
 ```
 
 **Negative prompt:**
 
 ```
-cartoon, anime, cel shading, pixel art, low poly, blurry, distorted hands, extra limbs,
-weapon drawn, aggressive pose, dark moody lighting, dramatic shadows, cropped legs, cropped head,
-busy background, text, watermark, multiple characters, american police, military camouflage
+american police, sheriff, NYPD, light blue shirt, khaki, brown uniform, green uniform,
+military camouflage, tricorn hat, peaked cap, necktie, cartoon, anime, cel shading, pixel art,
+weapon drawn, aggressive pose, sunglasses, dark moody lighting, cropped legs, cropped head,
+busy background, text, watermark, multiple characters, blurry, distorted hands, extra limbs
 ```
 
-**Ajustes sugeridos:**
+**Ajustes:**
 
 | Ajuste | Valor | Por qué |
 |---|---|---|
-| Modelo | el base más realista que tengas | No un modelo de estilo cartoon: el estilizado viene después |
-| Relación de aspecto | **vertical (2:3 o 9:16)** | Es una figura de pie: en cuadrado sale recortada o diminuta |
-| Nº de imágenes | **4 de golpe** | Cuesta lo mismo por imagen y multiplicas por 4 las probabilidades de acertar |
-| Semilla | anótala si algo te gusta | Es lo que te deja repetir el mismo look en las variantes |
+| Modelo | el base más realista que tengas | El estilizado viene después |
+| Relación de aspecto | **vertical (2:3 o 9:16)** | Es una figura de pie |
+| Nº de imágenes | **4 de golpe** | Mismo coste por imagen, x4 opciones de acertar |
+| Semilla | anótala si algo te gusta | Es lo que deja repetir el look en las variantes |
 
-**Por qué el prompt dice lo que dice:**
+**Por qué el negativo dice lo que dice** (aquí es donde se gana o se pierde la tirada):
 
-- *"administrative desk officer"* y *"standing relaxed"*: no queremos un poli de acción. En este
-  juego atiende en una ventanilla; la pose tiene que ser la de alguien de pie, tranquilo.
-- *"weapon drawn"* en el negativo: sin esto, la IA por defecto te lo pone en pose táctica.
-- *"american police"* en el negativo: es el sesgo más fuerte que tienen estos modelos con la palabra
-  "police". Sin excluirlo, sale con uniforme azul claro de sheriff.
-- *"full figure visible head to feet"* y *"cropped legs"* en el negativo: para una ficha de personaje
-  necesitas los pies; los modelos tienden a encuadrar de cintura para arriba.
-- *"clean neutral light grey background"*: fondo plano para recortar fácil y para juzgar la silueta.
-
----
+- `american police, sheriff, NYPD, light blue shirt` — el sesgo más fuerte de estos modelos con la
+  palabra "police". Sin excluirlo sale un sheriff de camisa celeste.
+- `brown uniform` — el CNP **fue marrón hasta 1986**. Hay fotos de sobra en internet y el modelo las
+  ha visto. Es justo el "uniforme antiguo" del que me avisaste.
+- `green uniform` — para que no se cuele la Guardia Civil, que es verde.
+- `peaked cap` (gorra de plato) y `necktie` — esos son de **gala y representación**, no del uniforme
+  de trabajo. Es exactamente la confusión que me señalaste: el comisario en un acto sí lleva plato;
+  el policía de ventanilla, gorra de béisbol.
+- `tricorn hat` — el tricornio es de la Guardia Civil de gala. Fuera.
 
 ## 3. VARIANTES (mismo prompt, cambiando una línea)
 
@@ -109,7 +122,9 @@ elegiría **dos** de estas, no las cinco.
 | Variante | Qué cambiar |
 |---|---|
 | **Mujer policía** | `Spanish national police officer` → `female Spanish national police officer`, y añade `hair tied back` |
-| **De más rango** (jefe/oficial) | añade `senior officer, rank insignia on shoulders 🔍, more formal shirt` |
+| **De más rango** (jefe/oficial) | añade `senior officer, more rank insignia on shoulder slides` — la divisa exacta por escala está en `referencia-uniforme-cnp.md` |
+| **EL COMISARIO** (tú, el jefe) | uniforme DISTINTO: es de **representación**, con **gorra de plato**. Prompt aparte — ver el documento de referencia |
+| **Invierno** | `short-sleeve polo` → `navy blue V-neck sweater over polo` o `navy blue jacket` |
 | **ODAC (denuncias)** | añade `seated at a desk, taking a statement, writing` — ODAC es sentado, no de ventanilla |
 | **Cara de cansado** | `neutral expression` → `tired expression, end of a long shift` — para el sistema de cansancio |
 | **Vista de espaldas** | añade `back view` — le hace falta a quien modele el 3D |
