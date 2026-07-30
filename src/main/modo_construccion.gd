@@ -19,6 +19,9 @@ const COLOR_DEMOLER := Color(1.0, 0.6, 0.2, 0.4)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 ## Hueco reservado para la barra de info de Main (abajo del todo): esta barra se apoya ENCIMA.
 const HUECO_BARRA_INFO := 84.0
+## Grosor del resalte de ARISTA del pincel de muro (2026-07-30): más fino que la caja de una celda
+## entera — así el jugador ve claramente que apunta a un LADO, no a la celda completa.
+const GROSOR_PREVIEW_MURO := 10.0
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -35,6 +38,20 @@ var _celda_inicio: Vector2i = Vector2i.ZERO
 var _celda_anterior: Vector2i = Vector2i(-999, -999)
 var _herramienta_anterior: StringName = &"-"
 var _arrastre_anterior: bool = false
+## Lado resaltado por el pincel de muro en el último frame (para que la guarda del preview también
+## redibuje al cambiar de LADO dentro de la misma celda, no solo al cambiar de celda).
+var _lado_anterior: StringName = &"-"
+
+# ── Pincel de MURO (2026-07-30 — modelo Prison Architect): arrastrar pinta/demuele una fila entera
+## de tabiques seguidos, celda a celda, sin tener que hacer clic uno a uno.
+## ¿Hay un arrastre de muro en curso? Independiente de `_arrastrando` (el rectángulo de SALA).
+var _arrastrando_muro: bool = false
+## true = el arrastre CONSTRUYE (botón izquierdo); false = DEMUELE (botón derecho — "clic derecho
+## quita un muro", igual que hace la herramienta de demoler con elementos/salas).
+var _construyendo_arrastre_muro: bool = true
+## Última arista YA pintada/demolida en este arrastre: si el ratón sigue sobre el mismo tramo entre
+## dos eventos de movimiento, no se repite la orden (cero llamadas de más por frame).
+var _arista_arrastre_anterior: String = ""
 
 # ── Nodos de UI (construidos por código, patrón del HUD del esqueleto) ───────────────────────
 var _atenuador: ColorRect
@@ -74,24 +91,54 @@ func _unhandled_input(evento: InputEvent) -> void:
 					_cancelar()
 					get_viewport().set_input_as_handled()
 		return
-	if not _activo or not (evento is InputEventMouseButton):
+	if not _activo:
+		return
+	# Arrastre del pincel de muro: cada evento de MOVIMIENTO pinta/demuele la arista bajo el punto
+	# DEL EVENTO en ese instante — nunca `get_global_mouse_position()` (gotcha ya sufrido en este
+	# proyecto: el clic derecho del 2026-07-26 se pintaba en el sitio equivocado por leer el puntero
+	# del sistema en vez del punto donde ocurrió el evento).
+	if _arrastrando_muro and evento is InputEventMouseMotion:
+		_pintar_arista_muro(_punto_mundo_del_evento((evento as InputEventMouseMotion).position))
+		get_viewport().set_input_as_handled()
+		return
+	if not (evento is InputEventMouseButton):
 		return
 	var boton := evento as InputEventMouseButton
-	if boton.button_index == MOUSE_BUTTON_RIGHT and boton.pressed:
-		_cancelar()
+	var punto_mundo: Vector2 = _punto_mundo_del_evento(boton.position)
+	if boton.button_index == MOUSE_BUTTON_RIGHT:
+		if boton.pressed:
+			if _herramienta == &"muro":
+				# "clic derecho... lo quita" (enunciado): empieza un arrastre que DEMUELE en vez de
+				# cancelar la herramienta — el pincel de muro tiene su propio botón de borrar.
+				_arrastrando_muro = true
+				_construyendo_arrastre_muro = false
+				_arista_arrastre_anterior = ""
+				_pintar_arista_muro(punto_mundo)
+			else:
+				_cancelar()
+		elif _arrastrando_muro and not _construyendo_arrastre_muro:
+			_arrastrando_muro = false
 	elif boton.button_index == MOUSE_BUTTON_LEFT:
 		if boton.pressed:
-			_al_pulsar()
+			_al_pulsar(punto_mundo)
 		else:
+			if _arrastrando_muro and _construyendo_arrastre_muro:
+				_arrastrando_muro = false
 			_al_soltar()
 
 
-func _al_pulsar() -> void:
-	var celda: Vector2i = _construccion.celda_bajo_cursor()
+func _al_pulsar(punto_mundo: Vector2) -> void:
 	if _herramienta == &"":
 		return
+	if _herramienta == &"muro":
+		_arrastrando_muro = true
+		_construyendo_arrastre_muro = true
+		_arista_arrastre_anterior = ""
+		_pintar_arista_muro(punto_mundo)
+		return
+	var celda: Vector2i = _construccion.celda_bajo_cursor()
 	if _herramienta == &"demoler":
-		_demoler_en(celda)
+		_demoler_en(celda, punto_mundo)
 	elif _es_sala:
 		_arrastrando = true
 		_celda_inicio = celda
@@ -106,12 +153,19 @@ func _al_soltar() -> void:
 	_construccion.construir_sala(_herramienta, _rect_entre(_celda_inicio, _construccion.celda_bajo_cursor()))
 
 
-## Demoler con la cascada del GDD: un elemento directo; una sala VACÍA directa; una sala con
-## contenido pide CONFIRMACIÓN (paso 1 `contenido_de_sala` + reembolso; paso 2 al confirmar).
-func _demoler_en(celda: Vector2i) -> void:
+## Demoler con la cascada del GDD: un elemento directo; un MURO libre directo (prioridad entre
+## elemento y sala — un tabique no tiene "contenido" que confirmar); una sala VACÍA directa; una
+## sala con contenido pide CONFIRMACIÓN (paso 1 `contenido_de_sala` + reembolso; paso 2 al confirmar).
+## `punto_mundo` (el punto DEL EVENTO — nunca el puntero en vivo) decide qué ARISTA de `celda` se
+## comprueba, para que la herramienta general de demoler también sirva para quitar muros.
+func _demoler_en(celda: Vector2i, punto_mundo: Vector2) -> void:
 	var elemento_id: StringName = _construccion.elemento_en(celda)
 	if elemento_id != &"":
 		_construccion.demoler_elemento(elemento_id)
+		return
+	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	if _construccion.hay_muro(celda, lado):
+		_construccion.demoler_muro(celda, lado)
 		return
 	var sala_id: StringName = _construccion.sala_en(celda)
 	if sala_id == &"":
@@ -128,10 +182,11 @@ func _demoler_en(celda: Vector2i) -> void:
 	_dialogo_cascada.popup_centered()
 
 
-## Cancela por capas: primero el arrastre, luego suelta la herramienta, luego sale del modo.
+## Cancela por capas: primero el arrastre (sala O muro), luego suelta la herramienta, luego sale del modo.
 func _cancelar() -> void:
-	if _arrastrando:
+	if _arrastrando or _arrastrando_muro:
 		_arrastrando = false
+		_arrastrando_muro = false
 	elif _herramienta != &"":
 		_fijar_herramienta(&"", false)
 	else:
@@ -141,6 +196,7 @@ func _cancelar() -> void:
 func _alternar_modo() -> void:
 	_activo = not _activo
 	_arrastrando = false
+	_arrastrando_muro = false
 	_fijar_herramienta(&"", false)
 	_actualizar_visibilidad()
 
@@ -172,36 +228,167 @@ func _process(_delta: float) -> void:
 		_preview_caja.visible = false
 		_preview_texto.visible = false
 		_celda_anterior = Vector2i(-999, -999)
+		_lado_anterior = &"-"
 		return
 	var celda: Vector2i = _construccion.celda_bajo_cursor()
+	# El LADO solo importa para el pincel de muro (los demás previews cubren la celda entera); se
+	# calcula aquí una única vez y se reutiliza tanto en la guarda como en el propio preview. Live
+	# poll (`get_global_mouse_position`) vale para un FANTASMA (no muta el modelo) — el gotcha de
+	# "usa el punto del evento" es para las ACCIONES (pintar/demoler de verdad), no para dibujar.
+	var lado: StringName = &"-"
+	if _herramienta == &"muro" or _herramienta == &"demoler":
+		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
 	if (
 		celda == _celda_anterior and _herramienta == _herramienta_anterior
-		and _arrastrando == _arrastre_anterior
+		and _arrastrando == _arrastre_anterior and lado == _lado_anterior
 	):
 		return
 	_celda_anterior = celda
 	_herramienta_anterior = _herramienta
 	_arrastre_anterior = _arrastrando
+	_lado_anterior = lado
 	_preview_caja.visible = true
 	_preview_texto.visible = true
 	if _herramienta == &"demoler":
-		_refrescar_preview_demoler(celda)
+		_refrescar_preview_demoler(celda, lado)
+	elif _herramienta == &"muro":
+		_refrescar_preview_muro(celda, lado)
 	elif _es_sala and _arrastrando:
 		_refrescar_preview_sala(_rect_entre(_celda_inicio, celda))
 	else:
 		_refrescar_preview_elemento(celda)
 
 
-func _refrescar_preview_demoler(celda: Vector2i) -> void:
+func _refrescar_preview_demoler(celda: Vector2i, lado: StringName) -> void:
 	_colocar_caja(celda, Vector2i.ONE, COLOR_DEMOLER)
 	var elemento_id: StringName = _construccion.elemento_en(celda)
 	var sala_id: StringName = _construccion.sala_en(celda)
 	if elemento_id != &"":
 		_preview_texto.text = "Demoler elemento"
+	elif _construccion.hay_muro(celda, lado):
+		_preview_texto.text = "Demoler muro"
 	elif sala_id != &"":
 		_preview_texto.text = "Demoler sala (+%.0f €)" % _construccion.reembolso_de_sala(sala_id)
 	else:
 		_preview_texto.text = "Nada que demoler"
+
+
+# ── Pincel de MURO (2026-07-30 — modelo Prison Architect: paredes libres, luego zonas) ──────────
+
+## Fantasma del pincel de muro: resalta la ARISTA (no la celda) y avisa si ya hay muro, si cae fuera
+## del edificio o si no hay caja — mismo lenguaje visual verde/rojo que el resto de herramientas.
+func _refrescar_preview_muro(celda: Vector2i, lado: StringName) -> void:
+	var ya_hay: bool = _construccion.hay_muro(celda, lado)
+	var en_edificio: bool = _arista_en_edificio(celda, lado)
+	var con_caja: bool = _construccion.puede_pagar(_construccion.coste_muro)
+	var valido: bool = not ya_hay and en_edificio and con_caja
+	_colocar_caja_arista(celda, lado, COLOR_VALIDO if valido else COLOR_INVALIDO)
+	var motivo: String = "Arrastra para tabique"
+	if ya_hay:
+		motivo = "Ya hay muro"
+	elif not en_edificio:
+		motivo = "Fuera del edificio"
+	elif not con_caja:
+		motivo = "Sin caja"
+	_preview_texto.text = "%.0f € · %s" % [_construccion.coste_muro, motivo]
+
+
+## Construye o demuele (según `_construyendo_arrastre_muro`) la arista más cercana al punto DEL
+## EVENTO. La llaman tanto el clic inicial como cada evento de movimiento del arrastre; la guarda de
+## "misma arista que la última vez" evita repetir la orden mientras el cursor sigue sobre el mismo
+## tramo entre dos eventos (cero llamadas de más — regla del proyecto).
+func _pintar_arista_muro(punto_mundo: Vector2) -> void:
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	var clave: String = _construccion.clave_de_muro(celda, lado)
+	if clave == "" or clave == _arista_arrastre_anterior:
+		return
+	_arista_arrastre_anterior = clave
+	if _construyendo_arrastre_muro:
+		_construccion.construir_muro(celda, lado)
+	else:
+		_construccion.demoler_muro(celda, lado)
+
+
+## El lado de `celda` (izquierda/derecha/arriba/abajo) más cercano a `punto_mundo`: compara la
+## posición del ratón DENTRO de la celda contra sus 4 bordes y devuelve el más próximo. Así el
+## pincel resalta la ARISTA que se va a construir, no la celda entera.
+func _lado_mas_cercano(punto_mundo: Vector2, celda: Vector2i) -> StringName:
+	var esquina: Vector2 = _construccion.centro_de_celda(celda) - Vector2(_tam_celda, _tam_celda) / 2.0
+	var local: Vector2 = (punto_mundo - esquina) / float(_tam_celda)   # 0..1 dentro de la celda
+	var dist_izquierda: float = local.x
+	var dist_derecha: float = 1.0 - local.x
+	var dist_arriba: float = local.y
+	var dist_abajo: float = 1.0 - local.y
+	var minimo: float = minf(minf(dist_izquierda, dist_derecha), minf(dist_arriba, dist_abajo))
+	if minimo == dist_izquierda:
+		return &"izquierda"
+	if minimo == dist_derecha:
+		return &"derecha"
+	if minimo == dist_arriba:
+		return &"arriba"
+	return &"abajo"
+
+
+## Duplicado A PROPÓSITO de `Construccion._arista_dentro_del_edificio` (privado — la tarea prohíbe
+## tocar `construccion.gd`): SOLO para pintar el fantasma del color correcto en el borde del
+## edificio. La autoridad real la sigue teniendo `construir_muro`, que vuelve a comprobarlo al
+## construir de verdad — esto es puramente informativo (mismo criterio que `_superficie_de_herramienta`).
+func _arista_en_edificio(celda: Vector2i, lado: StringName) -> bool:
+	var vecino: Vector2i = celda
+	match lado:
+		&"izquierda":
+			vecino = celda + Vector2i(-1, 0)
+		&"derecha":
+			vecino = celda + Vector2i(1, 0)
+		&"arriba":
+			vecino = celda + Vector2i(0, -1)
+		&"abajo":
+			vecino = celda + Vector2i(0, 1)
+	return _celda_en_edificio(celda) or _celda_en_edificio(vecino)
+
+
+## ¿Esa celda cae dentro de la rejilla del edificio? (mismo cálculo que `Construccion._celda_en_edificio`).
+func _celda_en_edificio(celda: Vector2i) -> bool:
+	return (
+		celda.x >= 0 and celda.y >= 0
+		and celda.x < _construccion.edificio_columnas and celda.y < _construccion.edificio_filas
+	)
+
+
+## Convierte una posición de PANTALLA (la que trae el evento) a coordenadas de MUNDO, con la
+## transformada del canvas — mismo patrón que usa Main para el clic derecho del ciudadano (mismo
+## gotcha: el punto tiene que salir DEL EVENTO, nunca de `get_global_mouse_position()`).
+func _punto_mundo_del_evento(pos_pantalla: Vector2) -> Vector2:
+	return get_canvas_transform().affine_inverse() * pos_pantalla
+
+
+## Coloca la caja del preview cubriendo SOLO la arista `lado` de `celda` (grosor `GROSOR_PREVIEW_MURO`,
+## centrado en la línea de rejilla) — reutiliza el mismo Panel/StyleBox que `_colocar_caja`, solo con
+## otra geometría, así que no hace falta ningún nodo nuevo.
+func _colocar_caja_arista(celda: Vector2i, lado: StringName, color: Color) -> void:
+	var esquina: Vector2 = _construccion.centro_de_celda(celda) - Vector2(_tam_celda, _tam_celda) / 2.0
+	var mitad_grosor: float = GROSOR_PREVIEW_MURO / 2.0
+	var pos: Vector2
+	var tam: Vector2
+	match lado:
+		&"izquierda":
+			pos = esquina + Vector2(-mitad_grosor, 0.0)
+			tam = Vector2(GROSOR_PREVIEW_MURO, _tam_celda)
+		&"derecha":
+			pos = esquina + Vector2(_tam_celda - mitad_grosor, 0.0)
+			tam = Vector2(GROSOR_PREVIEW_MURO, _tam_celda)
+		&"arriba":
+			pos = esquina + Vector2(0.0, -mitad_grosor)
+			tam = Vector2(_tam_celda, GROSOR_PREVIEW_MURO)
+		_:   # "abajo"
+			pos = esquina + Vector2(0.0, _tam_celda - mitad_grosor)
+			tam = Vector2(_tam_celda, GROSOR_PREVIEW_MURO)
+	_preview_caja.position = pos
+	_preview_caja.size = tam
+	_estilo_preview.bg_color = Color(color.r, color.g, color.b, 0.30)
+	_estilo_preview.border_color = Color(color.r, color.g, color.b, 0.95)
+	_preview_texto.position = pos + Vector2(2, -20)
 
 
 func _refrescar_preview_sala(rect: Rect2i) -> void:
@@ -352,6 +539,9 @@ func _crear_ui() -> void:
 	_anadir_herramienta(
 		"Asiento (%.0f €)" % _construccion.coste_asiento_basico, _construccion.ASIENTO_BASICO, false
 	)
+	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
+	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
+	_anadir_herramienta("🧱 Muro (%.0f €)" % _construccion.coste_muro, &"muro", false)
 	_anadir_herramienta("❌ Demoler", &"demoler", false)
 
 	_dialogo_cascada = ConfirmationDialog.new()

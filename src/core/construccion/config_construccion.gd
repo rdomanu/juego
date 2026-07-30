@@ -28,6 +28,14 @@ class_name ConfigConstruccion extends Resource
 @export var coste_mover: float = 0.0
 ## Coste del asiento básico (F2; el catálogo no lo lista — MVP semilla de Comodidades #15). Semilla 25.
 @export var coste_asiento_basico: float = 25.0
+
+## Lo que cuesta UN TRAMO de muro (el lado de una celda). Los muros se pintan libremente
+## (decisión del usuario 2026-07-30: *"la construcción de las paredes debe ser libre y luego dentro
+## poner las zonas además de las puertas y ventanas"*), así que tienen que costar algo: si fueran
+## gratis, cerrarlo todo siempre seria la jugada obvia y no habria decision que tomar. 15 € es
+## barato a proposito — el precio no es el freno, el freno es el espacio que te comen y el rodeo
+## que obligan a dar.
+@export var coste_muro: float = 15.0
 ## Tamaño del edificio en celdas (CO1; Pozuelo = el suelo 24×13 del esqueleto — dimensionado R5).
 @export var edificio_columnas: int = 24
 @export var edificio_filas: int = 13

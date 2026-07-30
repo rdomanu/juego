@@ -471,6 +471,55 @@ destaca, respaldo daltónico (icono/texto además del color).*
 > 📌 **Asset Spec** — Tras aprobar el art bible, `/asset-spec system:construction-layout` para tiles de
 > rejilla, suelos/paredes por servicio, mostradores de puesto, asiento básico, y VFX de construir/demoler.
 
+## Ampliación aprobada 2026-07-30 — MUROS LIBRES Y ZONAS
+
+> **Origen**: el usuario, jugando: *"ya he puesto paredes pero debe poder ponerse de manera libre como
+> theme hospital por ejemplo"* y, al aclararlo: *"la construcción de las paredes debe ser libre y luego
+> dentro poner las zonas además de las puertas y ventanas"*.
+
+**Qué decía este GDD hasta hoy**: las paredes existían **solo como decorado** — la tabla de arriba las
+cita como *"oficinas/esperas (suelo+paredes con color por servicio)"*, y el Asset Spec pendiente habla
+de *"suelos/paredes por servicio"*. Nunca fueron una mecánica: no se construían, no tenían puertas y no
+bloqueaban el paso. El modelo era **"sala = rectángulo que dibujas"**, el de Theme Hospital.
+
+**Nota de implementación (2026-07-30)**: ni siquiera la parte decorativa se había hecho. Se implementó
+el suelo de color pero no las paredes, así que las salas se leían como alfombras y no como
+habitaciones. Eso era una parte del plan visual sin terminar, no una decisión de diseño.
+
+**Verificado en el código de CorsixTH** (la reimplementación libre de Theme Hospital) antes de decidir:
+allí una habitación **es un rectángulo** (`Room:Room(x, y, w, h, ...)`), las paredes son estructuras del
+mapa y **lo único que coloca el jugador es la puerta** (y ventanas opcionales; una puerta por sala, ni
+en fachada ni pegada a una esquina). Es decir: el modelo que pide el usuario **no es el de Theme
+Hospital**, es el de **Prison Architect** — muros libres primero, zonas designadas después.
+
+**Decisión del usuario, con el coste sobre la mesa** (26 usos del rectángulo en 7 archivos de `src/` y
+18 archivos de tests): se adopta el modelo de muros libres. Es una **ampliación de alcance**, no un
+olvido de implementación.
+
+### Modelo nuevo, por fases
+
+| Fase | Qué | Estado |
+|---|---|---|
+| **A** | **Herramienta de muros**: se pintan libremente, arista a arista, con coste por tramo (`coste_muro`, 15 €). Las salas siguen siendo rectángulos y todo lo demás sigue funcionando — fase ADITIVA. | En curso |
+| **B** | **La zona deja de ser un rectángulo**: pasa a ser un conjunto de celdas cualquiera. Aquí se migran aforo (hoy por área), coste (por celdas), el centro de sala que cronometra los caminos, el dibujo del suelo y los tests. | Pendiente |
+| **C** | **Zonas dentro de lo cerrado**: detectar recintos cerrados por muros y designar qué es cada uno. Desaparecen las paredes automáticas de sala. | Pendiente |
+| **D** | **Puertas y ventanas** colocadas en los muros. | Pendiente |
+| **E** | **Los muros bloquean el paso**: navegación real. Aquí cerrar una sala pasa a COSTAR tiempo (la gente rodea) a cambio de intimidad — la disyuntiva que hace interesante la decisión. | Pendiente |
+
+### Decisiones de modelo ya tomadas
+
+- **El muro vive en la ARISTA entre dos celdas**, no dentro de una celda. Así no come superficie útil,
+  dos salas pegadas comparten tabique, y el aforo y el coste por área **no cambian**. La alternativa
+  (muro = celda) obligaba a redibujar la comisaría inicial y dejaba sin interior una sala de 2×2, que
+  es el mínimo permitido (`area_min_sala = 4`).
+- **Clave normalizada por arista**: el tabique entre (3,5) y (4,5) es el mismo mirado desde cualquiera
+  de las dos celdas, así que las dos formas de nombrarlo dan la misma clave. Sin esa normalización se
+  podrían apilar dos muros invisibles en la misma arista y borrar uno dejaría el otro.
+- **Los muros cuestan dinero** (15 € el tramo, reembolso al derribar como el resto). Gratis, cerrarlo
+  todo sería siempre la jugada obvia y no habría decisión.
+
+---
+
 ## UI Requirements
 
 *Construcción es muy UI. La pantalla la posee **UI/HUD #11**; ratón (arrastrar/clic), sin hover-only.*

@@ -51,6 +51,7 @@ var pct_reembolso: float = 0.5
 var area_min_sala: int = 4
 var coste_mover: float = 0.0
 var coste_asiento_basico: float = 25.0
+var coste_muro: float = 15.0
 var edificio_columnas: int = 24
 var edificio_filas: int = 13
 
@@ -60,6 +61,16 @@ var _salas: Dictionary[StringName, Dictionary] = {}
 ## Elementos construidos (puestos y asientos, 1 celda): `elemento_id -> {catalogo: StringName,
 ## celda: Vector2i, sala: StringName, coste_pagado: float}`.
 var _elementos: Dictionary[StringName, Dictionary] = {}
+## MUROS LIBRES (2026-07-30): se pintan donde el jugador quiera, independientes de las salas.
+##
+## Un muro vive en la ARISTA entre dos celdas, no dentro de una celda: así no come superficie útil
+## y dos salas pegadas pueden compartir tabique (mismo criterio que ya usa el dibujo de paredes).
+## Clave: `"v:x:y"` = arista IZQUIERDA de la celda (x,y), o sea entre (x-1,y) y (x,y).
+##        `"h:x:y"` = arista de ARRIBA de la celda (x,y), o sea entre (x,y-1) y (x,y).
+## Con esas dos familias se puede describir cualquier tabique de la rejilla sin ambigüedad: cada
+## arista tiene UNA sola clave posible, así que no hay muros duplicados por construcción.
+var _muros: Dictionary[String, bool] = {}
+
 ## Contador para generar ids únicos (se serializa en la story 005 para no pisar ids al cargar).
 var _contador_ids: int = 0
 
@@ -444,6 +455,88 @@ func _puerta_automatica(rect: Rect2i) -> Vector2i:
 				mejor_dist = d
 				mejor = Vector2i(x, y)
 	return mejor
+
+
+# ── MUROS LIBRES (2026-07-30) ────────────────────────────────────────────────────────────────
+
+## La clave de la arista entre `celda` y su vecina en la dirección `lado`. Normaliza a propósito:
+## el tabique entre (3,5) y (4,5) es EL MISMO se mire desde la izquierda o desde la derecha, así que
+## las dos formas de nombrarlo devuelven la misma clave. Sin esto se podrían pintar dos muros
+## encima, uno "de cada sala", y borrar uno dejaría el otro.
+func clave_de_muro(celda: Vector2i, lado: StringName) -> String:
+	match lado:
+		&"izquierda":
+			return "v:%d:%d" % [celda.x, celda.y]
+		&"derecha":
+			return "v:%d:%d" % [celda.x + 1, celda.y]
+		&"arriba":
+			return "h:%d:%d" % [celda.x, celda.y]
+		&"abajo":
+			return "h:%d:%d" % [celda.x, celda.y + 1]
+		_:
+			push_warning("Construccion: lado de muro desconocido ('%s')" % lado)
+			return ""
+
+
+## ¿Hay muro en esa arista?
+func hay_muro(celda: Vector2i, lado: StringName) -> bool:
+	return _muros.has(clave_de_muro(celda, lado))
+
+
+## Todas las aristas con muro, para que la capa visual las dibuje (solo lectura).
+func muros() -> Array[String]:
+	var resultado: Array[String] = []
+	for clave: String in _muros:
+		resultado.append(clave)
+	return resultado
+
+
+## Levanta un muro en esa arista, cobrándolo (gate E4 de Economía, igual que todo lo que se
+## construye). Devuelve si se levantó: `false` si ya había uno, si la arista cae fuera del edificio
+## o si no hay caja. Sin dinero no se construye — no se entra en números rojos por levantar tabiques.
+func construir_muro(celda: Vector2i, lado: StringName) -> bool:
+	var clave: String = clave_de_muro(celda, lado)
+	if clave == "" or _muros.has(clave):
+		return false
+	if not _arista_dentro_del_edificio(clave):
+		return false
+	if not _pagar(coste_muro):
+		return false
+	_muros[clave] = true
+	_refrescar_visual()
+	return true
+
+
+## Derriba un muro, devolviendo el mismo porcentaje que el resto de demoliciones (F4).
+func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
+	var clave: String = clave_de_muro(celda, lado)
+	if not _muros.has(clave):
+		return false
+	_muros.erase(clave)
+	_abonar(coste_muro * pct_reembolso)
+	_refrescar_visual()
+	return true
+
+
+## Una arista es válida si separa dos celdas de las que AL MENOS UNA está dentro del edificio: así se
+## puede cerrar el borde exterior (la fachada) pero no pintar muros en mitad de la calle.
+func _arista_dentro_del_edificio(clave: String) -> bool:
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return false
+	var x: int = int(partes[1])
+	var y: int = int(partes[2])
+	var a: Vector2i = Vector2i(x - 1, y) if partes[0] == "v" else Vector2i(x, y - 1)
+	var b: Vector2i = Vector2i(x, y)
+	return _celda_en_edificio(a) or _celda_en_edificio(b)
+
+
+## ¿Esa celda cae dentro de la rejilla del edificio?
+func _celda_en_edificio(celda: Vector2i) -> bool:
+	return (
+		celda.x >= 0 and celda.y >= 0
+		and celda.x < edificio_columnas and celda.y < edificio_filas
+	)
 
 
 ## ¿Esta sala tiene paredes dibujadas? (2026-07-30) Delimitar una zona y AISLARLA son dos cosas
@@ -995,7 +1088,15 @@ func save() -> Dictionary:
 			"celda": [elemento["celda"].x, elemento["celda"].y],
 			"coste_pagado": elemento["coste_pagado"],
 		})
-	return {"salas": salas, "elementos": elementos, "contador_ids": _contador_ids}
+	# Los muros libres se guardan como la lista de sus claves de arista: es el dato minimo del que se
+	# reconstruye todo, y al ser texto plano viaja por el JSON del SaveManager sin conversiones.
+	var muros_json: Array = []
+	for clave: String in _muros:
+		muros_json.append(clave)
+	return {
+		"salas": salas, "elementos": elementos, "contador_ids": _contador_ids,
+		"muros": muros_json,
+	}
 
 
 ## Restaura el layout desde un Dictionary (p. ej. parseado de JSON). Defensivo (ADR-0002: la entrada
@@ -1010,6 +1111,12 @@ func load_state(d: Dictionary) -> void:
 				_personal.quitar_puesto(elemento_id)
 	_salas.clear()
 	_elementos.clear()
+	_muros.clear()
+	for clave: Variant in d.get("muros", []):
+		if not (clave is String) or not _arista_dentro_del_edificio(clave):
+			push_warning("Construccion: muro corrupto en el save -> descartado")
+			continue
+		_muros[clave] = true
 	for datos: Variant in d.get("salas", []):
 		if not (datos is Dictionary):
 			push_warning("Construccion: sala corrupta en el save -> descartada")
@@ -1258,6 +1365,7 @@ func aplicar_config(config: Resource) -> void:
 	area_min_sala = maxi(config.area_min_sala, 1)
 	coste_mover = _clamp_knob(config.coste_mover, "coste_mover")
 	coste_asiento_basico = _clamp_knob(config.coste_asiento_basico, "coste_asiento_basico")
+	coste_muro = maxf(config.coste_muro, 0.0)
 	edificio_columnas = maxi(config.edificio_columnas, 1)
 	edificio_filas = maxi(config.edificio_filas, 1)
 

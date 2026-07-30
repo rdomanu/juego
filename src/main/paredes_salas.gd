@@ -25,6 +25,10 @@ const LARGO_JAMBA: float = 10.0
 ## `modo_construccion.gd`), así que no se tipa `_construccion` como `Construccion` para leer su
 ## constante directamente.
 const CELDA_SIN_PUERTA := Vector2i(-1, -1)
+## Color de los MUROS LIBRES (2026-07-30 — Fase A del modelo Prison Architect: paredes primero,
+## zonas después). Gris de obra NEUTRO a propósito: a diferencia de `_color_de_pared`, un muro libre
+## no pertenece a ninguna sala, así que no toma el tono de ningún servicio.
+const COLOR_MURO_LIBRE := Color(0.55, 0.55, 0.52)
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -107,6 +111,13 @@ func _firma_actual() -> String:
 			_construccion.tipo_de_sala(sala_id), puerta.x, puerta.y,
 			"P" if _construccion.sala_con_paredes(sala_id) else "-",
 		])
+	# Los MUROS LIBRES (2026-07-30) entran en la firma: pintar o demoler uno tiene que disparar el
+	# redibujado igual que construir/demoler una sala. Se ORDENAN antes de unir — `Construccion.muros()`
+	# no promete un orden estable entre llamadas, y sin orden estable la firma podría "cambiar" (y
+	# redibujar de más) aunque el CONJUNTO de muros sea idéntico al de la vez anterior.
+	var muros: Array[String] = _construccion.muros()
+	muros.sort()
+	partes.append("MUROS:" + ",".join(PackedStringArray(muros)))
 	return "|".join(partes)
 
 
@@ -152,6 +163,55 @@ func _recalcular_tramos() -> void:
 	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
 	for sala_id: StringName in salas:
 		_jambas.append_array(_jambas_de_puerta(sala_id))
+	# 4) Los MUROS LIBRES (2026-07-30 — Fase A: paredes primero, zonas después): mismo grosor y
+	#    estilo que las paredes de sala, pero con su propio color neutro — no pertenecen a ninguna
+	#    sala. Si un muro libre cae justo en el mismo tramo físico que ya pintó una pared de sala
+	#    (`duenio`), NO se repinta encima — `Construccion.clave_de_muro` usa un convenio col:row para
+	#    las aristas horizontales que NO coincide textualmente con el de este fichero (row:col,
+	#    heredado de `_unidad_h`); `_clave_equivalente_en_paredes` traduce entre los dos para comparar
+	#    la MISMA arista física. Los huecos de puerta NO se comprueban aquí a propósito: un muro libre
+	#    es una entidad real del modelo (ADR-0004 — el visual refleja el modelo), así que si el
+	#    jugador construye uno sobre el hueco de una puerta, SE VE (aunque sea una rareza jugable).
+	for clave_construccion: String in _construccion.muros():
+		if duenio.has(_clave_equivalente_en_paredes(clave_construccion)):
+			continue
+		var geo: Dictionary = _geometria_de_muro_libre(clave_construccion)
+		if geo.is_empty():
+			continue
+		_tramos.append({"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE})
+
+
+## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
+## EQUIVALENTE de este fichero, para poder comparar contra `duenio` (que usa "v:col:row" para
+## verticales — mismo orden, coincide — pero "h:row:col" para horizontales, heredado de `_unidad_h`/
+## `_clave_de_puerta`). Solo se intercambian los dos números en el caso "h"; devuelve "" si la clave
+## no tiene el formato esperado (nunca debería pasar — `Construccion` es la única que las genera).
+func _clave_equivalente_en_paredes(clave_construccion: String) -> String:
+	var partes: PackedStringArray = clave_construccion.split(":")
+	if partes.size() != 3:
+		return ""
+	if partes[0] == "v":
+		return clave_construccion   # mismo convenio col:row en los dos ficheros — no hace falta tocar
+	return "h:%s:%s" % [partes[2], partes[1]]   # "h": Construccion guarda col:row; aquí es row:col
+
+
+## La geometría (en píxeles de MUNDO) de una arista con la clave de `Construccion.muros()`
+## ("v:col:row" o "h:col:row" — ver `Construccion.clave_de_muro`). `{}` si la clave es inválida.
+func _geometria_de_muro_libre(clave: String) -> Dictionary:
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return {}
+	var a: int = int(partes[1])
+	var b: int = int(partes[2])
+	if partes[0] == "v":
+		# "v:col:row" — línea vertical en la columna `a`, del borde de fila `b` al `b + 1`.
+		var x: float = _gx(a)
+		return {"desde": Vector2(x, _gy(b)), "hasta": Vector2(x, _gy(b + 1))}
+	if partes[0] == "h":
+		# "h:col:row" — línea horizontal en la fila `b`, de la columna `a` a la `a + 1`.
+		var y: float = _gy(b)
+		return {"desde": Vector2(_gx(a), y), "hasta": Vector2(_gx(a + 1), y)}
+	return {}
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el
