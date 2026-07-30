@@ -420,8 +420,10 @@ func _dentro_del_edificio(rect: Rect2i) -> bool:
 
 ## Da de alta una sala YA validada y pagada (guarda `coste_pagado` — reembolso F4). Devuelve su id.
 ## `id_forzado` permite ids compat (`doc_1`... los usará el montaje inicial de la 006).
+## `con_paredes`: 0 = lo que diga el tipo · 1 = forzar CON paredes · -1 = forzar SIN paredes.
 func _crear_sala(
-	tipo_sala_id: StringName, rect: Rect2i, coste_pagado: float = 0.0, id_forzado: StringName = &""
+	tipo_sala_id: StringName, rect: Rect2i, coste_pagado: float = 0.0, id_forzado: StringName = &"",
+	con_paredes: int = 0
 ) -> StringName:
 	var sala_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(&"sala")
 	var tipo: Resource = Datos.obtener_silencioso(&"TipoSala", tipo_sala_id)
@@ -429,10 +431,20 @@ func _crear_sala(
 		"celdas": _celdas_del_rect(rect),
 		"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado,
 		"puerta": _puerta_automatica(rect),
-		# Las paredes son OPCIONALES por sala (usuario 2026-07-30). El tipo solo pone el valor de
-		# partida: la de descanso nace cerrada por intimidad, el resto en planta diafana.
-		"paredes": bool(tipo.paredes_por_defecto) if tipo != null else false,
 	}
+	# Las paredes son OPCIONALES por sala. El tipo pone el valor de partida (la de descanso nace
+	# cerrada por intimidad; el resto, en planta diafana) y `con_paredes` permite forzarlo desde la UI.
+	# Se LEVANTAN MUROS DE VERDAD, no un flag: es lo unico que se ve y lo unico que bloquea.
+	# De oficio (coste_pagado 0 = montaje inicial de la DGP) los muros tampoco se cobran.
+	var cerrar: bool = bool(tipo.paredes_por_defecto) if tipo != null else false
+	if con_paredes != 0:
+		cerrar = con_paredes > 0
+	if cerrar:
+		for arista: Array in _aristas_del_perimetro(sala_id):
+			if coste_pagado > 0.0:
+				construir_muro(arista[0], arista[1])
+			else:
+				_muros[clave_de_muro(arista[0], arista[1])] = TABIQUE
 	_refrescar_visual()
 	return sala_id
 
@@ -606,9 +618,6 @@ func _crear_sala_con_celdas(
 	_salas[sala_id] = {
 		"celdas": mapa, "tipo": tipo_sala_id, "rect": caja, "coste_pagado": coste_pagado,
 		"puerta": _puerta_automatica(caja),
-		# Una zona designada dentro de muros ya esta cerrada por ellos: no se le pintan paredes
-		# propias encima, o se verian dos tabiques paralelos.
-		"paredes": false,
 	}
 	_refrescar_visual()
 	return sala_id
@@ -772,9 +781,21 @@ func _celda_en_edificio(celda: Vector2i) -> bool:
 ## distintas: Documentacion, ODAC y la sala de espera se leen bien en planta diafana; la de descanso
 ## necesita cerrarse para que no se vea a los funcionarios de cafe desde la cola.
 func sala_con_paredes(sala_id: StringName) -> bool:
+	# 🐛 2026-07-30, el usuario: "las construye con paredes pero hay un bug que no se muestran esas
+	# paredes". La causa era tener DOS FUENTES DE VERDAD: un flag `paredes` en la sala (que se ponia al
+	# crearla) y los muros REALES (que solo aparecian al usar el boton del menu). La sala nacia con el
+	# flag puesto y sin un solo muro construido.
+	# Ahora esto se DERIVA de la realidad: una sala "tiene paredes" si TODAS las aristas de su
+	# perimetro tienen muro. Sin flag que pueda mentir.
 	if not _salas.has(sala_id):
 		return false
-	return bool(_salas[sala_id].get("paredes", false))
+	var aristas: Array = _aristas_del_perimetro(sala_id)
+	if aristas.is_empty():
+		return false
+	for arista: Array in aristas:
+		if not hay_muro(arista[0], arista[1]):
+			return false
+	return true
 
 
 ## Pone o quita las paredes de una sala YA construida. De momento es gratis y solo cambia como se
@@ -783,14 +804,8 @@ func fijar_paredes_de_sala(sala_id: StringName, con_paredes: bool) -> void:
 	if not _salas.has(sala_id):
 		push_warning("Construccion: paredes de una sala inexistente ('%s') -> ignorado" % sala_id)
 		return
-	if bool(_salas[sala_id].get("paredes", false)) == con_paredes:
-		return
-	# 🐛 Corregido 2026-07-30 (el usuario: "al darle poner muros en la sala deben ponerse bien ya que
-	# hay que repasarlos con construir muro"). Antes esto solo encendia un flag y la capa visual
-	# DIBUJABA un perimetro: no eran muros de verdad, asi que no bloqueaban, no admitian puertas y
-	# habia que repasarlos a mano con la herramienta. Ahora "poner paredes" CONSTRUYE MUROS REALES en
-	# todo el perimetro de la sala — los mismos que pintarias tu, con su coste y su comportamiento.
-	_salas[sala_id]["paredes"] = con_paredes
+	# Levanta o derriba MUROS DE VERDAD en todo el perimetro — los mismos que pintarias a mano, con su
+	# coste y su comportamiento. Ya no hay ningun flag: `sala_con_paredes` lee la realidad.
 	for arista: Array in _aristas_del_perimetro(sala_id):
 		if con_paredes:
 			construir_muro(arista[0], arista[1])
@@ -933,7 +948,10 @@ func coste_elemento(id_catalogo: StringName) -> float:
 ## el id creado o `&""` (rechazo de REGLA — inválido o sin caja — silencioso: la UI lo pinta en rojo).
 ## ENMIENDA 007 (feedback del usuario en el sign-off): dibujar PEGADO o solapado a una sala del
 ## MISMO tipo la AMPLÍA (misma sala, rect unido, cobra solo las celdas nuevas) en vez de crear otra.
-func construir_sala(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
+## `con_paredes`: 0 = lo que diga el tipo de sala · 1 = con paredes · -1 = sin paredes. Lo decide el
+## jugador con un interruptor en la barra de construccion (peticion del usuario 2026-07-30: "cuando
+## construyo una sala nueva deberia poder construirse con o sin paredes").
+func construir_sala(tipo_sala_id: StringName, rect: Rect2i, con_paredes: int = 0) -> StringName:
 	var ampliable: StringName = sala_ampliable(tipo_sala_id, rect)
 	if ampliable != &"":
 		var coste_ampliar: float = coste_ampliacion(ampliable, rect)
@@ -954,7 +972,7 @@ func construir_sala(tipo_sala_id: StringName, rect: Rect2i) -> StringName:
 	var coste: float = coste_sala(tipo_sala_id, rect)
 	if not _pagar(coste):
 		return &""
-	return _crear_sala(tipo_sala_id, rect, coste)
+	return _crear_sala(tipo_sala_id, rect, coste, &"", con_paredes)
 
 
 ## ¿El rectángulo AMPLÍA una sala existente del mismo tipo? Exige que la UNIÓN siga siendo un
@@ -1347,7 +1365,6 @@ func save() -> Dictionary:
 			# La puerta se guarda (2026-07-30): al cargar NO se recalcula, porque si el jugador amplia la
 			# sala mas adelante la puerta automatica saldria en otro sitio y se le moveria sola de un dia
 			# para otro. Donde esta la puerta de tu comisaria es parte de tu comisaria.
-			"paredes": sala.get("paredes", false),
 			# Las celdas REALES de la sala (fase B): con formas no rectangulares no se pueden deducir del
 			# rect, que es solo la caja envolvente. Se guardan como pares [x,y], igual que el resto.
 			"celdas": _celdas_a_json(sala.get("celdas", {})),
@@ -1429,7 +1446,6 @@ func load_state(d: Dictionary) -> void:
 		_salas[StringName(String(datos.get("id", "")))] = {
 			"tipo": tipo_sala, "rect": rect, "coste_pagado": float(datos.get("coste_pagado", 0.0)),
 			"puerta": puerta,
-			"paredes": bool(datos.get("paredes", false)),
 			# Si el save es viejo (o viene corrupto) se rellenan desde el rect: una sala guardada ANTES de
 			# la fase B era rectangular por definicion, asi que sus celdas son justo las de su rect.
 			"celdas": _celdas_desde_json(datos.get("celdas", []), rect),

@@ -49,6 +49,9 @@ var _arrastrando_muro: bool = false
 ## Eje al que se ha CLAVADO el trazo actual de muro ("h" o "v"; "" = aun no se ha pulsado). Lo fija
 ## la primera arista del arrastre y no cambia hasta soltar: es lo que hace el trazo predecible.
 var _eje_arrastre_muro: String = ""
+## Si la PROXIMA sala que dibujes nace con paredes o en planta diafana (peticion del usuario
+## 2026-07-30). Arranca en false: la mayoria de las zonas se quieren delimitadas, no aisladas.
+var _nueva_sala_con_paredes: bool = false
 ## La coordenada que queda fija en ese trazo (la fila si es horizontal, la columna si es vertical).
 var _fija_arrastre_muro: int = 0
 ## Principio y final del trazo actual, en el eje libre. Con esto se reconstruye la linea entera.
@@ -183,7 +186,10 @@ func _al_soltar() -> void:
 	if not _arrastrando:
 		return
 	_arrastrando = false
-	_construccion.construir_sala(_herramienta, _rect_entre(_celda_inicio, _construccion.celda_bajo_cursor()))
+	_construccion.construir_sala(
+		_herramienta, _rect_entre(_celda_inicio, _construccion.celda_bajo_cursor()),
+		1 if _nueva_sala_con_paredes else -1
+	)
 
 
 ## Demoler con la cascada del GDD: un elemento directo; un MURO libre directo (prioridad entre
@@ -704,6 +710,12 @@ func _crear_ui() -> void:
 		_anadir_herramienta(
 			"📍 Zona: %s" % tipo_sala.nombre, StringName("zona:" + String(tipo_sala.id)), false
 		)
+	var casilla := CheckBox.new()
+	casilla.text = "Con paredes"
+	casilla.focus_mode = Control.FOCUS_NONE
+	casilla.tooltip_text = "Si esta marcado, la sala que dibujes nacera cerrada con muros"
+	casilla.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
+	_fila_herramientas.add_child(casilla)
 	_anadir_herramienta("❌ Demoler", &"demoler", false)
 
 	_dialogo_cascada = ConfirmationDialog.new()
