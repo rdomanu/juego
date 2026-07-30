@@ -94,8 +94,24 @@ var _capa_descansos: Node2D = null
 ## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
 ## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
 const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## A qué distancia (px) de su destino se considera que un muñeco caminante HA LLEGADO. Un pelo por
+## encima del `target_desired_distance` del agente de navegación (6 px), para que la comprobación
+## física no contradiga a la del propio agente cuando este sí acierta.
+const DISTANCIA_LLEGADA: float = 12.0
+## Cuántos frames se insiste en recalcular el camino antes de dar un viaje por imposible. ~2 s a
+## 60 fps: de sobra para que el NavigationServer sincronice, y corto para no dejar a nadie dando
+## vueltas si su destino es de verdad inalcanzable.
+const MAX_REINTENTOS_CAMINO: int = 120
+## El mostrador de una ventanilla: alto de la caja y color. Más alto que el placeholder anterior
+## (16 px) para que se lea como mesa de atención y no como un cajón, y tono madera-institucional.
+const ALTO_MOSTRADOR: float = 20.0
+const COLOR_MOSTRADOR := Color(0.42, 0.34, 0.27)
 ## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
 ## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
+## Agente → puesto por el que YA hizo su entrada andando. Es la invariante "1 puesto = 1
+## funcionario que entra": mientras el modelo siga diciendo que ese agente viene de camino, no se
+## le crea un segundo viaje aunque el primero se cierre por lo que sea. Ver `_refrescar_incorporaciones`.
+var _ya_entro: Dictionary[RefCounted, StringName] = {}
 var _capa_logica: Node2D = null
 var _capa_escena: Node2D = null
 
@@ -706,13 +722,53 @@ func _mover_paso(viaje: Dictionary) -> bool:
 		return false
 	if viaje.has("destino_pendiente"):
 		nav.target_position = viaje["destino_pendiente"]
+		# Se GUARDA el destino (no solo se aplica): abajo hace falta para comprobar si el muñeco ha
+		# llegado de verdad, en vez de fiarse de lo que diga el agente de navegación.
+		viaje["destino"] = viaje["destino_pendiente"]
+		viaje["reintentos"] = 0
 		viaje.erase("destino_pendiente")
+		return false
+		# 🐛 BUG cazado por el usuario el 2026-07-30 ("siguen entrando 6 funcionarios para 3 puestos
+		# de documentación") y confirmado instrumentando el juego en ventana: cada agente arrancaba
+		# el viaje DOS VECES (y más), y se veía un desfile de policías entrando una y otra vez.
+		#
+		# La causa: fijar `target_position` lanza una consulta de camino que el NavigationServer
+		# resuelve en el SIGUIENTE frame. Preguntarle aquí mismo `is_navigation_finished()` —dos
+		# líneas más abajo— devolvía `true` porque todavía no había camino que recorrer. El viaje se
+		# cerraba de inmediato, el muñeco se borraba, el modelo seguía diciendo "este agente viene de
+		# camino", y al frame siguiente se creaba un viaje nuevo. Un bucle.
+		#
+		# Se sale ANTES de preguntar: este frame solo sirve para encargar el camino. Es el mismo
+		# gotcha del primer physics frame que ya está documentado arriba, una vuelta de tuerca más.
+		return false
 	var mult: float = Tiempo.multiplicador_velocidad
 	if mult <= 0.0:
 		return false
 	var muneco: CharacterBody2D = viaje["muneco"] as CharacterBody2D
 	if nav.is_navigation_finished():
-		return true
+		# 🐛 BUG cazado por el usuario el 2026-07-30 ("siguen entrando 6 funcionarios para 3 puestos")
+		# y medido instrumentando la ventana: `is_navigation_finished()` MIENTE mientras el
+		# NavigationServer no ha resuelto el camino — contesta "ya has llegado" cuando en realidad
+		# aún no ha empezado. El viaje se cerraba en la puerta, el muñeco se borraba, el modelo
+		# seguía diciendo "este agente viene de camino" y nacía un viaje nuevo: el desfile de
+		# policías entrando una y otra vez.
+		#
+		# Así que no se pregunta al agente de navegación, se MIDE: solo ha llegado quien está de
+		# verdad al lado de su destino. Si dice que ha terminado pero sigue lejos, se le vuelve a
+		# encargar el camino (el servidor ya habrá sincronizado) en vez de darlo por llegado.
+		var destino: Vector2 = viaje.get("destino", muneco.position)
+		if muneco.position.distance_to(destino) <= DISTANCIA_LLEGADA:
+			return true
+		# Red de seguridad: si el destino es INALCANZABLE (un recinto sin puerta, por ejemplo) esto
+		# no puede reintentar para siempre. Tras `MAX_REINTENTOS_CAMINO` se da por terminado igual —
+		# el muñeco desaparece y el mostrador vuelve a enseñar a su titular, que es mucho mejor que
+		# un policía dando vueltas eternamente por la comisaría.
+		var reintentos: int = int(viaje.get("reintentos", 0)) + 1
+		viaje["reintentos"] = reintentos
+		if reintentos > MAX_REINTENTOS_CAMINO:
+			return true
+		nav.target_position = destino
+		return false
 	var siguiente: Vector2 = nav.get_next_path_position()
 	muneco.velocity = muneco.global_position.direction_to(siguiente) * _flujo.velocidad_npc_px_s * mult
 	muneco.move_and_slide()
@@ -732,6 +788,14 @@ func _avanzar_camino_descanso(viaje: Dictionary) -> bool:
 	if viaje["fase"] == &"yendo" and viaje["celda_sala"] != CELDA_NULA:
 		viaje["fase"] = &"en_sala"
 		_poner_taza(viaje["muneco"])
+		return false
+	if viaje["fase"] == &"yendo":
+		# SIN sala de descanso construida: el muñeco ha llegado a la calle y ahí se queda hasta que
+		# el modelo dé la pausa por terminada (entonces `_iniciar_vuelta` lo gira). Antes se cerraba
+		# el viaje al llegar, pero el agente seguía en `descansando` para el modelo, así que nacía
+		# otro viaje y el muñeco salía a la calle una y otra vez — el mismo bucle que el de las
+		# incorporaciones, con la misma causa: el muñeco termina antes que el modelo.
+		viaje["fase"] = &"en_sala"
 		return false
 	return true
 
@@ -801,6 +865,23 @@ func _quitar_taza(cuerpo: Node2D) -> void:
 		taza.queue_free()
 
 
+## ¿Hay que hacer que este agente ENTRE ANDANDO ahora mismo? Es la invariante "1 puesto = 1
+## funcionario que entra", aislada aquí a propósito para que se pueda probar sola, sin escena, sin
+## navegación y sin reloj (ver `tests/.../npcs_entrada_unica_test.gd`).
+##
+## Muta `_ya_entro`: devolver `true` es también apuntar que ese agente ya hizo su entrada.
+func decidir_entrada(agente: RefCounted, viene: bool, tiene_viaje: bool) -> bool:
+	if not viene:
+		_ya_entro.erase(agente)   # ya está trabajando (o ya no viene): mañana volverá a entrar
+		return false
+	if tiene_viaje:
+		return false              # ya está andando ahora mismo
+	if _ya_entro.get(agente, &"") == agente.puesto_id:
+		return false              # YA hizo su entrada para este puesto: no se repite pase lo que pase
+	_ya_entro[agente] = agente.puesto_id
+	return true
+
+
 ## El trayecto cosmético de la LLEGADA (ver comentario de `_camino_incorporacion`). Dos pasadas,
 ## mismo espíritu que `_refrescar_descansos` pero sin fases intermedias — un único tramo puerta→
 ## puesto:
@@ -816,12 +897,46 @@ func _refrescar_incorporaciones() -> void:
 	if _personal == null or _construccion == null:
 		return
 	for agente: RefCounted in _personal.plantilla:
-		if _personal.va_de_camino_al_puesto(agente) and not _camino_incorporacion.has(agente):
+		var viene: bool = _personal.va_de_camino_al_puesto(agente)
+		# ── LA INVARIANTE, Y ES DURA: 1 PUESTO = 1 FUNCIONARIO QUE ENTRA ────────────────────────
+		# Encargo literal del usuario (2026-07-30): *"necesito que seas implacable con eso para que
+		# no se repita, 1 puesto = 1 funcionario que entra"*. Y con razón: este bucle se ha
+		# perseguido tres veces por sus causas (el camino que aún no estaba listo, el muñeco que
+		# llega antes que el modelo) y volvía en otra forma.
+		#
+		# Así que ya no se depende de acertar con la causa. Se anota que ESTE agente ya hizo su
+		# entrada para ESTE puesto, y no vuelve a hacerla pase lo que pase. La marca se borra sola
+		# cuando el modelo deja de decir "viene de camino" —o sea, cuando ya está trabajando o ya no
+		# viene—, así que mañana entra otra vez con normalidad, y si le reasignan a otra ventanilla
+		# también (la marca guarda el PUESTO, no solo el agente).
+		#
+		# Que se cierre un viaje antes de tiempo dejará de duplicar a nadie: como mucho se verá un
+		# muñeco de menos, que es un fallo mucho menos aparatoso que un desfile de policías.
+		if decidir_entrada(agente, viene, _camino_incorporacion.has(agente)):
 			_iniciar_camino_incorporacion(agente)
 	var terminados: Array[RefCounted] = []
 	for agente: RefCounted in _camino_incorporacion:
 		var viaje: Dictionary = _camino_incorporacion[agente]
 		var perdio_el_puesto: bool = agente.puesto_id != viaje["puesto_id"]
+		# 🐛 LA RAÍZ del "entran 6 funcionarios para 3 puestos" (usuario, 2026-07-30), medida
+		# instrumentando la ventana: el MUÑECO llega antes que el MODELO. El muñeco anda en píxeles
+		# y el modelo cronometra en minutos, y no van sincronizados al milímetro. Antes bastaba con
+		# que el muñeco llegara para cerrar el viaje y borrarlo — pero el modelo seguía diciendo
+		# "este agente viene de camino", así que al frame siguiente nacía un viaje NUEVO y el policía
+		# volvía a entrar por la puerta. De ahí el desfile.
+		#
+		# Ahora el muñeco que llega se QUEDA PLANTADO en su ventanilla esperando a que el modelo lo
+		# dé por incorporado. Se cierra cuando coinciden los dos, que es lo que de verdad significa
+		# "ya está trabajando". (El caso contrario —modelo listo y muñeco aún andando— ya estaba
+		# cubierto y sigue estándolo: no se cierra hasta que el muñeco llega.)
+		# Se cierra EN CUANTO el muñeco llega. Se probó a esperar además a que el modelo diera al
+		# agente por incorporado, y fue peor: el modelo puede tardar mucho en decirlo (o no decirlo),
+		# el viaje se quedaba abierto para siempre y con él la supresión del mostrador — resultado,
+		# el funcionario NO SE VEÍA NUNCA en su ventanilla. Lo reportó el usuario en el acto.
+		#
+		# Cerrar pronto es seguro desde que existe la invariante de `decidir_entrada`: aunque el
+		# modelo siga diciendo "viene de camino", ese agente ya no vuelve a entrar. Antes de la
+		# invariante esto era justo lo que producía el desfile de policías.
 		if perdio_el_puesto or _mover_paso(viaje):
 			terminados.append(agente)
 	for agente: RefCounted in terminados:
@@ -969,6 +1084,22 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# El ciudadano ya iba a su casilla desde antes; lo que faltaba era sacar al funcionario de
 	# ENCIMA de la mesa. Se mueve solo el DIBUJO: el modelo sigue teniendo el puesto en una celda,
 	# así que ni costes, ni validación de colocación, ni un solo test cambian.
+	# LA MESA PRIMERO, EL POLICÍA DESPUÉS. Dentro de un mismo nodo se pinta en orden, así que lo
+	# último va encima. Y aquí lo que tiene que estar encima es el FUNCIONARIO:
+	#
+	#   · Él está una casilla MÁS AL FONDO que la mesa (`_POLICIA_DETRAS`), o sea más arriba en
+	#     pantalla, así que verle entero por encima del mostrador es lo correcto en isométrico.
+	#   · La mesa es una caja con altura: dibujada después, su cara superior se comía al muñeco.
+	#     Eso es lo que reportó el usuario — *"se pone en la mesa y tapa al funcionario"*.
+	#
+	# Historial de este detalle, que ha costado tres vueltas: primero el policía salía en la MISMA
+	# celda que la mesa (parecía subido encima); luego se le movió una casilla atrás pero seguía
+	# pintándose por debajo, porque la mesa vivía en otra capa más al fondo; y al traer la mesa aquí
+	# se pintó después y le tapó. Este es el orden bueno: mesa, y encima quien atiende.
+	var mesa := PiezaIso.new()
+	mesa.name = "Mesa"
+	mesa.configurar(1, 1, ALTO_MOSTRADOR, COLOR_MOSTRADOR)
+	contenedor.add_child(mesa)
 	policia.position = _POLICIA_DETRAS
 	contenedor.add_child(policia)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font

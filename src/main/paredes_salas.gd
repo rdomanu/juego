@@ -40,6 +40,10 @@ const CELDA_SIN_PUERTA := Vector2i(-1, -1)
 ## zonas después). Gris de obra NEUTRO a propósito: a diferencia de `_color_de_pared`, un muro libre
 ## no pertenece a ninguna sala, así que no toma el tono de ningún servicio.
 const COLOR_MURO_LIBRE := Color(0.55, 0.55, 0.52)
+## Color de la FACHADA del edificio (2026-07-30): los muros fijos que son la comisaría en sí. Tono
+## de LADRILLO, distinto del gris de obra de un tabique que has levantado tú — de un vistazo se
+## distingue lo que es estructura (y no se puede tocar) de lo que has construido.
+const COLOR_FACHADA := Color(0.62, 0.44, 0.36)
 ## Grosor de la línea de VENTANA (FASE D, 2026-07-30): más fina que `GROSOR_PARED` — se lee como
 ## cristal, no como pared maciza.
 const GROSOR_VENTANA: float = 2.0
@@ -233,9 +237,12 @@ func _recalcular_tramos() -> void:
 		# FASE D (2026-07-30): puertas y ventanas se DIBUJAN distinto de un tabique — el visual
 		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
-		var cara: Dictionary = _cara_de_arista(geo["detras"])
+		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
+		var cara: Dictionary = _cara_de_arista(geo["detras"], fija)
 		if tipo == _construccion.PUERTA:
-			_agregar_puerta_libre(geo["desde"], geo["hasta"], cara)
+			_agregar_puerta_libre(
+				geo["desde"], geo["hasta"], cara, COLOR_FACHADA if fija else COLOR_MURO_LIBRE
+			)
 		elif tipo == _construccion.VENTANA:
 			# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
 			# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
@@ -247,7 +254,8 @@ func _recalcular_tramos() -> void:
 			_tramos.append(ventana)
 		else:
 			var libre: Dictionary = {
-				"desde": geo["desde"], "hasta": geo["hasta"], "color": COLOR_MURO_LIBRE,
+				"desde": geo["desde"], "hasta": geo["hasta"],
+				"color": COLOR_FACHADA if fija else COLOR_MURO_LIBRE,
 			}
 			libre.merge(cara)
 			_tramos.append(libre)
@@ -309,19 +317,21 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 ## usan las puertas de sala). A diferencia de una puerta de sala, un muro libre no pertenece a
 ## ninguna habitación — no hay un "lado de dentro" que priorizar—, así que las dos jambas apuntan al
 ## MISMO lado (perpendicular al tabique): es un detalle decorativo, no una pista de navegación.
-func _agregar_puerta_libre(desde: Vector2, hasta: Vector2, cara: Dictionary) -> void:
+func _agregar_puerta_libre(
+	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = COLOR_MURO_LIBRE
+) -> void:
 	var direccion: Vector2 = hasta - desde
 	var inicio_hueco: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
 	var fin_hueco: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
-	var izq: Dictionary = {"desde": desde, "hasta": inicio_hueco, "color": COLOR_MURO_LIBRE}
+	var izq: Dictionary = {"desde": desde, "hasta": inicio_hueco, "color": color}
 	izq.merge(cara)
 	_tramos.append(izq)
-	var der: Dictionary = {"desde": fin_hueco, "hasta": hasta, "color": COLOR_MURO_LIBRE}
+	var der: Dictionary = {"desde": fin_hueco, "hasta": hasta, "color": color}
 	der.merge(cara)
 	_tramos.append(der)
 	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
-	_jambas.append(_jamba(inicio_hueco, perpendicular, COLOR_MURO_LIBRE))
-	_jambas.append(_jamba(fin_hueco, perpendicular, COLOR_MURO_LIBRE))
+	_jambas.append(_jamba(inicio_hueco, perpendicular, color))
+	_jambas.append(_jamba(fin_hueco, perpendicular, color))
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el
@@ -477,9 +487,24 @@ func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 ## la altura es la solución 2D, y es exactamente lo que hacía Theme Hospital.
 ##
 ## Devuelve `{"alto": float}` — listo para fundirse en el diccionario del tramo.
-func _cara_de_arista(detras: Vector2i) -> Dictionary:
-	var cercana: bool = _construccion.sala_en(detras) != &""
+func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
+	# La FACHADA del edificio (2026-07-30) se mide contra el EDIFICIO, no contra las salas: sus dos
+	# lados del fondo (arriba e izquierda) tienen detrás la calle y van altos —son el telón de la
+	# comisaría—, y los dos de delante tienen detrás el interior entero, así que van bajos. Sin esta
+	# distinción, la fachada de abajo taparía la comisaría completa.
+	var cercana: bool = (
+		_celda_en_edificio(detras) if fija else _construccion.sala_en(detras) != &""
+	)
 	return {"alto": ALTO_PARED_CERCANA if cercana else ALTO_PARED}
+
+
+## ¿Esa celda cae dentro de la rejilla del edificio? (espeja `Construccion._celda_en_edificio`,
+## que es privada).
+func _celda_en_edificio(celda: Vector2i) -> bool:
+	return (
+		celda.x >= 0 and celda.y >= 0
+		and celda.x < _construccion.edificio_columnas and celda.y < _construccion.edificio_filas
+	)
 
 
 ## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala.

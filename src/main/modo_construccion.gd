@@ -36,6 +36,9 @@ var _celda_inicio: Vector2i = Vector2i.ZERO
 ## Guardas del refresco del preview (solo se redibuja al CAMBIAR de celda/herramienta — cero alloc
 ## por frame con el cursor quieto).
 var _celda_anterior: Vector2i = Vector2i(-999, -999)
+## Hacia dónde crece el cuerpo de la pieza que llevas en la mano (rotar con R, 2026-07-30).
+## Arranca en HORIZONTAL, que es como se colocaba todo hasta hoy.
+var _orientacion: int = 0
 var _herramienta_anterior: StringName = &"-"
 var _arrastre_anterior: bool = false
 ## Lado resaltado por el pincel de muro en el último frame (para que la guarda del preview también
@@ -147,6 +150,19 @@ func _unhandled_input(evento: InputEvent) -> void:
 				if _activo:
 					_cancelar()
 					get_viewport().set_input_as_handled()
+			KEY_R:
+				# ROTAR (petición del usuario, 2026-07-30: *"debe poder rotarse un objeto con la R
+				# por ejemplo"*). Gira la pieza que llevas en la mano, no una ya colocada: cambia el
+				# eje por el que crece su cuerpo. Se fuerza el redibujado del fantasma poniendo la
+				# guarda de celda en un imposible — si no, el preview solo se refresca al MOVER el
+				# ratón y girar sin moverse no se vería.
+				if _activo and not _es_sala and _herramienta != &"" and _herramienta != &"demoler":
+					_orientacion = (
+						_construccion.HORIZONTAL if _orientacion == _construccion.VERTICAL
+						else _construccion.VERTICAL
+					)
+					_celda_anterior = Vector2i(-999, -999)
+					get_viewport().set_input_as_handled()
 		return
 	if not _activo:
 		return
@@ -225,7 +241,7 @@ func _al_pulsar(punto_mundo: Vector2) -> void:
 		_arrastrando = true
 		_celda_inicio = celda
 	else:
-		_construccion.construir_elemento(_herramienta, celda)
+		_construccion.construir_elemento(_herramienta, celda, _orientacion)
 
 
 func _al_soltar() -> void:
@@ -619,7 +635,7 @@ func _refrescar_preview_sala(rect: Rect2i) -> void:
 
 func _refrescar_preview_elemento(celda: Vector2i) -> void:
 	var coste: float = _construccion.coste_elemento(_herramienta)
-	var valido: bool = _construccion.validar_elemento(_herramienta, celda)
+	var valido: bool = _construccion.validar_elemento(_herramienta, celda, &"", _orientacion)
 	var con_caja: bool = _construccion.puede_pagar(coste)
 	if _es_sala:
 		# Herramienta de sala sin arrastrar aún: pista de uso sobre la celda.
@@ -633,11 +649,15 @@ func _refrescar_preview_elemento(celda: Vector2i) -> void:
 	# `Construccion._celdas_de`) — si una sola celda del cuerpo no cabe, `valido` ya sale false; aquí
 	# solo faltaba pintar la caja con el mismo ancho que va a ocupar de verdad.
 	var superficie: int = _superficie_de_herramienta()
-	_colocar_caja(
-		celda, Vector2i(superficie, 1), COLOR_VALIDO if valido and con_caja else COLOR_INVALIDO
+	# La huella del fantasma gira con la pieza (R): el mismo eje que va a reservar el modelo.
+	var huella: Vector2i = (
+		Vector2i(1, superficie) if _orientacion == _construccion.VERTICAL
+		else Vector2i(superficie, 1)
 	)
-	_preview_texto.text = "%.0f € · %s" % [
-		coste, "Válido" if valido and con_caja else ("Sin caja" if valido else "No válido"),
+	_colocar_caja(celda, huella, COLOR_VALIDO if valido and con_caja else COLOR_INVALIDO)
+	var pista: String = "  ·  R para girar" if superficie > 1 else ""
+	_preview_texto.text = "%.0f € · %s%s" % [
+		coste, "Válido" if valido and con_caja else ("Sin caja" if valido else "No válido"), pista,
 	]
 
 

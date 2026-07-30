@@ -76,6 +76,13 @@ var _elementos: Dictionary[StringName, Dictionary] = {}
 ## Con esas dos familias se puede describir cualquier tabique de la rejilla sin ambigüedad: cada
 ## arista tiene UNA sola clave posible, así que no hay muros duplicados por construcción.
 var _muros: Dictionary[String, StringName] = {}
+## Las aristas que son EL EDIFICIO en sí: la fachada y su puerta de acceso. Se levantan solas, no
+## se pagan y NO SE PUEDEN DEMOLER — son el plano de la comisaría, no obra del jugador (petición
+## del usuario 2026-07-30: *"deberíamos poner unos muros fijos que no se pueden modificar que es
+## exactamente el diseño de la comisaría... poniendo además una puerta de acceso donde entren y
+## salgan los npc"*). Viven en `_muros` como cualquier otro tabique —así el recinto, el paso y el
+## dibujo los tratan igual sin ningún caso especial— y esta lista solo marca cuáles son intocables.
+var _muros_fijos: Dictionary[String, bool] = {}
 
 ## Contador para generar ids únicos (se serializa en la story 005 para no pisar ids al cargar).
 var _contador_ids: int = 0
@@ -156,18 +163,23 @@ func validar_sala(tipo_sala_id: StringName, rect: Rect2i) -> bool:
 ## `superficie` celdas hacia +X) tiene que caer DENTRO DE LA MISMA sala que el ancla (ni salirse del
 ## edificio ni pisar la sala de al lado) y estar libre de otros elementos (su cuerpo cuenta como
 ## ocupado — CO4).
-func validar_elemento(id_catalogo: StringName, celda: Vector2i, ignorar: StringName = &"") -> bool:
+func validar_elemento(
+	id_catalogo: StringName, celda: Vector2i, ignorar: StringName = &"",
+	orientacion: int = HORIZONTAL
+) -> bool:
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
 		return false   # fuera de toda sala (los elementos viven dentro de salas — CO4)
-	for c: Vector2i in _celdas_de(id_catalogo, celda):
+	for c: Vector2i in _celdas_de(id_catalogo, celda, orientacion):
 		if sala_en(c) != sala_id or _celda_ocupada(c, ignorar):
 			return false   # el cuerpo no cabe entero: se sale de la sala o pisa algo (CO4)
 		# La puerta no se tapia... salvo que la sala tenga OTRO sitio por donde abrirla. Asi el jugador
 		# nunca se queda con una sala sin salida, pero tampoco se le prohibe amueblar por una celda que
 		# se puede recolocar. (Y el montaje inicial de la DGP, que pone asientos antes de que nadie
 		# piense en puertas, deja de ser invalido por accidente.)
-		if es_celda_de_puerta(c) and _perimetro_libre_alternativo(sala_id, _celdas_de(id_catalogo, celda)).is_empty():
+		if es_celda_de_puerta(c) and _perimetro_libre_alternativo(
+			sala_id, _celdas_de(id_catalogo, celda, orientacion)
+		).is_empty():
 			return false
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
 	if id_catalogo == ASIENTO_BASICO:
@@ -377,7 +389,9 @@ func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 		if elemento_id == ignorar:
 			continue
 		var elemento: Dictionary = _elementos[elemento_id]
-		if celda in _celdas_de(elemento["catalogo"], elemento["celda"]):
+		if celda in _celdas_de(
+			elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL)
+		):
 			return true
 	return false
 
@@ -401,11 +415,29 @@ func _superficie_de(id_catalogo: StringName) -> int:
 ## hacia +X `superficie - 1` celdas más — sin rotación ni formas en L (MVP: nada del catálogo mide
 ## más de 1×N). SIEMPRE se recalcula desde el catálogo, nunca se guarda (ver `save`/`load_state`) —
 ## así el cuerpo no puede desincronizarse del dato de superficie si este cambia de valor.
-func _celdas_de(id_catalogo: StringName, celda_ancla: Vector2i) -> Array[Vector2i]:
+func _celdas_de(
+	id_catalogo: StringName, celda_ancla: Vector2i, orientacion: int = HORIZONTAL
+) -> Array[Vector2i]:
 	var celdas: Array[Vector2i] = []
+	var paso: Vector2i = Vector2i(0, 1) if orientacion == VERTICAL else Vector2i(1, 0)
 	for i: int in range(_superficie_de(id_catalogo)):
-		celdas.append(celda_ancla + Vector2i(i, 0))
+		celdas.append(celda_ancla + paso * i)
 	return celdas
+
+
+## Las celdas del cuerpo de un elemento YA COLOCADO, respetando la orientación con la que se puso.
+func celdas_de_elemento(elemento_id: StringName) -> Array[Vector2i]:
+	if not _elementos.has(elemento_id):
+		return []
+	var e: Dictionary = _elementos[elemento_id]
+	return _celdas_de(e["catalogo"], e["celda"], e.get("orientacion", HORIZONTAL))
+
+
+## Cómo está girado un elemento colocado (`HORIZONTAL` si no consta — saves antiguos).
+func orientacion_de(elemento_id: StringName) -> int:
+	if not _elementos.has(elemento_id):
+		return HORIZONTAL
+	return _elementos[elemento_id].get("orientacion", HORIZONTAL)
 
 
 ## ¿El rectángulo cabe entero en el edificio? (CO1: toda construcción ocurre dentro).
@@ -656,6 +688,15 @@ func _puerta_automatica(rect: Rect2i) -> Vector2i:
 
 ## Los tres tipos de tabique (fase D, 2026-07-30). Todos SON pared a efectos de recinto —una puerta
 ## cierra la habitación igual que un muro—, pero solo la puerta deja PASAR (fase E).
+## ── ORIENTACIÓN DE LOS ELEMENTOS (rotar con R, 2026-07-30) ─────────────────────────────────
+## Petición del usuario: *"debe poder rotarse un objeto con la R por ejemplo"*. Un elemento de
+## varias celdas (el sofá de 3, el mostrador) crece desde su ancla en UNA dirección; girar es
+## elegir cuál. `HORIZONTAL` (crece hacia +X) es el valor de SIEMPRE, así que todo lo construido
+## antes de hoy —y todos los tests— siguen comportándose exactamente igual sin tocar nada.
+const HORIZONTAL: int = 0
+const VERTICAL: int = 1
+
+
 const TABIQUE := &"muro"
 const PUERTA := &"puerta"
 const VENTANA := &"ventana"
@@ -689,6 +730,8 @@ func fijar_tipo_de_muro(celda: Vector2i, lado: StringName, tipo: StringName) -> 
 	var clave: String = clave_de_muro(celda, lado)
 	if clave == "" or not _muros.has(clave):
 		return false   # no hay muro que convertir: primero se levanta la pared
+	if _muros_fijos.has(clave):
+		return false   # la fachada no se toca: ni se tapia su puerta ni se abren huecos nuevos
 	if tipo != TABIQUE and tipo != PUERTA and tipo != VENTANA:
 		push_warning("Construccion: tipo de muro desconocido ('%s')" % tipo)
 		return false
@@ -729,6 +772,43 @@ func muros() -> Array[String]:
 	return resultado
 
 
+## ¿Esta arista es parte del edificio (fachada o puerta de acceso)? Las fijas no se demuelen ni se
+## convierten: son el plano de la comisaría.
+func es_muro_fijo(clave: String) -> bool:
+	return _muros_fijos.has(clave)
+
+
+## LEVANTA LA FACHADA: cierra el edificio entero por su perímetro y abre la puerta de acceso.
+##
+## Es IDEMPOTENTE y no cuesta dinero: se puede llamar al empezar la partida y otra vez después de
+## cargar, y el resultado es el mismo. Al cargar hace falta precisamente para volver a marcar como
+## FIJAS unas aristas que en el save eran tabiques corrientes.
+##
+## La puerta ocupa `alto_puerta` celdas seguidas en el lado IZQUIERDO, centrada en la fila de
+## `CELDA_PUERTA_EDIFICIO` — que es por donde ya llegaba la gente desde la calle, así que el
+## recorrido de siempre sigue valiendo. Al ser PUERTA, `deja_pasar` la deja cruzar y la navegación
+## no la recorta: es el ÚNICO hueco por el que se entra y se sale.
+##
+## ⚠️ No cambia los RECINTOS: el modelo ya trataba el perímetro del edificio como muro implícito
+## (ver `recinto_de`), así que declararlo explícito no altera ninguna zona ya designada.
+func levantar_fachada(alto_puerta: int = 2) -> void:
+	var fila_puerta: int = CELDA_PUERTA_EDIFICIO.y
+	var puertas: Dictionary[String, bool] = {}
+	for i: int in range(maxi(alto_puerta, 1)):
+		puertas["v:0:%d" % (fila_puerta + i)] = true
+	var claves: Array[String] = []
+	for x: int in edificio_columnas:
+		claves.append("h:%d:0" % x)                    # fachada de arriba (al fondo)
+		claves.append("h:%d:%d" % [x, edificio_filas]) # fachada de abajo (la de delante)
+	for y: int in edificio_filas:
+		claves.append("v:0:%d" % y)                    # fachada izquierda (donde va la puerta)
+		claves.append("v:%d:%d" % [edificio_columnas, y])
+	for clave: String in claves:
+		_muros_fijos[clave] = true
+		_muros[clave] = PUERTA if puertas.has(clave) else TABIQUE
+	_refrescar_visual()
+
+
 ## Levanta un muro en esa arista, cobrándolo (gate E4 de Economía, igual que todo lo que se
 ## construye). Devuelve si se levantó: `false` si ya había uno, si la arista cae fuera del edificio
 ## o si no hay caja. Sin dinero no se construye — no se entra en números rojos por levantar tabiques.
@@ -750,6 +830,8 @@ func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
 	var clave: String = clave_de_muro(celda, lado)
 	if not _muros.has(clave):
 		return false
+	if _muros_fijos.has(clave):
+		return false   # la fachada del edificio no se derriba: es el plano, no obra tuya
 	_muros.erase(clave)
 	_abonar(coste_muro * pct_reembolso)
 	_refrescar_visual()
@@ -901,13 +983,15 @@ func _reubicar_puerta_si_estorba(sala_id: StringName, celdas: Array) -> void:
 
 ## Da de alta un elemento YA validado y pagado (guarda `coste_pagado` — lo necesita el reembolso F4).
 func _crear_elemento(
-	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &""
+	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &"",
+	orientacion: int = HORIZONTAL
 ) -> StringName:
 	# Si el mueble cae sobre la puerta, la puerta se aparta (la validacion ya comprobo que hay sitio).
-	_reubicar_puerta_si_estorba(sala_en(celda), _celdas_de(id_catalogo, celda))
+	_reubicar_puerta_si_estorba(sala_en(celda), _celdas_de(id_catalogo, celda, orientacion))
 	var elemento_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(id_catalogo)
 	_elementos[elemento_id] = {
 		"catalogo": id_catalogo, "celda": celda, "sala": sala_en(celda), "coste_pagado": coste_pagado,
+		"orientacion": orientacion,
 	}
 	_refrescar_visual()
 	return elemento_id
@@ -1015,20 +1099,25 @@ func coste_ampliacion(sala_id: StringName, rect: Rect2i) -> float:
 
 ## Construye un elemento (CO4/CO6/CO9): valida → cobra → alta guardando `coste_pagado` (F4). Si es
 ## un PUESTO, lo registra en Personal (puente de la story 003 — API `registrar_puesto` ya existente).
-func construir_elemento(id_catalogo: StringName, celda: Vector2i) -> StringName:
-	if not validar_elemento(id_catalogo, celda):
+func construir_elemento(
+	id_catalogo: StringName, celda: Vector2i, orientacion: int = HORIZONTAL
+) -> StringName:
+	if not validar_elemento(id_catalogo, celda, &"", orientacion):
 		return &""
 	var coste: float = coste_elemento(id_catalogo)
 	if not _pagar(coste):
 		return &""
-	return _alta_elemento(id_catalogo, celda, coste)
+	return _alta_elemento(id_catalogo, celda, coste, &"", orientacion)
 
 
 ## Alta común (construir normal y de oficio): registra en el modelo + puente a Personal si es puesto.
 func _alta_elemento(
-	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &""
+	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &"",
+	orientacion: int = HORIZONTAL
 ) -> StringName:
-	var elemento_id: StringName = _crear_elemento(id_catalogo, celda, coste_pagado, id_forzado)
+	var elemento_id: StringName = _crear_elemento(
+		id_catalogo, celda, coste_pagado, id_forzado, orientacion
+	)
 	# Solo los PUESTOS se registran en Personal (son plazas de trabajo). Ni los asientos ni las
 	# comodidades lo son: una máquina de vending no es una vacante que cubrir.
 	# 🐛 Bug cazado por `comodidades_uso_test` (2026-07-28): antes bastaba con "no ser asiento", así
@@ -1142,7 +1231,9 @@ func puestos_utiles(tasa_llegadas_pico: float, throughput_hora_puesto: float) ->
 func elemento_en(celda: Vector2i) -> StringName:
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
-		if celda in _celdas_de(elemento["catalogo"], elemento["celda"]):
+		if celda in _celdas_de(
+			elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL)
+		):
 			return elemento_id
 	return &""
 
@@ -1324,7 +1415,10 @@ func mover_elemento(elemento_id: StringName, celda_destino: Vector2i) -> bool:
 		push_warning("Construccion: mover un elemento inexistente ('%s') -> ignorado" % elemento_id)
 		return false
 	var elemento: Dictionary = _elementos[elemento_id]
-	if not validar_elemento(elemento["catalogo"], celda_destino, elemento_id):
+	if not validar_elemento(
+		elemento["catalogo"], celda_destino, elemento_id,
+		elemento.get("orientacion", HORIZONTAL)
+	):
 		return false
 	if coste_mover > 0.0 and not _pagar(coste_mover):
 		return false
@@ -1379,6 +1473,10 @@ func save() -> Dictionary:
 			"id": String(elemento_id), "catalogo": String(elemento["catalogo"]),
 			"celda": [elemento["celda"].x, elemento["celda"].y],
 			"coste_pagado": elemento["coste_pagado"],
+			# Como esta girado (rotar con R, 2026-07-30). Los saves de antes no lo traen y al cargar
+			# se les da HORIZONTAL, que es como se colocaba TODO hasta hoy: una partida vieja se ve
+			# exactamente igual que antes.
+			"orientacion": elemento.get("orientacion", HORIZONTAL),
 		})
 	# Los muros libres se guardan como la lista de sus claves de arista: es el dato minimo del que se
 	# reconstruye todo, y al ser texto plano viaja por el JSON del SaveManager sin conversiones.
@@ -1475,6 +1573,7 @@ func load_state(d: Dictionary) -> void:
 		_elementos[elemento_id] = {
 			"catalogo": catalogo, "celda": celda, "sala": sala_en(celda),
 			"coste_pagado": float(datos.get("coste_pagado", 0.0)),
+			"orientacion": VERTICAL if int(datos.get("orientacion", HORIZONTAL)) == VERTICAL else HORIZONTAL,
 		}
 		# Solo los PUESTOS se registran en Personal: ni un asiento ni una máquina de vending son una
 		# vacante que cubrir. (Antes bastaba con `not es_asiento` porque las comodidades ni llegaban
@@ -1644,7 +1743,15 @@ func _refrescar_visual() -> void:
 			var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", elemento["catalogo"])
 			if comodidad != null:
 				celdas = maxi(comodidad.superficie, 1)
-		var instancia: Node2D = _crear_pieza(es_asiento, celdas)
+		# Los PUESTOS no se pintan aquí (2026-07-30): su mostrador lo dibuja el contenedor de la
+		# ventanilla en `npcs_flujo._asegurar_visual_puesto`, junto al policía — y ahí, encima de él,
+		# para que la mesa le tape las piernas como tapa a cualquiera que esté detrás de un
+		# mostrador. Pintándolo aquí (en otra capa, más al fondo) el policía salía dibujado ENCIMA
+		# de su propia mesa, que es lo que reportó el usuario.
+		if Datos.obtener_silencioso(&"TipoPuesto", elemento["catalogo"]) != null:
+			continue
+		var orientacion: int = elemento.get("orientacion", HORIZONTAL)
+		var instancia: Node2D = _crear_pieza(es_asiento, celdas, orientacion)
 		instancia.position = Proyeccion.centro_iso(elemento["celda"])
 		if not es_asiento:
 			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
@@ -1688,14 +1795,18 @@ func _textura_de_celda(color: Color) -> ImageTexture:
 ## suelo y dos piezas contiguas encajan en vez de solaparse.
 ##
 ## Sigue siendo placeholder (TR-construction-003): el arte real llegará tras el art bible.
-func _crear_pieza(es_asiento: bool, celdas: int) -> Node2D:
+func _crear_pieza(es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL) -> Node2D:
 	var raiz := Node2D.new()
 	var caja := PiezaIso.new()
 	caja.name = "Caja"
+	# La huella crece en +X o en +Y según cómo esté girada la pieza (rotar con R, 2026-07-30) — es
+	# el MISMO eje que reserva el modelo en `_celdas_de`, así que lo que se ve es lo que se ocupa.
+	var ancho: int = 1 if orientacion == VERTICAL else celdas
+	var largo: int = celdas if orientacion == VERTICAL else 1
 	if es_asiento:
 		caja.configurar(1, 1, ALTO_ASIENTO, Color(0.45, 0.42, 0.35))
 	else:
-		caja.configurar(celdas, 1, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
+		caja.configurar(ancho, largo, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
 	raiz.add_child(caja)
 	if not es_asiento:
 		var etiqueta := Label.new()

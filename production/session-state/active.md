@@ -1927,3 +1927,164 @@ que Two Point **sí las dibuja**, pero vistas por FUERA: su cara cuelga hacia AB
 sobre el pasillo, en vez de subir sobre la sala. Se mantiene la sensación de recinto cerrado Y se ve
 el interior. Implementado así: `_cara_de_arista` devuelve `{alto, exterior}` y `_draw` crece hacia
 arriba o hacia abajo según eso.
+
+---
+
+## 🧱 AMPLIACIONES DEL 2026-07-30 (2ª tanda) — ROTAR CON R + FACHADA FIJA
+
+**Pedidas por el usuario viendo el juego ya en isométrico. Suite: 672 casos, 0 fallos, exit 0**
+(658 + 14 nuevos en `tests/integration/construccion/construccion_fachada_rotacion_test.gd`).
+
+### Rotar con R
+*"debe poder rotarse un objeto con la R por ejemplo"*. Un elemento de varias celdas (el sofá de 3,
+los mostradores) crece desde su ancla en UN eje; girar es elegir cuál.
+
+- `Construccion.HORIZONTAL` (crece hacia +X, **el valor de siempre**) / `VERTICAL` (hacia +Y).
+- La orientación es **aditiva**: por defecto todo se comporta como antes, así que **ni un test
+  existente se tocó**. Los saves antiguos, que no traen el campo, se cargan como HORIZONTAL.
+- API nueva: `celdas_de_elemento(id)`, `orientacion_de(id)`; parámetro `orientacion` en
+  `validar_elemento`, `construir_elemento`, `_celdas_de`, `_alta_elemento`, `_crear_elemento`.
+- El fantasma gira con la pieza y `PiezaIso` dibuja la huella en el eje correcto.
+
+### La fachada fija
+*"deberíamos poner unos muros fijos que no se pueden modificar que es exactamente el diseño de la
+comisaría... poniendo además una puerta de acceso donde entren y salgan los npc"*.
+
+- `Construccion.levantar_fachada()` cierra el perímetro del edificio y abre una puerta de 2 celdas
+  en el lado de la calle, en la fila de `CELDA_PUERTA_EDIFICIO` (0,6) — por donde ya llegaba la
+  gente, así que el recorrido de siempre sigue valiendo.
+- Los muros de fachada viven en `_muros` como cualquier tabique (recinto, paso y dibujo los tratan
+  igual, cero casos especiales) y `_muros_fijos` marca cuáles son intocables: `demoler_muro` y
+  `fijar_tipo_de_muro` los rechazan. No cuestan dinero.
+- **Es idempotente**: se llama al montar la comisaría Y después de cargar partida (en el save son
+  tabiques corrientes, así que hay que volver a marcarlos como fijos — si no, una partida cargada
+  te dejaría derribar la fachada).
+- **NO cambia los recintos**: el modelo ya trataba el perímetro del edificio como muro implícito
+  (`recinto_de`), así que declararlo explícito no altera ninguna zona. Hay test que lo prueba.
+- **Sí cambia la navegación**: ahora la puerta es el ÚNICO hueco por el que se entra y se sale.
+- Visual: color LADRILLO (`COLOR_FACHADA`), distinto del gris de obra de un tabique del jugador.
+  Y su altura se mide contra el EDIFICIO, no contra las salas: los lados de arriba/izquierda tienen
+  detrás la calle (van altos, son el telón) y los de abajo/derecha tienen detrás el interior (van
+  bajos). Sin esa distinción, la fachada de abajo taparía la comisaría entera.
+
+### Decisión de arte cerrada: TONO TWO POINT
+*"el estilo vamos a implantarlo con tipo two point, puede darle algo de gracia a algo tan serio"*.
+Resuelta la tensión que quedaba: §1 del art bible ("nada cómico ni exagerado") queda SUPERADA y
+Two Point pasa de anti-referencia (§9) a **referencia principal de tono**. Humor de SITUACIÓN y
+observación, no parodia. NO se adopta su paleta hipersaturada ni su HUD repartido (§4 y §7 mandan).
+**Pendiente del usuario**: §5 — personajes SIN CARA (recomendado, barato) vs CARA MÍNIMA (multiplica
+4-8 ángulos × expresiones).
+
+### Confirmado leyendo el código (no hacía falta tocar nada)
+La paciencia **ya se para en cuanto llaman al ciudadano**: `Paciencia._espera()` solo drena en
+`ESPERANDO_DENTRO` / `ESPERANDO_FUERA`, y al llamarle pasa a `LLAMADA`. La propuesta del usuario
+("pausar la paciencia 5 minutos antes") ya está, y mejor: se para en el momento exacto en que el
+juego le promete que ya le toca.
+
+### 🐛 EL BUG GORDO DE LA SESIÓN: los funcionarios entraban en bucle
+
+*"siguen entrando 6 funcionarios para 3 puestos de documentación"*. Lo dije mal la primera vez
+(conté nodos en un instante y salía 1:1); la forma correcta de medirlo era **instrumentar la ventana
+real** y mirar quién arranca viaje:
+
+```
+[DIAG-ENTRA] Carlos Vega → doc_2
+[DIAG-ENTRA] Ana Ruiz    → doc_1
+[DIAG-ENTRA] Carlos Vega → doc_2   ← otra vez
+[DIAG-ENTRA] Ana Ruiz    → doc_1   ← otra vez
+```
+
+**Causa** (`npcs_flujo._mover_paso`): fijar `nav.target_position` lanza una consulta de camino que el
+NavigationServer resuelve **al frame siguiente**. El código preguntaba `is_navigation_finished()` dos
+líneas más abajo, en el MISMO frame — y contestaba `true` porque aún no había camino. El viaje se
+cerraba al instante, el muñeco se borraba, el modelo seguía diciendo "este agente viene de camino" y
+al frame siguiente nacía un viaje nuevo. **Un bucle.** Afectaba también a los viajes al café.
+
+**Arreglo**: tras aplicar el destino se sale con `return false`; ese frame solo sirve para encargar
+el camino. Es el mismo gotcha del primer physics frame del NavigationServer que ya estaba
+documentado, una vuelta de tuerca más.
+
+**Lección de método**: contar nodos en un instante NO vale para cazar un bucle de crear/destruir.
+Hay que instrumentar el EVENTO (quién arranca qué) y mirarlo en la ventana real, no en headless —
+donde además el viewport es de 64×64 y las posiciones de pantalla no significan nada.
+
+### El policía se dibujaba encima de su propia mesa
+
+*"el funcionario está en la misma cuadrícula que la mesa y no se ve"*. Estaba bien colocado (una
+casilla detrás, comprobado: `policia glob=(620,118)` vs `mesa (580,138)`), pero **el orden de dibujo
+estaba invertido**: la mesa la pintaba Construcción en `_capa_elementos` (z 0) y el policía vivía en
+la capa de NPCs (z 2), así que el muñeco salía ENCIMA del mostrador.
+
+**Arreglo**: la mesa de una ventanilla la dibuja ahora su propio contenedor, **después** del policía
+— dentro de un mismo nodo se pinta en orden, así que el mostrador le tapa las piernas, que es
+exactamente lo que ves cuando alguien te atiende. Construcción deja de pintar caja para los puestos
+(sigue pintando asientos y comodidades).
+
+### 🔒 LA INVARIANTE: 1 PUESTO = 1 FUNCIONARIO QUE ENTRA
+
+El bucle se persiguió **tres veces por sus causas** y volvía en otra forma:
+1. `is_navigation_finished()` contesta "ya llegaste" el mismo frame en que se fija el destino,
+   porque el NavigationServer aún no ha resuelto el camino → se arregló saliendo ese frame.
+2. Ese mismo método miente también mientras calcula → se pasó a MEDIR la distancia real al destino,
+   con reintentos y un tope (`MAX_REINTENTOS_CAMINO`) por si el destino es inalcanzable.
+3. El muñeco llega ANTES que el modelo (píxeles vs minutos), el viaje se cerraba y el modelo pedía
+   otro → ahora el muñeco que llega se queda plantado esperando a que el modelo lo dé por
+   incorporado. (Mismo arreglo para el descanso sin sala construida, que tenía el mismo bucle.)
+
+**Y aun así seguía.** Encargo del usuario: *"necesito que seas implacable con eso para que no se
+repita, 1 puesto = 1 funcionario que entra"*. Así que se dejó de depender de acertar con la causa:
+
+`NPCsFlujo.decidir_entrada(agente, viene, tiene_viaje)` — lógica **pura** (sin escena, sin
+navegación, sin reloj) que apunta en `_ya_entro` que ese agente YA hizo su entrada para ESE puesto.
+Mientras el modelo siga diciendo que viene de camino, no se le crea otro viaje pase lo que pase. La
+marca se borra cuando el modelo deja de decirlo → mañana entra otra vez; y guarda el PUESTO, no solo
+al agente → si le reasignan, entra a la nueva ventanilla.
+
+Cubierto por `tests/unit/main/npcs_entrada_unica_test.gd` (6 casos), incluido el que reproduce el
+peor caso: 3 agentes × 300 pasadas del refresco con el viaje cerrándose siempre → **exactamente 3
+entradas**. El test prueba la INVARIANTE, no las causas, así que da igual qué se rompa por debajo.
+
+**Lección de método**: los tres primeros arreglos eran correctos y ninguno bastaba. Cuando un bug
+vuelve por tercera vez, hay que dejar de arreglar la causa y blindar la invariante — y aislarla en
+una función pura para poder probarla sin motor.
+
+### Cierre del bucle: el arreglo que había que DESHACER
+
+El intento nº3 ("el muñeco que llega espera a que el modelo le dé por incorporado") resultó ser
+**peor que el problema**: el modelo puede tardar mucho en decirlo, así que el viaje quedaba abierto
+para siempre y con él la supresión del mostrador — el funcionario **no se veía nunca** en su
+ventanilla. Lo cazó el usuario al instante.
+
+Deshecho: el viaje se cierra EN CUANTO el muñeco llega, como antes. Cerrar pronto es seguro **desde
+que existe la invariante**: aunque el modelo siga diciendo "viene de camino", ese agente ya no
+vuelve a entrar. La invariante es lo que hace innecesario acertar con el momento exacto de cierre.
+
+### El orden de dibujo de la ventanilla, en tres intentos
+
+1. Policía en la MISMA celda que la mesa → parecía subido encima.
+2. Policía una casilla atrás, pero la mesa vivía en otra capa más al fondo → seguía pintándose por
+   debajo del muñeco.
+3. Mesa traída al contenedor y dibujada DESPUÉS → su cara superior se comía al muñeco
+   (*"se pone en la mesa y tapa al funcionario"*).
+4. **Bueno**: mesa primero, policía después. Él está una casilla más al fondo (más arriba en
+   pantalla), así que verle entero por encima del mostrador es lo correcto en isométrico.
+
+### Medido, no supuesto: quién entra a trabajar
+
+`va_de_camino_al_puesto` por agente, instrumentado en ventana:
+- **Ana Ruiz (doc_1)** y **Carlos Vega (doc_2)**: entran andando. ✅
+- **Javier Molina (odac_1)**: no entra porque ODAC es de 24 h — ya está en su puesto. Lo dedujo el
+  propio usuario y es correcto.
+- **Lucía Ortega (tie_1)**: su ventanilla SÍ abre (medido en una corrida larga: `tie_1` pasa por
+  `cerrado → libre → atendiendo`), solo que más tarde que las de Documentación general. Entra
+  cuando le toca; la muestra de 4 segundos era demasiado corta para verlo.
+
+### ⚠️ GOTCHA NUEVO DE HERRAMIENTA: `--import` reescribe los `.tres`
+
+Ejecutar `godot --headless --import` (que arranca el editor) **reescribió `datos/config/demanda.tres`**
+—reordenó claves y añadió `tasa_base_doc = 0.9`— y eso tumbó `demanda_volumen_test`. No era el
+código: era la herramienta. Revertido con `git restore -- datos/`.
+
+**Regla**: `--import` solo para registrar un `class_name` nuevo, y DESPUÉS comprobar
+`git status -- datos/` y revertir lo que haya tocado. Nunca dar por bueno un fallo de test sin mirar
+antes si el árbol de datos ha cambiado solo.

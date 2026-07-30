@@ -910,6 +910,10 @@ func _texto_etiqueta_sala(sala_id: StringName) -> String:
 ## Construcción (los puestos llegan a Personal por el puente registrar_puesto, ya no a mano); ids
 ## compat doc_1/doc_2/odac_1 (los mismos de los saves y tests previos).
 func _montar_comisaria_inicial() -> void:
+	# LA FACHADA primero (2026-07-30, petición del usuario): el edificio se cierra por su perímetro
+	# con muros que NO se pueden derribar, y se abre una puerta de acceso en el lado de la calle.
+	# A partir de aquí, entrar y salir de la comisaría es cruzar ESA puerta, no atravesar el muro.
+	_construccion.levantar_fachada()
 	_construccion.construir_de_oficio_sala(&"sala_documentacion", Rect2i(1, 1, 6, 4))
 	_construccion.construir_de_oficio_sala(&"sala_espera_doc", Rect2i(1, 6, 6, 4))
 	_construccion.construir_de_oficio_sala(&"sala_odac", Rect2i(9, 1, 4, 3))
@@ -1134,6 +1138,10 @@ func _cargar_partida() -> void:
 	_lbl_guardado.text = "Partida cargada (en pausa)" if ok else "⚠ No hay partida guardada"
 	_lbl_guardado.modulate = COLOR_TENUE_HUD if ok else COLOR_ROJOS
 	if ok:
+		# Vuelve a marcar la fachada como FIJA: en el save sus aristas son tabiques corrientes, así
+		# que sin esto una partida cargada te dejaría derribar la fachada del edificio. Es
+		# idempotente (no duplica muros ni cobra nada).
+		_construccion.levantar_fachada()
 		_al_cambiar_layout()   # el layout cargado necesita re-bake de navegación y re-sincronizar
 
 

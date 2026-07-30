@@ -4,6 +4,9 @@
 *Status: secciones 1–9 cerradas, pero **§5/§6/§8 EN REVISIÓN** por el cambio a isométrico (2026-07-30)*
 *Antes: completo — secciones 1–9 cerradas (§1-4 el 2026-07-19; §5-9 con el usuario el 2026-07-30)*
 *Última sesión: 2026-07-30 (§5 con el usuario)*
+*Tensión de tono Two Point (marcada más abajo en §1 y §9) — **RESUELTA el 2026-07-30** a favor del tono
+Two Point. Ver el bloque "Tensión — RESUELTA" dentro de la sección de Two Point, y las enmiendas de §1
+y §9. Queda abierta, como PROPUESTA sin confirmar, la pregunta de "cara sí/no" en §5.*
 
 > **Art Director Sign-Off (AD-ART-BIBLE)**: N/A — modo *lean* (validación de director omitida).
 > **Nota de autoría**: el núcleo visual lo redactó el hilo principal (Opus 4.8) actuando como
@@ -23,8 +26,42 @@
    *Test: si un adorno estorba leer un estado (cola, tipo, ocupación), se simplifica.*
 
 2. **Autenticidad contenida, no espectáculo** *(pilar 1 «realismo con alma»)* — materiales, mobiliario
-   y señalética reales del CNP, paleta sobria; nada cómico ni exagerado.
+   y señalética reales del CNP, paleta sobria; ~~nada cómico ni exagerado~~ *(coletilla SUPERADA, ver
+   nota debajo)*.
    *Test: ante «llamativo» vs. «creíble en una comisaría real», gana lo creíble.*
+
+   > ⚠️ **SUPERADA en parte — 2026-07-30, decisión del usuario.** La frase tachada arriba ya no es la
+   > regla literal. El usuario decidió: *"el estilo vamos a implantarlo con tipo two point, puede darle
+   > algo de gracia a algo tan serio"*. Se mantiene ENTERA la primera mitad del principio — materiales
+   > reales, mobiliario y señalética creíbles, paleta sobria (§4 no se toca) — lo único que cambia es la
+   > tolerancia al humor. La sustituye esta regla, más precisa que un simple "nada cómico":
+   >
+   > **No es "todo vale". Es humor de SITUACIÓN y de OBSERVACIÓN — nunca parodia ni chiste gráfico.**
+   > La gracia nace de que el jugador RECONOZCA la burocracia (la cola que no avanza, el funcionario
+   > quemado, el papel equivocado), con personajes estilizados y legibles, no de que el juego haga un
+   > chiste sobre sí mismo. El contraste es la gracia: el tema es serio (denuncias, trámites, una
+   > comisaría), el tratamiento es cartoon — y ese contraste es precisamente lo que produce la gracia,
+   > no una traición al tono serio.
+   >
+   > *Tres ejemplos de qué SÍ, en este juego concreto:*
+   > 1. Una cola que no avanza porque el agente de turno se ha ido a por café — frustración burocrática
+   >    reconocible, no un chiste inventado.
+   > 2. Un ciudadano que llega con la fotocopia equivocada y tiene que darse la vuelta — el clásico
+   >    "vuelva usted mañana", que cualquiera que haya hecho un trámite reconoce.
+   > 3. El gesto de sellar un expediente con energía y un pequeño rebote — dramatiza lo mundano sin
+   >    inventar nada absurdo; es un detalle de oficio, no un número de payaso.
+   >
+   > *Tres ejemplos de qué NO, en este juego concreto:*
+   > 1. Motes o textos de personalidad en tono de chiste verbal (al estilo "Vejiga de hierro" de Two
+   >    Point) — eso es parodia de texto, no observación de situación.
+   > 2. Un agente haciendo una pirueta o mueca cartoon exagerada que ningún cuerpo humano haría de forma
+   >    creíble — rompe la autenticidad contenida que sigue mandando.
+   > 3. Un evento de fantasía sin relación con la gestión policial real (algo "mágico" o absurdo por
+   >    absurdo) — eso es espectáculo gratuito, no autenticidad con gracia.
+   >
+   > *Test actualizado*: ante «gracioso porque el mundo burocrático se reconoce» vs. «gracioso porque
+   > el dibujo hace un chiste», gana lo primero. Ver también la sección nueva **"Qué significa 'gracia'
+   > en Comisario"** (dentro del bloque de Two Point, más abajo) para los criterios de animación.
 
 3. **La gente cuenta la historia** *(pilar 2 «la comisaría está viva»)* — los personajes, aunque
    simples, transmiten rol y estado por silueta, color y postura.
@@ -140,8 +177,10 @@ construcción.
   RollerCoaster Tycoon y Age of Empires. Resuelve de raíz el problema de los 4 ángulos: es **el mismo
   modelo girado**, no cuatro dibujos que deben parecerse.
 - **Detalle**: NO pixel art. El usuario lo descartó expresamente (*"lo veo muy pixel"*, *"realista
-  pero jugón"*). Sigue valiendo el resto de §5: sin cara, rol por color + accesorio de silueta, y la
-  regla de las divisas (que a este tamaño tampoco se ven en el muñeco: viven en las fichas).
+  pero jugón"*). Sigue valiendo el resto de §5: ~~sin cara~~ *(reabierto como PROPUESTA sin decidir tras
+  la adopción del tono Two Point — ver "Cara: sin cara vs. cara mínima" en §5 más abajo)*, rol por color
+  + accesorio de silueta, y la regla de las divisas (que a este tamaño tampoco se ven en el muñeco:
+  viven en las fichas).
 - **Direcciones**: en isométrico se suelen necesitar **4 u 8**; con 4 basta para empezar.
 
 ### Revisión de §6 (entornos)
@@ -274,6 +313,31 @@ resuelve Two Point en la práctica.
 > usuario** sobre si el tono de "realismo con alma, sobrio" sigue siendo la frontera, o si se mueve hacia
 > algo más desenfadado ahora que hay dos referencias tirando en direcciones distintas del mismo proyecto
 > (Prison Architect / This Is the Police, serio, frente a Two Point, desenfadado).
+>
+> ---
+>
+> ### ✅ RESUELTA — 2026-07-30, decisión del usuario
+>
+> El usuario zanjó la tensión, literal: *"el estilo vamos a implantarlo con tipo two point, puede darle
+> algo de gracia a algo tan serio"*. **Se resuelve a favor del tono Two Point.** Su razón, importante y
+> que conviene citar porque es la que debe guiar cualquier duda futura de tono: **el contraste** — el
+> tema (una comisaría, trámites, denuncias) es SERIO, y el tratamiento cartoon le da gracia precisamente
+> por ese contraste, no a pesar de él. No es que el tema deje de ser serio ni que el juego se banalice:
+> es que la seriedad del tema y la gracia del tratamiento se necesitan mutuamente para funcionar.
+>
+> Consecuencias directas de esta resolución:
+> - **§1, principio 2**: la coletilla "nada cómico ni exagerado" queda SUPERADA — ver la enmienda con
+>   fecha 2026-07-30 más arriba, con la regla nueva (humor de situación/observación) y los ejemplos SÍ/NO.
+> - **§9**: *Two Point Hospital* deja de ser anti-referencia y pasa a **referencia principal de tono y
+>   tratamiento** — ver la enmienda de §9 más abajo.
+> - La fila de la tabla del punto (e) sobre "animaciones con energía... tensión sin resolver" y la fila
+>   sobre "Two Point Hospital como anti-referencia... contradicción sin resolver" (ambas debajo, en el
+>   punto e) quedan **resueltas** por esta misma decisión — se marcan en su sitio.
+> - Se añade una sección nueva, **"Qué significa 'gracia' en Comisario"**, con criterios accionables para
+>   quien anime (qué se anima, cuánto, con qué timing) — ver el punto (f) al final de este bloque.
+> - **Lo que NO cambia**: la paleta sobria de §4, el HUD de barra inferior de §7, y la advertencia del
+>   punto (d) de que aquí NO copiamos ni la paleta hipersaturada ni el HUD repartido de Two Point — eso
+>   ya estaba decidido y sigue mandando.
 
 #### d) Qué NO copiamos (y por qué)
 
@@ -310,10 +374,38 @@ tiene consecuencias concretas:
 | Fantasma de construcción azul translúcido + rejilla + verde/rojo de validez | Confirma nuestro F6 (validación verde/rojo) ya decidido — coincidencia, no cambio |
 | Suelo de color y textura distintos por sala | Choca con la decisión de §6 ("la textura dice la sala, no el color") — pendiente reabrir con el usuario |
 | Paleta muy saturada tipo "folleto turístico" en césped, paredes y suelos | **No se adopta** — se mantiene la paleta sobria gris-azulada de §4 |
-| Personajes con cara visible y expresiva, proporciones chibi | Tensión con la regla "SIN CARA" de §5 — posible excepción solo en retratos de panel, igual que ya se hace con la divisa de rango |
-| Animaciones con energía, reacciones puntuales, mobiliario con micro-vida | Se adopta como criterio (ver c), acotado por el principio "nada cómico ni exagerado" — **tensión sin resolver** |
+| Personajes con cara visible y expresiva, proporciones chibi | Tensión con la regla "SIN CARA" de §5 — **sigue abierta como PROPUESTA sin decidir** (ver la revisión nueva de §5, "cara sí/no") |
+| Animaciones con energía, reacciones puntuales, mobiliario con micro-vida | Se adopta como criterio (ver c) — ~~acotado por "nada cómico ni exagerado" — tensión sin resolver~~ **RESUELTA 2026-07-30: el tono Two Point se adopta (ver §1 enmendado y el bloque "RESUELTA" arriba); criterios de ejecución en el punto (f)** |
 | HUD repartido entre arriba y abajo (objetivo arriba-derecha, herramientas arriba-izquierda) | No se adopta tal cual — se mantiene la barra inferior única de §7, ya decidida |
-| *Two Point Hospital* como anti-referencia de tono (§9) | Sigue siendo una contradicción sin resolver frente a esta nueva referencia — ver (c) |
+| *Two Point Hospital* como anti-referencia de tono (§9) | ~~Sigue siendo una contradicción sin resolver frente a esta nueva referencia — ver (c)~~ **RESUELTA 2026-07-30: pasa de anti-referencia a REFERENCIA PRINCIPAL de tono — ver enmienda de §9** |
+
+#### f) Qué significa «gracia» en Comisario — reglas para animación (resuelto 2026-07-30)
+
+Esta subsección traduce la decisión de tono en **criterios accionables para quien anime** (hoy, el
+propio flujo de producción de sprites pre-renderizados; más adelante, `technical-artist` si algo se
+resuelve por shader o partículas). No repite el punto (c) — lo aterriza en "cuánto, cuándo, y con qué
+límite".
+
+- **Qué se anima**: solo las animaciones que YA existen en la tabla "Animaciones mínimas (MVP)" de §5
+  (andar, quieto, sentado, atender, café). La gracia es un MATIZ sobre esas animaciones — un rebote al
+  sentarse, un gesto de "listo" al sellar, un vistazo al reloj en el idle de espera — nunca una
+  animación nueva inventada solo para hacer gracia. Si no hay una acción de gestión detrás, no se anima.
+- **Cuánto**: **1-2 detalles graciosos por arquetipo**, no una librería grande (ya lo fijaba el punto c
+  por el coste de pre-renderizar cada gracia como una hoja de sprites más). Elegir el detalle que mejor
+  representa a ESE arquetipo (el funcionario quemado mira el reloj; el ciudadano nervioso se cruza de
+  brazos) antes que cubrir "todas las emociones posibles".
+- **Con qué timing**: anticipación y remate CORTOS — pocos frames de más sobre la animación base, no
+  una animación larga que retrase la acción. El sello con rebote debe tardar prácticamente lo mismo que
+  el sello sin rebote: la gracia es energía en el gesto, no tiempo añadido a la espera del jugador.
+- **Regla de oro, la que no se negocia**: **la gracia NUNCA debe estorbar la lectura de la información
+  de gestión.** Si un gesto gracioso tapa la barra de paciencia, el icono de trámite (U8) o el color de
+  servicio, o si retrasa el momento en que esos datos se actualizan visualmente, se recorta el gesto —
+  nunca el dato. Esto es una aplicación directa del principio 1 de §1 (*claridad funcional antes que
+  detalle*) y de la regla U5 de §7 (*todo indicador necesita su escala visible*): la gracia vive en el
+  margen que esas reglas dejan libre, no al revés.
+- **Se valida con el mismo test del punto (c)**: *"jugable" = se lee al zoom real de juego.* Un gesto
+  gracioso que solo se aprecia haciendo zoom no cuenta — si hay que acercarse para verlo, esa gracia no
+  está resolviendo nada para el jugador y es coste de producción sin retorno.
 
 ---
 
@@ -344,6 +436,51 @@ trabajo de animación (andar en 4 direcciones con perfil dibujado a mano).
 - Envejece bien: el pixel art no se ve "de hace dos años" como sí le pasa a un vectorial de moda.
 - **Sin cara a propósito**: a ese tamaño una cara es ruido, y además obliga a resolver expresiones que
   no aportan nada a un juego donde lo que importa es el ESTADO (esperando, cansado, atendido).
+
+> ⚠️ **Esta regla ("sin cara") entra en tensión con el tono Two Point adoptado el 2026-07-30** — en Two
+> Point los personajes SÍ tienen cara, y buena parte de su "gracia" vive precisamente ahí (la profesora
+> que salta con sonrisa marcada en `contratar.PNG`). Se desarrolla como propuesta abajo.
+
+### Cara: sin cara vs. cara mínima — PROPUESTA, pendiente de confirmar (2026-07-30)
+
+*Importante: esto NO queda decidido aquí. Se presentan dos opciones con su coste, se recomienda una, y
+queda pendiente de que el usuario la confirme — igual que se hizo con el resto de §5 el 2026-07-30.*
+
+Recordatorio del método de producción ya fijado más arriba (Revisión de §5): los personajes son **3D
+pre-renderizado a sprites**, con **4-8 ángulos** desde una **cámara isométrica fija**. Esto importa
+mucho para el coste de cada opción, porque no se "dibuja una cara" — se modela, se ilumina y se
+renderiza, y eso se multiplica por cada ángulo y por cada variante.
+
+**Opción A — Mantener SIN CARA en el mundo** *(recomendada)*
+- La cara del muñeco en el mundo sigue en blanco/sin rasgos; la expresión y la gracia viven en la
+  **postura y el timing de la animación** (rebote al sentarse, gesto de "listo" al sellar, mirar el
+  reloj) — exactamente lo que desarrolla la nueva sección "Qué significa 'gracia' en Comisario".
+- **Coste**: BAJO. No añade ninguna pasada nueva al render (ni expresiones × 4-8 ángulos), y no toca la
+  decisión ya cerrada y sin deuda técnica de §8.
+- **Precedente ya existe en este propio documento**: el rango tampoco se ve en el muñeco del mundo (es
+  ilegible a este tamaño) y vive en las fichas del panel de personal — la cara podría seguir la misma
+  lógica: vive en los retratos de la UI (ficha de contratación, panel de personal), no en el sprite del
+  mundo. Así se puede tener "cara graciosa tipo Two Point" en las fichas SIN tocar el pipeline de
+  render del mundo.
+- **Contrapartida que hay que aceptar**: menos "chispa" que el propio Two Point en el mundo, donde la
+  cara sí se ve de cerca. Se compensa con la propuesta de retratos de UI de arriba.
+
+**Opción B — Dar cara mínima en el mundo** (2-3 expresiones simples: neutral / contenta / frustrada)
+- Acerca el resultado literal al encanto de Two Point y responde de forma más directa a "puede darle
+  algo de gracia".
+- **Coste**: ALTO. Al ser sprites pre-renderizados (no un esqueleto 3D en vivo como en el Two Point
+  real), cada expresión hay que renderizarla en LOS MISMOS 4-8 ángulos que ya existen para cada
+  animación — multiplica la matriz de render (arquetipos × ángulos × expresiones × animaciones) en vez
+  de sumar una hoja más.
+- **Riesgo de que el gasto no se note**: a los ~24 px de personaje que fija §8, una cara pequeña
+  renderizada desde 3D corre el riesgo de leerse como una mancha, no como una expresión — lo que
+  incumpliría el propio test del punto (c) de Two Point ("jugable" = se lee al zoom real de juego), y
+  el gasto de producción no se recuperaría en pantalla.
+
+**Recomendación**: **Opción A** (sin cara en el mundo, gracia en postura/timing; cara mínima solo en
+fichas de UI si el usuario quiere ese punto extra de encanto tipo Two Point), por ser la de menor coste
+y la que no reabre ninguna decisión ya cerrada de §8. **Queda pendiente de que el usuario la confirme**
+antes de darla por definitiva.
 
 ### Cómo se distingue quién es quién
 
@@ -595,7 +732,15 @@ rectángulos de color:
 | **Prison Architect** | Vista cenital 3/4, paredes con grosor, construcción modular, HUD de zonas fijas | Su aspereza de prisión; su estética de "institución hostil" |
 | **This Is the Police** | Paleta sobria, tono de gestión policial adulta | El noir, los claroscuros de novela negra |
 | **Fotos reales de comisarías del CNP** | Autenticidad: mobiliario, señalética, azul corporativo, terrazo | — |
-| **Two Point Hospital** | *(anti-referencia)* | **Su caricatura.** Es el tono que hay que evitar: nada cómico ni exagerado |
+| ~~**Two Point Hospital**~~ | ~~*(anti-referencia)*~~ | ~~**Su caricatura.** Es el tono que hay que evitar: nada cómico ni exagerado~~ *(fila SUPERADA, ver enmienda debajo)* |
+| **Two Point Hospital / Two Point Campus** *(actualizado 2026-07-30)* | **Referencia PRINCIPAL de tono y tratamiento.** Silueta legible a distancia, animación expresiva con anticipación/remate, micro-vida del mobiliario (una luz, un vapor, un movimiento pequeño que dice "esto funciona"), reacciones puntuales que refuerzan un dato de gestión sin sustituirlo | Su paleta hipersaturada tipo "folleto turístico" (§4 sigue mandando: paleta sobria gris-azulada); su HUD repartido entre arriba y abajo (§7 sigue mandando: barra inferior única); la parodia verbal en nombres/textos de personalidad |
+
+> ✅ **Enmienda 2026-07-30, decisión del usuario**: *"el estilo vamos a implantarlo con tipo two point,
+> puede darle algo de gracia a algo tan serio"*. Two Point Hospital/Campus deja de ser anti-referencia y
+> pasa a referencia principal de TONO (cómo se anima, cómo respira el mobiliario, cómo reacciona la
+> gente) — no de PALETA ni de HUD, que siguen decididos en §4 y §7 y no se tocan. Ver el desarrollo
+> completo, con ejemplos SÍ/NO, en §1 (principio 2 enmendado) y en el bloque "RESUELTA" dentro de la
+> sección de Two Point (tras el punto 9 del cambio de rumbo isométrico).
 
 **Regla de las divisas (ya acordada, no negociable)**: las divisas de rango se representan con la
 **imagen real exacta** de cada divisa (Orden INT/430/2014) con un filtro de estilo. **Nunca se dibujan
@@ -611,7 +756,12 @@ panel de personal.
 **Referencias base ya acordadas**: *Prison Architect* (vista cenital, legibilidad institucional,
 construcción modular — evitar su aspereza de prisión); *This Is the Police* (paleta sobria, gestión
 policial adulta — evitar el noir); fotos reales de comisarías del CNP (autenticidad y azul corporativo);
-*Two Point Hospital* como **anti-referencia** de tono (evitar su caricatura).
+~~*Two Point Hospital* como **anti-referencia** de tono (evitar su caricatura)~~.
+
+> ✅ **SUPERADO — 2026-07-30.** *Two Point Hospital* (y *Two Point Campus*) dejan de ser anti-referencia:
+> el usuario decidió adoptar su tono (*"el estilo vamos a implantarlo con tipo two point, puede darle
+> algo de gracia a algo tan serio"*). Ahora son **referencia principal de tono y tratamiento** — ver la
+> tabla enmendada de §9 más arriba para el detalle de qué se toma y qué no.
 
 **Regla de assets ya acordada — DIVISAS (rangos CNP)**: las divisas/insignias de rango se representan
 con la **imagen real exacta** de cada divisa (Orden INT/430/2014), aplicando un **filtro adaptado al
