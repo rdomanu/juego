@@ -2231,3 +2231,62 @@ seguidas, **las administrativas pueden no atenderse nunca**. La reconfiguración
 El modo **"a medida"** está en el modelo y probado (incluido que descarta tipos inventados de un
 save manipulado) pero **no tiene botón**: son 13 casillas por puesto y eso es UI fina de UI/HUD #11.
 Se prefirió no ofrecerlo a medias.
+
+---
+
+## 2026-07-31 (tarde) — FICHA DE VENTANILLA, BIENESTAR CERRADO Y VEREDICTO DE LA TEXTURA
+
+### La ficha de ventanilla (clic izquierdo sobre una ventanilla)
+
+Petición del usuario: *"tipo tycoon, cuando se pulsa sobre algo y se detalla"*. Cuatro bloques:
+
+1. **AHORA MISMO** — qué trámite se gestiona y cuánto queda. Si el ciudadano está llamado pero aún
+   viene andando dice *"viene de camino"*, no minutos: el trámite todavía no ha empezado y decir
+   minutos sería mentir.
+2. **QUIÉN LA LLEVA** — con el cansancio **y su consecuencia al lado**: `47 % (+12 % más lento)`.
+3. **EFICACIA, DESCOMPUESTA** — catálogo / lo que pone su agente / lo que quita el equipamiento /
+   atenciones por hora. Un número solo dice que algo va mal; el desglose dice **qué tocar**.
+4. **MANDOS** — en ODAC, los 3 modos + las 13 denuncias una a una; en Documentación, el horario
+   (misma API que el panel H, no una copia), la peonada con su coste en €/día, el precio de la hora
+   extra y el "se queda por la tarde" de esa ventanilla.
+
+### 🐛 DOS FALLOS DE UI, Y LOS DOS DEJAN REGLA
+
+**1. El panel no se veía.** Se usó `PRESET_TOP_RIGHT`, que ancla a un PUNTO (la esquina); con ese
+anclaje `offset_bottom = -100` se mide desde ese punto y el panel quedaba de **altura negativa**.
+→ **Regla**: para una columna pegada a un borde, anclar arriba Y abajo a mano, no con el preset de
+esquina.
+
+**2. No se podía pulsar nada.** El panel se reconstruía entero **60 veces por segundo**, botones
+incluidos: cada control se destruía antes de que al clic le diera tiempo a completarse.
+→ **Regla, la importante**: **jamás reconstruir por frame un contenedor con controles
+interactivos.** Ahora está partido en `_caja_viva` (solo etiquetas, se repinta por frame) y
+`_caja_mandos` (controles, se construye una vez y al cambiar un modo).
+
+### Bienestar #13 — cerrado el último hueco: DESCANSO IN SITU
+
+Desde que los muros bloquean el paso, la sala de descanso puede quedar **incomunicada**. Antes: el
+funcionario salía a buscarla, no llegaba, el viaje se cerraba a la fuerza y se quedaba
+"descansando" para el modelo **sin aparecer por ningún lado**; su ventanilla se quedaba vacía sin
+explicación. Ahora se comprueba el camino ANTES de salir (`Construccion.distancia_en_celdas`): si no
+hay, se toma el café **en su sitio**, con su taza y sin perder la pausa — sería castigarle por una
+obra que él no ha decidido. Igual si tampoco puede salir a la calle.
+
+**Guía de sign-off** en `production/qa/evidence/bienestar-13-signoff.md`: 7 puntos a comprobar en la
+ventana, incluido cómo provocar el caso nuevo (encerrar la sala de descanso sin puerta). Es lo que
+los tests NO pueden verificar: que se entienda y que se vea. **Pendiente del usuario.**
+
+### ❌ VEREDICTO: la textura `stylized-girl.zip` NO se usa
+
+El usuario descargó un asset para hacer policías mujeres. Abierto y analizado:
+
+| Qué trae | Veredicto |
+|---|---|
+| `sell on sketchfab2_.fbx` (9 mallas, 40 materiales) | **Sin esqueleto**: 0 `Deformer`, 0 `Skin`, 0 `AnimationStack`. Es una estatua, no puede andar |
+| `___.png` 2048×2048 | Es el **mapa UV** de la cara desplegada, no un sprite. Solo cabeza: **no hay uniforme** |
+| El nombre del archivo | *"sell on sketchfab"* → **asset de pago**. Muchas licencias de Sketchfab prohíben usarlo en un juego que se vende |
+
+Los tres problemas son el mismo del policía 3D de anoche, más el de licencia, que es el que no tiene
+arreglo técnico. **Alternativa recomendada**: las mujeres policía se resuelven en el muñeco de
+piezas — una pieza de pelo y repartir el género por número de turno, igual que ya se hace con los
+cuatro tonos de piel. Funciona hoy y no depende de la licencia de nadie.

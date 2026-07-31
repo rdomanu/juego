@@ -57,6 +57,8 @@ const PanelHorarioScript := preload("res://src/main/panel_horario.gd")
 const ODACScript := preload("res://src/feature/odac/odac.gd")
 ## Y su pantalla (tecla O).
 const PanelODACScript := preload("res://src/main/panel_odac.gd")
+## La ficha de una ventanilla al pulsar sobre ella (detalle tipo tycoon).
+const PanelVentanillaScript := preload("res://src/main/panel_ventanilla.gd")
 ## El modal del Comisario (2026-07-28): sin él, quedarse sin dinero BLOQUEABA la partida.
 const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
 ## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
@@ -136,6 +138,7 @@ var _flujo: Node
 var _paciencia: Node
 var _documentacion: Node
 var _odac: Node
+var _panel_ventanilla: CanvasLayer
 var _panel_horario: CanvasLayer
 var _npcs: Node2D
 var _lbl_flujo: Label
@@ -197,6 +200,12 @@ func _ready() -> void:
 	_panel_horario.configurar(_documentacion, Tiempo, EventBus, _personal)
 	# La pantalla de ODAC (tecla O): la palanca para dedicar cada ventanilla a lo urgente o a lo
 	# administrativo. Es la parte que le faltaba al MVP.
+	# La ficha de una ventanilla (clic izquierdo sobre ella): quién la lleva, lo que rinde y qué
+	# atiende. El detalle tycoon que pidió el usuario.
+	_panel_ventanilla = PanelVentanillaScript.new()
+	_panel_ventanilla.name = "PanelVentanilla"
+	_panel_ventanilla.configurar(_flujo, _personal, _construccion, _odac, _documentacion)
+	add_child(_panel_ventanilla)
 	var panel_odac: CanvasLayer = PanelODACScript.new()
 	panel_odac.name = "PanelODAC"
 	panel_odac.configurar(_odac, _flujo, _personal)
@@ -264,6 +273,21 @@ func _unhandled_input(evento: InputEvent) -> void:
 	# 2026-07-26). Llega aquí solo si nadie lo consumió antes (el modo construcción tiene prioridad).
 	if evento is InputEventMouseButton:
 		var raton := evento as InputEventMouseButton
+		# CLIC IZQUIERDO sobre una VENTANILLA = abrir su ficha (petición del usuario 2026-07-31:
+		# *"al pulsar en alguna ventanilla debería poder verse como un menú… tipo tycoon"*). Llega
+		# aquí solo si el modo construcción no lo consumió antes: en obra, el clic izquierdo
+		# construye, y eso manda.
+		if raton.pressed and raton.button_index == MOUSE_BUTTON_LEFT:
+			var punto: Vector2 = get_canvas_transform().affine_inverse() * raton.position
+			var elemento: StringName = _construccion.elemento_en(
+				_construccion.celda_de_punto(punto)
+			)
+			if elemento != &"" and Datos.obtener_silencioso(
+				&"TipoPuesto", _construccion.catalogo_de(elemento)
+			) != null:
+				_panel_ventanilla.mostrar(elemento)
+				get_viewport().set_input_as_handled()
+			return
 		if raton.pressed and raton.button_index == MOUSE_BUTTON_RIGHT:
 			# La posición se toma DEL EVENTO y se pasa a coordenadas del mundo con la transformada
 			# del canvas. Con `get_global_mouse_position()` se leía el ratón del sistema, no el punto

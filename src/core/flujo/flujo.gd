@@ -360,6 +360,23 @@ func personas_en_puestos() -> Array:
 	return resultado
 
 
+## A QUIÉN está atendiendo (o llamando) este puesto ahora mismo; `null` si a nadie. Lo consume la
+## ficha de la ventanilla para poder decir QUÉ trámite se está gestionando — hasta ahora ese dato
+## solo vivía dentro de Flujo y no había forma de enseñarlo.
+func persona_en_puesto(puesto_id: StringName) -> RefCounted:
+	if not _puestos_flujo.has(puesto_id):
+		return null
+	return _puestos_flujo[puesto_id]["persona"]
+
+
+## Minutos de trámite que le quedan a la atención en curso de ese puesto (0 si no atiende a nadie).
+func restante_de_puesto(puesto_id: StringName) -> float:
+	if not _puestos_flujo.has(puesto_id):
+		return 0.0
+	return maxf(0.0, float(_puestos_flujo[puesto_id]["restante"]))
+
+
+
 ## Atenciones EN CURSO ahora mismo (getter para el HUD — pull, story 008). Cuenta SOLO personas en
 ## `en_atencion`: el rótulo del HUD dice "Atendiendo" y una persona aún de camino (`llamada`) no lo
 ## está (enmienda 2026-07-25 "en camino no se tramita").

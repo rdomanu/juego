@@ -116,6 +116,9 @@ const LARGO_ZANCADA: float = 26.0
 ## contra una posición de referencia que solo se actualiza al girar: así el muñeco no da volantazos
 ## por los micro-ajustes del agente de navegación, que corrige el rumbo constantemente.
 const UMBRAL_GIRO: float = 1.5
+## La celda por la que se sale del edificio (la puerta de la fachada). Se usa para comprobar si un
+## agente puede siquiera salir a la calle a tomarse el café cuando no hay sala de descanso.
+const CELDA_PUERTA_SALIDA := Vector2i(0, 6)
 ## Cuánto sube el cuerpo en lo alto del paso. 2 px: se nota que bota, no parece que dé saltos.
 const ALTURA_BOTE: float = 2.0
 ## Cuánto se balancea, en radianes (~2,3°). Muy poco a propósito: es un vaivén, no un tentetieso.
@@ -749,12 +752,34 @@ func _iniciar_camino_descanso(agente: RefCounted) -> void:
 	var destino: Vector2
 	if sala != &"":
 		celda_sala = _asiento_descanso_libre(sala)
+		# ── DESCANSO IN SITU (2026-07-31) ────────────────────────────────────────────────────
+		# Hueco conocido de Bienestar #13, apuntado y sin cerrar hasta hoy: *"si un funcionario no
+		# puede salir a la sala de descanso, que descanse donde está"*.
+		#
+		# Desde que los muros bloquean el paso de verdad, la sala de descanso puede quedar
+		# INCOMUNICADA: encerrada sin puerta, o al otro lado de un tabique que el jugador acaba de
+		# levantar. Antes, el muñeco salía a buscarla, no llegaba, y el viaje se cerraba a la
+		# fuerza — el agente se quedaba "descansando" para el modelo pero SIN aparecer por ningún
+		# lado, y su ventanilla quedaba vacía sin explicación.
+		#
+		# Ahora se comprueba ANTES de salir. Si no hay camino, se toma el café EN SU SITIO: no
+		# pierde la pausa (sería castigarle por una obra que él no ha decidido) y se le ve, con su
+		# taza, en su ventanilla. Peor que un café en condiciones, pero mucho mejor que
+		# desaparecer.
+		if _camino_hasta(puesto_id, celda_sala) < 0:
+			_asiento_descanso.erase(celda_sala)
+			celda_sala = CELDA_NULA
+			sala = &""
+	if sala != &"" and celda_sala != CELDA_NULA:
 		_asiento_descanso[celda_sala] = agente
 		destino = _construccion.centro_de_celda(celda_sala)
 	else:
-		# Sin sala: a la calle, con reparto determinista por la fila de su puesto para que varios sin
-		# sala a la vez no salgan pegados unos a otros.
+		# Sin sala (o sin camino hasta ella): a la calle, con reparto determinista por la fila de su
+		# puesto para que varios sin sala a la vez no salgan pegados unos a otros. Y si TAMPOCO se
+		# puede salir a la calle, se queda donde está.
 		destino = _punto_calle(_construccion.posicion_de(puesto_id).y)
+		if _camino_hasta(puesto_id, CELDA_PUERTA_SALIDA) < 0:
+			destino = _punto_de_su_puesto(puesto_id)
 	_camino_descanso[agente] = {
 		"muneco": muneco,
 		"nav": muneco.get_node("Nav") as NavigationAgent2D,
@@ -764,6 +789,15 @@ func _iniciar_camino_descanso(agente: RefCounted) -> void:
 		"listo": false,
 		"destino_pendiente": destino,
 	}
+
+
+## Cuántas cuadrículas hay del puesto a esa celda, esquivando muros (-1 si NO HAY CAMINO). Se
+## pregunta a Construcción, que es la dueña de la rejilla y de los muros; aquí no se reimplementa
+## ningún pathfinding.
+func _camino_hasta(puesto_id: StringName, celda: Vector2i) -> int:
+	if _construccion == null or not _construccion.has_method("distancia_en_celdas"):
+		return 0   # sin forma de comprobarlo, se asume que se puede (comportamiento de siempre)
+	return _construccion.distancia_en_celdas(_construccion.posicion_de(puesto_id), celda)
 
 
 ## Da la vuelta a un viaje YA EXISTENTE (nunca crea un muñeco nuevo): libera el asiento si lo tenía y
@@ -862,12 +896,17 @@ func _avanzar_camino_descanso(viaje: Dictionary) -> bool:
 		_poner_taza(viaje["muneco"])
 		return false
 	if viaje["fase"] == &"yendo":
-		# SIN sala de descanso construida: el muñeco ha llegado a la calle y ahí se queda hasta que
-		# el modelo dé la pausa por terminada (entonces `_iniciar_vuelta` lo gira). Antes se cerraba
-		# el viaje al llegar, pero el agente seguía en `descansando` para el modelo, así que nacía
-		# otro viaje y el muñeco salía a la calle una y otra vez — el mismo bucle que el de las
-		# incorporaciones, con la misma causa: el muñeco termina antes que el modelo.
+		# SIN sala de descanso (o sin camino hasta ella): el muñeco ha llegado a donde podía —la
+		# calle, o su propia ventanilla si tampoco podía salir— y ahí se queda hasta que el modelo
+		# dé la pausa por terminada (entonces `_iniciar_vuelta` lo gira). Antes se cerraba el viaje
+		# al llegar, pero el agente seguía en `descansando` para el modelo, así que nacía otro viaje
+		# y el muñeco salía una y otra vez — el mismo bucle que el de las incorporaciones, con la
+		# misma causa: el muñeco termina antes que el modelo.
+		#
+		# Y SE LE PONE LA TAZA IGUAL: está de café, aunque sea de pie en la calle o en su propia
+		# ventanilla. Sin taza, el jugador vería a un funcionario parado sin motivo aparente.
 		viaje["fase"] = &"en_sala"
+		_poner_taza(viaje["muneco"])
 		return false
 	return true
 
