@@ -14,6 +14,9 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | Asset | Autor | Licencia | Uso en el juego | Estado |
 |---|---|---|---|---|
 | ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (pendiente de vestir con el uniforme del CNP) | **En evaluación** |
+| `police_officer_portrait.glb` | ⚠️ **falta el autor** | Sketchfab, **CC BY** (indicado por el usuario) | Policía masculino | **Pendiente de atribución completa** |
+| `police_officer_in_uniform.glb` | ⚠️ **falta el autor** | Sketchfab, **CC BY** (indicado por el usuario) | Policía femenina | **Pendiente de atribución completa** |
+| `isometric_office.glb` (748 mallas) | ⚠️ **falta todo** | ⚠️ **sin confirmar** | Mobiliario de oficina | **NO USAR hasta confirmar licencia** |
 
 ### Texto de atribución a incluir en los créditos del juego
 
@@ -22,6 +25,11 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 is licensed under Creative Commons Attribution
 (http://creativecommons.org/licenses/by/4.0/).
 ```
+
+> ⚠️ **PENDIENTE (2026-08-01)**: de los dos policías se sabe que son de Sketchfab y **CC BY**, pero
+> falta el **nombre del autor y el enlace**, que es justamente lo que la licencia obliga a citar.
+> Pídele al usuario la línea de atribución que Sketchfab genera (como la de "girl"). Del paquete de
+> oficina no se sabe ni la licencia: **no entra en `assets/` hasta confirmarla**.
 
 **Dónde tiene que aparecer**: en una pantalla de créditos accesible desde el menú del juego. Con CC
 BY basta con que esté ahí y sea legible; no hace falta ponerlo en pantalla durante la partida.
