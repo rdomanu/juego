@@ -1626,6 +1626,11 @@ const ALTO_MOSTRADOR: float = 16.0
 const ALTO_ASIENTO: float = 7.0
 ## Ámbar del punto con el que se marca una luz de techo: el color universal de "aquí hay una luz".
 const COLOR_LUZ_TECHO := Color(1.0, 0.82, 0.35)
+## Color de las sillas de la sala de espera: gris de mobiliario institucional, un punto más cálido
+## que las de las ventanillas para que las dos zonas se distingan de un vistazo.
+const COLOR_SILLA_ESPERA := Color(0.38, 0.36, 0.34)
+## La silla la construye la misma pieza que usan las ventanillas: una sola definición de "silla".
+const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -1826,6 +1831,13 @@ func _crear_pieza(
 	es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL, de_techo: bool = false
 ) -> Node2D:
 	var raiz := Node2D.new()
+	# UN ASIENTO es UNA SILLA de verdad, con respaldo (petición del usuario 2026-08-01): sale por
+	# otro camino y no llega a crear la caja. El respaldo va DETRÁS de quien se sienta: como la
+	# gente mira al norte (a las ventanillas), el respaldo cae al sur — abajo a la izquierda en
+	# pantalla.
+	if es_asiento and not de_techo:
+		raiz.add_child(MesaAtencionScript.silla(Vector2(-20.0, 10.0), COLOR_SILLA_ESPERA))
+		return raiz
 	var caja := PiezaIso.new()
 	caja.name = "Caja"
 	# La huella crece en +X o en +Y según cómo esté girada la pieza (rotar con R, 2026-07-30) — es
@@ -1836,8 +1848,6 @@ func _crear_pieza(
 		# Una luz se marca con un PUNTO ÁMBAR, no con una caja: cuelga del techo, no ocupa suelo y no
 		# debe tapar lo que haya debajo (petición del usuario 2026-07-30).
 		caja.configurar(1, 1, 0.0, COLOR_LUZ_TECHO, 1.0, true)
-	elif es_asiento:
-		caja.configurar(1, 1, ALTO_ASIENTO, Color(0.45, 0.42, 0.35))
 	else:
 		caja.configurar(ancho, largo, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
 	raiz.add_child(caja)

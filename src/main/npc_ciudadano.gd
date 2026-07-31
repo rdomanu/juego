@@ -48,6 +48,10 @@ var muneco: Node2D = null
 
 ## El muñeco de piezas que anda (compartido con los funcionarios: el andar es el mismo para todos).
 const MunecoScript := preload("res://src/main/muneco.gd")
+## Prueba de arte: el personaje 3D pre-renderizado que hace de ciudadano mientras se decide el
+## estilo definitivo. Prefijo vacío = vuelve al muñeco de piezas.
+const PREFIJO_SPRITE := "girl"
+const ALTO_SPRITE: int = 44
 
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
@@ -80,7 +84,13 @@ func configurar(
 	# ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto de la celda donde de
 	# verdad está pisando. El ciudadano no lleva gorra: es lo que le distingue del funcionario de
 	# un vistazo, incluso a tamaño diminuto.
-	muneco.add_child(MunecoScript.construir(color, false, piel))
+	# PRUEBA (2026-07-31): si hay sprites 3D pre-renderizados, se usan; si no, el muñeco de piezas
+	# de siempre. Los POLICÍAS siguen con el de piezas a propósito, para poder comparar los dos en
+	# la misma pantalla.
+	if MunecoScript.hay_sprites(PREFIJO_SPRITE, ALTO_SPRITE):
+		muneco.add_child(MunecoScript.construir_sprite(PREFIJO_SPRITE, ALTO_SPRITE))
+	else:
+		muneco.add_child(MunecoScript.construir(color, false, piel))
 	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
 	# 2026-07-26: *"debe ser algo más intuitivo: que cuando se vacía la barra se vayan"*). Son DOS
 	# piezas: un fondo oscuro fijo —el "hueco" de la barra, que dice cuánto cabía— y un relleno que se
@@ -120,6 +130,9 @@ func _physics_process(_delta: float) -> void:
 	if muneco != null and is_instance_valid(muneco):
 		# El PASO (bote + vaivén) lo pone el manager: es la misma cuenta para todo el que ande, y así
 		# ciudadanos y funcionarios caminan igual en vez de tener cada uno su propio andar.
+		# ¿Sentado? Se marca en el muñeco y la capa visual elige el sprite que toca. Se consulta
+		# aquí (una vez por frame y por persona) porque depende del estado lógico, que cambia solo.
+		muneco.set_meta(&"sentado", _manager.esta_sentado(self))
 		_manager.colocar_muneco(muneco, position)
 	if not _nav_lista:
 		_nav_lista = true   # a partir de aquí el server ya sincronizó: los targets valen

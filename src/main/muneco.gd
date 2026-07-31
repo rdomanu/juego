@@ -113,6 +113,86 @@ const FRACCION_BOTA: float = 0.42
 const COLOR_OJOS := Color(0.12, 0.10, 0.10)
 
 
+## ── PRUEBA: MUÑECO DE SPRITE 3D PRE-RENDERIZADO (2026-07-31) ──────────────────────────────────
+## Alternativa al muñeco de piezas: en vez de rectángulos, un sprite salido de renderizar un modelo
+## 3D desde 8 ángulos (`tools/render_sprites.gd`). Es el camino de Theme Hospital y RollerCoaster
+## Tycoon, y su ventaja es la coherencia: **es la misma persona girada**, no ocho dibujos parecidos.
+##
+## Convive con el de piezas a propósito, para poder compararlos en la misma pantalla. Si el archivo
+## del sprite no está, se cae al muñeco de piezas sin romper nada.
+const RUTA_SPRITES := "res://assets/sprites/personajes/"
+## Cuántos ángulos se renderizaron.
+const DIRECCIONES_SPRITE: int = 8
+## Y cuántos fotogramas tiene el ciclo de andar de cada ángulo.
+const FOTOGRAMAS_SPRITE: int = 8
+
+
+## ¿Hay sprites de este personaje? (basta con mirar el primero).
+static func hay_sprites(prefijo: String, alto: int) -> bool:
+	return ResourceLoader.exists("%s%s_%dpx_0_0.png" % [RUTA_SPRITES, prefijo, alto])
+
+
+## Monta un muñeco hecho de SPRITE. El nodo se ancla por la BASE, igual que el de piezas: los pies
+## en (0,0), que es el punto de la celda donde pisa.
+static func construir_sprite(prefijo: String, alto: int) -> Node2D:
+	var raiz := Node2D.new()
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.centered = false
+	raiz.add_child(sprite)
+	raiz.set_meta(&"prefijo", prefijo)
+	raiz.set_meta(&"alto_sprite", alto)
+	raiz.set_meta(&"direccion", 0)
+	raiz.set_meta(&"fotograma", 0)
+	raiz.set_meta(&"sentado", false)
+	_poner_sprite(raiz, 0, 0)
+	return raiz
+
+
+## Cambia el sprite al de esa dirección y ese fotograma del ciclo, y lo recoloca sobre sus pies.
+##
+## El ancla se recalcula en CADA cambio porque cada imagen viene recortada a su contenido: de perfil
+## ocupa menos que de frente, y con una pierna adelantada más que con los pies juntos. Sin
+## recalcular, el personaje daría un salto lateral en cada paso.
+static func _poner_sprite(
+	muneco: Node2D, direccion: int, fotograma: int, sentado: bool = false
+) -> void:
+	var sprite: Sprite2D = muneco.get_node_or_null("Sprite")
+	if sprite == null:
+		return
+	var dir: int = posmod(direccion, DIRECCIONES_SPRITE)
+	var alto: int = int(muneco.get_meta(&"alto_sprite"))
+	var prefijo: String = muneco.get_meta(&"prefijo")
+	# SENTADO es una sola imagen por dirección (sentado no se mueve), así que no lleva fotograma.
+	var ruta: String = (
+		"%s%s_%dpx_sit_%d.png" % [RUTA_SPRITES, prefijo, alto, dir] if sentado
+		else "%s%s_%dpx_%d_%d.png" % [
+			RUTA_SPRITES, prefijo, alto, dir, posmod(fotograma, FOTOGRAMAS_SPRITE)
+		]
+	)
+	if not ResourceLoader.exists(ruta):
+		return
+	var textura: Texture2D = load(ruta)
+	sprite.texture = textura
+	sprite.offset = Vector2(-textura.get_width() / 2.0, -float(textura.get_height()))
+
+
+## Avanza el ciclo de andar de un muñeco de sprite. `fase` es la MISMA que mueve al muñeco de
+## piezas, así que los dos caminan al mismo ritmo y con el mismo criterio: el paso va con el CAMINO
+## RECORRIDO, no con el reloj. Parado se queda en el fotograma 0 (de pie).
+static func animar_sprite(
+	muneco: Node2D, fase: float, andando: float, sentado: bool = false
+) -> void:
+	var f: int = 0
+	if andando > 0.1 and not sentado:
+		f = posmod(roundi(fase / TAU * FOTOGRAMAS_SPRITE), FOTOGRAMAS_SPRITE)
+	if int(muneco.get_meta(&"fotograma", -1)) == f 			and bool(muneco.get_meta(&"sentado", false)) == sentado:
+		return   # ni el fotograma ni la postura cambian: no se recarga la textura por nada
+	muneco.set_meta(&"fotograma", f)
+	muneco.set_meta(&"sentado", sentado)
+	_poner_sprite(muneco, int(muneco.get_meta(&"direccion", 0)), f, sentado)
+
+
 ## Monta un muñeco completo y lo devuelve. `color` es el del torso (el del servicio, en los
 ## ciudadanos; el del uniforme, en los policías); la cabeza sale de aclararlo, que es la convención
 ## que ya venía de los rectángulos anteriores.
@@ -234,6 +314,39 @@ static func animar(muneco: Node2D, fase: float, andando: float) -> void:
 ## siempre en los juegos 2D: no se dibujan cuatro personajes, se reutiliza uno.
 ##
 ## El rótulo del pecho también se oculta de espaldas — por detrás no se ve lo que pone delante.
+## Elige la dirección de un muñeco de SPRITE a partir de hacia dónde se mueve **EN EL MUNDO**.
+##
+## ⚠️ Y "en el mundo", no "en pantalla" — que fue el fallo del primer intento: *"si van a la derecha
+## el cuerpo gira a la izquierda y camina como hacia atrás"*. La causa es sutil pero es de las que
+## se repiten, así que queda escrita:
+##
+##   El sprite se generó girando el MODELO en el espacio 3D, así que cada imagen corresponde a un
+##   rumbo del MUNDO. En cambio la proyección isométrica DEFORMA los ángulos: dos rumbos del mundo
+##   separados 90° pueden verse en pantalla separados 45°. Elegir el sprite por el ángulo de
+##   pantalla mezcla los dos sistemas y sale un personaje que anda de espaldas.
+##
+## ── LA CUENTA, QUE AHORA ES TRIVIAL ───────────────────────────────────────────────────────────
+## El renderizador ya no gira el modelo "un octavo cada vez" y que salga lo que salga: le pregunta
+## al esqueleto hacia dónde miran los pies y lo gira para que **el sprite `i` sea el personaje
+## mirando al rumbo `i × 45°` de la rejilla**, contado desde el este (+X) hacia el sur (+Y).
+##
+## Como el índice significa lo mismo en las dos partes, aquí basta con el ángulo del rumbo. Antes
+## había que compensar un desfase que salía de suponer la orientación del modelo — y de ahí venían
+## los ciudadanos entrando de lado.
+static func orientar_sprite(muneco: Node2D, avance_mundo: Vector2) -> void:
+	if avance_mundo.length_squared() < 0.0001:
+		return
+	var rumbo: float = atan2(avance_mundo.y, avance_mundo.x)
+	var indice: int = posmod(
+		roundi(rumbo / TAU * DIRECCIONES_SPRITE), DIRECCIONES_SPRITE
+	)
+	if int(muneco.get_meta(&"direccion", -1)) == indice:
+		return   # ya está en esa dirección: no se recarga la textura por nada
+	muneco.set_meta(&"direccion", indice)
+	_poner_sprite(muneco, indice, int(muneco.get_meta(&"fotograma", 0)),
+		bool(muneco.get_meta(&"sentado", false)))
+
+
 static func orientar(muneco: Node2D, hacia_izquierda: bool, de_espaldas: bool) -> void:
 	# Espejar con la escala: -1 en X da la vuelta a todo el conjunto de una vez, piezas incluidas.
 	muneco.scale.x = -1.0 if hacia_izquierda else 1.0

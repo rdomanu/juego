@@ -409,6 +409,36 @@ límite".
 
 ---
 
+## ⭐ ESTILO DEFINITIVO: **LOW-POLY** (decisión del usuario, 2026-08-01)
+
+> *"He decidido el estilo, que será low-poly."*
+
+Cierra la última pregunta grande de dirección de arte. **Low-poly con el tono Two Point** ya
+decidido (humor de situación, no parodia): las dos decisiones no se pelean, una es la técnica y la
+otra el tono.
+
+### Por qué encaja tan bien con este proyecto
+
+| | |
+|---|---|
+| **El pipeline ya existe** | `tools/render_sprites.gd` convierte modelos 3D en los sprites del juego. Low-poly renderiza rápido y se lee limpio al reducir a 44 px |
+| **Aguanta el tamaño** | A 44 px de alto, el detalle fino desaparece igualmente. Low-poly no pierde nada porque no lo tiene: lo que comunica es la SILUETA y el color plano, que es justo lo que sobrevive |
+| **Hay assets** | Es el estilo más abundante en las bibliotecas gratuitas con licencia CC BY |
+| **Es coherente con lo ya hecho** | Los muebles del juego son cajas isométricas de color plano: low-poly ES eso, con más forma |
+
+### Qué NO cambia
+
+§1 (identidad), §2 (mood), §4 (color) y §7 (UI) siguen valiendo enteras. Low-poly es **cómo se
+modela**, no qué se cuenta ni con qué paleta.
+
+### Consecuencia práctica para producción
+
+Los personajes y el mobiliario se **modelan o se consiguen en low-poly** y se pasan por el
+renderizador. Nada de arte 2D dibujado a mano: el proyecto ya demostró que la coherencia entre los
+8 ángulos solo la da el 3D.
+
+---
+
 ## 5. Dirección de Personajes
 
 *Decidido con el usuario el 2026-07-30.*

@@ -153,3 +153,14 @@ $RECYCLE.BIN/
 
 # Capturas automaticas de arranque (dev): NO son evidencia de QA.
 production/qa/capturas/
+
+# === Assets 3D EN BRUTO (2026-08-01) ===
+# Los modelos y texturas descargados pesan cientos de MB (el paquete de oficina, él solo, 164 MB) y
+# GitHub bloquea los archivos de más de 100 MB. Se quedan FUERA del repo a propósito:
+#   · son SOURCE, no producto: lo que el juego usa son los sprites renderizados, que sí van a git;
+#   · se pueden volver a descargar (su origen y licencia están en CREDITS.md);
+#   · meterlos hincharía el historial para siempre, aunque luego se borraran.
+# Lo que SÍ se guarda: los .glb pequeños que alimentan el renderizador y las capturas de referencia.
+capturas/**/*.zip
+capturas/NPC/Oficina/
+capturas/NPC/Policias/

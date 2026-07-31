@@ -53,6 +53,33 @@ const ESCALA_PAPEL: float = 0.17
 const COLOR_PAPEL := Color(0.90, 0.89, 0.84)
 
 
+## ── LA SILLA (2026-08-01) ──────────────────────────────────────────────────────────────────────
+## Petición del usuario: *"en los puestos de atención debe haber 1 silla en cada puesto y en la sala
+## de espera también"*. Y tiene sentido más allá de lo decorativo: si los personajes se sientan (ya
+## tienen su pose), hace falta algo debajo o parecen flotando.
+##
+## Dos piezas: el asiento y el respaldo. Con el respaldo se lee "silla" incluso a tamaño diminuto;
+## sin él, es un taburete o una caja.
+const ALTO_ASIENTO_SILLA: float = 7.0
+const ALTO_RESPALDO: float = 11.0
+const ESCALA_SILLA: float = 0.42
+const COLOR_SILLA := Color(0.30, 0.32, 0.38)
+
+
+## Una silla mirando hacia `hacia_atras` (el respaldo se pone a ese lado). El vector va en píxeles
+## de pantalla, así que se usan las mismas constantes de lado que la mesa.
+static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Silla"
+	raiz.add_child(_pieza("Asiento", Vector2.ZERO, ALTO_ASIENTO_SILLA, ESCALA_SILLA, color))
+	# El respaldo: más alto, más estrecho y desplazado al lado contrario de quien se sienta.
+	raiz.add_child(_pieza(
+		"Respaldo", hacia_atras * 0.30 - Vector2(0.0, ALTO_ASIENTO_SILLA),
+		ALTO_RESPALDO, ESCALA_SILLA * 0.55, color.darkened(0.15)
+	))
+	return raiz
+
+
 ## Monta la mesa completa. Se coloca en el CENTRO de la celda del puesto y todo va en local.
 static func construir() -> Node2D:
 	var raiz := Node2D.new()
@@ -75,6 +102,17 @@ static func construir() -> Node2D:
 		"Papeles2", encima + HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
 		COLOR_PAPEL.darkened(0.08)
 	))
+	# LAS DOS SILLAS de la ventanilla: la del funcionario detrás y la del ciudadano delante. Van al
+	# final para que se dibujen por encima del tablero, que es lo que corresponde: están fuera de la
+	# mesa, no dentro.
+	var suya: Node2D = silla(HACIA_FUNCIONARIO.normalized() * 20.0)
+	suya.name = "SillaFuncionario"
+	suya.position = HACIA_FUNCIONARIO
+	raiz.add_child(suya)
+	var del_ciudadano: Node2D = silla(HACIA_CIUDADANO.normalized() * 20.0)
+	del_ciudadano.name = "SillaCiudadano"
+	del_ciudadano.position = HACIA_CIUDADANO
+	raiz.add_child(del_ciudadano)
 	return raiz
 
 

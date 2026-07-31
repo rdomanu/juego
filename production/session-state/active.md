@@ -2290,3 +2290,115 @@ Los tres problemas son el mismo del policía 3D de anoche, más el de licencia, 
 arreglo técnico. **Alternativa recomendada**: las mujeres policía se resuelven en el muñeco de
 piezas — una pieza de pelo y repartir el género por número de turno, igual que ya se hace con los
 cuatro tonos de piel. Funciona hoy y no depende de la licencia de nadie.
+
+---
+
+# 🎨 CIERRE DE SESIÓN 2026-08-01 — EL PIPELINE DE ARTE 3D→SPRITES, Y QUÉ HACER MAÑANA
+
+**Estado verificado en el hilo principal: 698 casos, 0 fallos, exit 0. Arranque limpio. `datos/`
+intacto. Todo commiteado y pusheado.**
+
+## ⭐ DECISIÓN DEL USUARIO: EL ESTILO ES **LOW-POLY**
+
+Cierra la última pregunta abierta del art bible. Consecuencias prácticas:
+- Encaja con el pipeline que ya existe (3D → sprites): low-poly renderiza rápido y se lee limpio al
+  reducir a 44 px.
+- Se acabó el debate "realista vs Two Point": **low-poly con tono Two Point**.
+- Y encaja con los assets que se están descargando, que son low-poly.
+
+## LO QUE YA FUNCIONA (y NO hay que rehacer)
+
+### `tools/render_sprites.gd` — el pipeline completo
+Convierte cualquier modelo 3D con esqueleto en los sprites del juego. **Es código, va en git, no se
+pierde.** Lo que genera son PNG en `assets/sprites/personajes/`, que también van en git.
+
+```
+godot --path <proyecto> res://tools/RenderSprites.tscn
+```
+
+Produce, para el prefijo configurado: **8 direcciones × 8 fotogramas de andar + 8 de sentado**, en
+dos tamaños (88 y 44 px).
+
+**Las cinco cuentas que costó acertar** (todas documentadas en el archivo):
+1. **Cámara a 26,565°** (`atan(1/2)`), no a 30°: es el ángulo del rombo 2:1. Con 30° los pies no
+   pisan el suelo.
+2. **Ortográfica**, no en perspectiva: si no, un personaje en el centro y otro en la esquina se ven
+   con inclinaciones distintas.
+3. **La orientación se MIDE, no se supone**: se saca de los pies del modelo (del talón a la punta).
+   Suponerla hizo que los ciudadanos entraran de lado andando hacia atrás.
+4. **El balanceo va sobre el eje lateral DEL PERSONAJE**, no sobre un eje fijo del mundo. Con un eje
+   fijo, la pierna se adelanta hacia donde mira el escenario.
+5. **Todas las poses se escalan con el MISMO factor**, sacado de la figura de pie. Ajustar cada
+   imagen a la misma altura ampliaba a la figura sentada.
+
+### Lo que hay montado en el juego
+- Ciudadanos con sprite 3D: andan, giran a 8 direcciones y **se sientan** (en la silla de la espera
+  y en la de la ventanilla), solo cuando están parados y mirando siempre al norte.
+- Funcionarios con el **muñeco de piezas** (rectángulos articulados), que sigue siendo válido y sirve
+  de comparación. **No se ha tirado**: el día que haya sprites de policía, se cambia y ya.
+- Sillas: dos por ventanilla (funcionario y ciudadano) y con respaldo en la sala de espera.
+
+## 📦 EL PAQUETE DE OFICINA (lo que trae, medido)
+
+`capturas/NPC/Oficina/isometric_office.glb` — **FUERA DE GIT a propósito** (164 MB; ver `.gitignore`).
+
+| | |
+|---|---|
+| Mallas | **748** |
+| Triángulos | ~155.700 |
+| Materiales / texturas | 48 / 22 |
+| Esqueleto y animaciones | Ninguno (es mobiliario) |
+| Nombres | `Object_10`, `Object_1023`… **genéricos**: no dicen qué es cada cosa |
+
+⚠️ **FALTA SU LICENCIA Y SU ATRIBUCIÓN.** No entra en `assets/` hasta que esté su fila en
+`CREDITS.md` — es la regla del proyecto. Preguntar al usuario de dónde salió.
+
+## 🎯 PLAN PARA LA PRÓXIMA SESIÓN: "darle caña a los diseños"
+
+### 1. El catálogo visual de la oficina (lo primero, y es una herramienta)
+Con 748 mallas llamadas `Object_NNN` no hay forma de saber qué es cada una. **Escribir una variante
+del renderizador que saque una miniatura de CADA malla por separado**, montar una hoja de contactos
+y que el usuario elija a dedo: "esta es la mesa", "esta la silla", "esta la planta".
+
+Es exactamente el mismo patrón que ya funcionó cuatro veces esta noche: **mirar en vez de suponer.**
+
+### 2. Sustituir el mobiliario placeholder
+Los muebles del juego son cajas isométricas dibujadas por código (`PiezaIso`, `mesa_atencion.gd`).
+Cambiarlas por sprites renderizados del paquete: mesa, silla, ordenador, planta, papelera, vending.
+El sitio donde se enchufa ya está aislado.
+
+### 3. El policía en low-poly
+Falta el personaje que de verdad importa. Dos caminos: buscar un modelo low-poly con **pantalón** y
+licencia CC BY, o vestir el que hay en Blender. La referencia del uniforme del CNP ya está
+verificada en `design/art/referencia-uniforme-cnp.md`.
+
+### 4. Cerrar el art bible §5
+Sigue sin decidir: personajes **sin cara** vs **cara mínima**. Con los sprites ya en pantalla a 44 px
+es una decisión de dos minutos: mirar si la cara se ve.
+
+## ⚠️ GOTCHAS NUEVOS DE ESTA SESIÓN (leer antes de tocar arte)
+
+1. **Todo PNG generado por herramienta necesita `--import` antes de que el juego lo vea.** Si no,
+   `ResourceLoader.exists()` da false y el juego se cae al placeholder sin avisar.
+2. **Después de `--import`, comprobar `git status -- datos/`**: arranca el editor y ya reescribió un
+   `.tres` una vez (tumbó un test que no tenía nada que ver).
+3. **Una pose de esqueleto se define ENTERA.** Todo hueso que toque alguna pose, las demás tienen que
+   devolverlo — si no, se heredan restos. Fue el "andan de rodillas".
+4. **Nunca reconstruir por frame un contenedor con controles interactivos**: los botones se destruyen
+   antes de que el clic se complete y no se puede pulsar nada.
+5. **Anclar un panel a un borde con anclajes a mano**, no con `PRESET_*_RIGHT`: ese preset ancla a un
+   PUNTO y los offsets se miden desde ahí (panel de altura negativa = invisible).
+
+## MÉTODO: lo que más valor ha dado hoy
+
+Cuatro bugs, cuatro veces que **medir** resolvió en un minuto lo que suponer no resolvía en veinte:
+
+| Síntoma | Qué se midió | Causa real |
+|---|---|---|
+| Funcionario invisible | `get_child_count()` = 0 | Le faltaba el cuerpo (línea borrada) |
+| 6 funcionarios para 3 puestos | Quién arranca viaje, en ventana real | Bucle crear/destruir |
+| Andan de lado y hacia atrás | Las 8 direcciones etiquetadas | Rumbo de pantalla vs de mundo |
+| Andan de rodillas | El flag de sentado en vivo | Pose heredada del sentado |
+
+Y una que se resolvió **probando las cuatro combinaciones y mirando**: los signos de cadera y rodilla
+al sentarse. Con rigs ajenos no se deduce: se renderiza y se mira.

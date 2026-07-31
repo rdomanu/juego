@@ -116,6 +116,11 @@ const LARGO_ZANCADA: float = 26.0
 ## contra una posición de referencia que solo se actualiza al girar: así el muñeco no da volantazos
 ## por los micro-ajustes del agente de navegación, que corrige el rumbo constantemente.
 const UMBRAL_GIRO: float = 1.5
+## Hacia dónde mira quien está SENTADO, en el plano de la rejilla: al norte (−Y), que es donde están
+## las ventanillas respecto de la sala de espera y donde está el funcionario respecto del ciudadano
+## que atiende. Sentarse mirando a la pared quedaba raro y era lo que pasaba al conservar la última
+## dirección de marcha.
+const DIRECCION_SENTADO := Vector2(0.0, -1.0)
 ## La celda por la que se sale del edificio (la puerta de la fachada). Se usa para comprobar si un
 ## agente puede siquiera salir a la calle a tomarse el café cuando no hay sala de descanso.
 const CELDA_PUERTA_SALIDA := Vector2i(0, 6)
@@ -340,23 +345,74 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	var fase: float = recorrido / LARGO_ZANCADA * PI
 	visual.position = destino - Vector2(0.0, MunecoScript.bote(fase, andando))
 	visual.rotation = sin(fase) * VAIVEN_PASO * andando
-	MunecoScript.animar(visual, fase, andando)
+	# Un muñeco de SPRITE avanza su ciclo de fotogramas; el de piezas mueve sus piezas. Los dos con
+	# la MISMA fase, así que caminan al mismo ritmo.
+	if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
+		# ⚠️ SENTADO solo si además está PARADO. Sin esta condición, alguien que ya tiene su silla
+		# reservada pero todavía va andando hacia ella cruzaba media comisaría en postura de
+		# sentado — lo cazó el usuario al momento: *"no pueden ir sentadas esas personas siempre,
+		# ahora andan con esa postura"*. La silla se reserva al ELEGIR destino, no al llegar; el que
+		# sabe si ha llegado es el movimiento, no el modelo.
+		var sentado: bool = bool(visual.get_meta(&"sentado", false)) and andando < 0.2
+		if sentado:
+			# Sentado se mira SIEMPRE hacia donde toca (a la ventanilla), no hacia donde venía
+			# andando: si no, cada uno se sienta mirando a un lado distinto.
+			MunecoScript.orientar_sprite(
+				visual.get_child(0) as Node2D, DIRECCION_SENTADO
+			)
+		MunecoScript.animar_sprite(visual.get_child(0) as Node2D, fase, andando, sentado)
+	else:
+		MunecoScript.animar(visual, fase, andando)
 	# HACIA DÓNDE MIRA. Se decide por el movimiento de ESTE frame, y solo cuando de verdad se ha
 	# movido — si no, al pararse daría un volantazo por un temblor de medio píxel. Al quedarse quieto
 	# conserva la última dirección, que es lo natural: uno no gira la cara al detenerse.
-	if paso_frame > UMBRAL_GIRO:
-		var avance: Vector2 = destino - (visual.get_meta(&"pos_previa_giro") as Vector2) 			if visual.has_meta(&"pos_previa_giro") else Vector2.ZERO
-		if avance.length() > UMBRAL_GIRO:
-			MunecoScript.orientar(visual, avance.x < 0.0, avance.y < 0.0)
-			visual.set_meta(&"pos_previa_giro", destino)
+	#
+	# ⚠️ El giro se mide en el PLANO DEL MUNDO (`punto_cuadrado`), no en pantalla. Los sprites se
+	# generaron girando el modelo en 3D, así que cada uno es un rumbo del mundo; y la proyección
+	# isométrica deforma los ángulos, de modo que mezclarlos hace que el personaje ande de espaldas.
+	# El muñeco de piezas sí usa la pantalla, porque solo necesita saber izquierda/derecha.
+	if paso_frame > UMBRAL_GIRO and andando >= 0.2:
+		var previo: Vector2 = punto_cuadrado
+		if visual.has_meta(&"pos_previa_giro"):
+			previo = visual.get_meta(&"pos_previa_giro") as Vector2
+		var avance_mundo: Vector2 = punto_cuadrado - previo
+		if avance_mundo.length() > UMBRAL_GIRO:
+			if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
+				MunecoScript.orientar_sprite(visual.get_child(0) as Node2D, avance_mundo)
+			else:
+				var en_pantalla: Vector2 = Proyeccion.proyectar(avance_mundo)
+				MunecoScript.orientar(visual, en_pantalla.x < 0.0, en_pantalla.y < 0.0)
+			visual.set_meta(&"pos_previa_giro", punto_cuadrado)
 	elif not visual.has_meta(&"pos_previa_giro"):
-		visual.set_meta(&"pos_previa_giro", destino)
+		visual.set_meta(&"pos_previa_giro", punto_cuadrado)
 
 
 ## Cuelga un muñeco de la capa que SE VE. Lo llaman los cuerpos al nacer (npc_ciudadano) y los
 ## viajes de descanso/incorporación: el cuerpo se queda en el plano lógico y su muñeco viene aquí.
 func registrar_muneco(muneco: Node2D) -> void:
 	_capa_escena.add_child(muneco)
+
+
+## ¿Está SENTADO este ciudadano ahora mismo? Dos casos, y los dos son "tiene una silla debajo":
+##  · espera dentro **en un asiento** (no de pie: en la sala caben más de los que se sientan);
+##  · está **siendo atendido**, que es en la silla de la ventanilla.
+##
+## Lo consume la capa visual para elegir el sprite de sentado. Es lectura pura: no decide nada de la
+## simulación (FL5).
+func esta_sentado(npc: Node) -> bool:
+	if npc == null or npc.get("persona") == null:
+		return false
+	var estado: StringName = npc.persona.estado
+	if estado == &"en_atencion":
+		return true
+	if estado != &"esperando_dentro":
+		return false
+	var plaza: Vector2i = _plaza_reservada_de(npc)
+	if plaza == CELDA_NULA or _construccion == null:
+		return false
+	# Su plaza es un ASIENTO si en esa celda hay un elemento de tipo asiento.
+	var elemento: StringName = _construccion.elemento_en(plaza)
+	return elemento != &"" and _construccion.catalogo_de(elemento) == _construccion.ASIENTO_BASICO
 
 
 ## Un punto del plano lógico cuadrado, llevado a coordenadas de PANTALLA (globales). Lo usan el
