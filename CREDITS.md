@@ -14,9 +14,9 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | Asset | Autor | Licencia | Uso en el juego | Estado |
 |---|---|---|---|---|
 | ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (pendiente de vestir con el uniforme del CNP) | **En evaluación** |
-| `police_officer_portrait.glb` | ⚠️ **falta el autor** | Sketchfab, **CC BY** (indicado por el usuario) | Policía masculino | **Pendiente de atribución completa** |
-| `police_officer_in_uniform.glb` | ⚠️ **falta el autor** | Sketchfab, **CC BY** (indicado por el usuario) | Policía femenina | **Pendiente de atribución completa** |
-| `isometric_office.glb` (748 mallas) | ⚠️ **falta todo** | ⚠️ **sin confirmar** | Mobiliario de oficina | **NO USAR hasta confirmar licencia** |
+| ["Police Officer Portrait"](https://skfb.ly/pKqVq) | restore50 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Policía masculino | **En evaluación** |
+| ["Police Officer in Uniform"](https://skfb.ly/pKqUM) | restore50 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Policía femenina | **En evaluación** |
+| ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En evaluación** |
 
 ### Texto de atribución a incluir en los créditos del juego
 
@@ -24,12 +24,28 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 "🏫 girl" (https://skfb.ly/orY8Q) by Karma🔥
 is licensed under Creative Commons Attribution
 (http://creativecommons.org/licenses/by/4.0/).
+
+"Police Officer Portrait" (https://skfb.ly/pKqVq) by restore50
+is licensed under Creative Commons Attribution
+(http://creativecommons.org/licenses/by/4.0/).
+
+"Police Officer in Uniform" (https://skfb.ly/pKqUM) by restore50
+is licensed under Creative Commons Attribution
+(http://creativecommons.org/licenses/by/4.0/).
+
+"Isometric office" (https://skfb.ly/6TVso) by Companion_Cube
+is licensed under Creative Commons Attribution
+(http://creativecommons.org/licenses/by/4.0/).
 ```
 
-> ⚠️ **PENDIENTE (2026-08-01)**: de los dos policías se sabe que son de Sketchfab y **CC BY**, pero
-> falta el **nombre del autor y el enlace**, que es justamente lo que la licencia obliga a citar.
-> Pídele al usuario la línea de atribución que Sketchfab genera (como la de "girl"). Del paquete de
-> oficina no se sabe ni la licencia: **no entra en `assets/` hasta confirmarla**.
+> ✅ **Atribuciones completas (2026-08-01)**: las cuatro líneas de arriba son las que genera
+> Sketchfab, aportadas por el usuario. Cada fila pasa de "En evaluación" a "En uso" cuando sus
+> sprites entren en `assets/`.
+
+> ⚠️ **Nota sobre el paquete de oficina**: se usa **solo la geometría del mobiliario**, renderizada
+> a sprites propios. Las imágenes incrustadas en sus texturas (pósters, cuadros, diplomas, fotos)
+> **no se usan en el juego**: son material de terceros que el autor del paquete incorporó y cuya
+> procedencia no está confirmada.
 
 **Dónde tiene que aparecer**: en una pantalla de créditos accesible desde el menú del juego. Con CC
 BY basta con que esté ahí y sea legible; no hace falta ponerlo en pantalla durante la partida.
