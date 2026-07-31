@@ -522,6 +522,16 @@ func camino_restante_de(puesto_id: StringName) -> float:
 	return float(_puestos_flujo[puesto_id]["camino_restante"])
 
 
+
+## El TIPO de catálogo con el que se registró un puesto (`&""` si no existe). Lo necesita ODAC #9
+## para saber qué puestos son suyos sin llevar su propia lista, que se quedaría vieja en cuanto se
+## construyera o demoliera una ventanilla.
+func tipo_de_puesto_flujo(puesto_id: StringName) -> StringName:
+	if not _puestos_flujo.has(puesto_id):
+		return &""
+	return _puestos_flujo[puesto_id]["tipo"]
+
+
 ## Ids de los puestos registrados en el flujo (getter para sincronizar con Construcción — 008).
 func puestos_registrados() -> Array[StringName]:
 	var resultado: Array[StringName] = []

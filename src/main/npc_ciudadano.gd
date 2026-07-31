@@ -52,7 +52,10 @@ const MunecoScript := preload("res://src/main/muneco.gd")
 
 ## Monta el cuerpo (fantasma: sin capas de colisión — sin avoidance los NPCs se atraviesan, MVP),
 ## el agente de navegación y el "muñeco" placeholder con el color de su servicio.
-func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color: Color) -> void:
+func configurar(
+	p_persona: RefCounted, manager: Node2D, velocidad: float, color: Color,
+	piel: Color = MunecoScript.PIEL
+) -> void:
 	persona = p_persona
 	_manager = manager
 	_velocidad = velocidad
@@ -77,7 +80,7 @@ func configurar(p_persona: RefCounted, manager: Node2D, velocidad: float, color:
 	# ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto de la celda donde de
 	# verdad está pisando. El ciudadano no lleva gorra: es lo que le distingue del funcionario de
 	# un vistazo, incluso a tamaño diminuto.
-	muneco.add_child(MunecoScript.construir(color, false))
+	muneco.add_child(MunecoScript.construir(color, false, piel))
 	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
 	# 2026-07-26: *"debe ser algo más intuitivo: que cuando se vacía la barra se vayan"*). Son DOS
 	# piezas: un fondo oscuro fijo —el "hueco" de la barra, que dice cuánto cabía— y un relleno que se

@@ -52,6 +52,11 @@ const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
 ## El panel del horario de Documentación (story doc-005): el slider que decide cuánto abres.
 const PanelHorarioScript := preload("res://src/main/panel_horario.gd")
+## ODAC / Denuncias #9 — la ÚLTIMA pieza del MVP: el dueño de la política de la oficina de
+## denuncias (los modos de reconfiguración de cada ventanilla).
+const ODACScript := preload("res://src/feature/odac/odac.gd")
+## Y su pantalla (tecla O).
+const PanelODACScript := preload("res://src/main/panel_odac.gd")
 ## El modal del Comisario (2026-07-28): sin él, quedarse sin dinero BLOQUEABA la partida.
 const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
 ## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
@@ -130,6 +135,7 @@ var _construccion: Node
 var _flujo: Node
 var _paciencia: Node
 var _documentacion: Node
+var _odac: Node
 var _panel_horario: CanvasLayer
 var _npcs: Node2D
 var _lbl_flujo: Label
@@ -189,6 +195,12 @@ func _ready() -> void:
 	_panel_horario.name = "PanelHorario"
 	add_child(_panel_horario)
 	_panel_horario.configurar(_documentacion, Tiempo, EventBus, _personal)
+	# La pantalla de ODAC (tecla O): la palanca para dedicar cada ventanilla a lo urgente o a lo
+	# administrativo. Es la parte que le faltaba al MVP.
+	var panel_odac: CanvasLayer = PanelODACScript.new()
+	panel_odac.name = "PanelODAC"
+	panel_odac.configurar(_odac, _flujo, _personal)
+	add_child(panel_odac)
 	_panel_horario.usar_flujo(_flujo)   # para poder abrir/cerrar cada ventanilla desde el panel
 	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
 	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
@@ -305,6 +317,10 @@ func _instanciar_mundo() -> void:
 	_documentacion.name = "Documentacion"
 	add_child(_documentacion)
 	_documentacion.horario_cambiado.connect(_al_cambiar_horario_doc)
+	# ODAC #9: se instancia DESPUÉS de Flujo (le inyecta su API) y antes del panel que lo maneja.
+	_odac = ODACScript.new()
+	_odac.name = "ODAC"
+	add_child(_odac)
 	# Construcción (story const-006): el layout REAL. ⚠️ ANTES que Personal en el árbol: el orden de
 	# los hijos es el orden de carga del SaveManager, y las asignaciones de Personal referencian
 	# puestos que Construcción debe registrar primero (invariante de personal-006/const-005).
@@ -346,6 +362,8 @@ func _instanciar_mundo() -> void:
 	# Documentación cobra la peonada (F1) y desmotiva a quien sale tarde (DO5): necesita Economía
 	# (le REGISTRA las horas, no toca el saldo), Personal (cuántos agentes la cubren) y Demanda (el
 	# nivel BAJA/MEDIA/ALTA, la brújula de la decisión). Story doc-003.
+	# ODAC #9 ordena por la API pública de Flujo (reconfigurar_puesto) y nunca toca su estado.
+	_odac.usar_flujo(_flujo)
 	_documentacion.usar_economia(_economia)
 	_documentacion.usar_personal(_personal)
 	_documentacion.usar_demanda(_demanda)
@@ -675,7 +693,9 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource, sala_id: StringName) -> vo
 			var pausa_ahora: float = _minutos_de_pausa_con_extra(0.0)
 			var pausa_luego: float = _minutos_de_pausa_con_extra(comodidad.aporte)
 			if pausa_ahora - pausa_luego >= 0.05:
-				etiqueta += ") · %.1f min menos de cafe" % (pausa_ahora - pausa_luego)
+				# "menos de DESCANSO", no "menos de cafe" (usuario, 2026-07-31): el mueble hace que se
+				# recupere antes, o sea que la pausa dura menos. Decir "menos cafe" sonaba a castigo.
+				etiqueta += ") · %.1f min menos de descanso" % (pausa_ahora - pausa_luego)
 			else:
 				etiqueta += ") · ya estas al tope de descanso"
 		else:

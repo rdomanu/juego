@@ -15,6 +15,8 @@ const NPCScript := preload("res://src/main/npc_ciudadano.gd")
 ## El muñeco de PIEZAS que anda de verdad (2026-07-31). Lo comparten ciudadanos y funcionarios:
 ## el andar es el mismo para todos, solo cambian el color y si lleva gorra.
 const MunecoScript := preload("res://src/main/muneco.gd")
+## La mesa de la ventanilla, con su ordenador y sus papeles (2026-07-31).
+const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 
 ## Colores placeholder por servicio (los mismos tonos que las salas de Construcción).
 const COLOR_DOC := Color(0.35, 0.55, 0.9)
@@ -110,6 +112,10 @@ const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
 ## Cada cuánto camino recorrido se completa un paso, en píxeles del plano cuadrado. 26 ≈ zancada de
 ## persona a la escala del juego: más corto parece que trota, más largo parece que se arrastra.
 const LARGO_ZANCADA: float = 26.0
+## Cuánto tiene que moverse para que se le considere "andando hacia allí" y gire la cara. Se mide
+## contra una posición de referencia que solo se actualiza al girar: así el muñeco no da volantazos
+## por los micro-ajustes del agente de navegación, que corrige el rumbo constantemente.
+const UMBRAL_GIRO: float = 1.5
 ## Cuánto sube el cuerpo en lo alto del paso. 2 px: se nota que bota, no parece que dé saltos.
 const ALTURA_BOTE: float = 2.0
 ## Cuánto se balancea, en radianes (~2,3°). Muy poco a propósito: es un vaivén, no un tentetieso.
@@ -122,14 +128,7 @@ const DISTANCIA_LLEGADA: float = 12.0
 ## 60 fps: de sobra para que el NavigationServer sincronice, y corto para no dejar a nadie dando
 ## vueltas si su destino es de verdad inalcanzable.
 const MAX_REINTENTOS_CAMINO: int = 120
-## El mostrador de una ventanilla: alto de la caja y color. Más alto que el placeholder anterior
-## (16 px) para que se lea como mesa de atención y no como un cajón, y tono madera-institucional.
-const ALTO_MOSTRADOR: float = 20.0
-const COLOR_MOSTRADOR := Color(0.42, 0.34, 0.27)
-## Cuánto de su celda ocupa el mostrador. 0.62 y no 1: una mesa no llena la baldosa entera, y con
-## la mesa llegando al borde del rombo el funcionario de la casilla de atrás quedaba pegado a ella y
-## parecía estar encima. Con margen alrededor, se ve claramente que están en dos casillas distintas.
-const ESCALA_MOSTRADOR: float = 0.62
+## (El mostrador pasó a ser una MESA compuesta el 2026-07-31 — ver `mesa_atencion.gd`.)
 ## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
 ## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
 ## Agente → puesto por el que YA hizo su entrada andando. Es la invariante "1 puesto = 1
@@ -339,6 +338,16 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	visual.position = destino - Vector2(0.0, MunecoScript.bote(fase, andando))
 	visual.rotation = sin(fase) * VAIVEN_PASO * andando
 	MunecoScript.animar(visual, fase, andando)
+	# HACIA DÓNDE MIRA. Se decide por el movimiento de ESTE frame, y solo cuando de verdad se ha
+	# movido — si no, al pararse daría un volantazo por un temblor de medio píxel. Al quedarse quieto
+	# conserva la última dirección, que es lo natural: uno no gira la cara al detenerse.
+	if paso_frame > UMBRAL_GIRO:
+		var avance: Vector2 = destino - (visual.get_meta(&"pos_previa_giro") as Vector2) 			if visual.has_meta(&"pos_previa_giro") else Vector2.ZERO
+		if avance.length() > UMBRAL_GIRO:
+			MunecoScript.orientar(visual, avance.x < 0.0, avance.y < 0.0)
+			visual.set_meta(&"pos_previa_giro", destino)
+	elif not visual.has_meta(&"pos_previa_giro"):
+		visual.set_meta(&"pos_previa_giro", destino)
 
 
 ## Cuelga un muñeco de la capa que SE VE. Lo llaman los cuerpos al nacer (npc_ciudadano) y los
@@ -446,8 +455,12 @@ func _bakear_navegacion() -> void:
 func spawn(persona: RefCounted) -> void:
 	var npc: CharacterBody2D = NPCScript.new()
 	var color: Color
+	# La piel varía entre la gente (una cola toda del mismo color exacto se lee como clones) y es
+	# determinista por número de turno: cada ciudadano mantiene siempre la suya, también al cargar.
+	var piel: Color = MunecoScript.piel_de(persona.numero_turno)
 	if persona.tramite_id() == &"tie":
 		color = COLOR_TIE   # feedback flujo-008: el TIE se distingue del DNI/Pasaporte de un vistazo
+		piel = MunecoScript.PIEL_TIE   # decisión del usuario 2026-07-31: la cola se lee de un vistazo
 	elif persona.servicio() == &"Documentacion":
 		color = COLOR_DOC
 	else:
@@ -457,7 +470,7 @@ func spawn(persona: RefCounted) -> void:
 	# `configurar`. ⚠️ ORDEN: primero `add_child` y luego `configurar` — `configurar` llama a
 	# `registrar_muneco`, y la posición del muñeco se copia del cuerpo, que ya debe estar colocado.
 	_capa_logica.add_child(npc)
-	npc.configurar(persona, self, _flujo.velocidad_npc_px_s, color)
+	npc.configurar(persona, self, _flujo.velocidad_npc_px_s, color, piel)
 	colocar_muneco(npc.muneco, npc.position)
 
 
@@ -1159,10 +1172,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# celda que la mesa (parecía subido encima); luego se le movió una casilla atrás pero seguía
 	# pintándose por debajo, porque la mesa vivía en otra capa más al fondo; y al traer la mesa aquí
 	# se pintó después y le tapó. Este es el orden bueno: mesa, y encima quien atiende.
-	var mesa := PiezaIso.new()
-	mesa.name = "Mesa"
-	mesa.configurar(1, 1, ALTO_MOSTRADOR, COLOR_MOSTRADOR, ESCALA_MOSTRADOR)
-	contenedor.add_child(mesa)
+	contenedor.add_child(MesaAtencionScript.construir())
 	policia.position = _POLICIA_DETRAS
 	contenedor.add_child(policia)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font

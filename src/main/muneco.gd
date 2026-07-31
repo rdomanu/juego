@@ -68,7 +68,39 @@ const SUAVIZADO: float = 0.15
 const AZUL_UNIFORME := Color(0.20, 0.21, 0.30)      # real #242331, aclarado para que se vea
 const AZUL_PANTALON := Color(0.16, 0.17, 0.25)      # real #1e1d29, un punto más oscuro que el polo
 const NEGRO_BOTA := Color(0.13, 0.13, 0.14)         # real #323031
-const PIEL := Color(0.64, 0.45, 0.40)               # real #a47366, cara y antebrazos
+## ── TONOS DE PIEL (feedback del usuario, 2026-07-31) ─────────────────────────────────────────
+## *"el tono de piel de la gente debe ser más blanco, parecen sudamericanos o bien árabes, deben ser
+## europeos, tanto los policías como los que van al DNI; para TIEs sí está bien ese tono de piel
+## para distinguir"*.
+##
+## El render de referencia salió con una piel bastante tostada (#a47366) por la luz cálida de
+## estudio, no porque el uniforme la pida. Se aclara al tono europeo medio.
+##
+## Y no es UN tono, son CUATRO: una cola de gente toda del mismo color exacto se lee como clones.
+## Se reparten de forma determinista por el número de turno de cada persona, así que el mismo
+## ciudadano siempre tiene la misma cara y al guardar y cargar no cambia de piel.
+const PIELES_EUROPEAS: Array[Color] = [
+	Color(0.91, 0.78, 0.69),
+	Color(0.87, 0.72, 0.62),
+	Color(0.95, 0.83, 0.75),
+	Color(0.82, 0.67, 0.57),
+]
+## El tono de quien viene a por el TIE (la tarjeta de identidad de EXTRANJERO). Decisión del usuario
+## para que la cola se lea de un vistazo.
+##
+## 📌 Nota de oficio, por si algún día se quiere revisar: a tamaño de juego la cara son 3-4 píxeles,
+## así que el color de piel es una señal DÉBIL. La fuerte —y la que ya funcionaba— es el COLOR DEL
+## TORSO (`COLOR_TIE` frente a `COLOR_DOC`), que ocupa diez veces más. La piel suma, pero el que de
+## verdad distingue la cola es el torso.
+const PIEL_TIE := Color(0.64, 0.45, 0.40)           # el tono del render original
+## Por defecto (policías y quien no diga otra cosa): el primero de los europeos.
+const PIEL := Color(0.91, 0.78, 0.69)
+
+
+## El tono de piel de una persona, repartido de forma determinista por su número de turno: la cola
+## se ve variada pero cada uno mantiene SIEMPRE el suyo.
+static func piel_de(numero_turno: int) -> Color:
+	return PIELES_EUROPEAS[posmod(numero_turno, PIELES_EUROPEAS.size())]
 ## La franja clara del pecho: es el "POLICÍA NACIONAL" serigrafiado. A este tamaño no se puede leer,
 ## pero la MANCHA clara sí se ve, y es lo que dice "este lleva algo escrito en el pecho".
 const ROTULO_PECHO := Color(0.86, 0.87, 0.90)
@@ -77,6 +109,8 @@ const ROTULO_PECHO := Color(0.86, 0.87, 0.90)
 const FRACCION_MANGA: float = 0.42
 ## Qué fracción de la pierna es BOTA (son de media caña).
 const FRACCION_BOTA: float = 0.42
+## Color de los ojos. Casi negro, no negro puro: a este tamaño el negro puro hace agujeros.
+const COLOR_OJOS := Color(0.12, 0.10, 0.10)
 
 
 ## Monta un muñeco completo y lo devuelve. `color` es el del torso (el del servicio, en los
@@ -113,6 +147,14 @@ static func construir(
 		"Cabeza", Vector2(-ANCHO_CABEZA * 0.5, y_cabeza), Vector2(ANCHO_CABEZA, ALTO_CABEZA),
 		color_piel
 	))
+	# LOS OJOS. Dos puntos, y solo se ven cuando el muñeco viene HACIA la cámara: es lo que hace que
+	# se sepa de un vistazo si alguien va o viene, sin dibujar un solo sprite nuevo. De espaldas se
+	# ocultan y lo que queda es la nuca (la cabeza pelada), que es exactamente lo que verías.
+	var ojos := Node2D.new()
+	ojos.name = "Ojos"
+	ojos.add_child(_caja("Izq", Vector2(-2.5, y_cabeza + 2.0), Vector2(1.5, 1.5), COLOR_OJOS))
+	ojos.add_child(_caja("Der", Vector2(1.0, y_cabeza + 2.0), Vector2(1.5, 1.5), COLOR_OJOS))
+	raiz.add_child(ojos)
 	if con_gorra:
 		# La gorra es lo que distingue al funcionario de un vistazo, incluso a tamaño diminuto: es
 		# lo primero que sobrevive cuando el muñeco se ve pequeño (art bible: la silueta manda).
@@ -179,6 +221,28 @@ static func animar(muneco: Node2D, fase: float, andando: float) -> void:
 	# Los brazos, al REVÉS que la pierna de su mismo lado: así es como anda una persona.
 	(muneco.get_node("BrazoIzq") as Node2D).rotation = -vaiven * AMPLITUD_BRAZO
 	(muneco.get_node("BrazoDer") as Node2D).rotation = vaiven * AMPLITUD_BRAZO
+
+
+## ── HACIA DÓNDE MIRA (2026-07-31) ────────────────────────────────────────────────────────────
+## Encargo del usuario: *"solo que camine y que cambie de dirección y se vea bien"*.
+##
+## En isométrico hay cuatro direcciones de marcha, y en pantalla se reducen a dos preguntas:
+##   · ¿va hacia la IZQUIERDA o hacia la DERECHA?  → se espeja el muñeco entero
+##   · ¿viene HACIA la cámara o se va de ESPALDAS? → se le ven los ojos, o no
+##
+## Con esas dos se cubren las cuatro direcciones **sin un solo dibujo nuevo**. Es el truco de
+## siempre en los juegos 2D: no se dibujan cuatro personajes, se reutiliza uno.
+##
+## El rótulo del pecho también se oculta de espaldas — por detrás no se ve lo que pone delante.
+static func orientar(muneco: Node2D, hacia_izquierda: bool, de_espaldas: bool) -> void:
+	# Espejar con la escala: -1 en X da la vuelta a todo el conjunto de una vez, piezas incluidas.
+	muneco.scale.x = -1.0 if hacia_izquierda else 1.0
+	var ojos: Node2D = muneco.get_node_or_null("Ojos")
+	if ojos != null:
+		ojos.visible = not de_espaldas
+	var rotulo: Node = muneco.get_node_or_null("Rotulo")
+	if rotulo != null:
+		(rotulo as CanvasItem).visible = not de_espaldas
 
 
 ## Cuánto sube el cuerpo en este instante del paso. Va aparte porque lo aplica quien COLOCA al

@@ -2187,3 +2187,47 @@ piernas, no.
 - **Las 8 direcciones**: hoy el muñeco no mira hacia donde anda. Es lo siguiente que se nota.
 - El sprite realista queda como **referencia de uniforme** (`design/art/referencias/`), no como arte
   de juego. Sirve para el modelo 3D, que es otra sesión.
+
+---
+
+## ✅ 2026-07-31 — ODAC #9 CERRADO: la última pieza del MVP
+
+**Suite: 698 casos, 0 fallos, exit 0** (685 + 13 nuevos).
+
+### La sorpresa al abrirlo: el modelo YA estaba hecho
+
+Antes de escribir nada se leyó el GDD y el código, y **tres de las cuatro piezas ya existían**:
+
+| Pieza | Dónde estaba ya |
+|---|---|
+| Prioridad de denuncias (OD3) | `Flujo._rango_prioridad` + `elegir_de_cola` por `(rango, turno)` |
+| Peso 2,5× en reputación (F1) | `Paciencia.peso_prioridad_prioritaria` |
+| Reconfigurar un puesto (FL9) | `Flujo.reconfigurar_puesto` con `override` |
+
+Lo que faltaba era **la palanca del jugador**: no había forma de usar nada de eso. Por eso ODAC ha
+salido pequeño a propósito — **no duplica** lo que ya funcionaba.
+
+### Lo escrito
+
+- **`src/feature/odac/odac.gd`** (`ODAC`): dueño de la POLÍTICA. Los 4 modos (Polivalente / Solo
+  prioritarias / Solo normales / A medida), su traducción a listas de denuncias, y
+  `denuncias_sin_cubrir()` — el diagnóstico de la válvula anti-inanición. Persistible (grupo
+  "Persist"), y al cargar **reaplica** los modos a Flujo (si solo los anotara, el panel diría una
+  cosa y el puesto haría otra).
+- **`src/main/panel_odac.gd`** (tecla **O**): los tres modos de un clic, cada uno con su frase de
+  CONSECUENCIA, y un **aviso en rojo** si alguna denuncia se ha quedado sin ventanilla.
+- **`Flujo.tipo_de_puesto_flujo()`**: getter nuevo para que ODAC sepa qué puestos son suyos sin
+  mantener una lista propia que se quedaría vieja al construir o demoler.
+
+### La regla de juego que hay detrás (y que el test estrella prueba)
+
+Las urgentes pasan SIEMPRE delante y no hay envejecimiento de cola en el MVP: si llegan urgencias
+seguidas, **las administrativas pueden no atenderse nunca**. La reconfiguración ES la válvula.
+`test_avisa_de_las_denuncias_que_se_quedan_sin_ventanilla` y
+`test_dedicar_una_ventanilla_a_normales_lo_arregla` prueban exactamente eso.
+
+### Alcance declarado
+
+El modo **"a medida"** está en el modelo y probado (incluido que descarta tipos inventados de un
+save manipulado) pero **no tiene botón**: son 13 casillas por puesto y eso es UI fina de UI/HUD #11.
+Se prefirió no ofrecerlo a medias.
