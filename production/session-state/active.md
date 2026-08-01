@@ -2460,14 +2460,30 @@ Un explorador web barrió Sketchfab (por API)/poly.pizza/Quaternius/Kenney. La p
 
 ## Pendientes de esta sesión
 
-- Usuario: nombrar objetos del catálogo v2 (`OBJ_NNN = mesa...`) cuando esté la hoja.
-- Usuario: veredicto de la pareja de policías con los sprites de prueba delante (y §5 del art bible
-  — cara sí/no — se decide con esos mismos sprites a 44 px).
-- Paso 2 del plan: sustituir muebles placeholder (PiezaIso) por sprites del pack, cuando el usuario
-  haya elegido las piezas. Al usuario le gustan del pack: LAS PAREDES, los objetos y esa forma de
-  diseñar habitaciones → guía de estilo para este paso.
-- Si la pareja J-Toastie se aprueba: fila en CREDITS.md ANTES de que sus sprites entren en assets/
-  ("Male Officer" https://poly.pizza/m/ipEgtSYI8u y "Female Officer" https://poly.pizza/m/g6Pu2llnES,
-  by J-Toastie, CC BY 3.0) + mover los dos de restore50 a descartados.
-- Sin tocar de otras sesiones: sign-off Bienestar #13, U9 (qué falla del trazado de muros), falda
-  de "girl", modo "a medida" de ODAC sin botones en panel O.
+*(Sección histórica — TODO lo de aquí abajo se COMPLETÓ durante la propia sesión: policías
+aprobados, integrados y con orientación corregida; §5 cerrado; mobiliario elegido pieza a pieza
+por el usuario e integrado en dos tandas; CREDITS al día con J-Toastie EN USO.)*
+
+---
+
+# 🏁 CIERRE DE SESIÓN 2026-08-01 (madrugada/mañana) — TRASPASO
+
+**El prompt de traspaso COMPLETO está en `production/session-state/traspaso-proxima-sesion.md`
+(leerlo entero: modo de trabajo, estado, tarea siguiente, gotchas nuevos y reglas).** Resumen de un
+vistazo:
+
+- **EN EL JUEGO**: policías J-Toastie (andar+sentado+8 dir bien orientadas, género por nombre) y
+  9 muebles del pack (mostrador con teléfono, pantallas, papelera, dispensador, radio, sofá 3
+  plazas, 2 sillas). Suite 698/0 verificada en cada pasada. Pusheado hasta `955332e`.
+- **⚠️ EN VUELO al cerrar**: el fix de capas/orientación de las sillas de la ventanilla (ADR-0005,
+  mecanismo de capas con nombre) — un agente quedó trabajando; VERIFICAR SU ESTADO es el primer
+  paso de la sesión siguiente (git status + composites + suite).
+- **DISEÑO CERRADO listo para implementar**: la mecánica de la impresora de documentos
+  (design/gdd/impresora-documentos-tramite.md) — objetos obligatorios por sala, viaje del papel,
+  mantenimiento por turno de uso (2 €/turno). Es la tarea estrella de la próxima sesión.
+- **Fuente de verdad del mobiliario**: design/art/mapa-integracion-mobiliario.md (decisiones del
+  usuario fila a fila + ideas futuras: seguridad de entrada, despacho Judicial, decoración pared).
+- **Reglas nuevas**: ADR-0005 (orden de capas fijo, prohibido add_child suelto en contenedor
+  compartido) + arranque en pausa con `-- --pausa` para los hitos visibles.
+- Pendientes heredados: sign-off Bienestar #13 · U9 muros · ODAC "a medida" en panel O · falda de
+  girl · pantalla de créditos del juego (obligación CC BY) · impresora de DNI sin asset.
