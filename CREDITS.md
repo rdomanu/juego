@@ -14,8 +14,8 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | Asset | Autor | Licencia | Uso en el juego | Estado |
 |---|---|---|---|---|
 | ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (pendiente de vestir con el uniforme del CNP) | **En evaluación** |
-| ["Police Officer Portrait"](https://skfb.ly/pKqVq) | restore50 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Policía masculino | **En evaluación** |
-| ["Police Officer in Uniform"](https://skfb.ly/pKqUM) | restore50 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Policía femenina | **En evaluación** |
+| ["Male Officer"](https://poly.pizza/m/ipEgtSYI8u) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía masculino (sprites vía pipeline 3D→sprites) | **Aprobado por el usuario, integración en curso** |
+| ["Female Officer"](https://poly.pizza/m/g6Pu2llnES) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía femenina (piel unificada al tono del masculino) | **Aprobado por el usuario, integración en curso** |
 | ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En evaluación** |
 
 ### Texto de atribución a incluir en los créditos del juego
@@ -25,13 +25,13 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 is licensed under Creative Commons Attribution
 (http://creativecommons.org/licenses/by/4.0/).
 
-"Police Officer Portrait" (https://skfb.ly/pKqVq) by restore50
+"Male Officer" (https://poly.pizza/m/ipEgtSYI8u) by J-Toastie
 is licensed under Creative Commons Attribution
-(http://creativecommons.org/licenses/by/4.0/).
+(https://creativecommons.org/licenses/by/3.0/). — modificado
 
-"Police Officer in Uniform" (https://skfb.ly/pKqUM) by restore50
+"Female Officer" (https://poly.pizza/m/g6Pu2llnES) by J-Toastie
 is licensed under Creative Commons Attribution
-(http://creativecommons.org/licenses/by/4.0/).
+(https://creativecommons.org/licenses/by/3.0/). — modificado (tono de piel)
 
 "Isometric office" (https://skfb.ly/6TVso) by Companion_Cube
 is licensed under Creative Commons Attribution
@@ -84,3 +84,4 @@ se copia es el conocimiento, no el archivo. Distinto sería incluir la imagen en
 |---|---|
 | `stylized-girl.zip` (Sketchfab) | Sin esqueleto (0 `Deformer`/`Skin`): no puede animarse. Solo cabeza, sin uniforme. Y el archivo se llama "sell on sketchfab" → licencia de pago sin aclarar |
 | `asset_azLhfgxR14...glb` (3D desde una foto) | Bajorrelieve: 0,25 de fondo/ancho frente al ~0,60 de una persona. Sin esqueleto. Solo válido de frente |
+| "Police Officer Portrait" y "Police Officer in Uniform" (Sketchfab, restore50, CC BY 4.0) | Sin esqueleto (0 skins, 0 joints, 0 animaciones, verificado con Python sobre el GLB): estatuas de una pieza que no pueden andar ni sentarse. Además ~300K/290K triángulos, ×30 el presupuesto del estilo low-poly. Sustituidos por la pareja de J-Toastie |

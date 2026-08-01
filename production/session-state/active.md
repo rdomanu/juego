@@ -2402,3 +2402,72 @@ Cuatro bugs, cuatro veces que **medir** resolvió en un minuto lo que suponer no
 
 Y una que se resolvió **probando las cuatro combinaciones y mirando**: los signos de cadera y rodilla
 al sentarse. Con rigs ajenos no se deduce: se renderiza y se mira.
+
+---
+
+# 🎨 2026-08-01 (noche) — SESIÓN DE DISEÑOS EN CURSO (Fable 5 coordina, subagentes ejecutan)
+
+**Estado verificado al arrancar: 698/698 casos, 0 fallos, exit 0 de GdUnit · arranque headless limpio
+· árbol limpio.** Modo de trabajo: ultracode (el usuario lo pidió) — subagentes Sonnet 5 en paralelo,
+Fable 5 verifica TODO mirando archivos/PNG, no informes.
+
+## Hecho y commiteado
+
+- **`a720398` docs(legal)**: las TRES atribuciones completas en CREDITS.md, aportadas por el usuario:
+  policías "Police Officer Portrait"/"in Uniform" de **restore50** (CC BY 4.0) y "Isometric office"
+  de **Companion_Cube** (CC BY 4.0). Nota: del pack de oficina solo se usa la GEOMETRÍA — sus
+  texturas incrustadas (pósters/cuadros/fotos) son material de terceros sin procedencia clara y NO
+  entran en el juego. (El usuario pidió no mencionar el origen televisivo del pack: respetado, no
+  consta en ningún doc.)
+- **`d98614f` feat(arte)**: `tools/render_catalogo_oficina.gd` + `.tscn` — catálogo visual v1 del
+  pack: 748 miniaturas aisladas (una por malla) + hoja de contactos `index.html` + manifiesto JSON
+  con la posición mundial de cada instancia. Los PNG quedan fuera de git (`capturas/`).
+  **Bug cazado EN VERIFICACIÓN, no por el informe del agente**: las mallas se acumulaban en el
+  viewport y cada foto salía con vecinos colados (la misma pared verde en fotos distintas la
+  delató). El agente se quedó DOS VECES sin turno antes de mirar sus PNG — la regla del traspaso
+  ("verifica tú mismo") pagó la sesión entera.
+
+## ⭐ Descubrimiento clave: los dos policías de Sketchfab NO SIRVEN
+
+Radiografiados con Python (chunk JSON del GLB) y **verificado por el hilo principal**: `skins=0,
+joints=0, animaciones=0` en ambos. Son ESTATUAS de una pieza (y encima 335K/290K triángulos, ×30 el
+estilo low-poly). Cuerpo entero sí ("Portrait" era solo el título), pero sin esqueleto no andan, no
+se sientan, nada. Quedan "En evaluación" en CREDITS.md; si no se usan → tabla de descartados.
+
+## ⭐ Los sustitutos: pareja "Male/Female Officer" de J-Toastie (poly.pizza, CC BY 3.0)
+
+Un explorador web barrió Sketchfab (por API)/poly.pizza/Quaternius/Kenney. La pareja ganadora está
+**ya descargada** (sin login, CDN público) en `capturas/NPC/Policias/candidatos/` y radiografiada:
+- 0,27 MB y ~5.100 tris cada uno (low-poly DE VERDAD), un personaje por archivo.
+- **Esqueleto de 27 huesos + 5 animaciones propias** — incluida `Armature|Walk`. No hay que
+  inventarles el andar.
+- **SIN codos ni rodillas** (brazo y pierna = una pieza; convención `.L`/`.R`: `Foot.L`, `Hand.R`,
+  `CORE`…). Consecuencia: el sentado no existe y hay que TRUCARLO (pierna entera a la horizontal +
+  bajar el cuerpo). A 44 px y con el mostrador tapando piernas puede colar — SE DECIDE MIRANDO.
+- Uniforme muestreado sobre la malla: azul marino casi negro (tono CNP). Textura = paleta de
+  franjas `GGrid.png` compartida byte a byte por ambos (misma familia visual garantizada).
+
+## En marcha ahora mismo (2 subagentes en background)
+
+1. **Catálogo v2 "objetos enteros"**: el usuario vio la v1 y los muebles salen DESPIEZADOS (ruedas
+   / asiento / respaldo sueltos: el pack está horneado así). El agente agrupa por proximidad de
+   AABBs mundiales (manifiesto v1), arquitectura aparte, y renderiza cada cluster montado →
+   `catalogo/objetos/` + `index_objetos.html`. AVISAR AL USUARIO Y ABRIRLE LA HOJA al terminar.
+2. **Render de prueba de la pareja J-Toastie**: `tools/render_sprites_animado.gd` (variante que
+   MUESTREA la animación embebida en vez de posar huesos; carga por GLTFDocument para no pasar por
+   `--import`): 8 dir × 8 fotogramas de andar + reposo + 4 variantes de sentado trucado →
+   `candidatos/render_test/` + hoja. El usuario da el veredicto MIRANDO.
+
+## Pendientes de esta sesión
+
+- Usuario: nombrar objetos del catálogo v2 (`OBJ_NNN = mesa...`) cuando esté la hoja.
+- Usuario: veredicto de la pareja de policías con los sprites de prueba delante (y §5 del art bible
+  — cara sí/no — se decide con esos mismos sprites a 44 px).
+- Paso 2 del plan: sustituir muebles placeholder (PiezaIso) por sprites del pack, cuando el usuario
+  haya elegido las piezas. Al usuario le gustan del pack: LAS PAREDES, los objetos y esa forma de
+  diseñar habitaciones → guía de estilo para este paso.
+- Si la pareja J-Toastie se aprueba: fila en CREDITS.md ANTES de que sus sprites entren en assets/
+  ("Male Officer" https://poly.pizza/m/ipEgtSYI8u y "Female Officer" https://poly.pizza/m/g6Pu2llnES,
+  by J-Toastie, CC BY 3.0) + mover los dos de restore50 a descartados.
+- Sin tocar de otras sesiones: sign-off Bienestar #13, U9 (qué falla del trazado de muros), falda
+  de "girl", modo "a medida" de ODAC sin botones en panel O.
