@@ -49,7 +49,10 @@
 ## Forbidden Patterns
 
 <!-- Add patterns that should never appear in this project's codebase -->
-- [None configured yet — add as architectural decisions are made]
+- **PROHIBIDO añadir un hijo visual a un contenedor isométrico compartido sin declarar su CAPA**
+  (ADR-0005). El orden silla → personaje → mesa es FIJO y lo gestiona el mecanismo de capas del
+  contenedor; nunca `add_child`/`move_child` sueltos. Aplica a TODO lo nuevo (muebles, personajes,
+  decorados). Verificación: fotomontaje que replique el orden de capas real antes de tocar el juego.
 
 ## Allowed Libraries / Addons
 
