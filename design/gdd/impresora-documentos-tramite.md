@@ -71,16 +71,20 @@ La comisaría respira: se ve a los funcionarios levantarse a por papeles, y el j
   impresoras; al cargar un save sin ellas se aplica el mismo patrón idempotente que la fachada
   (se recolocan si faltan). *(Detalle de implementación, coherente con lo decidido.)*
 
-## 🔢 Números de la comodidad — PROPUESTA (pendiente del OK del usuario)
+## 🔢 Números de la comodidad — ✅ APROBADOS por el usuario (2026-08-01, con su ajuste)
 
 Referencias: impresora_dni 2.200 € / 3 €/día / aporte 6,0 · dispensador 180 € / 1 €/día / 1,5.
 
-| Campo | Propuesta | Razón |
+| Campo | Valor | Razón |
 |---|---|---|
 | Coste | **600 €** | obligatoria por sala: no puede ser un lujo que castigue ampliar |
-| Mantenimiento | **2 €/día** | tinta y papel; entre el dispensador y la impresora de DNI |
+| Mantenimiento | **2 € por TURNO en que su sala atiende** (ajuste del usuario: pagar por uso, no tarifa plana) | ODAC 24 h = 3 turnos = **6 €/día** · TIE solo mañana = **2 €/día** · TIE con peonada de tarde = **4 €/día** · sala cerrada = 0 € |
 | Aporte (familia funcionario) | **2,0** | modesto: su valor real es FUNCIONAL (el papel), no el confort |
 | Huella | 1 celda | como el resto de comodidades de suelo |
+
+> Regla del mantenimiento, formalizada: `coste_dia = 2 € × nº de turnos del día en que la sala de
+> la impresora está operativa/atendiendo`. Es la primera comodidad con mantenimiento por USO — si
+> el patrón gusta, es generalizable (tuning knob por comodidad).
 
 ## Acceptance Criteria (cuando se cierre el diseño)
 

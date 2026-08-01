@@ -1631,6 +1631,24 @@ const COLOR_LUZ_TECHO := Color(1.0, 0.82, 0.35)
 const COLOR_SILLA_ESPERA := Color(0.38, 0.36, 0.34)
 ## La silla la construye la misma pieza que usan las ventanillas: una sola definición de "silla".
 const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
+
+## ── SPRITE DE LA COMODIDAD "equipo_informatico" (2026-08-01) ─────────────────────────────────
+## Las 2 pantallas del cluster OBJ_042 (`tools/render_mobiliario.gd`, receta
+## `comodidad_equipo_informatico` — SOLO los monitores, sin la silla roja ni el teclado/ratón/taza
+## que traía el cluster junto a ellos) sustituyen a la caja gris genérica de esta comodidad
+## concreta. Por CONVENCIÓN DE NOMBRE de archivo (`<id_catalogo>_<rotación>.png`) — el resto del
+## catálogo de comodidades (sofá, dispensador, vending…) sigue con su caja de siempre hasta que
+## tengan su propio sprite.
+const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
+const COMODIDAD_EQUIPO_INFORMATICO := &"equipo_informatico"
+## Fija a 0°: una comodidad no tiene "frente" (no hay funcionario/ciudadano a los que mirar, a
+## diferencia del mostrador de la ventanilla), así que cualquier rotación vale — se deja en la que
+## se renderizó de calibración, sin lógica de orientación añadida.
+const ROT_EQUIPO_INFORMATICO: int = 0
+## Ancla del sprite (fracción del ancho/alto donde cae el centro de la celda) — impresa por
+## `render_mobiliario.gd` al renderizar, misma cuenta que `MesaAtencionScript.ANCLA_FRACCION_
+## MOSTRADOR` (ver la cabecera de esa herramienta).
+const ANCLA_FRACCION_EQUIPO_INFORMATICO := Vector2(0.501, 0.760)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -1782,7 +1800,7 @@ func _refrescar_visual() -> void:
 			continue
 		var orientacion: int = elemento.get("orientacion", HORIZONTAL)
 		var instancia: Node2D = _crear_pieza(
-			es_asiento, celdas, orientacion, es_de_techo(elemento["catalogo"])
+			es_asiento, celdas, orientacion, es_de_techo(elemento["catalogo"]), elemento["catalogo"]
 		)
 		instancia.position = Proyeccion.centro_iso(elemento["celda"])
 		if not es_asiento:
@@ -1828,7 +1846,8 @@ func _textura_de_celda(color: Color) -> ImageTexture:
 ##
 ## Sigue siendo placeholder (TR-construction-003): el arte real llegará tras el art bible.
 func _crear_pieza(
-	es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL, de_techo: bool = false
+	es_asiento: bool, celdas: int, orientacion: int = HORIZONTAL, de_techo: bool = false,
+	id_catalogo: StringName = &""
 ) -> Node2D:
 	var raiz := Node2D.new()
 	# UN ASIENTO es UNA SILLA de verdad, con respaldo (petición del usuario 2026-08-01): sale por
@@ -1838,19 +1857,23 @@ func _crear_pieza(
 	if es_asiento and not de_techo:
 		raiz.add_child(MesaAtencionScript.silla(Vector2(-20.0, 10.0), COLOR_SILLA_ESPERA))
 		return raiz
-	var caja := PiezaIso.new()
-	caja.name = "Caja"
-	# La huella crece en +X o en +Y según cómo esté girada la pieza (rotar con R, 2026-07-30) — es
-	# el MISMO eje que reserva el modelo en `_celdas_de`, así que lo que se ve es lo que se ocupa.
-	var ancho: int = 1 if orientacion == VERTICAL else celdas
-	var largo: int = celdas if orientacion == VERTICAL else 1
-	if de_techo:
-		# Una luz se marca con un PUNTO ÁMBAR, no con una caja: cuelga del techo, no ocupa suelo y no
-		# debe tapar lo que haya debajo (petición del usuario 2026-07-30).
-		caja.configurar(1, 1, 0.0, COLOR_LUZ_TECHO, 1.0, true)
+	if not de_techo and id_catalogo == COMODIDAD_EQUIPO_INFORMATICO and _hay_sprite_comodidad(id_catalogo):
+		raiz.add_child(_pieza_sprite_comodidad(id_catalogo))
 	else:
-		caja.configurar(ancho, largo, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
-	raiz.add_child(caja)
+		var caja := PiezaIso.new()
+		caja.name = "Caja"
+		# La huella crece en +X o en +Y según cómo esté girada la pieza (rotar con R, 2026-07-30) —
+		# es el MISMO eje que reserva el modelo en `_celdas_de`, así que lo que se ve es lo que se
+		# ocupa.
+		var ancho: int = 1 if orientacion == VERTICAL else celdas
+		var largo: int = celdas if orientacion == VERTICAL else 1
+		if de_techo:
+			# Una luz se marca con un PUNTO ÁMBAR, no con una caja: cuelga del techo, no ocupa suelo y
+			# no debe tapar lo que haya debajo (petición del usuario 2026-07-30).
+			caja.configurar(1, 1, 0.0, COLOR_LUZ_TECHO, 1.0, true)
+		else:
+			caja.configurar(ancho, largo, ALTO_MOSTRADOR, Color(0.30, 0.33, 0.40))
+		raiz.add_child(caja)
 	if not es_asiento:
 		var etiqueta := Label.new()
 		etiqueta.name = "Etiqueta"
@@ -1862,6 +1885,36 @@ func _crear_pieza(
 		# un puesto no llegaban a la herramienta de demoler. Decorativo: IGNORE.
 		etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		raiz.add_child(etiqueta)
+	return raiz
+
+
+## ¿Hay un sprite renderizado para esta comodidad? Por ahora solo `equipo_informatico` tiene uno
+## (ver la constante `COMODIDAD_EQUIPO_INFORMATICO` arriba) — cualquier otro id cae siempre a la
+## caja gris, sin necesidad de comprobar nada.
+func _hay_sprite_comodidad(id_catalogo: StringName) -> bool:
+	return ResourceLoader.exists(_ruta_sprite_comodidad(id_catalogo))
+
+
+func _ruta_sprite_comodidad(id_catalogo: StringName) -> String:
+	return "%scomodidad_%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, String(id_catalogo), ROT_EQUIPO_INFORMATICO]
+
+
+## La comodidad de sprite: un `Sprite2D` anclado por el mismo punto que la `PiezaIso` que sustituye
+## (el centro de la celda, `Vector2.ZERO` en local) — mismo patrón que
+## `MesaAtencionScript._pieza_sprite_mostrador`.
+func _pieza_sprite_comodidad(id_catalogo: StringName) -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Caja"
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.centered = false
+	var textura: Texture2D = load(_ruta_sprite_comodidad(id_catalogo))
+	sprite.texture = textura
+	sprite.offset = Vector2(
+		-textura.get_width() * ANCLA_FRACCION_EQUIPO_INFORMATICO.x,
+		-textura.get_height() * ANCLA_FRACCION_EQUIPO_INFORMATICO.y
+	)
+	raiz.add_child(sprite)
 	return raiz
 
 

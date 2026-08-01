@@ -17,8 +17,8 @@ ADR-0004: esto es CAPA VISUAL — el modelo no se entera.
 
 | Pieza del pack | Destino en el juego | Nota |
 |---|---|---|
-| **ARQ_007** (sofá de 3 plazas; estaba mal archivado como "arquitectura" por tamaño) | Sofá de la **sala de descanso** (`sofa_descanso`) | identificado por el usuario 2026-08-01 |
-| OBJ_011 | Candidato para el sofá-asiento de 3 celdas de la sala de espera (a confirmar por el usuario) | antes apuntaba a sofa_descanso; lo sustituye ARQ_007 |
+| **ARQ_007** (sofá de 3 plazas; estaba mal archivado como "arquitectura" por tamaño) | El **sofá-asiento de 3 CELDAS** (el asiento largo multi-celda: 3 plazas = 3 celdas) | identificado por el usuario 2026-08-01 |
+| **OBJ_011** (sofá de 1 plaza) | La comodidad **`sofa_descanso`** de la sala de descanso (1 celda) | confirmado por el usuario 2026-08-01 |
 | **OBJ_040** | Papelera | — |
 | **OBJ_002** (vía despiece) | Dispensador de agua | — |
 | **silla_simple** (elegir la MÁS REPETIDA del pack entre OBJ_023/024/030/032) | Silla de espera (`asiento_basico`) | criterio objetivo: la que el autor del pack más usó |
@@ -46,9 +46,7 @@ ADR-0004: esto es CAPA VISUAL — el modelo no se entera.
 
 ## Pendiente de decisión del usuario
 
-| Elemento del juego | Candidato propuesto |
-|---|---|
-| Sofá-asiento de 3 celdas de la sala de espera | OBJ_011 (sí/no) |
+*(Nada — todas las piezas del mobiliario tienen decisión a 2026-08-01.)*
 
 ## Sin candidato en el pack (se queda el visual actual)
 

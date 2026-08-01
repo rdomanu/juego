@@ -14,9 +14,9 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | Asset | Autor | Licencia | Uso en el juego | Estado |
 |---|---|---|---|---|
 | ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (pendiente de vestir con el uniforme del CNP) | **En evaluación** |
-| ["Male Officer"](https://poly.pizza/m/ipEgtSYI8u) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía masculino (sprites vía pipeline 3D→sprites) | **Aprobado por el usuario, integración en curso** |
-| ["Female Officer"](https://poly.pizza/m/g6Pu2llnES) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía femenina (piel unificada al tono del masculino) | **Aprobado por el usuario, integración en curso** |
-| ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En evaluación** |
+| ["Male Officer"](https://poly.pizza/m/ipEgtSYI8u) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía masculino (sprites vía pipeline 3D→sprites) | **En uso** (2026-08-01) |
+| ["Female Officer"](https://poly.pizza/m/g6Pu2llnES) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía femenina (piel unificada al tono del masculino) | **En uso** (2026-08-01) |
+| ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En uso** (2026-08-01: mostrador de ventanilla y pantallas del equipo informático) |
 
 ### Texto de atribución a incluir en los créditos del juego
 

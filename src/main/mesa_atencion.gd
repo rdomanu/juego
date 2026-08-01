@@ -66,6 +66,56 @@ const ESCALA_SILLA: float = 0.42
 const COLOR_SILLA := Color(0.30, 0.32, 0.38)
 
 
+## ── SPRITE DEL MOSTRADOR (2026-08-01) ─────────────────────────────────────────────────────────
+## Igual que el muñeco del policía (`muneco.gd::hay_sprites`): si hay un render 3D del pack de
+## oficina para el mostrador (`tools/render_mobiliario.gd`, receta `mostrador_atencion` = OBJ_021
+## SIN la silla que traía horneada — el funcionario usa la suya propia, de OBJ_042, en otra
+## pasada), se dibuja ESE en vez de las cajas de código. El sprite ya trae su propio monitor,
+## teclado, ratón y teléfono montados encima, así que Tablero/Teclado/Monitor/Papeles/Papeles2
+## SOBRAN con él puesto — se decidió MIRANDO el render (un papel no pinta nada sobre un
+## escritorio de madera que ya trae su propio teléfono). Las SILLAS siguen siendo de código: no
+## vinieron en este render.
+const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
+## Solo 0° por ahora: los puestos de atención SIEMPRE se construyen con la misma orientación fija
+## (`HACIA_FUNCIONARIO`/`HACIA_CIUDADANO` no dependen de `orientacion` — `Construccion._crear_
+## pieza` ni se la pasa a los puestos), así que no hace falta elegir entre las 4 rotaciones
+## renderizadas. 0° es la que se vio, mirando las 4: el monitor de espaldas a cámara (nunca se le
+## enseña la pantalla al ciudadano, ver la cabecera del fichero) y sin nada raro en el encuadre.
+const ROT_MOSTRADOR: int = 0
+## Dónde cae el ANCLA (el centro del rombo de la celda, el mismo punto que usa
+## `Proyeccion.centro_iso`) dentro del PNG, como fracción de su ancho/alto — la imprime
+## `render_mobiliario.gd` al renderizar (no se adivina: sale de centrar la cámara 3D en el punto
+## donde el mueble "pisa" el suelo, ver la cabecera de esa herramienta).
+const ANCLA_FRACCION_MOSTRADOR := Vector2(0.503, 0.765)
+
+
+## ¿Hay un sprite renderizado del mostrador?
+static func hay_sprite_mostrador() -> bool:
+	return ResourceLoader.exists(_ruta_sprite_mostrador())
+
+
+static func _ruta_sprite_mostrador() -> String:
+	return "%smostrador_atencion_%d.png" % [RUTA_SPRITES_MOBILIARIO, ROT_MOSTRADOR]
+
+
+## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
+## centro de la celda, `Vector2.ZERO` en local) — no por su esquina ni por su centro geométrico.
+static func _pieza_sprite_mostrador() -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Tablero"
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.centered = false
+	var textura: Texture2D = load(_ruta_sprite_mostrador())
+	sprite.texture = textura
+	sprite.offset = Vector2(
+		-textura.get_width() * ANCLA_FRACCION_MOSTRADOR.x,
+		-textura.get_height() * ANCLA_FRACCION_MOSTRADOR.y
+	)
+	raiz.add_child(sprite)
+	return raiz
+
+
 ## Una silla mirando hacia `hacia_atras` (el respaldo se pone a ese lado). El vector va en píxeles
 ## de pantalla, así que se usan las mismas constantes de lado que la mesa.
 static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
@@ -84,27 +134,31 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 static func construir() -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Mesa"
-	raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))
-	# Todo lo que va ENCIMA se sube el alto de la mesa: si no, quedaría metido dentro del tablero.
-	var encima := Vector2(0.0, -ALTO_MESA)
-	# Del lado del funcionario: teclado delante y monitor detrás (él lo mira de frente).
-	raiz.add_child(_pieza(
-		"Teclado", encima + HACIA_FUNCIONARIO * 0.55, ALTO_TECLADO, ESCALA_TECLADO, COLOR_TECLADO
-	))
-	raiz.add_child(_pieza(
-		"Monitor", encima + HACIA_FUNCIONARIO, ALTO_MONITOR, ESCALA_MONITOR, COLOR_MONITOR
-	))
-	# Del lado del ciudadano: los papeles que viene a firmar.
-	raiz.add_child(_pieza(
-		"Papeles", encima + HACIA_CIUDADANO, ALTO_PAPEL, ESCALA_PAPEL, COLOR_PAPEL
-	))
-	raiz.add_child(_pieza(
-		"Papeles2", encima + HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
-		COLOR_PAPEL.darkened(0.08)
-	))
+	if hay_sprite_mostrador():
+		raiz.add_child(_pieza_sprite_mostrador())
+	else:
+		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))
+		# Todo lo que va ENCIMA se sube el alto de la mesa: si no, quedaría metido dentro del tablero.
+		var encima := Vector2(0.0, -ALTO_MESA)
+		# Del lado del funcionario: teclado delante y monitor detrás (él lo mira de frente).
+		raiz.add_child(_pieza(
+			"Teclado", encima + HACIA_FUNCIONARIO * 0.55, ALTO_TECLADO, ESCALA_TECLADO, COLOR_TECLADO
+		))
+		raiz.add_child(_pieza(
+			"Monitor", encima + HACIA_FUNCIONARIO, ALTO_MONITOR, ESCALA_MONITOR, COLOR_MONITOR
+		))
+		# Del lado del ciudadano: los papeles que viene a firmar.
+		raiz.add_child(_pieza(
+			"Papeles", encima + HACIA_CIUDADANO, ALTO_PAPEL, ESCALA_PAPEL, COLOR_PAPEL
+		))
+		raiz.add_child(_pieza(
+			"Papeles2", encima + HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
+			COLOR_PAPEL.darkened(0.08)
+		))
 	# LAS DOS SILLAS de la ventanilla: la del funcionario detrás y la del ciudadano delante. Van al
-	# final para que se dibujen por encima del tablero, que es lo que corresponde: están fuera de la
-	# mesa, no dentro.
+	# final para que se dibujen por encima del tablero (código o sprite), que es lo que corresponde:
+	# están fuera de la mesa, no dentro. No vinieron en el render de OBJ_021 (se excluyó la silla
+	# horneada a propósito), así que siguen siendo SIEMPRE de código.
 	var suya: Node2D = silla(HACIA_FUNCIONARIO.normalized() * 20.0)
 	suya.name = "SillaFuncionario"
 	suya.position = HACIA_FUNCIONARIO
