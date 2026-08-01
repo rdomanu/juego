@@ -1,6 +1,7 @@
 # Ampliación de GDD — La impresora de documentos y el viaje del papel
 
-**Estado: BORRADOR — pendiente de 3 decisiones del usuario (abajo). NO implementar hasta cerrarlas.**
+**Estado: DISEÑO CERRADO por el usuario (2026-08-01). Pendiente: (a) los números de la comodidad
+(propuesta al final, falta su OK) y (b) la implementación como historia con tests.**
 Propuesto por el usuario el 2026-08-01, durante la integración del mobiliario.
 
 ## Overview
@@ -51,16 +52,35 @@ La comisaría respira: se ve a los funcionarios levantarse a por papeles, y el j
 - Flujo (fase nueva del trámite), Personal (estado del funcionario), NPCsFlujo (el viaje visual,
   mismo sistema que los viajes al café), Construcción (`distancia_en_celdas`).
 
-## ❓ Las 3 decisiones pendientes del usuario
+## ✅ Decisiones del usuario (2026-08-01) — diseño cerrado
 
-- **P1 — ¿Qué pasa si NO hay impresora (o está incomunicada)?** Opciones:
-  (a) el trámite termina igual, sin viaje (la impresora es opcional, solo añade realismo y el
-  aporte de comodidad); (b) el trámite se alarga un castigo fijo ("rebusca en el archivo");
-  (c) ODAC/TIE no pueden atender sin impresora (dura, cambia el juego).
-- **P2 — ¿Qué trámites llevan papel?** ¿Todos los de ODAC y TIE, o solo algunos (denuncia sí,
-  consulta no)? ¿Documentación queda fuera porque su `impresora_dni` ya es otra cosa?
-- **P3 — ¿La impresora de DNI existente se vuelve funcional igual** (viaje del papel en
-  Documentación) **o se queda como comodidad de confort?**
+- **P1 resuelta con una regla mejor: OBJETOS OBLIGATORIOS POR SALA.** No existe el caso "sala sin
+  impresora": construir una sala nueva exige un mínimo de objetos — **Documentación: 1 puesto
+  (DNI o TIE) + 1 impresora de documentos · ODAC: 1 puesto + 1 impresora**. La validación es de
+  Construcción, en el momento de construir. (Esto abre la mecánica general de "requisitos mínimos
+  de sala", reutilizable para futuras estancias.)
+- **Colocación (también en el trazado automático inicial)**: la impresora va **DETRÁS del puesto o
+  a un lado, pero siempre de la mesa hacia atrás — NUNCA hacia el lado del ciudadano**. En el
+  diseño inicial automático: en Documentación, detrás del puesto de TIE; en ODAC, igual.
+- **Compartida**: UNA impresora sirve a VARIAS mesas (sin cola de impresora en el MVP).
+- **P2 — Trámites con papel: TODAS las denuncias (ODAC) y la EXPEDICIÓN de TIE.** El resto de
+  trámites (DNI, pasaporte, consultas) no hacen el viaje del papel.
+- **P3 — La `impresora_dni` existente se queda como comodidad de confort** (no funcional): la
+  impresora de documentos es un objeto NUEVO y distinto (visual: OBJ_008 entero).
+- **Partidas guardadas antiguas / comisaría inicial**: el trazado automático inicial coloca las
+  impresoras; al cargar un save sin ellas se aplica el mismo patrón idempotente que la fachada
+  (se recolocan si faltan). *(Detalle de implementación, coherente con lo decidido.)*
+
+## 🔢 Números de la comodidad — PROPUESTA (pendiente del OK del usuario)
+
+Referencias: impresora_dni 2.200 € / 3 €/día / aporte 6,0 · dispensador 180 € / 1 €/día / 1,5.
+
+| Campo | Propuesta | Razón |
+|---|---|---|
+| Coste | **600 €** | obligatoria por sala: no puede ser un lujo que castigue ampliar |
+| Mantenimiento | **2 €/día** | tinta y papel; entre el dispensador y la impresora de DNI |
+| Aporte (familia funcionario) | **2,0** | modesto: su valor real es FUNCIONAL (el papel), no el confort |
+| Huella | 1 celda | como el resto de comodidades de suelo |
 
 ## Acceptance Criteria (cuando se cierre el diseño)
 

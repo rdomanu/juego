@@ -37,11 +37,18 @@ ADR-0004: esto es CAPA VISUAL — el modelo no se entera.
   usuario**, no entra sola. **Visual asignado por el usuario (2026-08-01): OBJ_008 ENTERO** —
   la cajonera con la impresora y todo lo que lleva encima, como un solo mueble.
 
+## Decidido por el usuario — 3ª tanda (2026-08-01)
+
+| Pieza del pack | Destino en el juego | Nota |
+|---|---|---|
+| **OBJ_007 y OBJ_022** (estanterías con carpetas/libros) | Estanterías para **estancias de trabajo**: ODAC (oficina de denuncias), Documentación y futuras salas de trabajo | decorativo/comodidad futura; sin números aún |
+| ⚠️ OBJ_022 en concreto | Son **2 estanterías haciendo esquina**: hay que DESPIEZARLA en **1 estantería suelta** (misma técnica de semillas por malla repetida) — el jugador coloca 2 para montar la esquina él mismo | pedido 2026-08-01 |
+
 ## Pendiente de decisión del usuario
 
 | Elemento del juego | Candidato propuesto |
 |---|---|
-| Archivadores / estanterías | OBJ_001/008/009 (despiece) · OBJ_007/022 |
+| Sofá-asiento de 3 celdas de la sala de espera | OBJ_011 (sí/no) |
 
 ## Sin candidato en el pack (se queda el visual actual)
 
