@@ -56,13 +56,33 @@ extends Node3D
 ## `Head`/`Hand.*`/dedos, no a ojo). El encargo del usuario es que las dos usen el tono claro del
 ## hombre, así que a `oficial_m` se le copia la celda (3,1) del hombre ENCIMA de su propia (6,0) — ver
 ## `_igualar_piel`.
+##
+## `correccion_frente_grados` (2026-08-01, feedback con el juego abierto: *"la orientación de cómo
+## se sientan, cómo andan y demás de los policías es errónea; la de los ciudadanos está bien"*):
+## este rig NO tiene rodilla, así que `HUESO_PIE`/`HUESO_PUNTA` (`Foot.L`/`Toes.L`) NO son "talón" y
+## "punta" como en el rig de `render_sprites.gd` — `Foot.L` es la PIERNA ENTERA desde la CADERA (ver
+## la cabecera del archivo), así que el vector que mide `_frente_de` no es "hacia dónde apunta el
+## pie", es casi vertical (cadera→tobillo) con una componente horizontal poco fiable. `rumbo_reposo`
+## salía mal, y como se resta POR IGUAL en las 8 direcciones, el error es un desfase CONSTANTE (no
+## una mezcla ni un espejo — se verificó comparando, índice a índice, contra `girl` con
+## `tools/diagnostico_orientacion.gd`: el mismo sentido de giro, desplazado). Medido: el "frente" de
+## `oficial_h`/`oficial_m` salía **+2 índices (90°) adelantado** respecto de `girl` — el centro del
+## grupo de direcciones donde se ve la CARA estaba en el índice ~3.5 (debería estar en el ~1.5 de
+## `girl`). Se corrige SUMÁNDOLO a `rumbo_reposo` (ver `_procesar_modelo`): un desfase constante no es
+## un signo distinto de `SENTADO_GRADOS_PIE` (eso gira las PIERNAS sobre su cadera; esto gira el
+## CUERPO ENTERO antes de fotografiarlo) — los dos rigs comparten el mismo problema de origen, así que
+## se aplica igual a los dos trabajos.
 const TRABAJOS: Array[Dictionary] = [
-	{"ruta": "res://capturas/NPC/Policias/candidatos/male_officer.glb", "prefijo": "oficial_h"},
+	{
+		"ruta": "res://capturas/NPC/Policias/candidatos/male_officer.glb", "prefijo": "oficial_h",
+		"correccion_frente_grados": 90.0,
+	},
 	{
 		"ruta": "res://capturas/NPC/Policias/candidatos/female_officer.glb", "prefijo": "oficial_m",
 		"piel_celda": Vector2i(6, 0),
 		"piel_referencia_ruta": "res://capturas/NPC/Policias/candidatos/male_officer.glb",
 		"piel_referencia_celda": Vector2i(3, 1),
+		"correccion_frente_grados": 90.0,
 	},
 ]
 ## RENDER FINAL (2026-08-01): antes apuntaba a `capturas/.../render_test/` (candidatos, descartable);
@@ -211,8 +231,13 @@ func _procesar_modelo(trabajo: Dictionary) -> void:
 	var anim_reposo: String = _resolver_animacion(reproductor, ANIM_REPOSO)
 
 	# El FRENTE del personaje en reposo, medido del talón a la punta — no se supone (ver cabecera).
+	# CORRECCIÓN (2026-08-01, ver `correccion_frente_grados` en `TRABAJOS`): en este rig la medición
+	# sale girada un desfase CONSTANTE (rig sin rodilla, `Foot.L` no es el pie); se suma aquí, antes
+	# de restarse en cada una de las 8 direcciones (así el paso de 45° entre direcciones, que SÍ es
+	# correcto, no se toca — solo se corrige la fase de arranque).
 	var frente: Vector3 = _frente_de(esqueleto)
-	var rumbo_reposo: float = atan2(frente.x, frente.z)
+	var correccion: float = deg_to_rad(float(trabajo.get("correccion_frente_grados", 0.0)))
+	var rumbo_reposo: float = atan2(frente.x, frente.z) + correccion
 
 	# ALTURA DE REFERENCIA: la figura de pie (Idle en t=0), sin rotar. Todo lo demás de ESTE modelo
 	# se escala con este mismo factor (ver `_guardar`), igual que en `render_sprites.gd`.
