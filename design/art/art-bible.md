@@ -6,7 +6,8 @@
 *Última sesión: 2026-07-30 (§5 con el usuario)*
 *Tensión de tono Two Point (marcada más abajo en §1 y §9) — **RESUELTA el 2026-07-30** a favor del tono
 Two Point. Ver el bloque "Tensión — RESUELTA" dentro de la sección de Two Point, y las enmiendas de §1
-y §9. Queda abierta, como PROPUESTA sin confirmar, la pregunta de "cara sí/no" en §5.*
+y §9. La pregunta de "cara sí/no" en §5 quedó **RESUELTA el 2026-08-01**: cara mínima (la que trae el
+modelo low-poly). Ver "Cara: CARA MÍNIMA — decisión cerrada" en §5.*
 
 > **Art Director Sign-Off (AD-ART-BIBLE)**: N/A — modo *lean* (validación de director omitida).
 > **Nota de autoría**: el núcleo visual lo redactó el hilo principal (Opus 4.8) actuando como
@@ -177,10 +178,9 @@ construcción.
   RollerCoaster Tycoon y Age of Empires. Resuelve de raíz el problema de los 4 ángulos: es **el mismo
   modelo girado**, no cuatro dibujos que deben parecerse.
 - **Detalle**: NO pixel art. El usuario lo descartó expresamente (*"lo veo muy pixel"*, *"realista
-  pero jugón"*). Sigue valiendo el resto de §5: ~~sin cara~~ *(reabierto como PROPUESTA sin decidir tras
-  la adopción del tono Two Point — ver "Cara: sin cara vs. cara mínima" en §5 más abajo)*, rol por color
-  + accesorio de silueta, y la regla de las divisas (que a este tamaño tampoco se ven en el muñeco:
-  viven en las fichas).
+  pero jugón"*). Sigue valiendo el resto de §5: cara mínima *(decisión cerrada el 2026-08-01 — ver
+  "Cara: CARA MÍNIMA — decisión cerrada" en §5 más abajo)*, rol por color + accesorio de silueta, y la
+  regla de las divisas (que a este tamaño tampoco se ven en el muñeco: viven en las fichas).
 - **Direcciones**: en isométrico se suelen necesitar **4 u 8**; con 4 basta para empezar.
 
 ### Revisión de §6 (entornos)
@@ -374,7 +374,7 @@ tiene consecuencias concretas:
 | Fantasma de construcción azul translúcido + rejilla + verde/rojo de validez | Confirma nuestro F6 (validación verde/rojo) ya decidido — coincidencia, no cambio |
 | Suelo de color y textura distintos por sala | Choca con la decisión de §6 ("la textura dice la sala, no el color") — pendiente reabrir con el usuario |
 | Paleta muy saturada tipo "folleto turístico" en césped, paredes y suelos | **No se adopta** — se mantiene la paleta sobria gris-azulada de §4 |
-| Personajes con cara visible y expresiva, proporciones chibi | Tensión con la regla "SIN CARA" de §5 — **sigue abierta como PROPUESTA sin decidir** (ver la revisión nueva de §5, "cara sí/no") |
+| Personajes con cara visible y expresiva, proporciones chibi | **RESUELTA 2026-08-01**: se adopta cara mínima — la que trae el propio modelo low-poly (ver §5, "Cara: CARA MÍNIMA — decisión cerrada") |
 | Animaciones con energía, reacciones puntuales, mobiliario con micro-vida | Se adopta como criterio (ver c) — ~~acotado por "nada cómico ni exagerado" — tensión sin resolver~~ **RESUELTA 2026-07-30: el tono Two Point se adopta (ver §1 enmendado y el bloque "RESUELTA" arriba); criterios de ejecución en el punto (f)** |
 | HUD repartido entre arriba y abajo (objetivo arriba-derecha, herramientas arriba-izquierda) | No se adopta tal cual — se mantiene la barra inferior única de §7, ya decidida |
 | *Two Point Hospital* como anti-referencia de tono (§9) | ~~Sigue siendo una contradicción sin resolver frente a esta nueva referencia — ver (c)~~ **RESUELTA 2026-07-30: pasa de anti-referencia a REFERENCIA PRINCIPAL de tono — ver enmienda de §9** |
@@ -458,59 +458,53 @@ trabajo de animación (andar en 4 direcciones con perfil dibujado a mano).
 
 ### Nivel de detalle
 
-**Pixel art legible, ~16-24 px de alto, 4-6 colores por personaje, SIN CARA.**
+**Pixel art legible, ~16-24 px de alto, 4-6 colores por personaje, ~~SIN CARA~~.**
 
 - Encaja con el principio 1 de §1 (*claridad funcional antes que detalle*).
 - Es lo más barato de producir en volumen, y este juego tiene **17 tipos de trámite/denuncia** y
   potencialmente decenas de personas en pantalla a la vez.
 - Envejece bien: el pixel art no se ve "de hace dos años" como sí le pasa a un vectorial de moda.
-- **Sin cara a propósito**: a ese tamaño una cara es ruido, y además obliga a resolver expresiones que
-  no aportan nada a un juego donde lo que importa es el ESTADO (esperando, cansado, atendido).
+- ~~**Sin cara a propósito**: a ese tamaño una cara es ruido, y además obliga a resolver expresiones que
+  no aportan nada a un juego donde lo que importa es el ESTADO (esperando, cansado, atendido).~~
 
-> ⚠️ **Esta regla ("sin cara") entra en tensión con el tono Two Point adoptado el 2026-07-30** — en Two
-> Point los personajes SÍ tienen cara, y buena parte de su "gracia" vive precisamente ahí (la profesora
-> que salta con sonrisa marcada en `contratar.PNG`). Se desarrolla como propuesta abajo.
+> ✅ **RESUELTA — 2026-08-01, decisión del usuario.** La tensión de la línea de arriba con el tono Two
+> Point (§1) queda cerrada a favor de **CARA MÍNIMA**, no de "sin cara". Desarrollo completo, con la
+> evidencia que la sostiene, en "Cara: CARA MÍNIMA — decisión cerrada" justo debajo.
 
-### Cara: sin cara vs. cara mínima — PROPUESTA, pendiente de confirmar (2026-07-30)
+### Cara: CARA MÍNIMA — decisión cerrada (2026-08-01)
 
-*Importante: esto NO queda decidido aquí. Se presentan dos opciones con su coste, se recomienda una, y
-queda pendiente de que el usuario la confirme — igual que se hizo con el resto de §5 el 2026-07-30.*
+*Cierra la pregunta que había quedado abierta el 2026-07-30 como PROPUESTA sin confirmar (Opción A/B,
+ver la tabla debajo). Decidido con el usuario mirando en pantalla, a tamaño real de juego (44 px), la
+pareja de policías low-poly de J-Toastie (`Male Officer` / `Female Officer`, CC BY 3.0 — ver
+`CREDITS.md`) andando y sentados; antes se había aprobado también "girl" (base de los ciudadanos), que
+lleva cara texturizada.*
 
 Recordatorio del método de producción ya fijado más arriba (Revisión de §5): los personajes son **3D
 pre-renderizado a sprites**, con **4-8 ángulos** desde una **cámara isométrica fija**. Esto importa
-mucho para el coste de cada opción, porque no se "dibuja una cara" — se modela, se ilumina y se
-renderiza, y eso se multiplica por cada ángulo y por cada variante.
+para el coste de cada opción, porque no se "dibuja una cara" — se modela, se ilumina y se renderiza, y
+eso se multiplica por cada ángulo y por cada variante.
 
-**Opción A — Mantener SIN CARA en el mundo** *(recomendada)*
-- La cara del muñeco en el mundo sigue en blanco/sin rasgos; la expresión y la gracia viven en la
-  **postura y el timing de la animación** (rebote al sentarse, gesto de "listo" al sellar, mirar el
-  reloj) — exactamente lo que desarrolla la nueva sección "Qué significa 'gracia' en Comisario".
-- **Coste**: BAJO. No añade ninguna pasada nueva al render (ni expresiones × 4-8 ángulos), y no toca la
-  decisión ya cerrada y sin deuda técnica de §8.
-- **Precedente ya existe en este propio documento**: el rango tampoco se ve en el muñeco del mundo (es
-  ilegible a este tamaño) y vive en las fichas del panel de personal — la cara podría seguir la misma
-  lógica: vive en los retratos de la UI (ficha de contratación, panel de personal), no en el sprite del
-  mundo. Así se puede tener "cara graciosa tipo Two Point" en las fichas SIN tocar el pipeline de
-  render del mundo.
-- **Contrapartida que hay que aceptar**: menos "chispa" que el propio Two Point en el mundo, donde la
-  cara sí se ve de cerca. Se compensa con la propuesta de retratos de UI de arriba.
+**Decisión: CARA MÍNIMA — la que traiga el propio modelo low-poly, sin diseñarla aparte.** Ojos, y en
+el caso del hombre el bigote, más los rasgos simples que ya trae el modelo, tal cual salen del render.
 
-**Opción B — Dar cara mínima en el mundo** (2-3 expresiones simples: neutral / contenta / frustrada)
-- Acerca el resultado literal al encanto de Two Point y responde de forma más directa a "puede darle
-  algo de gracia".
-- **Coste**: ALTO. Al ser sprites pre-renderizados (no un esqueleto 3D en vivo como en el Two Point
-  real), cada expresión hay que renderizarla en LOS MISMOS 4-8 ángulos que ya existen para cada
-  animación — multiplica la matriz de render (arquetipos × ángulos × expresiones × animaciones) en vez
-  de sumar una hoja más.
-- **Riesgo de que el gasto no se note**: a los ~24 px de personaje que fija §8, una cara pequeña
-  renderizada desde 3D corre el riesgo de leerse como una mancha, no como una expresión — lo que
-  incumpliría el propio test del punto (c) de Two Point ("jugable" = se lee al zoom real de juego), y
-  el gasto de producción no se recuperaría en pantalla.
+| Opción (2026-07-30) | Qué asumía | Por qué no es esta la decisión final |
+|---|---|---|
+| A — Sin cara *(recomendada entonces)* | Coste bajo; la gracia vive solo en postura/timing de la animación | La cara mínima resultó tener el mismo coste bajo (viene con el modelo), así que ya no hace falta renunciar a ella |
+| B — Cara mínima DISEÑADA (2-3 expresiones a medida) | Coste alto: expresiones × 4-8 ángulos × animaciones, una pasada de render nueva por expresión | No hacía falta diseñar nada: el modelo low-poly YA trae sus rasgos integrados en la malla — `render_sprites.gd`/`render_sprites_animado.gd` los captura gratis en los mismos ángulos que ya genera para andar y sentarse |
 
-**Recomendación**: **Opción A** (sin cara en el mundo, gracia en postura/timing; cara mínima solo en
-fichas de UI si el usuario quiere ese punto extra de encanto tipo Two Point), por ser la de menor coste
-y la que no reabre ninguna decisión ya cerrada de §8. **Queda pendiente de que el usuario la confirme**
-antes de darla por definitiva.
+La decisión real no es ni A ni B: es una tercera vía que ninguna de las dos anticipaba — **la cara
+mínima sale del propio modelo, sin coste extra de producción**, así que hereda la economía de la A y
+algo de la "chispa" que buscaba la B, sin la matriz de coste que hacía cara a la B.
+
+**Evidencia**: la pareja J-Toastie fue aprobada por el usuario como personajes del juego tras verla
+renderizada y en movimiento a 44 px (commits `df673f8`, `53c4933`); "girl" (base de los ciudadanos) ya
+había sido aprobada antes con cara texturizada. Ambas confirman, mirando el juego real y no una
+maqueta, que la cara mínima se lee bien a ese tamaño y no se convierte en mancha.
+
+**Qué NO cambia**: la regla dura de "Cómo se distingue quién es quién" (justo debajo) sigue mandando —
+el ROL se lee por color de uniforme + accesorio de silueta, nunca por la cara. La cara mínima aporta
+carácter y algo del tono Two Point (§1, principio 2 enmendado); no sustituye a la silueta como sistema
+de lectura de roles.
 
 ### Cómo se distingue quién es quién
 
