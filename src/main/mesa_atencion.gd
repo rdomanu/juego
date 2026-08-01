@@ -157,20 +157,17 @@ static func _pieza_sprite_mostrador() -> Node2D:
 const ID_SPRITE_SILLA_FUNCIONARIO := "silla_funcionario"
 const ID_SPRITE_SILLA_ESPERA := "silla_espera"
 ## Cada silla, su PROPIA rotación — NO la misma para las dos: cada mueble tiene su frente en un
-## sitio distinto de la escena de origen (ver `render_mobiliario.gd`). Elegidas MIRANDO las 4
-## (`assets/sprites/mobiliario/silla_*_{0,90,180,270}.png`) y comprobando con un composite en el
-## ORDEN REAL de capas del juego (aviso del usuario 2026-08-01, tras verlas mal en pantalla):
-##  · Funcionario: 270° es la única de las 4 que enseña el FRENTE del asiento (el hueco donde se
-##    sienta, con los dos reposabrazos) de cara a cámara — el policía se sienta MIRANDO AL SUR (ve
-##    `DIRECCION_POLICIA_SENTADO` en `npcs_flujo.gd`), así que el respaldo le queda detrás, al
-##    norte. En 0°/90° se ve casi solo el respaldo (silla mirando al norte, al revés); en 180°, de
-##    perfil.
-##  · Espera: 0° enseña el RESPALDO de cara a cámara — la silla mira al norte, hacia el mostrador
-##    (petición del usuario: "su respaldo queda al sur, entre la cámara y el ciudadano"). 90°/180°
-##    enseñan el asiento de frente (mirando al sur, al revés); 270° es otro respaldo pero más de
-##    perfil que el de 0°.
-const ROT_SILLA_FUNCIONARIO: int = 270
-const ROT_SILLA_ESPERA: int = 0
+## sitio distinto de la escena de origen (ver `render_mobiliario.gd`). Elegidas MIRANDO las 4 con
+## la silla VACÍA y flechas de referencia sobre la imagen (2º aviso del usuario 2026-08-02: la
+## primera elección se hizo con un muñeco sentado ENCIMA que tapaba el asiento — así se coló el
+## error; regla nueva: la dirección de un asiento se juzga con el asiento vacío):
+##  · Funcionario: 180° — el asiento abre hacia ABAJO-IZQUIERDA de pantalla, hacia el ciudadano
+##    (la misma dirección a la que da la cara de cajones del mostrador); el respaldo queda
+##    arriba-derecha, a la espalda del policía, que se sienta mirando al sur.
+##  · Espera: 270° — el asiento abre hacia ARRIBA-DERECHA, hacia la mesa; el respaldo queda hacia
+##    cámara, a la espalda del ciudadano.
+const ROT_SILLA_FUNCIONARIO: int = 180
+const ROT_SILLA_ESPERA: int = 270
 const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.846)
 const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.815)
 
