@@ -55,6 +55,15 @@ Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero,
 
 ## Notas de integración
 
+- **REGLA DE REJILLA (usuario, 2026-08-02)**: todo elemento visual ancla al CENTRO de su
+  cuadrícula — la mesa en su celda (1 o 2), cada silla en la SUYA (funcionario: la de detrás;
+  ciudadano: la de delante), y quien se sienta lo hace EN el centro de la celda de su silla,
+  coincidiendo con ella. Nada de ajustes de píxel a mano para colocar muebles: celdas enteras,
+  de 1 en 1. (Complementa al ADR-0005, que fija el orden de capas.)
+- **Al validar asientos**: la dirección de una silla se juzga con la silla VACÍA (un muñeco
+  sentado encima tapa justo lo que hay que mirar) y la alineación, con la REJILLA dibujada en el
+  fotomontaje.
+
 - Los grupos se reconstruyen desde `catalogo_objetos_manifest.json` / `catalogo_despiece_manifest.json`
   (composición y transformadas de cada pieza); el renderizador de mobiliario genera los sprites
   a `assets/sprites/mobiliario/` en 4 rotaciones (el juego rota con R).

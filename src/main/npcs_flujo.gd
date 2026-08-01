@@ -95,13 +95,11 @@ var _rotulo_extra: Dictionary[StringName, String] = {}
 ## Capa donde cuelgan los muñecos que caminan al descanso (hereda el z_index 1 de `configurar`, así
 ## se dibujan por encima de las salas como el resto de NPCs).
 var _capa_descansos: Node2D = null
-## Desplazamiento del muñeco del funcionario respecto de la celda de SU mostrador: una casilla
-## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
-## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
-## Solo se usa con el muñeco de PIEZAS (sin sprites, o mientras no se conoce al agente): el sentado
-## de sprite se coloca en la silla de la mesa (`MesaAtencionScript.hacia_funcionario_actual()`), no
-## aquí — ver `_reconstruir_cuerpo_policia`.
-const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## Dónde se planta el funcionario DE PIE (muñeco de piezas, sin sprite del agente): el centro de la
+## celda norte de su mostrador — regla de rejilla del usuario (2026-08-02). Es la MISMA constante
+## que usan la silla y el policía SENTADO (`MesaAtencionScript.CELDA_FUNCIONARIO`, ver ese fichero
+## para la cuenta completa): UNA sola fuente de verdad para que de pie, sentado y silla coincidan
+## siempre en el mismo punto — ver `_reconstruir_cuerpo_policia`.
 
 ## ── ORDEN DE CAPAS DEL CONTENEDOR DE LA VENTANILLA (ADR-0005) ───────────────────────────────────
 ## docs/architecture/adr-0005-orden-de-capas-contenedor-iso.md — el orden de dibujo dentro de
@@ -1334,13 +1332,13 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# policía de FRENTE —él es quien tapa, al ser más alto que el mostrador—. `_reconstruir_cuerpo_
 	# policia` reasigna las capas de policía/mesa (nunca la de la silla) en cuanto se sienta.
 	var silla_funcionario: Node2D = MesaAtencionScript.silla_funcionario_o_defecto(
-		MesaAtencionScript.hacia_funcionario_actual().normalized() * 20.0
+		MesaAtencionScript.CELDA_FUNCIONARIO.normalized() * 20.0
 	)
 	silla_funcionario.name = "SillaFuncionario"
-	silla_funcionario.position = MesaAtencionScript.hacia_funcionario_actual()
+	silla_funcionario.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	_insertar_en_capa(contenedor, silla_funcionario, CAPA_FONDO)
 	_insertar_en_capa(contenedor, MesaAtencionScript.construir(), CAPA_PERSONAJE)
-	policia.position = _POLICIA_DETRAS
+	policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	_insertar_en_capa(contenedor, policia, CAPA_FRENTE)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
 	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
@@ -1489,17 +1487,16 @@ func _actualizar_visual_puesto(
 ## Reconstruye el cuerpo del "Policia" de un puesto cuando cambia DE QUIÉN es. Si hay sprites del
 ## policía que le toca (género determinista por el nombre, ver `_prefijo_oficial_de`), se sienta
 ## MIRANDO al ciudadano, en la silla que ya dibuja la mesa (`MesaAtencionScript.
-## hacia_funcionario_actual()`, la misma que usa `SillaFuncionario`) y con el mostrador dibujándose
-## DESPUÉS (por encima): le tapa
-## las piernas, como en una ventanilla de verdad — para lo que estaba pensado `ALTO_MESA` desde el
-## principio (ver su comentario en `mesa_atencion.gd`: "para que el funcionario se vea de medio
-## cuerpo por encima").
+## CELDA_FUNCIONARIO`, la misma que usa `SillaFuncionario`) y con el mostrador dibujándose DESPUÉS
+## (por encima): le tapa las piernas, como en una ventanilla de verdad — para lo que estaba pensado
+## `ALTO_MESA` desde el principio (ver su comentario en `mesa_atencion.gd`: "para que el
+## funcionario se vea de medio cuerpo por encima").
 ##
-## SIN sprites (o sin nombre: puesto vacío) se conserva el muñeco de piezas de siempre, DE PIE una
-## casilla detrás de la mesa (`_POLICIA_DETRAS`) y dibujado POR ENCIMA del mostrador: es el acomodo
-## que ya corrigió el bug histórico "se pone en la mesa y tapa al funcionario" (ver
-## `_asegurar_visual_puesto`) — un muñeco de pie no cabe sentado en la silla sin la pose de verdad,
-## así que aquí NO se le toca la geometría.
+## SIN sprites (o sin nombre: puesto vacío) se conserva el muñeco de piezas de siempre, DE PIE en
+## la MISMA celda norte (`MesaAtencionScript.CELDA_FUNCIONARIO` — regla de rejilla 2026-08-02, ver
+## ese fichero) y dibujado POR ENCIMA del mostrador: es el acomodo que ya corrigió el bug histórico
+## "se pone en la mesa y tapa al funcionario" (ver `_asegurar_visual_puesto`) — un muñeco de pie no
+## cabe sentado en la silla sin la pose de verdad, así que aquí NO se le toca la geometría.
 ##
 ## El orden de dibujo (`move_child`) solo se toca si el MODO cambió de verdad (meta
 ## `policia_sentado` en el contenedor): repetir el mismo modo dos veces seguidas no debe intercambiar
@@ -1513,13 +1510,12 @@ func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: St
 		policia.add_child(MunecoScript.construir_sprite_sentado(
 			prefijo, ALTO_SPRITE_OFICIAL, DIRECCION_POLICIA_SENTADO
 		))
-		# `hacia_funcionario_actual()`, NO `HACIA_FUNCIONARIO` a secas: con el mostrador de sprite
-		# (2ª tanda) el sitio de siempre queda tapado detrás del monitor 3D — comprobado componiendo
-		# con Python antes de fijar el número (ver el aviso en `mesa_atencion.gd`).
-		policia.position = MesaAtencionScript.hacia_funcionario_actual()
+		# CELDA_FUNCIONARIO, NO un ajuste de píxel a mano: regla de rejilla del usuario 2026-08-02
+		# (ver el comentario junto a esa constante en `mesa_atencion.gd`).
+		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	else:
 		_anadir_cuerpo_policia(policia)
-		policia.position = _POLICIA_DETRAS
+		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	if contenedor.get_meta(&"policia_sentado", false) != con_sprite:
 		contenedor.set_meta(&"policia_sentado", con_sprite)
 		var mesa: Node2D = contenedor.get_node("Mesa")

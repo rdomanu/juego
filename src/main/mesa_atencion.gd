@@ -36,11 +36,14 @@ const COLOR_TABLERO := Color(0.45, 0.36, 0.28)      # madera de oficina
 const ALTO_MONITOR: float = 11.0
 const ESCALA_MONITOR: float = 0.20
 const COLOR_MONITOR := Color(0.13, 0.14, 0.17)
-## Desplazamiento hacia el lado del FUNCIONARIO, en píxeles de pantalla. Media casilla en el eje Y
-## de la rejilla, que proyectada es arriba y a la derecha (ver `Proyeccion`).
-const HACIA_FUNCIONARIO := Vector2(14.0, -7.0)
+## Desplazamiento hacia el lado del FUNCIONARIO, en píxeles de pantalla, SOLO para la decoración
+## que va ENCIMA del tablero (teclado/monitor/papeles del mostrador de código — ver `construir()`).
+## Media casilla en el eje Y de la rejilla, que proyectada es arriba y a la derecha (ver
+## `Proyeccion`). NO es la posición de la silla ni de quien se sienta — para eso, ver
+## `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO` más abajo (regla de rejilla, 2026-08-02).
+const DECOR_HACIA_FUNCIONARIO := Vector2(14.0, -7.0)
 ## Y el del CIUDADANO, al otro lado: abajo y a la izquierda.
-const HACIA_CIUDADANO := Vector2(-13.0, 6.5)
+const DECOR_HACIA_CIUDADANO := Vector2(-13.0, 6.5)
 
 const ALTO_TECLADO: float = 1.5
 const ESCALA_TECLADO: float = 0.26
@@ -77,7 +80,7 @@ const COLOR_SILLA := Color(0.30, 0.32, 0.38)
 ## vinieron en este render.
 const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
 ## Solo 0° por ahora: los puestos de atención SIEMPRE se construyen con la misma orientación fija
-## (`HACIA_FUNCIONARIO`/`HACIA_CIUDADANO` no dependen de `orientacion` — `Construccion._crear_
+## (`CELDA_FUNCIONARIO`/`CELDA_CIUDADANO` no dependen de `orientacion` — `Construccion._crear_
 ## pieza` ni se la pasa a los puestos), así que no hace falta elegir entre las 4 rotaciones
 ## renderizadas. 0° es la que se vio, mirando las 4: el monitor de espaldas a cámara (nunca se le
 ## enseña la pantalla al ciudadano, ver la cabecera del fichero) y sin nada raro en el encuadre.
@@ -90,23 +93,25 @@ const ROT_MOSTRADOR: int = 0
 ## la fracción con él; el número viejo (0,503; 0,765) quedaba corto.
 const ANCLA_FRACCION_MOSTRADOR := Vector2(0.497, 0.771)
 
-## ── EL SITIO SE MUEVE CUANDO EL MOSTRADOR ES SPRITE (2026-08-01) ────────────────────────────────
-## `HACIA_FUNCIONARIO`/`HACIA_CIUDADANO` (arriba) se calibraron contra la caja de código, de solo
-## 14 px de alto. El escritorio 3D real —reescalado además a `ESCALA_OBJETIVO_MOSTRADOR` = 0,92,
-## ver `render_mobiliario.gd`— es mucho más alto (72 px de lienzo) y su propio monitor tapa
-## CUALQUIER COSA sentada en el punto de siempre: comprobado componiendo con Python
-## (`silla_funcionario` + el sprite sentado del policía + el mostrador, los tres con su ancla real)
-## ANTES de tocar un solo número aquí — el policía desaparecía entero detrás del monitor.
+## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02) ────────────────────────────────────────────
+## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
+## todos los elementos deben ocupar de 1 en 1 cuadrícula; no coincide donde se sientan los
+## ciudadanos con donde está la silla; las sillas no están en la misma línea que la mesa"*.
 ##
-## Calibrado igual, a ojo sobre el composite: subiendo el funcionario de 8 en 8 px hasta que asoma
-## medio cuerpo por encima del monitor (para en -20, no en -7) y bajando al ciudadano hasta que su
-## silla queda ENTERA delante del mostrador, sin remeter bajo el cajón (para en +40, no en +6,5).
-## Composite final: `composite_sandwich_v1`/`ciudadano_y40` en el scratchpad de la sesión.
-##
-## Con la caja de código (sin sprite de mostrador) NO hace falta nada de esto — sigue siendo tan
-## bajita como siempre, así que ahí se mantienen las constantes originales sin tocar.
-const HACIA_FUNCIONARIO_SPRITE := Vector2(14.0, -20.0)
-const HACIA_CIUDADANO_SPRITE := Vector2(-13.0, 40.0)
+## Sustituye a los ajustes de píxel a mano de la calibración anterior (`HACIA_FUNCIONARIO_SPRITE`/
+## `HACIA_CIUDADANO_SPRITE`, borrados): esos números no caían en el centro de ninguna celda ni
+## coincidían con el punto donde el juego sienta de verdad a la gente. La ventanilla son TRES
+## celdas en fila en el plano LÓGICO cuadrado (ver `NPCsFlujo._asegurar_visual_puesto`): el
+## funcionario detrás (norte), el mostrador en medio (la celda del puesto en el modelo) y el
+## ciudadano delante (sur, `NPCsFlujo._frente_del_puesto` = `centro_de_celda(celda + Vector2i(0,
+## 1))`). Cada silla —y quien se sienta en ella— ancla al CENTRO de SU celda, no a un número
+## suelto: el salto de pantalla de una celda a la vecina en ese eje es
+## `Vector2(±Proyeccion.MEDIO_ANCHO, ∓Proyeccion.MEDIO_ALTO)` (la misma cuenta de
+## `Proyeccion.centro_iso`/`proyectar`, ver ese fichero). ES el mismo offset que ya usaba
+## `NPCsFlujo._POLICIA_DETRAS` para el policía DE PIE — aquí se convierte en la ÚNICA fuente de
+## verdad, para que de pie, sentado, silla y ciudadano coincidan siempre en el mismo punto.
+const CELDA_FUNCIONARIO := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)   # norte, detrás
+const CELDA_CIUDADANO := Vector2(-Proyeccion.MEDIO_ANCHO, Proyeccion.MEDIO_ALTO)     # sur, delante
 
 
 ## ¿Hay un sprite renderizado del mostrador?
@@ -116,19 +121,6 @@ static func hay_sprite_mostrador() -> bool:
 
 static func _ruta_sprite_mostrador() -> String:
 	return "%smostrador_atencion_%d.png" % [RUTA_SPRITES_MOBILIARIO, ROT_MOSTRADOR]
-
-
-## Dónde se sienta el FUNCIONARIO ahora mismo — el punto de siempre con la caja de código, el
-## reajustado (ver arriba) si el mostrador ya es el sprite 3D. Úsala en vez de `HACIA_FUNCIONARIO`
-## a secas para CUALQUIER COSA que tenga que sentarse o pintarse en ese sitio (la silla, el
-## muñeco): así no hay dos números que puedan desincronizarse.
-static func hacia_funcionario_actual() -> Vector2:
-	return HACIA_FUNCIONARIO_SPRITE if hay_sprite_mostrador() else HACIA_FUNCIONARIO
-
-
-## Lo mismo que `hacia_funcionario_actual()`, para el lado del CIUDADANO.
-static func hacia_ciudadano_actual() -> Vector2:
-	return HACIA_CIUDADANO_SPRITE if hay_sprite_mostrador() else HACIA_CIUDADANO
 
 
 ## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
@@ -250,17 +242,17 @@ static func construir() -> Node2D:
 		var encima := Vector2(0.0, -ALTO_MESA)
 		# Del lado del funcionario: teclado delante y monitor detrás (él lo mira de frente).
 		raiz.add_child(_pieza(
-			"Teclado", encima + HACIA_FUNCIONARIO * 0.55, ALTO_TECLADO, ESCALA_TECLADO, COLOR_TECLADO
+			"Teclado", encima + DECOR_HACIA_FUNCIONARIO * 0.55, ALTO_TECLADO, ESCALA_TECLADO, COLOR_TECLADO
 		))
 		raiz.add_child(_pieza(
-			"Monitor", encima + HACIA_FUNCIONARIO, ALTO_MONITOR, ESCALA_MONITOR, COLOR_MONITOR
+			"Monitor", encima + DECOR_HACIA_FUNCIONARIO, ALTO_MONITOR, ESCALA_MONITOR, COLOR_MONITOR
 		))
 		# Del lado del ciudadano: los papeles que viene a firmar.
 		raiz.add_child(_pieza(
-			"Papeles", encima + HACIA_CIUDADANO, ALTO_PAPEL, ESCALA_PAPEL, COLOR_PAPEL
+			"Papeles", encima + DECOR_HACIA_CIUDADANO, ALTO_PAPEL, ESCALA_PAPEL, COLOR_PAPEL
 		))
 		raiz.add_child(_pieza(
-			"Papeles2", encima + HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
+			"Papeles2", encima + DECOR_HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
 			COLOR_PAPEL.darkened(0.08)
 		))
 	# LA SILLA DEL CIUDADANO va aquí dentro, AL FINAL para que se dibuje por encima del tablero
@@ -276,13 +268,12 @@ static func construir() -> Node2D:
 	# "Policia" en el contenedor del puesto —la monta `_asegurar_visual_puesto`, SIEMPRE la
 	# primera— así puede quedarse fija al fondo mientras mesa y policía se intercambian entre sí.
 	#
-	# LA POSICIÓN usa `hacia_ciudadano_actual()`, NO la constante a secas: con el mostrador de
-	# sprite (mucho más alto que la caja de código) el sitio de siempre queda tapado por su propio
-	# monitor — ver el aviso junto a `HACIA_FUNCIONARIO_SPRITE`.
-	var hacia_ciudadano: Vector2 = hacia_ciudadano_actual()
-	var del_ciudadano: Node2D = silla_espera_o_defecto(hacia_ciudadano.normalized() * 20.0)
+	# LA POSICIÓN usa `CELDA_CIUDADANO` (centro de la celda sur, regla de rejilla 2026-08-02) — es
+	# el MISMO punto al que `NPCsFlujo._frente_del_puesto` manda al ciudadano ya sentado, así que
+	# silla y ciudadano SIEMPRE coinciden (ver el comentario junto a la constante, arriba).
+	var del_ciudadano: Node2D = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
 	del_ciudadano.name = "SillaCiudadano"
-	del_ciudadano.position = hacia_ciudadano
+	del_ciudadano.position = CELDA_CIUDADANO
 	raiz.add_child(del_ciudadano)
 	return raiz
 
