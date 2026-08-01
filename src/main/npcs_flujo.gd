@@ -98,7 +98,21 @@ var _capa_descansos: Node2D = null
 ## Desplazamiento del muñeco del funcionario respecto de la celda de SU mostrador: una casilla
 ## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
 ## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
+## Solo se usa con el muñeco de PIEZAS (sin sprites, o mientras no se conoce al agente): el sentado
+## de sprite se coloca en la silla de la mesa (`MesaAtencionScript.HACIA_FUNCIONARIO`), no aquí — ver
+## `_reconstruir_cuerpo_policia`.
 const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## ── SPRITE DEL FUNCIONARIO (2026-08-01) ───────────────────────────────────────────────────────
+## La pareja de policías (J-Toastie, CC BY 3.0), integrada EXACTAMENTE como los ciudadanos con
+## sprite 3D (ver `NPCScript.PREFIJO_SPRITE`/`ALTO_SPRITE`/`hay_sprites` en npc_ciudadano.gd): mismo
+## alto (44 px) y mismo criterio de "si no hay sprites, el muñeco de piezas de siempre".
+const ALTO_SPRITE_OFICIAL: int = 44
+const PREFIJO_OFICIAL_H := "oficial_h"
+const PREFIJO_OFICIAL_M := "oficial_m"
+## Hacia dónde mira el funcionario SENTADO en su ventanilla: al SUR (+Y del mundo), hacia el
+## ciudadano — el opuesto de `DIRECCION_SENTADO` (el ciudadano mira al norte, hacia él): se miran de
+## frente, como en una ventanilla de verdad.
+const DIRECCION_POLICIA_SENTADO := Vector2(0.0, 1.0)
 ## ── EL PASO (animación procedural, 2026-07-31) ──────────────────────────────────────────────
 ## El usuario, viendo el primer sprite: *"dios qué feo, no hay ningún tipo de animación al caminar
 ## ni nada"*. Y el problema no era el sprite: es que TODO EL MUNDO se deslizaba tieso por el suelo,
@@ -800,7 +814,7 @@ func _sala_de_descanso() -> StringName:
 ## `_avanzar_camino_descanso`.
 func _iniciar_camino_descanso(agente: RefCounted) -> void:
 	var puesto_id: StringName = agente.puesto_id
-	var muneco: CharacterBody2D = _crear_muneco_caminante()
+	var muneco: CharacterBody2D = _crear_muneco_caminante(agente)
 	muneco.position = _punto_de_su_puesto(puesto_id)
 	_capa_descansos.add_child(muneco)
 	var sala: StringName = _sala_de_descanso()
@@ -1119,7 +1133,7 @@ func _refrescar_incorporaciones() -> void:
 ## target real se aplica un frame más tarde (gotcha del NavigationServer, ver `_mover_paso`).
 func _iniciar_camino_incorporacion(agente: RefCounted) -> void:
 	var puesto_id: StringName = agente.puesto_id
-	var muneco: CharacterBody2D = _crear_muneco_caminante()
+	var muneco: CharacterBody2D = _crear_muneco_caminante(agente)
 	muneco.position = _punto_calle(_construccion.posicion_de(puesto_id).y)
 	_capa_descansos.add_child(muneco)
 	_camino_incorporacion[agente] = {
@@ -1144,12 +1158,27 @@ func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 	_borrar_caminante(viaje["muneco"] as Node)
 
 
+## El PREFIJO de sprite de un funcionario, repartido determinista por su NOMBRE (identidad estable
+## del agente — no cambia al reasignarlo de puesto, a diferencia de `puesto_id`; mismo criterio que
+## `MunecoScript.piel_de` reparte la piel de los ciudadanos por su número de turno, nunca por azar,
+## para que el mismo agente salga siempre con el mismo sprite, también al recargar la partida).
+## Aproximadamente mitad y mitad entre los dos policías del pack (J-Toastie, CC BY 3.0).
+func _prefijo_oficial_de(nombre: String) -> String:
+	return PREFIJO_OFICIAL_H if posmod(nombre.hash(), 2) == 0 else PREFIJO_OFICIAL_M
+
+
 ## Torso + cabeza del uniforme (las mismas piezas, pixel a pixel) añadidas a `destino`: lo comparten
 ## el muñeco QUIETO del mostrador (`_asegurar_visual_puesto`) y el CAMINANTE de esta sección
 ## (`_crear_muneco_caminante`), para que sea el mismo cuerpo se mire donde se mire.
 ## ISOMÉTRICO (2026-07-30): ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto
 ## de la celda donde de verdad está de pie. Antes iba centrado a media altura (torso en y=-8): en
 ## cenital daba igual, en isométrico el policía parecería flotar por encima de su mostrador.
+##
+## FALLBACK (2026-08-01): es el muñeco de PIEZAS que se usa cuando NO hay sprites de policía
+## (`hay_sprites` da false) o mientras aún no se conoce al agente — quien de verdad decide
+## pieza-o-sprite es `_crear_muneco_caminante` (el que anda) y `_reconstruir_cuerpo_policia` (el fijo
+## de la ventanilla). Se conserva sin tocar: es el "sin romper nada" del que depende la comisaría si
+## el render de sprites faltara.
 func _anadir_cuerpo_policia(destino: Node2D) -> void:
 	# Uniforme del CNP con los colores sacados de la referencia real (ver `Muneco`): polo azul
 	# marino, pantalón un punto más oscuro, botas negras, piel en cara y antebrazos (manga corta) y
@@ -1160,12 +1189,17 @@ func _anadir_cuerpo_policia(destino: Node2D) -> void:
 	))
 
 
-## Un muñeco de policía que CAMINA: mismo cuerpo que el fijo del mostrador, pero sobre un
-## CharacterBody2D con NavigationAgent2D hijo — el MISMO sistema que npc_ciudadano (ADR-0004): fantasma
-## (collision_layer/mask 0, sin avoidance — MVP) y movido a mano desde `_avanzar_camino_descanso` con
-## get_next_path_position + move_and_slide (no tiene su propio `_physics_process`: lo empuja este
-## archivo, que es quien controla la cadencia del DIFF).
-func _crear_muneco_caminante() -> CharacterBody2D:
+## Un muñeco de policía que CAMINA: sobre un CharacterBody2D con NavigationAgent2D hijo — el MISMO
+## sistema que npc_ciudadano (ADR-0004): fantasma (collision_layer/mask 0, sin avoidance — MVP) y
+## movido a mano desde `_avanzar_camino_descanso` con get_next_path_position + move_and_slide (no
+## tiene su propio `_physics_process`: lo empuja este archivo, que es quien controla la cadencia del
+## DIFF).
+##
+## SPRITE (2026-08-01): integrado EXACTAMENTE como los ciudadanos (`npc_ciudadano.configurar`) — si
+## hay sprites del policía que le toca (`_prefijo_oficial_de(agente.nombre)`), sprite; si no, el
+## muñeco de piezas de siempre. `colocar_muneco`/`_sincronizar_caminantes` ya saben animar el ciclo
+## de andar de un sprite (miran `get_child(0).has_meta(&"prefijo")`): no hace falta tocar nada ahí.
+func _crear_muneco_caminante(agente: RefCounted = null) -> CharacterBody2D:
 	var muneco := CharacterBody2D.new()
 	muneco.collision_layer = 0
 	muneco.collision_mask = 0
@@ -1186,7 +1220,11 @@ func _crear_muneco_caminante() -> CharacterBody2D:
 	# posición ya proyectada en `_sincronizar_caminantes`. Mismo reparto que en npc_ciudadano.
 	var visual := Node2D.new()
 	visual.name = "MunecoPolicia"
-	_anadir_cuerpo_policia(visual)
+	var prefijo: String = _prefijo_oficial_de(agente.nombre) if agente != null else ""
+	if prefijo != "" and MunecoScript.hay_sprites(prefijo, ALTO_SPRITE_OFICIAL):
+		visual.add_child(MunecoScript.construir_sprite(prefijo, ALTO_SPRITE_OFICIAL))
+	else:
+		_anadir_cuerpo_policia(visual)
 	registrar_muneco(visual)
 	muneco.set_meta(&"visual", visual)
 	return muneco
@@ -1355,6 +1393,11 @@ func _actualizar_visual_puesto(
 	# Horario provisional 2026-07-25 "los funcionarios se van": con el puesto cerrado (por horario o
 	# por el jugador) el muñeco y su nombre desaparecen del mostrador — caminar a casa es juice futuro.
 	var policia: Node2D = contenedor.get_node("Policia")
+	# SPRITE DEL FUNCIONARIO (2026-08-01): el cuerpo se reconstruye SOLO cuando cambia DE QUIÉN es
+	# (nombre distinto — nuevo titular, o el puesto se queda sin nadie): es la misma condición que ya
+	# formaba parte del DIFF de arriba, así que esto sigue costando cero mientras nada cambie.
+	if nombre != visto_nombre:
+		_reconstruir_cuerpo_policia(contenedor, policia, nombre)
 	# De café, el mostrador se queda VACÍO (quien se ve es el muñeco CAMINANTE de `_refrescar_descansos`)
 	# pero el nombre sigue: es SU ventanilla, solo que ahora mismo no hay nadie. `oculto_por_regreso`
 	# (feedback demo 2026-07-29) tapa el hueco entre "el modelo ya dice que ha vuelto" y "el muñeco
@@ -1407,6 +1450,45 @@ func _actualizar_visual_puesto(
 		var fraccion: float = clampf(cansancio, 0.0, 100.0) / 100.0
 		barra_relleno.size.x = ANCHO_BARRA_CANSANCIO * fraccion
 		barra_relleno.color = _color_cansancio(cansancio)
+
+
+## Reconstruye el cuerpo del "Policia" de un puesto cuando cambia DE QUIÉN es. Si hay sprites del
+## policía que le toca (género determinista por el nombre, ver `_prefijo_oficial_de`), se sienta
+## MIRANDO al ciudadano, en la silla que ya dibuja la mesa (`MesaAtencionScript.HACIA_FUNCIONARIO`,
+## la misma que usa `SillaFuncionario`) y con el mostrador dibujándose DESPUÉS (por encima): le tapa
+## las piernas, como en una ventanilla de verdad — para lo que estaba pensado `ALTO_MESA` desde el
+## principio (ver su comentario en `mesa_atencion.gd`: "para que el funcionario se vea de medio
+## cuerpo por encima").
+##
+## SIN sprites (o sin nombre: puesto vacío) se conserva el muñeco de piezas de siempre, DE PIE una
+## casilla detrás de la mesa (`_POLICIA_DETRAS`) y dibujado POR ENCIMA del mostrador: es el acomodo
+## que ya corrigió el bug histórico "se pone en la mesa y tapa al funcionario" (ver
+## `_asegurar_visual_puesto`) — un muñeco de pie no cabe sentado en la silla sin la pose de verdad,
+## así que aquí NO se le toca la geometría.
+##
+## El orden de dibujo (`move_child`) solo se toca si el MODO cambió de verdad (meta
+## `policia_sentado` en el contenedor): repetir el mismo modo dos veces seguidas no debe intercambiar
+## mesa/policía otra vez, o quedarían permutados sin motivo.
+func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: String) -> void:
+	for hijo: Node in policia.get_children():
+		hijo.queue_free()
+	var prefijo: String = _prefijo_oficial_de(nombre) if nombre != "" else ""
+	var con_sprite: bool = prefijo != "" and MunecoScript.hay_sprites(prefijo, ALTO_SPRITE_OFICIAL)
+	if con_sprite:
+		policia.add_child(MunecoScript.construir_sprite_sentado(
+			prefijo, ALTO_SPRITE_OFICIAL, DIRECCION_POLICIA_SENTADO
+		))
+		policia.position = MesaAtencionScript.HACIA_FUNCIONARIO
+	else:
+		_anadir_cuerpo_policia(policia)
+		policia.position = _POLICIA_DETRAS
+	if contenedor.get_meta(&"policia_sentado", false) != con_sprite:
+		contenedor.set_meta(&"policia_sentado", con_sprite)
+		var mesa: Node2D = contenedor.get_node("Mesa")
+		if con_sprite:
+			contenedor.move_child(policia, mesa.get_index())   # el mostrador pasa a pintarse DESPUÉS
+		else:
+			contenedor.move_child(mesa, policia.get_index())   # el policía vuelve a pintarse POR ENCIMA
 
 
 ## Color del RELLENO de la barra de cansancio, por tramo. Reutiliza tonos que YA existen en este

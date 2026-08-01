@@ -193,6 +193,22 @@ static func animar_sprite(
 	_poner_sprite(muneco, int(muneco.get_meta(&"direccion", 0)), f, sentado)
 
 
+## Construye un muñeco de sprite YA SENTADO y mirando a `mirando_hacia` (un vector del MUNDO, no de
+## pantalla — mismo criterio que `orientar_sprite`, ver su comentario). Para elementos ESTÁTICOS que
+## no andan (el policía fijo de su ventanilla: nace sentado y no se mueve, así que nunca pasa por
+## `colocar_muneco`/`animar_sprite`, que son de quien camina). El render ya baja el cuerpo a la
+## altura de una silla (`tools/render_sprites_animado.gd`, pose final 2026-08-01), así que aquí solo
+## hace falta elegir la imagen `..._sit_N.png` que toca.
+static func construir_sprite_sentado(prefijo: String, alto: int, mirando_hacia: Vector2) -> Node2D:
+	var raiz: Node2D = construir_sprite(prefijo, alto)
+	var rumbo: float = atan2(mirando_hacia.y, mirando_hacia.x)
+	var indice: int = posmod(roundi(rumbo / TAU * DIRECCIONES_SPRITE), DIRECCIONES_SPRITE)
+	raiz.set_meta(&"direccion", indice)
+	raiz.set_meta(&"sentado", true)
+	_poner_sprite(raiz, indice, 0, true)
+	return raiz
+
+
 ## Monta un muñeco completo y lo devuelve. `color` es el del torso (el del servicio, en los
 ## ciudadanos; el del uniforme, en los policías); la cabeza sale de aclararlo, que es la convención
 ## que ya venía de los rectángulos anteriores.

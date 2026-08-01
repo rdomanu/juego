@@ -28,14 +28,24 @@ extends Node3D
 ## tiempo de ejecución con `GLTFDocument` + `GLTFState`, que leen el `.glb` directamente sin pasar
 ## por el sistema de importación.
 ##
-## ── LA POSE DE SENTADO, AQUÍ ES UN EXPERIMENTO (no una solución) ──────────────────────────────────
+## ── LA POSE DE SENTADO (2026-08-01: DECIDIDA, ya no es un experimento) ───────────────────────────
 ## Sin rodilla, lo único que se puede doblar es la cadera: se gira el hueso `Foot.L`/`Foot.R` entero
 ## (que en este rig es la pierna completa, no solo el pie) hasta la horizontal, y de propina se baja
 ## el cuerpo para que la pierna horizontal quede a la altura de un asiento en vez de flotando en el
-## aire a la altura de la cadera de pie. Cuánto bajar y hacia qué lado gira cada pie NO se puede
-## deducir de las convenciones de este rig ajeno — así que se generan 4 combinaciones (signo del
-## giro × con/sin bajar) para que las juzgue un humano mirándolas. Ver `_posar_sentado_prueba` y el
-## `.txt` que se escribe junto a los PNG.
+## aire a la altura de la cadera de pie. El signo del giro y si hacía falta bajar el cuerpo NO se
+## podían deducir de las convenciones de este rig ajeno, así que se generaron 4 combinaciones
+## (A/B/C/D, signo del giro × con/sin bajar) y las juzgó el usuario mirándolas: **pies girados −85°
+## (piernas hacia delante, el signo de "C") CON el cuerpo bajado (lo que distingue "D" de "C")**. Es
+## la variante D del experimento — ver `_posar_sentado` (antes `_posar_sentado_prueba`) y el
+## historial en `production/session-state/` para el porqué de cada combinación descartada.
+##
+## ── SALIDA ─────────────────────────────────────────────────────────────────────────────────────
+## Escribe DIRECTO en `res://assets/sprites/personajes/`, con la MISMA nomenclatura que ya consume
+## `src/main/muneco.gd` para los ciudadanos (prefijo "girl"): `{prefijo}_{alto}px_{dir}_{fotograma}.png`
+## para el ciclo de andar (8 direcciones × 8 fotogramas) y `{prefijo}_{alto}px_sit_{dir}.png` para el
+## sentado (8 direcciones, sin fotograma: sentado no se mueve). Sin fotogramas de "reposo" sueltos —
+## el fotograma 0 del ciclo de andar hace de pose de pie quieta (mismo criterio que "girl": es lo que
+## `Muneco.animar_sprite` enseña cuando `andando` es 0).
 
 ## Un trabajo por modelo: dónde está el `.glb` y con qué prefijo se guardan sus sprites.
 ##
@@ -55,7 +65,9 @@ const TRABAJOS: Array[Dictionary] = [
 		"piel_referencia_celda": Vector2i(3, 1),
 	},
 ]
-const SALIDA := "res://capturas/NPC/Policias/candidatos/render_test/"
+## RENDER FINAL (2026-08-01): antes apuntaba a `capturas/.../render_test/` (candidatos, descartable);
+## ahora escribe donde el juego de verdad carga los sprites (`Muneco.RUTA_SPRITES`).
+const SALIDA := "res://assets/sprites/personajes/"
 
 ## Cámara: mismo ángulo isométrico que `render_sprites.gd` (`atan(1/2)`, no los 30° "de libro").
 const ELEVACION_GRADOS: float = 26.565
@@ -63,10 +75,6 @@ const DIRECCIONES: int = 8
 ## Qué índice de dirección es "SUR" (el personaje mirando de frente a cámara). Es el mismo que usó
 ## `render_sprites.gd` para sus pruebas de signo (`PROBAR_SIGNOS` en `i == 6`).
 const DIRECCION_SUR: int = 6
-## "ESTE": perfil, 90° del SUR. De frente casi no se distingue si las piernas del sentado giraron
-## hacia delante o hacia atrás (quedan casi tapadas por el propio cuerpo) — de perfil es inequívoco,
-## así que el sentado se prueba en LAS DOS direcciones.
-const DIRECCION_ESTE: int = 0
 const TAM_RENDER: int = 512
 const ALTURAS: Array[int] = [88, 44]
 
@@ -101,10 +109,15 @@ const HUESO_PIERNA_DER := "Foot.R"
 ## Grados que se gira la pierna desde la cadera para llevarla a la horizontal. 85 y no 90: un ángulo
 ## exacto se lee como un maniquí (mismo criterio que `SENTADO_CADERA` en `render_sprites.gd`).
 const SENTADO_GRADOS_PIE: float = 85.0
-## Cuánto se baja el cuerpo en la variante "con bajada", como fracción del largo de la pierna medido
-## en REPOSO (cadera→tobillo). 0,5 es una PRIMERA estimación razonable, no una cuenta cerrada — por
-## algo esto es el experimento que hay que mirar, no calcular.
+## Cuánto se baja el cuerpo en la pose sentada final, como fracción del largo de la pierna medido en
+## REPOSO (cadera→tobillo). Es la que usaba la variante "con bajada" (B/D) del experimento — sin
+## bajar, la pierna queda horizontal pero flotando a la altura de la cadera de pie, no a la de un
+## asiento.
 const SENTADO_BAJADA_FRACCION: float = 0.5
+## El SIGNO del giro elegido por el usuario tras el experimento A/B/C/D: −85° (piernas hacia
+## DELANTE), el mismo signo que las variantes "C"/"D". Con `SENTADO_BAJADA_FRACCION` aplicado
+## (equivalente a "D"), es la pose sentada FINAL — ver la cabecera del archivo.
+const SENTADO_SIGNO_PIE_FINAL: float = -1.0
 
 var _sub: SubViewport
 var _camara: Camera3D
@@ -155,13 +168,13 @@ func _procesar_todo() -> void:
 	for trabajo: Dictionary in TRABAJOS:
 		await _procesar_modelo(trabajo)
 	_generar_index()
-	_generar_leyenda_sentado()
 	print("[RENDER] hecho: %d/%d modelos procesados" % [_procesados.size(), TRABAJOS.size()])
 	get_tree().quit()
 
 
-## Carga, encuadra, renderiza las 8 direcciones (reposo + 8 fotogramas de andar) y las 4 pruebas de
-## sentado de UN modelo, y libera la escena antes de devolver el control.
+## Carga, encuadra, renderiza las 8 direcciones (8 fotogramas de andar cada una, el fotograma 0 hace
+## de pie quieto) y las 8 direcciones de sentado (pose final) de UN modelo, y libera la escena antes
+## de devolver el control.
 func _procesar_modelo(trabajo: Dictionary) -> void:
 	var ruta: String = trabajo["ruta"]
 	var prefijo: String = trabajo["prefijo"]
@@ -215,13 +228,8 @@ func _procesar_modelo(trabajo: Dictionary) -> void:
 		var objetivo: float = atan2(cos(rumbo), sin(rumbo))
 		_modelo.rotation = Vector3(0.0, objetivo - rumbo_reposo, 0.0)
 
-		# REPOSO de esta dirección (Idle en t=0).
-		_muestrear(reproductor, anim_reposo, 0.0)
-		_anular_root_motion(esqueleto)
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
-		_guardar(_recortar(_sub.get_texture().get_image()), prefijo, "reposo_%d" % i)
-
+		# Sin "reposo_%d" suelto (mismo criterio que "girl"): el fotograma 0 del ciclo de ANDAR de
+		# más abajo hace de pose de pie quieta en el juego (ver `Muneco.animar_sprite`).
 		# ANDAR: 8 instantes equiespaciados del ciclo de "Armature|Walk".
 		for f: int in FOTOGRAMAS:
 			var t: float = float(f) / float(FOTOGRAMAS)
@@ -232,17 +240,17 @@ func _procesar_modelo(trabajo: Dictionary) -> void:
 			_guardar(_recortar(_sub.get_texture().get_image()), prefijo, "%d_%d" % [i, f])
 		print("[RENDER] %s: dirección %d/%d lista (%d fotogramas)" % [prefijo, i + 1, DIRECCIONES, FOTOGRAMAS])
 
-	# SENTADO (experimento): en SUR y en ESTE (perfil), 4 combinaciones cada una, para que las juzgue
-	# un humano. De frente casi no se distingue hacia qué lado giró la pierna; de perfil es claro.
+	# SENTADO (final, 2026-08-01): la pose que eligió el usuario tras el experimento A/B/C/D --
+	# `SENTADO_SIGNO_PIE_FINAL` (el signo de "C") + cuerpo bajado (lo que distinguía "D" de "C") --
+	# en las 8 direcciones, igual que el ciclo de andar y que `girl_*_sit_*.png`.
 	var bajada: float = _largo_pierna(esqueleto) * SENTADO_BAJADA_FRACCION
-	print("[RENDER] %s: largo de pierna en reposo (CORE->Toes.L, en mundo) = %.5f -> bajada de prueba = %.5f" % [
+	print("[RENDER] %s: largo de pierna en reposo (CORE->Toes.L, en mundo) = %.5f -> bajada = %.5f" % [
 		prefijo, _largo_pierna(esqueleto), bajada
 	])
-	var idx_pierna_diag: int = _hueso(esqueleto, HUESO_PIERNA_IZQ) if esqueleto != null else -1
 	var idx_raiz_diag: int = _hueso(esqueleto, HUESO_RAIZ) if esqueleto != null else -1
-	# La Y LOCAL de CORE con la pose de Idle limpia, capturada UNA vez. Todas las variantes parten de
-	# ESTA misma Y (absoluta, no relativa a "lo que hubiera antes") -- si no, una variante con
-	# `bajar_cuerpo` deja la Y baja y la siguiente hereda esa bajada encima de la suya.
+	# La Y LOCAL de CORE con la pose de Idle limpia, capturada UNA vez. Cada dirección parte de ESTA
+	# misma Y (absoluta, no relativa a "lo que hubiera antes") -- si no, una dirección deja la Y baja
+	# y la siguiente hereda esa bajada encima de la suya.
 	_muestrear(reproductor, anim_reposo, 0.0)
 	if reproductor != null:
 		reproductor.stop(true)
@@ -250,43 +258,27 @@ func _procesar_modelo(trabajo: Dictionary) -> void:
 	var core_y_base: float = (
 		esqueleto.get_bone_pose_position(idx_raiz_diag).y if idx_raiz_diag >= 0 else 0.0
 	)
-	var variantes: Dictionary = {
-		"A": {"signo": 1.0, "bajar": false},
-		"B": {"signo": 1.0, "bajar": true},
-		"C": {"signo": -1.0, "bajar": false},
-		"D": {"signo": -1.0, "bajar": true},
-	}
-	var direcciones_sentado: Dictionary = {"sur": DIRECCION_SUR, "este": DIRECCION_ESTE}
-	for nombre_dir: String in ["sur", "este"]:
-		var idx_dir: int = direcciones_sentado[nombre_dir]
-		var rumbo_d: float = TAU / DIRECCIONES * idx_dir
-		var objetivo_d: float = atan2(cos(rumbo_d), sin(rumbo_d))
-		_modelo.rotation = Vector3(0.0, objetivo_d - rumbo_reposo, 0.0)
-		for letra: String in ["A", "B", "C", "D"]:
-			var v: Dictionary = variantes[letra]
-			# SIEMPRE se parte de un Idle recién muestreado: si no, la variante anterior deja las
-			# piernas giradas puestas y esta hereda esos restos encima de los suyos.
-			_muestrear(reproductor, anim_reposo, 0.0)
-			# ⚠️ CAUSA DEL BUG "las 4 salen iguales, de pie": con el AnimationPlayer todavía
-			# "reproduciendo" (aunque `speed_scale = 0` impida que el TIEMPO avance), el
-			# AnimationMixer reaplica la pose de Idle en CADA frame procesado -- incluidos los
-			# `await RenderingServer.frame_post_draw` de más abajo -- así que pisaba las ediciones
-			# manuales de pierna/cuerpo antes de que llegaran a capturarse. `stop(true)` congela la
-			# pose actual (`keep_state`) y deja de reprocesarla.
-			if reproductor != null:
-				reproductor.stop(true)
-			_anular_root_motion(esqueleto)
-			_posar_sentado_prueba(esqueleto, float(v["signo"]), bool(v["bajar"]), bajada, core_y_base)
-			await RenderingServer.frame_post_draw
-			await RenderingServer.frame_post_draw
-			var recorte: Image = _recortar(_sub.get_texture().get_image())
-			if idx_pierna_diag >= 0:
-				print("[SENTADO] %s %s/%s: recorte=%s Foot.L pose=%s" % [
-					prefijo, nombre_dir, letra, recorte.get_size(),
-					esqueleto.get_bone_pose_rotation(idx_pierna_diag)
-				])
-			_guardar(recorte, prefijo, "sentado_prueba_%s_%s" % [letra, nombre_dir])
-	print("[RENDER] %s: 8 pruebas de sentado listas (4 variantes x 2 direcciones)" % prefijo)
+	for i: int in DIRECCIONES:
+		var rumbo_s: float = TAU / DIRECCIONES * i
+		var objetivo_s: float = atan2(cos(rumbo_s), sin(rumbo_s))
+		_modelo.rotation = Vector3(0.0, objetivo_s - rumbo_reposo, 0.0)
+		# SIEMPRE se parte de un Idle recién muestreado: si no, la dirección anterior deja las
+		# piernas giradas puestas y esta hereda esos restos encima de los suyos.
+		_muestrear(reproductor, anim_reposo, 0.0)
+		# ⚠️ CAUSA DEL BUG "todas salen iguales, de pie": con el AnimationPlayer todavía
+		# "reproduciendo" (aunque `speed_scale = 0` impida que el TIEMPO avance), el AnimationMixer
+		# reaplica la pose de Idle en CADA frame procesado -- incluidos los
+		# `await RenderingServer.frame_post_draw` de más abajo -- así que pisaba las ediciones
+		# manuales de pierna/cuerpo antes de que llegaran a capturarse. `stop(true)` congela la
+		# pose actual (`keep_state`) y deja de reprocesarla.
+		if reproductor != null:
+			reproductor.stop(true)
+		_anular_root_motion(esqueleto)
+		_posar_sentado(esqueleto, SENTADO_SIGNO_PIE_FINAL, true, bajada, core_y_base)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		_guardar(_recortar(_sub.get_texture().get_image()), prefijo, "sit_%d" % i)
+	print("[RENDER] %s: 8 direcciones de sentado listas" % prefijo)
 
 	_procesados.append(prefijo)
 	_mundo.remove_child(_modelo)
@@ -553,13 +545,14 @@ func _largo_pierna(esqueleto: Skeleton3D) -> float:
 	return maxf(mundo_cadera.y - mundo_tobillo.y, 0.0)
 
 
-## EL EXPERIMENTO: sin rodilla, lo único que hay para "sentar" es girar la pierna entera desde la
+## LA POSE SENTADA: sin rodilla, lo único que hay para "sentar" es girar la pierna entera desde la
 ## cadera hasta la horizontal (`Foot.L`/`Foot.R`, que en este rig hacen de muslo+pantorrilla en una
 ## pieza) y, si `bajar_cuerpo`, bajar el hueso raíz esa distancia — para que la pierna horizontal
-## quede a la altura de un asiento en vez de flotando a la altura de la cadera de pie. El signo del
-## giro y si hace falta bajar el cuerpo NO se deducen de este rig ajeno: se generan las 4
-## combinaciones y las juzga un humano (ver `_procesar_modelo` y el `.txt` de leyenda).
-func _posar_sentado_prueba(
+## quede a la altura de un asiento en vez de flotando a la altura de la cadera de pie. `signo_pie` y
+## `bajar_cuerpo` NO se dedujeron de este rig ajeno: se generaron las 4 combinaciones A/B/C/D y las
+## juzgó el usuario mirándolas (ver la cabecera del archivo) — `_procesar_modelo` llama aquí siempre
+## con `SENTADO_SIGNO_PIE_FINAL` y `bajar_cuerpo = true`, la combinación elegida.
+func _posar_sentado(
 	esqueleto: Skeleton3D, signo_pie: float, bajar_cuerpo: bool, bajada: float, core_y_base: float
 ) -> void:
 	if esqueleto == null:
@@ -648,17 +641,16 @@ func _recortar(imagen: Image) -> Image:
 func _generar_index() -> void:
 	var partes: PackedStringArray = []
 	partes.append("<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\">")
-	partes.append("<title>Render de prueba -- candidatos a policia</title>")
+	partes.append("<title>Sprites de policia -- render final</title>")
 	partes.append(_estilo_index())
 	partes.append("</head><body>")
-	partes.append("<h1>Render de prueba -- candidatos a policia</h1>")
+	partes.append("<h1>Sprites de policia -- render final</h1>")
 	partes.append(
-		"<p>Direccion %d = SUR (el personaje mirando de frente a camara). Todas las imagenes a 88 px, fondo a cuadros para ver la transparencia.</p>"
+		"<p>Direccion %d = SUR (el personaje mirando de frente a camara). Todas las imagenes a 88 px, fondo a cuadros para ver la transparencia. El fotograma 0 de cada direccion hace de pose de pie quieta (sin reposo suelto, mismo criterio que \"girl\").</p>"
 		% DIRECCION_SUR
 	)
 	for prefijo: String in _procesados:
 		partes.append("<h2>%s</h2>" % prefijo)
-		partes.append(_seccion_reposo(prefijo))
 		partes.append(_seccion_andar(prefijo))
 		partes.append(_seccion_sentado(prefijo))
 	if _procesados.is_empty():
@@ -689,20 +681,6 @@ func _estilo_index() -> String:
 	)
 
 
-func _seccion_reposo(prefijo: String) -> String:
-	var partes: PackedStringArray = []
-	partes.append("<h3>Reposo (Idle) -- 8 direcciones</h3>")
-	partes.append("<div class=\"tira\">")
-	for i: int in DIRECCIONES:
-		var etiqueta: String = "Direccion %d" % i
-		if i == DIRECCION_SUR:
-			etiqueta += " (SUR)"
-		var archivo: String = "%s_88px_reposo_%d.png" % [prefijo, i]
-		partes.append("<div>%s<br><img src=\"%s\" alt=\"%s\"></div>" % [etiqueta, archivo, etiqueta])
-	partes.append("</div>")
-	return "\n".join(partes)
-
-
 func _seccion_andar(prefijo: String) -> String:
 	var partes: PackedStringArray = []
 	partes.append("<h3>Ciclo de andar</h3>")
@@ -728,56 +706,14 @@ func _seccion_andar(prefijo: String) -> String:
 
 
 func _seccion_sentado(prefijo: String) -> String:
-	var descripciones: Dictionary = {
-		"A": "pies +85 grados, SIN bajar cuerpo",
-		"B": "pies +85 grados, CON bajar cuerpo",
-		"C": "pies -85 grados, SIN bajar cuerpo",
-		"D": "pies -85 grados, CON bajar cuerpo",
-	}
 	var partes: PackedStringArray = []
-	partes.append("<h3>Pruebas de sentado (experimento, SUR y ESTE)</h3>")
-	partes.append("<p>ESTE es de perfil: de frente casi no se distingue hacia donde giro la pierna, de perfil si.</p>")
-	for nombre_dir: String in ["sur", "este"]:
-		partes.append("<h4>%s</h4>" % nombre_dir.to_upper())
-		partes.append("<div class=\"tira\">")
-		for letra: String in ["A", "B", "C", "D"]:
-			var archivo: String = "%s_88px_sentado_prueba_%s_%s.png" % [prefijo, letra, nombre_dir]
-			var etiqueta: String = "Prueba %s (%s) -- %s" % [letra, nombre_dir, descripciones[letra]]
-			partes.append("<div>%s<br><img src=\"%s\" alt=\"%s\"></div>" % [etiqueta, archivo, etiqueta])
-		partes.append("</div>")
+	partes.append("<h3>Sentado -- 8 direcciones (pose final)</h3>")
+	partes.append("<div class=\"tira\">")
+	for i: int in DIRECCIONES:
+		var etiqueta: String = "Direccion %d" % i
+		if i == DIRECCION_SUR:
+			etiqueta += " (SUR)"
+		var archivo: String = "%s_88px_sit_%d.png" % [prefijo, i]
+		partes.append("<div>%s<br><img src=\"%s\" alt=\"%s\"></div>" % [etiqueta, archivo, etiqueta])
+	partes.append("</div>")
 	return "\n".join(partes)
-
-
-## Escribe, junto a los PNG, qué es cada letra A/B/C/D del experimento de sentado -- para que se
-## pueda mirar la hoja de contactos sin tener que volver a leer este script.
-func _generar_leyenda_sentado() -> void:
-	var texto: String = (
-		"PRUEBAS DE SENTADO -- que es cada letra\n"
-		+ "=========================================\n\n"
-		+ "Estos rigs NO tienen rodilla: la pierna es UNA sola pieza (hueso Foot.L / Foot.R), del\n"
-		+ "hueso de la cadera hasta el tobillo. El metodo de render_sprites.gd (doblar cadera Y\n"
-		+ "rodilla) no tiene donde aplicarse aqui.\n\n"
-		+ "En su lugar se gira la pierna ENTERA desde la cadera hasta dejarla horizontal, y en dos\n"
-		+ "de las cuatro variantes se baja ademas el cuerpo entero (hueso CORE) para que el \"culo\"\n"
-		+ "quede a la altura de un asiento en vez de quedarse flotando en el aire a la altura de\n"
-		+ "la cadera de pie -- girar sin bajar dejaria la pierna horizontal, pero en el sitio donde\n"
-		+ "estaba la cadera de pie, no a la altura de una silla.\n\n"
-		+ "A = pies girados +85 grados -- cuerpo SIN bajar\n"
-		+ "B = pies girados +85 grados -- cuerpo bajado (mitad del largo de la pierna del modelo)\n"
-		+ "C = pies girados -85 grados -- cuerpo SIN bajar\n"
-		+ "D = pies girados -85 grados -- cuerpo bajado (mitad del largo de la pierna del modelo)\n\n"
-		+ "Ninguna se eligio a mano: se renderizan las 4 y las juzga un humano mirandolas. Con un\n"
-		+ "rig ajeno no se deduce el signo ni la distancia correctos, se miran -- misma norma que ya\n"
-		+ "costo cara con el signo de cadera/rodilla en render_sprites.gd.\n\n"
-		+ "Cada variante se renderiza en DOS direcciones, sufijo _sur / _este: de frente (SUR) casi no\n"
-		+ "se distingue hacia donde giro la pierna (queda escondida contra el cuerpo); de perfil\n"
-		+ "(ESTE) se ve sin ambiguedad hacia que lado quedo.\n\n"
-		+ "Hay una copia de estas 8 imagenes (4 letras x 2 direcciones) por cada modelo procesado\n"
-		+ "(oficial_h_*, oficial_m_*).\n"
-	)
-	var archivo := FileAccess.open(SALIDA + "sentado_prueba_leyenda.txt", FileAccess.WRITE)
-	if archivo == null:
-		push_error("RenderSpritesAnimado: no se pudo escribir sentado_prueba_leyenda.txt")
-		return
-	archivo.store_string(texto)
-	archivo.close()
