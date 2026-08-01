@@ -1632,23 +1632,52 @@ const COLOR_SILLA_ESPERA := Color(0.38, 0.36, 0.34)
 ## La silla la construye la misma pieza que usan las ventanillas: una sola definición de "silla".
 const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 
-## ── SPRITE DE LA COMODIDAD "equipo_informatico" (2026-08-01) ─────────────────────────────────
-## Las 2 pantallas del cluster OBJ_042 (`tools/render_mobiliario.gd`, receta
-## `comodidad_equipo_informatico` — SOLO los monitores, sin la silla roja ni el teclado/ratón/taza
-## que traía el cluster junto a ellos) sustituyen a la caja gris genérica de esta comodidad
-## concreta. Por CONVENCIÓN DE NOMBRE de archivo (`<id_catalogo>_<rotación>.png`) — el resto del
-## catálogo de comodidades (sofá, dispensador, vending…) sigue con su caja de siempre hasta que
-## tengan su propio sprite.
+## ── SPRITES DE COMODIDADES DE 1 CELDA (2026-08-01, generalizado en la 2ª tanda) ─────────────────
+## Cada comodidad de 1 celda con sprite propio sustituye a la caja gris genérica; la que no está en
+## este diccionario se queda con su caja de siempre — no hace falta tocar nada para añadir una
+## nueva comodidad sin sprite, ni para las que YA tienen sprite pero superficie > 1 (esas van por
+## el camino especial de `_pieza_comodidad`, ver más abajo: `sofa_descanso`).
+##
+## Por comodidad: `rotacion` (de las 4 que renderiza `render_mobiliario.gd`; todas a 0° por ahora
+## — una comodidad no tiene "frente" al que mirar, a diferencia del mostrador de la ventanilla, así
+## que cualquiera vale y se deja la de calibración) y `ancla` (fracción del ancho/alto del PNG
+## donde cae el centro de la celda — la imprime la propia herramienta al renderizar, no se
+## adivina).
 const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
 const COMODIDAD_EQUIPO_INFORMATICO := &"equipo_informatico"
-## Fija a 0°: una comodidad no tiene "frente" (no hay funcionario/ciudadano a los que mirar, a
-## diferencia del mostrador de la ventanilla), así que cualquier rotación vale — se deja en la que
-## se renderizó de calibración, sin lógica de orientación añadida.
-const ROT_EQUIPO_INFORMATICO: int = 0
-## Ancla del sprite (fracción del ancho/alto donde cae el centro de la celda) — impresa por
-## `render_mobiliario.gd` al renderizar, misma cuenta que `MesaAtencionScript.ANCLA_FRACCION_
-## MOSTRADOR` (ver la cabecera de esa herramienta).
-const ANCLA_FRACCION_EQUIPO_INFORMATICO := Vector2(0.501, 0.760)
+const COMODIDAD_PAPELERA := &"papelera"
+const COMODIDAD_DISPENSADOR_AGUA := &"dispensador_agua"
+const COMODIDAD_RADIO := &"radio"
+## `sofa_descanso` (superficie=3 en datos/, SIN TOCAR) NO está en este diccionario: va por
+## `_pieza_sprite_asiento_sofa3`, con su propio sprite `asiento_sofa3` y rotación H/V — ver el
+## aviso junto a `ASIENTO_SOFA3` sobre por qué no es el mismo sprite que se renderizó como
+## `comodidad_sofa_descanso` (OBJ_011, un sofá de 1 plaza: quedó renderizado pero SIN USAR, a la
+## espera de que el usuario le busque un destino de 1 celda de verdad).
+const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
+static func _sprites_comodidad() -> Dictionary:
+	return {
+		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.493, 0.755)},
+		COMODIDAD_PAPELERA: {"rotacion": 0, "ancla": Vector2(0.508, 0.876)},
+		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.495, 0.920)},
+		COMODIDAD_RADIO: {"rotacion": 0, "ancla": Vector2(0.493, 0.834)},
+	}
+
+
+## ── EL SOFÁ DE 3 PLAZAS, MULTI-CELDA (2026-08-01) ───────────────────────────────────────────────
+## `sofa_descanso` (comodidad, `superficie` = 3 en datos/ — la ÚNICA pieza "de sentarse" de todo el
+## catálogo que reserva más de 1 celda) sustituye su caja gris genérica —hoy ya elongada 3×1/1×3
+## según `orientacion`, ver el `else` de `_crear_pieza`— por `asiento_sofa3` (ARQ_007, el sofá de 3
+## plazas de verdad; estaba mal archivado como "arquitectura" en el catálogo por su tamaño).
+##
+## DOS rotaciones, no cuatro: el eje LARGO del sofá (1,90 m) corre en Z de mundo en su render a 0°,
+## que es el mismo eje que usa `Proyeccion`/`Construccion` para VERTICAL (`render_mobiliario.gd`
+## explica por qué: "el render usa X y Z donde la rejilla usa X e Y") — así que 0° es la pose
+## VERTICAL y 90° la HORIZONTAL. 180°/270° están renderizadas (por si hacen falta algún día) pero
+## no se usan aquí.
+const ASIENTO_SOFA3 := "asiento_sofa3"
+const ROT_ASIENTO_SOFA3_VERTICAL: int = 0
+const ROT_ASIENTO_SOFA3_HORIZONTAL: int = 90
+const ANCLA_FRACCION_ASIENTO_SOFA3 := Vector2(0.495, 0.662)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -1853,12 +1882,16 @@ func _crear_pieza(
 	# UN ASIENTO es UNA SILLA de verdad, con respaldo (petición del usuario 2026-08-01): sale por
 	# otro camino y no llega a crear la caja. El respaldo va DETRÁS de quien se sienta: como la
 	# gente mira al norte (a las ventanillas), el respaldo cae al sur — abajo a la izquierda en
-	# pantalla.
+	# pantalla. Sprite si lo hay (`silla_espera`, la MISMA silla de espera que usa el lado del
+	# ciudadano en la ventanilla — ver `mesa_atencion.gd`), si no la de código de siempre.
 	if es_asiento and not de_techo:
-		raiz.add_child(MesaAtencionScript.silla(Vector2(-20.0, 10.0), COLOR_SILLA_ESPERA))
+		raiz.add_child(MesaAtencionScript.silla_espera_o_defecto(Vector2(-20.0, 10.0), COLOR_SILLA_ESPERA))
 		return raiz
-	if not de_techo and id_catalogo == COMODIDAD_EQUIPO_INFORMATICO and _hay_sprite_comodidad(id_catalogo):
-		raiz.add_child(_pieza_sprite_comodidad(id_catalogo))
+	var sprites_comodidad: Dictionary = _sprites_comodidad()
+	if not de_techo and id_catalogo == COMODIDAD_SOFA_DESCANSO and _hay_sprite_asiento_sofa3(orientacion):
+		raiz.add_child(_pieza_sprite_asiento_sofa3(orientacion))
+	elif not de_techo and sprites_comodidad.has(id_catalogo) and _hay_sprite_comodidad(id_catalogo):
+		raiz.add_child(_pieza_sprite_comodidad(id_catalogo, sprites_comodidad[id_catalogo]))
 	else:
 		var caja := PiezaIso.new()
 		caja.name = "Caja"
@@ -1888,31 +1921,60 @@ func _crear_pieza(
 	return raiz
 
 
-## ¿Hay un sprite renderizado para esta comodidad? Por ahora solo `equipo_informatico` tiene uno
-## (ver la constante `COMODIDAD_EQUIPO_INFORMATICO` arriba) — cualquier otro id cae siempre a la
-## caja gris, sin necesidad de comprobar nada.
+## ¿Hay un sprite renderizado para esta comodidad? Solo las que están en `_sprites_comodidad()` lo
+## comprueban siquiera — cualquier otro id cae siempre a la caja gris.
 func _hay_sprite_comodidad(id_catalogo: StringName) -> bool:
-	return ResourceLoader.exists(_ruta_sprite_comodidad(id_catalogo))
+	return ResourceLoader.exists(_ruta_sprite_comodidad(id_catalogo, _sprites_comodidad()[id_catalogo]["rotacion"]))
 
 
-func _ruta_sprite_comodidad(id_catalogo: StringName) -> String:
-	return "%scomodidad_%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, String(id_catalogo), ROT_EQUIPO_INFORMATICO]
+func _ruta_sprite_comodidad(id_catalogo: StringName, rotacion: int) -> String:
+	return "%scomodidad_%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, String(id_catalogo), rotacion]
 
 
 ## La comodidad de sprite: un `Sprite2D` anclado por el mismo punto que la `PiezaIso` que sustituye
 ## (el centro de la celda, `Vector2.ZERO` en local) — mismo patrón que
-## `MesaAtencionScript._pieza_sprite_mostrador`.
-func _pieza_sprite_comodidad(id_catalogo: StringName) -> Node2D:
+## `MesaAtencionScript._pieza_sprite_mostrador`. `datos` es la entrada de `_sprites_comodidad()`
+## para este id (`rotacion` + `ancla`).
+func _pieza_sprite_comodidad(id_catalogo: StringName, datos: Dictionary) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Caja"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
 	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_comodidad(id_catalogo))
+	var textura: Texture2D = load(_ruta_sprite_comodidad(id_catalogo, datos["rotacion"]))
+	sprite.texture = textura
+	var ancla: Vector2 = datos["ancla"]
+	sprite.offset = Vector2(-textura.get_width() * ancla.x, -textura.get_height() * ancla.y)
+	raiz.add_child(sprite)
+	return raiz
+
+
+## ¿Hay sprite del sofá de 3 plazas para esta `orientacion`? Ver `_rotacion_asiento_sofa3`.
+func _hay_sprite_asiento_sofa3(orientacion: int) -> bool:
+	return ResourceLoader.exists(_ruta_sprite_asiento_sofa3(orientacion))
+
+
+func _rotacion_asiento_sofa3(orientacion: int) -> int:
+	return ROT_ASIENTO_SOFA3_HORIZONTAL if orientacion == HORIZONTAL else ROT_ASIENTO_SOFA3_VERTICAL
+
+
+func _ruta_sprite_asiento_sofa3(orientacion: int) -> String:
+	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, ASIENTO_SOFA3, _rotacion_asiento_sofa3(orientacion)]
+
+
+## El sofá de 3 plazas de sprite, en la rotación que toca según `orientacion` (H/V, rotar con R) —
+## mismo patrón de ancla que el resto.
+func _pieza_sprite_asiento_sofa3(orientacion: int) -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Caja"
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.centered = false
+	var textura: Texture2D = load(_ruta_sprite_asiento_sofa3(orientacion))
 	sprite.texture = textura
 	sprite.offset = Vector2(
-		-textura.get_width() * ANCLA_FRACCION_EQUIPO_INFORMATICO.x,
-		-textura.get_height() * ANCLA_FRACCION_EQUIPO_INFORMATICO.y
+		-textura.get_width() * ANCLA_FRACCION_ASIENTO_SOFA3.x,
+		-textura.get_height() * ANCLA_FRACCION_ASIENTO_SOFA3.y
 	)
 	raiz.add_child(sprite)
 	return raiz

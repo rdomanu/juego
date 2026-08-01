@@ -99,8 +99,8 @@ var _capa_descansos: Node2D = null
 ## "hacia atrás" en el eje Y de la rejilla, que proyectada es medio rombo arriba y a la derecha.
 ## Es lo que coloca al policía DETRÁS de la mesa en vez de encima (ver `_asegurar_visual_puesto`).
 ## Solo se usa con el muñeco de PIEZAS (sin sprites, o mientras no se conoce al agente): el sentado
-## de sprite se coloca en la silla de la mesa (`MesaAtencionScript.HACIA_FUNCIONARIO`), no aquí — ver
-## `_reconstruir_cuerpo_policia`.
+## de sprite se coloca en la silla de la mesa (`MesaAtencionScript.hacia_funcionario_actual()`), no
+## aquí — ver `_reconstruir_cuerpo_policia`.
 const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
 ## ── SPRITE DEL FUNCIONARIO (2026-08-01) ───────────────────────────────────────────────────────
 ## La pareja de policías (J-Toastie, CC BY 3.0), integrada EXACTAMENTE como los ciudadanos con
@@ -1454,8 +1454,9 @@ func _actualizar_visual_puesto(
 
 ## Reconstruye el cuerpo del "Policia" de un puesto cuando cambia DE QUIÉN es. Si hay sprites del
 ## policía que le toca (género determinista por el nombre, ver `_prefijo_oficial_de`), se sienta
-## MIRANDO al ciudadano, en la silla que ya dibuja la mesa (`MesaAtencionScript.HACIA_FUNCIONARIO`,
-## la misma que usa `SillaFuncionario`) y con el mostrador dibujándose DESPUÉS (por encima): le tapa
+## MIRANDO al ciudadano, en la silla que ya dibuja la mesa (`MesaAtencionScript.
+## hacia_funcionario_actual()`, la misma que usa `SillaFuncionario`) y con el mostrador dibujándose
+## DESPUÉS (por encima): le tapa
 ## las piernas, como en una ventanilla de verdad — para lo que estaba pensado `ALTO_MESA` desde el
 ## principio (ver su comentario en `mesa_atencion.gd`: "para que el funcionario se vea de medio
 ## cuerpo por encima").
@@ -1478,7 +1479,10 @@ func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: St
 		policia.add_child(MunecoScript.construir_sprite_sentado(
 			prefijo, ALTO_SPRITE_OFICIAL, DIRECCION_POLICIA_SENTADO
 		))
-		policia.position = MesaAtencionScript.HACIA_FUNCIONARIO
+		# `hacia_funcionario_actual()`, NO `HACIA_FUNCIONARIO` a secas: con el mostrador de sprite
+		# (2ª tanda) el sitio de siempre queda tapado detrás del monitor 3D — comprobado componiendo
+		# con Python antes de fijar el número (ver el aviso en `mesa_atencion.gd`).
+		policia.position = MesaAtencionScript.hacia_funcionario_actual()
 	else:
 		_anadir_cuerpo_policia(policia)
 		policia.position = _POLICIA_DETRAS

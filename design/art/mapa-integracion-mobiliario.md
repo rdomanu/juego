@@ -17,8 +17,8 @@ ADR-0004: esto es CAPA VISUAL — el modelo no se entera.
 
 | Pieza del pack | Destino en el juego | Nota |
 |---|---|---|
-| **ARQ_007** (sofá de 3 plazas; estaba mal archivado como "arquitectura" por tamaño) | El **sofá-asiento de 3 CELDAS** (el asiento largo multi-celda: 3 plazas = 3 celdas) | identificado por el usuario 2026-08-01 |
-| **OBJ_011** (sofá de 1 plaza) | La comodidad **`sofa_descanso`** de la sala de descanso (1 celda) | confirmado por el usuario 2026-08-01 |
+| **ARQ_007** (sofá de 3 plazas; estaba mal archivado como "arquitectura" por tamaño) | **`sofa_descanso`** — que resultó ser EL ÚNICO sofá del juego y es multi-celda (superficie=3): 3 plazas = 3 celdas, encaja clavado | identificado por el usuario 2026-08-01; INTEGRADO |
+| OBJ_011 (sofá/sillón de 1 plaza) | **Renderizado pero sin cablear** (el juego no tiene hoy ningún mueble de 1 plaza tipo sillón). En el banquillo para una futura comodidad "sillón" si se diseña | el sprite ya existe en assets/sprites/mobiliario/ |
 | **OBJ_040** | Papelera | — |
 | **OBJ_002** (vía despiece) | Dispensador de agua | — |
 | **silla_simple** (elegir la MÁS REPETIDA del pack entre OBJ_023/024/030/032) | Silla de espera (`asiento_basico`) | criterio objetivo: la que el autor del pack más usó |

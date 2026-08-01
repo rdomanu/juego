@@ -31,20 +31,26 @@ extends Node3D
 ## forma una caja de ~0,5×0,4×0,3 m — bezel + pantalla + trasera + brazo VESA).
 ##
 ## ── LA ESCALA: CÓMO SE CALIBRA CONTRA LA REJILLA ────────────────────────────────────────────────
-## `Proyeccion` dibuja rombos de `ANCHO_ROMBO`×`ALTO_ROMBO` = 80×40 px por celda. La mesa de
-## código de hoy (`mesa_atencion.gd`) deja su tablero en `ESCALA_MESA` = 0,78 de la celda — un
-## mueble no llena la baldosa entera (deja sitio para pasar y para ver al vecino). Para una pieza
-## de 1×1 celda, la huella proyectada (el rombo del tablero) mide EXACTAMENTE
-## `ANCHO_ROMBO × ESCALA_MESA` = 80 × 0,78 = **62,4 px de ancho** — es la cuenta de
-## `PiezaIso._huella()`, lineal en `escala`, así que no hace falta reproducir su geometría aquí:
-## basta el producto (ver `_ejecutar`, se calcula con las constantes de verdad, no a mano).
+## `Proyeccion` dibuja rombos de `ANCHO_ROMBO`×`ALTO_ROMBO` = 80×40 px por celda. Para una pieza de
+## 1×1 celda, la huella proyectada de una caja `PiezaIso` a escala `e` mide EXACTAMENTE
+## `ANCHO_ROMBO × e` px de ancho (`PiezaIso._huella()`, lineal en `escala`), así que no hace falta
+## reproducir esa geometría aquí: basta el producto (ver `_ejecutar`).
+##
+## `ESCALA_OBJETIVO_MOSTRADOR` = 0,92 — el mostrador debe leerse como un mueble que CASI llena su
+## celda (deja apenas el pasillo justo, no el 0,78 conservador de la caja de código del primer
+## render: visto en el juego, quedaba pequeño para lo ancho que es un escritorio de verdad).
+## DESACOPLADA a propósito de `MesaAtencionScript.ESCALA_MESA` (que se queda en 0,78, sin tocar):
+## esa constante sigue gobernando SOLO la caja de repuesto que dibuja `mesa_atencion.gd` cuando
+## el sprite no existe, un dibujo aparte con su propio criterio.
 ##
 ## El mostrador real se renderiza SIN forzar su tamaño de antemano: se mide cuánto ocupa su
 ## render "en bruto" (a la escala de cámara fija de esta pasada, ver `_radio_de`/`_colocar_
-## camara`) y se calcula el factor de reducción que deja su ancho en esos 62,4 px. Ese MISMO
-## factor —y no uno recalculado pieza a pieza— se aplica luego a las 4 rotaciones del mostrador Y
-## a las 2 pantallas: así se conserva el tamaño relativo real entre ambos (un monitor es mucho
-## más pequeño que un escritorio), en vez de que cada uno se normalice a su propio marco.
+## camara`) y se calcula el factor de reducción que deja su ancho en `ANCHO_ROMBO ×
+## ESCALA_OBJETIVO_MOSTRADOR` px. Ese MISMO factor —y no uno recalculado pieza a pieza— se aplica
+## luego a las 4 rotaciones del mostrador Y A TODAS LAS DEMÁS RECETAS de la misma pasada: así se
+## conserva el tamaño relativo real entre todas (un monitor es mucho más pequeño que un
+## escritorio, un sofá de 3 plazas es más largo que un escritorio…), en vez de que cada una se
+## normalice a su propio marco.
 ##
 ## ── EL ANCLA: DÓNDE "PISA" EL MUEBLE EN LA CELDA ────────────────────────────────────────────────
 ## El nodo que coloca el sprite en el juego pone su origen en el CENTRO del rombo de la celda
@@ -60,8 +66,6 @@ extends Node3D
 ## una misma receta se componen luego sobre un lienzo COMÚN —mismo tamaño, mismo píxel de ancla en
 ## las 4— para que quien las use aplique un único `sprite.offset` constante (`_componer`).
 
-const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
-
 const MODELO := "res://capturas/NPC/Oficina/isometric_office.glb"
 const SALIDA := "res://assets/sprites/mobiliario/"
 
@@ -73,11 +77,27 @@ const ELEVACION_GRADOS: float = 26.565
 const TAM_RENDER: int = 512
 ## Aire alrededor del objeto al encuadrar la cámara, para que ningún borde roce el marco.
 const MARGEN: float = 1.15
+## Cuánto de su celda debe ocupar el mostrador en el sprite final — ver la cabecera ("LA ESCALA").
+const ESCALA_OBJETIVO_MOSTRADOR: float = 0.92
 ## Las 4 rotaciones que pide cada receta (el juego rota mobiliario con R en incrementos de 90°).
 const ROTACIONES: Array[int] = [0, 90, 180, 270]
 
 const ID_MOSTRADOR := "mostrador_atencion"
 const ID_EQUIPO_INFORMATICO := "comodidad_equipo_informatico"
+const ID_SOFA_DESCANSO := "comodidad_sofa_descanso"
+const ID_PAPELERA := "comodidad_papelera"
+const ID_DISPENSADOR := "comodidad_dispensador_agua"
+const ID_RADIO := "comodidad_radio"
+const ID_ASIENTO_SOFA3 := "asiento_sofa3"
+const ID_SILLA_ESPERA := "silla_espera"
+const ID_SILLA_FUNCIONARIO := "silla_funcionario"
+
+## El aparato de la RADIO (OBJ_038, `Object_1045`) no está sobre nada en la escena de origen — el
+## usuario lo quiere "encima de un mueble bajo". Se reutiliza la cajonera del propio escritorio
+## (`Object_833`, ya medida y verificada: tapa a Y=0,675, centro X=-9,1105, Z=0,794) como ese
+## mueble bajo, y se desplaza SOLO el aparato para que su base caiga centrada en esa tapa. La
+## cajonera se renderiza EN SU SITIO (delta cero) — solo el aparato lleva desplazamiento.
+const DESPLAZAMIENTO_RADIO := Vector3(-0.488, 0.128, -7.730)
 
 ## El TELÉFONO (OBJ_046, 3 piezas) no vive junto al escritorio en la escena de origen — está
 ## posado en OTRA mesa, a su propia altura. Medido con `tools/_diag_obj042.gd` (AABB de las 31
@@ -136,6 +156,62 @@ static func _recetas() -> Array[Dictionary]:
 				"Object_1192", "Object_1193", "Object_1194", "Object_1195",
 				"Object_1197", "Object_1198", "Object_1199", "Object_1200",
 			]),
+		},
+		# ── 2ª TANDA (2026-08-01) — design/art/mapa-integracion-mobiliario.md ─────────────────────
+		{
+			# OBJ_011: sofá de 1 plaza -> comodidad `sofa_descanso` (superficie=3 en datos/, SIN
+			# TOCAR: el sprite se ancla como pieza suelta en la celda ancla, no se estira a 3 celdas
+			# — ver el aviso en `construccion.gd` sobre por qué NO es el mismo sprite que
+			# `asiento_sofa3`).
+			"id_salida": ID_SOFA_DESCANSO,
+			"nombres": PackedStringArray(["Object_387", "Object_388"]),
+		},
+		{
+			# OBJ_040: papelera, pieza única.
+			"id_salida": ID_PAPELERA,
+			"nombres": PackedStringArray(["Object_1055"]),
+		},
+		{
+			# OBJ_002 vía su despiece: SOLO SUB_002_0 (la unidad del dispensador — base, cuerpo,
+			# grifo, botellón). Excluido SUB_002_1 (`Object_943`, una papelera pegada al lado —
+			# visualmente idéntica a OBJ_040, confirmado con Read: "sin lo que tuviera pegado").
+			"id_salida": ID_DISPENSADOR,
+			"nombres": PackedStringArray(["Object_23", "Object_24", "Object_25", "Object_26", "Object_28"]),
+		},
+		{
+			# OBJ_038 (el aparato negro -> comodidad `radio`) HORNEADO sobre la cajonera del
+			# escritorio (`Object_833`, ya usada y verificada en `mostrador_atencion`) — ver
+			# `DESPLAZAMIENTO_RADIO`.
+			"id_salida": ID_RADIO,
+			"nombres": PackedStringArray(["Object_833", "Object_1045"]),
+			"desplazamientos": {"Object_1045": DESPLAZAMIENTO_RADIO},
+		},
+		{
+			# ARQ_007: el sofá de 3 plazas (mal archivado como "arquitectura" por tamaño — lado
+			# mayor 1,90 m, por encima de `UMBRAL_ARQUITECTURA` de `render_catalogo_objetos.gd`).
+			# Pieza única, sin rotación propia (base identidad). Su eje LARGO (1,90 m) corre en Z
+			# de mundo, que es el mismo eje que usa `Proyeccion`/`Construccion` para VERTICAL (ver
+			# la cabecera del fichero: "como el render usa X y Z donde la rejilla usa X e Y") — así
+			# que la rotación 0° de este render YA es la pose VERTICAL del asiento, y la de 90° es
+			# la HORIZONTAL. `Construccion` elige entre esas dos, nunca 180/270.
+			"id_salida": ID_ASIENTO_SOFA3,
+			"nombres": PackedStringArray(["Object_384"]),
+		},
+		{
+			# La silla de espera "canónica": de OBJ_023/024/030/032 (misma silla, 4 copias — sin
+			# mallas compartidas en este GLB exportado, cada copia va horneada aparte, así que
+			# "más repetida" no se puede contar por índice de malla; comprobado con
+			# `catalogo_manifest.json`: los 4 aparecen exactamente una vez cada uno y son las
+			# ÚNICAS 4 piezas de 2 mallas con esta altura en las 253 clusters — visualmente
+			# IDÉNTICAS con Read). Se usa la de menor id, OBJ_023, como representante.
+			"id_salida": ID_SILLA_ESPERA,
+			"nombres": PackedStringArray(["Object_931", "Object_932"]),
+		},
+		{
+			# La silla ROJA de OBJ_042 (`Object_1071`, la única pieza de SUB_042_0 que no era ni
+			# monitor ni teclado — ver la cabecera y `_diag_obj042.gd`): el funcionario sentado.
+			"id_salida": ID_SILLA_FUNCIONARIO,
+			"nombres": PackedStringArray(["Object_1071"]),
 		},
 	]
 
@@ -429,10 +505,10 @@ func _ejecutar(todas: Dictionary) -> void:
 		get_tree().quit(1)
 		return
 	var ancho_bruto: int = (referencia["imagen"] as Image).get_width()
-	var ancho_objetivo: float = Proyeccion.ANCHO_ROMBO * MesaAtencionScript.ESCALA_MESA
+	var ancho_objetivo: float = Proyeccion.ANCHO_ROMBO * ESCALA_OBJETIVO_MOSTRADOR
 	var escala_final: float = ancho_objetivo / float(maxi(ancho_bruto, 1))
 	print("[MOBILIARIO] calibración: mostrador bruto=%dpx -> objetivo=%.1fpx (80×%.2f) -> factor=%.4f" % [
-		ancho_bruto, ancho_objetivo, MesaAtencionScript.ESCALA_MESA, escala_final
+		ancho_bruto, ancho_objetivo, ESCALA_OBJETIVO_MOSTRADOR, escala_final
 	])
 
 	# 4) Escala TODO con el MISMO factor, compone cada receta sobre su lienzo común y guarda.

@@ -237,6 +237,12 @@ func _ready() -> void:
 	# Partida nueva: el reloj se sitúa a la hora de arranque del catálogo (07:30). Cargar un guardado
 	# (F9) sobreescribe esto con la hora guardada, que es lo correcto.
 	Tiempo.iniciar_partida_nueva()
+	# Arranque EN PAUSA con `--pausa` (petición del usuario 2026-08-01): lanzar la ventana sin que
+	# la jornada eche a andar hasta que él se siente delante. Es la MISMA pausa que la tecla
+	# Espacio (se reanuda igual). Los args de usuario van tras `--` en la línea de comandos:
+	#   godot --path <proyecto> -- --pausa
+	if OS.get_cmdline_user_args().has("--pausa"):
+		Tiempo.fijar_velocidad(Tiempo.Velocidad.PAUSA)
 	_crear_menu_ciudadano()
 	_crear_menu_sala()
 	# La luz del día (art bible §2): mañana cálida, mediodía neutro, tarde dorada, noche azul y
