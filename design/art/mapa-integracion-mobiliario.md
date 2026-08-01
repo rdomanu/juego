@@ -13,21 +13,40 @@ ADR-0004: esto es CAPA VISUAL — el modelo no se entera.
 | **OBJ_000** (mostrador curvo de recepción) | **Seguridad de la entrada del edificio** — idea de futuro; conecta con el puesto `puesto_seguridad` que existe en `datos/` pero está desactivado en la UI | Idea registrada, NO integrar aún |
 | **OBJ_006** (escritorio en L con silla y cajonera) | **Despacho sin atención al ciudadano** — p. ej. un futuro grupo de Policía Judicial trabajando de espaldas al público | Idea registrada, NO integrar aún |
 
-## Pendiente de decisión del usuario (propuestas de la hoja, sin confirmar)
+## Decidido por el usuario — 2ª tanda (2026-08-01)
+
+| Pieza del pack | Destino en el juego | Nota |
+|---|---|---|
+| **ARQ_007** (sofá de 3 plazas; estaba mal archivado como "arquitectura" por tamaño) | Sofá de la **sala de descanso** (`sofa_descanso`) | identificado por el usuario 2026-08-01 |
+| OBJ_011 | Candidato para el sofá-asiento de 3 celdas de la sala de espera (a confirmar por el usuario) | antes apuntaba a sofa_descanso; lo sustituye ARQ_007 |
+| **OBJ_040** | Papelera | — |
+| **OBJ_002** (vía despiece) | Dispensador de agua | — |
+| **silla_simple** (elegir la MÁS REPETIDA del pack entre OBJ_023/024/030/032) | Silla de espera (`asiento_basico`) | criterio objetivo: la que el autor del pack más usó |
+| **La silla ROJA de OBJ_042** (extraer de su despiece SUB_042_*) | Silla del funcionario (auto, no construible) | decidido por el usuario 2026-08-01; sustituye a la candidata SUB_016_1 |
+| La misma silla simple elegida para `asiento_basico` | Silla del CIUDADANO en la ventanilla (auto) | decidido por el usuario 2026-08-01 |
+| **OBJ_038** (aparato negro de sobremesa — probablemente el proyector del pack; a 44 px pasa por radio) | La comodidad **`radio`** (existente, estaba "sin candidato"), horneada **con una mesita debajo** en el mismo sprite (es un aparato "para estar sobre algo", dixit el usuario) | CORRECCIÓN 2026-08-01: primero se apuntó como impresora de ODAC; el usuario lo re-identificó como radio mirando la hoja, y verificado a ojo por el coordinador |
+| **OBJ_046** (teléfono) | Decorativo **sobre el mostrador de las ventanillas** — horneado dentro del mismo sprite del mostrador (OBJ_021), "de momento" | pedido 2026-08-01 |
+
+### ⚠️ La impresora, aclarado por el usuario
+
+- **`impresora_dni` (la comodidad existente, 2.200 €) queda SIN candidato en este pack**: una
+  impresora de DNI es una máquina especializada, no una impresora de oficina. Se mantiene el visual
+  actual hasta encontrar un asset adecuado en otra fuente.
+- **Idea de comodidad NUEVA**: "impresora de documentos", familia ODAC, para imprimir/entregar las
+  denuncias. Es una adición de juego (coste/aporte = balance): **pendiente de diseñarla con el
+  usuario**, no entra sola. **Visual asignado por el usuario (2026-08-01): OBJ_008 ENTERO** —
+  la cajonera con la impresora y todo lo que lleva encima, como un solo mueble.
+
+## Pendiente de decisión del usuario
 
 | Elemento del juego | Candidato propuesto |
 |---|---|
-| Silla de espera (`asiento_basico`) | OBJ_023 / 024 / 030 / 032 |
-| Sofá (`sofa_descanso`) | OBJ_011 (y OBJ_033/047 vía despiece) |
-| Papelera | OBJ_040 |
-| Impresora de DNI | OBJ_038 |
-| Dispensador / fuente de agua | OBJ_002 (vía despiece) |
 | Archivadores / estanterías | OBJ_001/008/009 (despiece) · OBJ_007/022 |
-| Silla del funcionario (auto, no construible) | la de OBJ_042 / SUB_016_1 |
 
 ## Sin candidato en el pack (se queda el visual actual)
 
-Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero, vending.
+Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero, vending,
+**y la impresora de DNI** (ver arriba).
 
 ## Notas de integración
 
