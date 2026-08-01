@@ -102,6 +102,40 @@ var _capa_descansos: Node2D = null
 ## de sprite se coloca en la silla de la mesa (`MesaAtencionScript.hacia_funcionario_actual()`), no
 ## aquí — ver `_reconstruir_cuerpo_policia`.
 const _POLICIA_DETRAS := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+
+## ── ORDEN DE CAPAS DEL CONTENEDOR DE LA VENTANILLA (ADR-0005) ───────────────────────────────────
+## docs/architecture/adr-0005-orden-de-capas-contenedor-iso.md — el orden de dibujo dentro de
+## "Puesto_X" es FIJO y con nombre; PROHIBIDO tocarlo con `add_child`/`move_child` sueltos (ya se
+## rompió dos veces así: el policía encima de su mesa en julio, la silla nueva encima de todo el
+## 2026-08-01). `_insertar_en_capa` es el ÚNICO mecanismo.
+##
+## La ventanilla, sentado (el caso canónico del ADR): FONDO=silla del funcionario < PERSONAJE=
+## policía < FRENTE=mostrador (mostrador tapa piernas y silla). DE PIE (muñeco de piezas, sin
+## sprite): el policía se ve ENTERO por encima del mostrador —es más alto que él, no hay piernas
+## que tapar—, así que ahí es al REVÉS: el policía pasa a jugar el papel de FRENTE y el mostrador
+## el de PERSONAJE. Sigue siendo el MISMO mecanismo de capas (nunca un `move_child` suelto) — lo
+## que cambia es A QUÉ CAPA se asigna cada nodo según el modo, no cómo se reordena.
+const CAPA_FONDO: int = 0
+const CAPA_PERSONAJE: int = 1
+const CAPA_FRENTE: int = 2
+
+## Coloca/reordena `hijo` en la capa `capa` dentro de `contenedor`. Si `hijo` no es aún su hijo, lo
+## añade primero. Reordena SOLO los nodos con capa declarada (metadato `capa_iso`), de menor a
+## mayor; los hijos SIN capa (etiquetas, barras de estado…) no se tocan — quedan detrás de todos,
+## en el orden en que se añadieron, que es donde ya estaban.
+func _insertar_en_capa(contenedor: Node2D, hijo: Node, capa: int) -> void:
+	hijo.set_meta(&"capa_iso", capa)
+	if hijo.get_parent() != contenedor:
+		contenedor.add_child(hijo)
+	var con_capa: Array[Node] = []
+	for h: Node in contenedor.get_children():
+		if h.has_meta(&"capa_iso"):
+			con_capa.append(h)
+	con_capa.sort_custom(func(a: Node, b: Node) -> bool:
+		return int(a.get_meta(&"capa_iso")) < int(b.get_meta(&"capa_iso"))
+	)
+	for i: int in con_capa.size():
+		contenedor.move_child(con_capa[i], i)
 ## ── SPRITE DEL FUNCIONARIO (2026-08-01) ───────────────────────────────────────────────────────
 ## La pareja de policías (J-Toastie, CC BY 3.0), integrada EXACTAMENTE como los ciudadanos con
 ## sprite 3D (ver `NPCScript.PREFIJO_SPRITE`/`ALTO_SPRITE`/`hay_sprites` en npc_ciudadano.gd): mismo
@@ -1293,21 +1327,21 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# El ciudadano ya iba a su casilla desde antes; lo que faltaba era sacar al funcionario de
 	# ENCIMA de la mesa. Se mueve solo el DIBUJO: el modelo sigue teniendo el puesto en una celda,
 	# así que ni costes, ni validación de colocación, ni un solo test cambian.
-	# LA MESA PRIMERO, EL POLICÍA DESPUÉS. Dentro de un mismo nodo se pinta en orden, así que lo
-	# último va encima. Y aquí lo que tiene que estar encima es el FUNCIONARIO:
 	#
-	#   · Él está una casilla MÁS AL FONDO que la mesa (`_POLICIA_DETRAS`), o sea más arriba en
-	#     pantalla, así que verle entero por encima del mostrador es lo correcto en isométrico.
-	#   · La mesa es una caja con altura: dibujada después, su cara superior se comía al muñeco.
-	#     Eso es lo que reportó el usuario — *"se pone en la mesa y tapa al funcionario"*.
-	#
-	# Historial de este detalle, que ha costado tres vueltas: primero el policía salía en la MISMA
-	# celda que la mesa (parecía subido encima); luego se le movió una casilla atrás pero seguía
-	# pintándose por debajo, porque la mesa vivía en otra capa más al fondo; y al traer la mesa aquí
-	# se pintó después y le tapó. Este es el orden bueno: mesa, y encima quien atiende.
-	contenedor.add_child(MesaAtencionScript.construir())
+	# EL ORDEN DE DIBUJO, por CAPAS con nombre (ADR-0005 — nunca `add_child`/`move_child` sueltos:
+	# ya se rompió DOS veces así, ver el ADR). De pie (sin sprite de policía, el caso de aquí): la
+	# silla del funcionario al FONDO (vacía, nadie sentado todavía), la mesa de PERSONAJE y el
+	# policía de FRENTE —él es quien tapa, al ser más alto que el mostrador—. `_reconstruir_cuerpo_
+	# policia` reasigna las capas de policía/mesa (nunca la de la silla) en cuanto se sienta.
+	var silla_funcionario: Node2D = MesaAtencionScript.silla_funcionario_o_defecto(
+		MesaAtencionScript.hacia_funcionario_actual().normalized() * 20.0
+	)
+	silla_funcionario.name = "SillaFuncionario"
+	silla_funcionario.position = MesaAtencionScript.hacia_funcionario_actual()
+	_insertar_en_capa(contenedor, silla_funcionario, CAPA_FONDO)
+	_insertar_en_capa(contenedor, MesaAtencionScript.construir(), CAPA_PERSONAJE)
 	policia.position = _POLICIA_DETRAS
-	contenedor.add_child(policia)
+	_insertar_en_capa(contenedor, policia, CAPA_FRENTE)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
 	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
 	# accionable (feedback 2026-07-29 de solape) — si algo tiene que ceder espacio, es él.

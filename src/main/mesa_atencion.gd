@@ -156,34 +156,46 @@ static func _pieza_sprite_mostrador() -> Node2D:
 ## de código de siempre.
 const ID_SPRITE_SILLA_FUNCIONARIO := "silla_funcionario"
 const ID_SPRITE_SILLA_ESPERA := "silla_espera"
-## Ambas a 0°: ni la ventanilla ni un asiento de espera rotan (ver el mismo razonamiento que
-## `ROT_MOSTRADOR`) — 0° es la que se vio, mirando las 4, sin nada raro en el encuadre.
-const ROT_SILLA: int = 0
+## Cada silla, su PROPIA rotación — NO la misma para las dos: cada mueble tiene su frente en un
+## sitio distinto de la escena de origen (ver `render_mobiliario.gd`). Elegidas MIRANDO las 4
+## (`assets/sprites/mobiliario/silla_*_{0,90,180,270}.png`) y comprobando con un composite en el
+## ORDEN REAL de capas del juego (aviso del usuario 2026-08-01, tras verlas mal en pantalla):
+##  · Funcionario: 270° es la única de las 4 que enseña el FRENTE del asiento (el hueco donde se
+##    sienta, con los dos reposabrazos) de cara a cámara — el policía se sienta MIRANDO AL SUR (ve
+##    `DIRECCION_POLICIA_SENTADO` en `npcs_flujo.gd`), así que el respaldo le queda detrás, al
+##    norte. En 0°/90° se ve casi solo el respaldo (silla mirando al norte, al revés); en 180°, de
+##    perfil.
+##  · Espera: 0° enseña el RESPALDO de cara a cámara — la silla mira al norte, hacia el mostrador
+##    (petición del usuario: "su respaldo queda al sur, entre la cámara y el ciudadano"). 90°/180°
+##    enseñan el asiento de frente (mirando al sur, al revés); 270° es otro respaldo pero más de
+##    perfil que el de 0°.
+const ROT_SILLA_FUNCIONARIO: int = 270
+const ROT_SILLA_ESPERA: int = 0
 const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.846)
 const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.815)
 
 
 static func hay_sprite_silla_funcionario() -> bool:
-	return ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_FUNCIONARIO))
+	return ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_FUNCIONARIO, ROT_SILLA_FUNCIONARIO))
 
 
 static func hay_sprite_silla_espera() -> bool:
-	return ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA))
+	return ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA))
 
 
-static func _ruta_sprite_silla(id_silla: String) -> String:
-	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_silla, ROT_SILLA]
+static func _ruta_sprite_silla(id_silla: String, rotacion: int) -> String:
+	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_silla, rotacion]
 
 
 ## Una silla de sprite, anclada por el mismo punto que `silla()`: el sitio donde se sienta quien
 ## la usa (`Vector2.ZERO` en local), no su esquina.
-static func _pieza_sprite_silla(id_silla: String, ancla_fraccion: Vector2) -> Node2D:
+static func _pieza_sprite_silla(id_silla: String, rotacion: int, ancla_fraccion: Vector2) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Silla"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
 	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_silla(id_silla))
+	var textura: Texture2D = load(_ruta_sprite_silla(id_silla, rotacion))
 	sprite.texture = textura
 	sprite.offset = Vector2(
 		-textura.get_width() * ancla_fraccion.x, -textura.get_height() * ancla_fraccion.y
@@ -195,7 +207,9 @@ static func _pieza_sprite_silla(id_silla: String, ancla_fraccion: Vector2) -> No
 ## La silla del FUNCIONARIO: sprite si lo hay, si no la de código de siempre.
 static func silla_funcionario_o_defecto(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 	if hay_sprite_silla_funcionario():
-		return _pieza_sprite_silla(ID_SPRITE_SILLA_FUNCIONARIO, ANCLA_FRACCION_SILLA_FUNCIONARIO)
+		return _pieza_sprite_silla(
+			ID_SPRITE_SILLA_FUNCIONARIO, ROT_SILLA_FUNCIONARIO, ANCLA_FRACCION_SILLA_FUNCIONARIO
+		)
 	return silla(hacia_atras, color)
 
 
@@ -204,7 +218,7 @@ static func silla_funcionario_o_defecto(hacia_atras: Vector2, color: Color = COL
 ## sitios, a propósito: es la MISMA silla de espera del edificio).
 static func silla_espera_o_defecto(hacia_atras: Vector2, color: Color = COLOR_SILLA_ESPERA_DEFECTO) -> Node2D:
 	if hay_sprite_silla_espera():
-		return _pieza_sprite_silla(ID_SPRITE_SILLA_ESPERA, ANCLA_FRACCION_SILLA_ESPERA)
+		return _pieza_sprite_silla(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA, ANCLA_FRACCION_SILLA_ESPERA)
 	return silla(hacia_atras, color)
 
 
@@ -252,21 +266,23 @@ static func construir() -> Node2D:
 			"Papeles2", encima + HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
 			COLOR_PAPEL.darkened(0.08)
 		))
-	# LAS DOS SILLAS de la ventanilla: la del funcionario detrás y la del ciudadano delante. Van al
-	# final para que se dibujen por encima del tablero (código o sprite), que es lo que corresponde:
-	# están fuera de la mesa, no dentro. No vinieron en el render de OBJ_021 (se excluyó la silla
-	# horneada a propósito) — son SIEMPRE piezas propias (sprite si lo hay, si no la de código),
-	# nunca parte del sprite del mostrador.
+	# LA SILLA DEL CIUDADANO va aquí dentro, AL FINAL para que se dibuje por encima del tablero
+	# (código o sprite) — está delante de la mesa, no dentro, pero el orden de dibujo de un solo
+	# lado (mesa → silla) no tiene ningún tercero (policía) de por medio, así que basta con el
+	# orden interno de este nodo.
 	#
-	# LA POSICIÓN usa `hacia_funcionario_actual()`/`hacia_ciudadano_actual()`, NO las constantes a
-	# secas: con el mostrador de sprite (mucho más alto que la caja de código) el sitio de siempre
-	# queda tapado por su propio monitor — ver el aviso junto a `HACIA_FUNCIONARIO_SPRITE`.
-	var hacia_funcionario: Vector2 = hacia_funcionario_actual()
+	# LA SILLA DEL FUNCIONARIO **NO** vive aquí — aviso del usuario 2026-08-01, viendo el juego:
+	# *"la silla, luego encima el policía, y luego la mesa tapando al policía y a la silla"*. Con
+	# la silla como hija de "Mesa", todo el bloque Mesa (tablero + silla) se moja junto al
+	# intercambiar mesa↔policía en `npcs_flujo._reconstruir_cuerpo_policia`, y la silla salía
+	# SIEMPRE por encima del policía sentado (el bug que reportó). Ahora es HERMANA de "Mesa" y
+	# "Policia" en el contenedor del puesto —la monta `_asegurar_visual_puesto`, SIEMPRE la
+	# primera— así puede quedarse fija al fondo mientras mesa y policía se intercambian entre sí.
+	#
+	# LA POSICIÓN usa `hacia_ciudadano_actual()`, NO la constante a secas: con el mostrador de
+	# sprite (mucho más alto que la caja de código) el sitio de siempre queda tapado por su propio
+	# monitor — ver el aviso junto a `HACIA_FUNCIONARIO_SPRITE`.
 	var hacia_ciudadano: Vector2 = hacia_ciudadano_actual()
-	var suya: Node2D = silla_funcionario_o_defecto(hacia_funcionario.normalized() * 20.0)
-	suya.name = "SillaFuncionario"
-	suya.position = hacia_funcionario
-	raiz.add_child(suya)
 	var del_ciudadano: Node2D = silla_espera_o_defecto(hacia_ciudadano.normalized() * 20.0)
 	del_ciudadano.name = "SillaCiudadano"
 	del_ciudadano.position = hacia_ciudadano
