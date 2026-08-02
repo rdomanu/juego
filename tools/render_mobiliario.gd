@@ -86,9 +86,14 @@ const ESCALA_OBJETIVO_MOSTRADOR: float = 0.92
 const ROTACIONES: Array[int] = [0, 90, 180, 270]
 
 ## Pedido del usuario (2026-08-02): variante del mostrador a ESCALA DE 2 CELDAS (el mueble real de
-## una ventanilla de dos puestos), archivos aparte (`mostrador_atencion2_<rot>.png`). Su lado largo
-## de base debe medir EXACTAMENTE 2,00 celdas — ver `MULTIPLICADOR_MOSTRADOR2`/
-## `_guardar_receta_a_escala` (paso 5 de `_ejecutar`).
+## una ventanilla de dos puestos), archivos aparte (`mostrador_atencion2_<rot>.png`). CORREGIDO
+## 2026-08-02 (2ª vez, mismo día): el primer intento reescalaba el mostrador de 1 módulo con un
+## multiplicador (`MULTIPLICADOR_MOSTRADOR2` ≈×1,63) -- crecía también en ALTURA y quedaba enorme
+## junto a los muñecos de 44 px, rechazado por el usuario. Ahora son DOS MÓDULOS REALES de OBJ_021
+## en fila (ver `_recetas`, entrada `grupos` de `ID_MOSTRADOR_2CELDAS`: módulo A completo + módulo
+## B "solo mueble" pegado en `+X`), cada uno a la MISMA escala del mostrador de 1 celda
+## (`MULTIPLICADOR_MOSTRADOR1`) -- así crece en ANCHURA, no en altura. Su lado largo de base debe
+## medir EXACTAMENTE 2,00 celdas -- ver `_guardar_receta_a_escala` (paso 5 de `_ejecutar`).
 const ID_MOSTRADOR_2CELDAS := "mostrador_atencion2"
 
 ## REGLA GENERAL (usuario, 2026-08-02): la base de CUALQUIER sprite multi-celda debe medir
@@ -136,6 +141,69 @@ const DESPLAZAMIENTO_RADIO := Vector3(-0.488, 0.128, -7.730)
 ## sprite si queda montado sobre el monitor o volando del borde.
 const DESPLAZAMIENTO_TELEFONO := Vector3(-4.841, -0.086, -8.176)
 
+## Piezas de OBJ_021 (el escritorio) SIN la silla horneada (ver el aviso dentro de `_recetas`, en
+## `ID_MOSTRADOR`, sobre por qué se excluye) -- 27 piezas: cuerpo del escritorio, cajonera,
+## organizador de papeles, monitor, teclado y ratón. Compartida por `mostrador_atencion` (receta
+## original == MÓDULO A de `mostrador_atencion2`) y por el módulo "solo mueble" (MÓDULO B, ver
+## `_nombres_obj021_solo_mueble`) de la variante de 2 celdas.
+## `static var` y no `const`: en Godot 4.6 el parser no acepta una llamada al constructor de
+## `PackedStringArray` como expresión constante ("Assigned value ... isn't a constant expression"),
+## a diferencia de `Vector3(...)` (sí aceptado, ver `DESPLAZAMIENTO_TELEFONO`) -- se inicializa una
+## vez al cargar el script, coste nulo aquí.
+static var NOMBRES_OBJ021_SIN_SILLA := PackedStringArray([
+	"Object_829", "Object_831", "Object_833", "Object_835", "Object_837", "Object_838",
+	"Object_840", "Object_842", "Object_844", "Object_845", "Object_846", "Object_848",
+	"Object_849", "Object_851", "Object_852", "Object_853", "Object_854",
+	"Object_861", "Object_863", "Object_865",
+	"Object_867", "Object_869", "Object_871", "Object_873", "Object_875", "Object_877",
+	"Object_879",
+])
+## El TELÉFONO (OBJ_046, 3 piezas), traído a la esquina delantera-derecha del tablero -- ver
+## `DESPLAZAMIENTO_TELEFONO`. NO forma parte de `NOMBRES_OBJ021_SIN_SILLA` (viene de otro cluster
+## del GLB) -- se añade aparte SOLO al módulo A de cualquier receta que lo quiera.
+static var NOMBRES_TELEFONO := PackedStringArray(["Object_1169", "Object_1170", "Object_1171"])
+
+## El MONITOR de OBJ_021, identificado con `tools/_diag_obj021_piezas.gd` (2026-08-02): 4 piezas,
+## mismo patrón de malla que la silla horneada del cluster (base+brazo/cuello+pantalla+respaldo --
+## ver el aviso de `Object_856..859` en `_recetas`), elevadas sobre el tablero (y ∈ [0,693, 1,116],
+## muy por encima de los 0,695 del tablero) y centradas en x≈-8,5 z≈0,79 -- coincide con el bulto
+## visible en `capturas/NPC/Oficina/catalogo/objetos/OBJ_021.png`.
+static var NOMBRES_MONITOR := PackedStringArray(["Object_851", "Object_852", "Object_853", "Object_854"])
+## El TECLADO: 2 piezas, planas (0,011-0,017 m de alto) y del tamaño justo (≈0,43×0,19 m) sobre el
+## tablero, DELANTE del monitor (z=0,53 contra z≈0,79 del monitor -- más cerca de cámara/usuario).
+static var NOMBRES_TECLADO := PackedStringArray(["Object_848", "Object_849"])
+## El RATÓN: 3 piezas diminutas (cuerpo+botón+rueda, ≈0,05×0,07 m) junto al teclado, entre éste y
+## el monitor.
+static var NOMBRES_RATON := PackedStringArray(["Object_837", "Object_838", "Object_840"])
+
+## Ancho (eje X de mundo -- el lado LARGO del escritorio) de UN módulo de `mostrador_atencion`,
+## medido con `tools/_diag_obj021_piezas.gd` sobre `Object_829` (el cuerpo grande del tablero, la
+## única pieza cuyo AABB ya delimita la huella entera del mueble -- todas las demás caen dentro):
+## size.x = 1,590 m. Usado para pegar el MÓDULO B de `mostrador_atencion2` justo a continuación del
+## MÓDULO A (offset en `+X`, sin hueco ni solape) -- ver `_recetas`. Si el render muestra un hueco
+## o solape visible entre los dos módulos, es el primer valor a ajustar (ver la cabecera del
+## fichero, "CÓMO SE USA").
+const ANCHO_MODULO_MOSTRADOR: float = 1.590
+
+## MÓDULO B de `mostrador_atencion2`: el escritorio de OBJ_021 SIN monitor/teclado/ratón -- para
+## que el mostrador de 2 puestos no repita el equipo informático (pedido del usuario 2026-08-02:
+## "que no haya 2 monitores"). El teléfono tampoco aparece: no forma parte de
+## `NOMBRES_OBJ021_SIN_SILLA` (ver `NOMBRES_TELEFONO`) y este módulo no lo añade.
+static func _nombres_obj021_solo_mueble() -> PackedStringArray:
+	var excluir: Dictionary = {}
+	for n: String in NOMBRES_MONITOR:
+		excluir[n] = true
+	for n: String in NOMBRES_TECLADO:
+		excluir[n] = true
+	for n: String in NOMBRES_RATON:
+		excluir[n] = true
+	var resultado := PackedStringArray()
+	for n: String in NOMBRES_OBJ021_SIN_SILLA:
+		if not excluir.has(n):
+			resultado.append(n)
+	return resultado
+
+
 ## Las recetas de esta pasada. Cada una es un subconjunto de nombres `Object_NNN` del GLB (ver la
 ## cabecera para de dónde sale cada lista). `desplazamientos` (opcional): nombre -> Vector3 que se
 ## SUMA al origen de su transformada de mundo antes de centrar la receta — para piezas que, como
@@ -145,30 +213,48 @@ const DESPLAZAMIENTO_TELEFONO := Vector3(-4.841, -0.086, -8.176)
 ## `Vector3`/`PackedStringArray` como expresión constante ("Assigned value for constant isn't a
 ## constant expression") — se construye en cada arranque, que aquí es gratis (se llama una vez).
 static func _recetas() -> Array[Dictionary]:
+	# NO Object_856/857/858/859: es la SILLA horneada en el cluster (base+pistón+asiento+respaldo —
+	# 4 piezas, mismo patrón de 4 mallas que el monitor 851-854), visible al rotar 180°/270° en el
+	# primer render. Se excluye a propósito (ya no está en `NOMBRES_OBJ021_SIN_SILLA`): el
+	# funcionario se sienta en la silla roja de OBJ_042 (2ª tanda), no en esta — con las dos habría
+	# dos sillas apiladas en cada ventanilla. Ver aviso del usuario 2026-08-01.
+	var nombres_mostrador: PackedStringArray = NOMBRES_OBJ021_SIN_SILLA.duplicate()
+	nombres_mostrador.append_array(NOMBRES_TELEFONO)
+	var desplazamientos_telefono: Dictionary = {
+		"Object_1169": DESPLAZAMIENTO_TELEFONO,
+		"Object_1170": DESPLAZAMIENTO_TELEFONO,
+		"Object_1171": DESPLAZAMIENTO_TELEFONO,
+	}
 	return [
 		{
 			"id_salida": ID_MOSTRADOR,
-			"nombres": PackedStringArray([
-				"Object_829", "Object_831", "Object_833", "Object_835", "Object_837", "Object_838",
-				"Object_840", "Object_842", "Object_844", "Object_845", "Object_846", "Object_848",
-				"Object_849", "Object_851", "Object_852", "Object_853", "Object_854",
-				# NO Object_856/857/858/859: es la SILLA horneada en el cluster (base+pistón+asiento+
-				# respaldo — 4 piezas, mismo patrón de 4 mallas que el monitor 851-854), visible al
-				# rotar 180°/270° en el primer render. Se excluye a propósito: el funcionario se
-				# sienta en la silla roja de OBJ_042 (2ª tanda), no en esta — con las dos habría dos
-				# sillas apiladas en cada ventanilla. Ver aviso del usuario 2026-08-01.
-				"Object_861", "Object_863", "Object_865",
-				"Object_867", "Object_869", "Object_871", "Object_873", "Object_875", "Object_877",
-				"Object_879",
-				# El teléfono (OBJ_046), traído a la esquina delantera-derecha del tablero — ver
-				# `DESPLAZAMIENTO_TELEFONO` arriba.
-				"Object_1169", "Object_1170", "Object_1171",
-			]),
-			"desplazamientos": {
-				"Object_1169": DESPLAZAMIENTO_TELEFONO,
-				"Object_1170": DESPLAZAMIENTO_TELEFONO,
-				"Object_1171": DESPLAZAMIENTO_TELEFONO,
-			},
+			"nombres": nombres_mostrador,
+			"desplazamientos": desplazamientos_telefono,
+		},
+		{
+			# `mostrador_atencion2`: el mostrador de DOS PUESTOS — DOS módulos reales de OBJ_021 en
+			# fila (no un estirón del de 1 celda, ver la cabecera del fichero y el aviso del usuario
+			# 2026-08-02). MÓDULO A: completo (monitor+teclado+ratón+teléfono), idéntico a
+			# `mostrador_atencion`, offset cero (referencia del conjunto). MÓDULO B: solo el mueble
+			# de madera (`_nombres_obj021_solo_mueble`, SIN monitor/teclado/ratón/teléfono — para no
+			# duplicar el equipo informático), pegado a continuación del A en `+X`
+			# (`ANCHO_MODULO_MOSTRADOR`, el lado largo real del escritorio). Los dos grupos comparten
+			# el MISMO multiplicador de escala que el mostrador de 1 celda (`MULTIPLICADOR_MOSTRADOR1`,
+			# paso 5 de `_ejecutar`): con geometría real de dos módulos a esa escala, el conjunto sale
+			# en ~2,00 celdas sin necesidad de un multiplicador aparte.
+			"id_salida": ID_MOSTRADOR_2CELDAS,
+			"grupos": [
+				{
+					"nombres": nombres_mostrador,
+					"desplazamientos": desplazamientos_telefono,
+					"offset": Vector3.ZERO,
+				},
+				{
+					"nombres": _nombres_obj021_solo_mueble(),
+					"desplazamientos": {},
+					"offset": Vector3(ANCHO_MODULO_MOSTRADOR, 0.0, 0.0),
+				},
+			],
 		},
 		{
 			"id_salida": ID_EQUIPO_INFORMATICO,
@@ -277,47 +363,82 @@ func _recopilar_instancias(modelo: Node3D) -> Dictionary:
 	return todas
 
 
+## Los GRUPOS de piezas de una receta: normalmente uno solo (el caso de toda la vida — `nombres` +
+## `desplazamientos` planos), pero una receta puede declarar varios GRUPOS -- cada uno con su
+## propio `offset` UNIFORME sumado a todas sus piezas -- para componer varias INSTANCIAS del mismo
+## conjunto base en posiciones distintas dentro de un único sprite (ver `mostrador_atencion2`: dos
+## módulos de OBJ_021 en fila -- mismo nombre de pieza, dos transformadas distintas, algo que el
+## diccionario plano `desplazamientos` -- una entrada por NOMBRE -- no puede expresar).
+static func _grupos_de(receta: Dictionary) -> Array[Dictionary]:
+	if receta.has("grupos"):
+		# NO asignación directa (`var x: Array[Dictionary] = receta["grupos"]`): viniendo de un
+		# valor `Variant` de `Dictionary`, Godot 4.6 la rechaza en tiempo de ejecución ("Trying to
+		# assign an array of type Array to a variable of type Array[Dictionary]") aunque los
+		# elementos SÍ sean todos `Dictionary` -- hay que reconstruir el array tipado a mano.
+		var reconstruido: Array[Dictionary] = []
+		for g: Variant in (receta["grupos"] as Array):
+			reconstruido.append(g as Dictionary)
+		return reconstruido
+	var grupo_unico: Array[Dictionary] = [{
+		"nombres": receta["nombres"],
+		"desplazamientos": receta.get("desplazamientos", {}),
+		"offset": Vector3.ZERO,
+	}]
+	return grupo_unico
+
+
 ## La transformada de mundo de una pieza YA CON su `desplazamiento` de receta aplicado (suma al
-## origen — ver `DESPLAZAMIENTO_TELEFONO`). Sin desplazamiento para esa pieza, es la transformada
-## tal cual viene del GLB.
-func _transform_efectiva(n: String, todas: Dictionary, desplazamientos: Dictionary) -> Transform3D:
+## origen — ver `DESPLAZAMIENTO_TELEFONO`) Y el `offset` UNIFORME de su grupo (ver `_grupos_de`,
+## ZERO salvo en recetas multi-instancia). Sin ninguno de los dos, es la transformada tal cual
+## viene del GLB.
+func _transform_efectiva(
+	n: String, todas: Dictionary, desplazamientos: Dictionary, offset: Vector3 = Vector3.ZERO
+) -> Transform3D:
 	var t: Transform3D = (todas[n] as Dictionary)["transform"]
-	var delta: Vector3 = desplazamientos.get(n, Vector3.ZERO)
+	var delta: Vector3 = desplazamientos.get(n, Vector3.ZERO) + offset
 	return Transform3D(t.basis, t.origin + delta)
 
 
-## El ancla de una receta: el centro X/Z de su AABB conjunta, AL NIVEL DEL SUELO (el Y mínimo, no
-## el centro) — el punto donde el mueble "pisa" la celda. Ver la cabecera.
-func _ancla_de(nombres: PackedStringArray, todas: Dictionary, desplazamientos: Dictionary) -> Vector3:
+## El ancla de una receta: el centro X/Z de su AABB conjunta -- de TODOS sus grupos (ver
+## `_grupos_de`) -- AL NIVEL DEL SUELO (el Y mínimo, no el centro) — el punto donde el mueble
+## "pisa" la celda. Ver la cabecera.
+func _ancla_de(receta: Dictionary, todas: Dictionary) -> Vector3:
 	var caja := AABB()
 	var primera := true
-	for n: String in nombres:
-		if not todas.has(n):
-			push_warning("RenderMobiliario: no se encontró la pieza %s en el GLB" % n)
-			continue
-		var t: Transform3D = _transform_efectiva(n, todas, desplazamientos)
-		var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
-		caja = c if primera else caja.merge(c)
-		primera = false
+	for g: Dictionary in _grupos_de(receta):
+		var nombres: PackedStringArray = g["nombres"]
+		var desplazamientos: Dictionary = g.get("desplazamientos", {})
+		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		for n: String in nombres:
+			if not todas.has(n):
+				push_warning("RenderMobiliario: no se encontró la pieza %s en el GLB" % n)
+				continue
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
+			caja = c if primera else caja.merge(c)
+			primera = false
 	var centro: Vector3 = caja.get_center()
 	return Vector3(centro.x, caja.position.y, centro.z)
 
 
-## La distancia MÁXIMA de cualquier esquina de cualquier pieza de la receta al ancla — sirve para
-## fijar el tamaño de cámara que la contiene entera. Es invariante a rotar alrededor del propio
-## ancla en Y (que es justo lo único que hace esta herramienta con el objeto), así que basta
-## calcularla UNA vez por receta, no una vez por rotación.
-func _radio_de(
-	nombres: PackedStringArray, todas: Dictionary, desplazamientos: Dictionary, ancla: Vector3
-) -> float:
+## La distancia MÁXIMA de cualquier esquina de cualquier pieza de CUALQUIER grupo de la receta
+## (ver `_grupos_de`) al ancla — sirve para fijar el tamaño de cámara que la contiene entera. Es
+## invariante a rotar alrededor del propio ancla en Y (que es justo lo único que hace esta
+## herramienta con el objeto), así que basta calcularla UNA vez por receta, no una vez por
+## rotación.
+func _radio_de(receta: Dictionary, todas: Dictionary, ancla: Vector3) -> float:
 	var radio := 0.0
-	for n: String in nombres:
-		if not todas.has(n):
-			continue
-		var t: Transform3D = _transform_efectiva(n, todas, desplazamientos)
-		var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
-		for esquina: Vector3 in _esquinas_de(c):
-			radio = maxf(radio, (esquina - ancla).length())
+	for g: Dictionary in _grupos_de(receta):
+		var nombres: PackedStringArray = g["nombres"]
+		var desplazamientos: Dictionary = g.get("desplazamientos", {})
+		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		for n: String in nombres:
+			if not todas.has(n):
+				continue
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
+			for esquina: Vector3 in _esquinas_de(c):
+				radio = maxf(radio, (esquina - ancla).length())
 	return radio
 
 
@@ -356,22 +477,24 @@ func _montar_pieza(
 	grupo.add_child(pieza)
 
 
-## Monta las piezas de una receta en `grupo`, YA centradas en el ancla (que queda en el origen
-## local de `grupo` — así rotar `grupo.rotation.y` gira el conjunto alrededor de su propio ancla).
-func _montar_receta(
-	grupo: Node3D, nombres: PackedStringArray, todas: Dictionary, desplazamientos: Dictionary,
-	ancla: Vector3
-) -> void:
+## Monta las piezas de TODOS los grupos de una receta (ver `_grupos_de`) en `grupo`, YA centradas
+## en el ancla (que queda en el origen local de `grupo` — así rotar `grupo.rotation.y` gira el
+## conjunto entero alrededor de su propio ancla, aunque tenga varios grupos/instancias).
+func _montar_receta(grupo: Node3D, receta: Dictionary, todas: Dictionary, ancla: Vector3) -> void:
 	_limpiar_grupo(grupo)
-	for n: String in nombres:
-		if not todas.has(n):
-			continue
-		var t: Transform3D = _transform_efectiva(n, todas, desplazamientos)
-		var it: Dictionary = todas[n]
-		_montar_pieza(
-			grupo, it["malla"], Transform3D(t.basis, t.origin - ancla),
-			it.get("material_override"), it.get("overrides", [])
-		)
+	for g: Dictionary in _grupos_de(receta):
+		var nombres: PackedStringArray = g["nombres"]
+		var desplazamientos: Dictionary = g.get("desplazamientos", {})
+		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		for n: String in nombres:
+			if not todas.has(n):
+				continue
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var it: Dictionary = todas[n]
+			_montar_pieza(
+				grupo, it["malla"], Transform3D(t.basis, t.origin - ancla),
+				it.get("material_override"), it.get("overrides", [])
+			)
 
 
 ## Cámara FIJA para TODA la pasada (nunca se recoloca por objeto ni por rotación — es lo que
@@ -408,14 +531,18 @@ func _colocar_camara(tam_mundo: float) -> void:
 ## `MULTIPLICADOR_MOSTRADOR1` corrige el mostrador de 1 CELDA (el que queda para puestos "legado"
 ## de partidas guardadas viejas, ver `mesa_atencion.gd`): su huella medía 1,225 celdas -- contra la
 ## regla de huella exacta -- así que se recorta con este multiplicador para que quede en 1,00 (pedido
-## del usuario 2026-08-02, última pieza pendiente).
+## del usuario 2026-08-02, última pieza pendiente). REUTILIZADO tal cual (2ª vez, mismo día) para
+## `mostrador_atencion2`: ya NO hay un `MULTIPLICADOR_MOSTRADOR2` aparte -- ese multiplicador
+## estiraba el mostrador de 1 módulo ×1,63 (crecía en altura, rechazado por el usuario). Ahora
+## `mostrador_atencion2` es geometría real de DOS módulos de OBJ_021 en fila (ver `_recetas`), cada
+## uno a la MISMA escala de 1,00 celda que este multiplicador ya da -- el conjunto sale en ~2,00
+## celdas por construcción, sin reescalar aparte.
 const MULTIPLICADOR_MOSTRADOR1: float = 1.00 / 1.225
-const MULTIPLICADOR_MOSTRADOR2: float = 2.00 / 1.225
 const MULTIPLICADOR_SOFA3: float = 3.00 / 1.525
 
 ## Reescala y guarda las 4 rotaciones de una receta YA RENDERIZADA (en `crudos`), aplicando
 ## `escala` (normalmente `escala_final * MULTIPLICADOR_*`) directamente — sin volver a medir nada
-## dentro de Godot (ver la cabecera de `MULTIPLICADOR_MOSTRADOR2`). Guarda en `id_salida` (puede
+## dentro de Godot (ver la cabecera de `MULTIPLICADOR_MOSTRADOR1`). Guarda en `id_salida` (puede
 ## coincidir con `id_receta` — sobrescribe sus PNG — o ser uno nuevo).
 func _guardar_receta_a_escala(
 	crudos: Dictionary, id_receta: String, id_salida: String, escala: float
@@ -548,11 +675,9 @@ func _ejecutar(todas: Dictionary) -> void:
 	var anclas: Dictionary = {}
 	var radio_max := 0.0
 	for receta: Dictionary in recetas:
-		var nombres: PackedStringArray = receta["nombres"]
-		var desplazamientos: Dictionary = receta.get("desplazamientos", {})
-		var ancla: Vector3 = _ancla_de(nombres, todas, desplazamientos)
+		var ancla: Vector3 = _ancla_de(receta, todas)
 		anclas[receta["id_salida"]] = ancla
-		radio_max = maxf(radio_max, _radio_de(nombres, todas, desplazamientos, ancla))
+		radio_max = maxf(radio_max, _radio_de(receta, todas, ancla))
 	var tam_camara: float = radio_max * 2.0 * MARGEN
 	print("[MOBILIARIO] radio máximo de las recetas: %.3f m -> cámara fija a %.3f m" % [
 		radio_max, tam_camara
@@ -600,9 +725,7 @@ func _ejecutar(todas: Dictionary) -> void:
 	var crudos: Dictionary = {}
 	for receta: Dictionary in recetas:
 		var id_salida: String = receta["id_salida"]
-		var nombres: PackedStringArray = receta["nombres"]
-		var desplazamientos: Dictionary = receta.get("desplazamientos", {})
-		_montar_receta(grupo, nombres, todas, desplazamientos, anclas[id_salida])
+		_montar_receta(grupo, receta, todas, anclas[id_salida])
 		var por_rotacion: Dictionary = {}
 		for rot: int in ROTACIONES:
 			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
@@ -650,13 +773,18 @@ func _ejecutar(todas: Dictionary) -> void:
 	# 2026-08-02) -- MISMO bruto ya renderizado en el paso 2, otra escala cada una (independiente
 	# del `escala_final` compartido del paso 4, que salia a 0,92 celdas "a ojo", no a 1,00 exacto).
 	# `mostrador_atencion`: SOBRESCRIBE su propio 1-celda (el que queda para puestos "legado" de
-	# saves viejos, ver `mesa_atencion.gd`). `mostrador_atencion2`: variante nueva de 2 celdas,
-	# archivos aparte. `asiento_sofa3` (sofa_descanso, superficie=3): SOBRESCRIBE sus propios PNG --
-	# es el unico sprite que ya usa el juego para esa comodidad (ver construccion.gd::ASIENTO_SOFA3,
-	# SOLO LECTURA, no se toca). `sillas_office` (superficie=2) NO tiene receta ni sprite propio
-	# todavia -- no hay nada que reescalar.
+	# saves viejos, ver `mesa_atencion.gd`). `mostrador_atencion2`: geometría de DOS MÓDULOS reales
+	# (ver `_recetas`), su PROPIO bruto -- ya NO el de `ID_MOSTRADOR` reescalado (ver el aviso en
+	# `ID_MOSTRADOR_2CELDAS` y en `MULTIPLICADOR_MOSTRADOR1`) -- con el MISMO multiplicador que el
+	# mostrador de 1 celda: cada módulo ya sale a 1,00 celda por construcción, así que el conjunto
+	# de dos sale en ~2,00 sin multiplicador aparte. `asiento_sofa3` (sofa_descanso, superficie=3):
+	# SOBRESCRIBE sus propios PNG -- es el unico sprite que ya usa el juego para esa comodidad (ver
+	# construccion.gd::ASIENTO_SOFA3, SOLO LECTURA, no se toca). `sillas_office` (superficie=2) NO
+	# tiene receta ni sprite propio todavia -- no hay nada que reescalar.
 	_guardar_receta_a_escala(crudos, ID_MOSTRADOR, ID_MOSTRADOR, escala_final * MULTIPLICADOR_MOSTRADOR1)
-	_guardar_receta_a_escala(crudos, ID_MOSTRADOR, ID_MOSTRADOR_2CELDAS, escala_final * MULTIPLICADOR_MOSTRADOR2)
+	_guardar_receta_a_escala(
+		crudos, ID_MOSTRADOR_2CELDAS, ID_MOSTRADOR_2CELDAS, escala_final * MULTIPLICADOR_MOSTRADOR1
+	)
 	_guardar_receta_a_escala(crudos, ID_ASIENTO_SOFA3, ID_ASIENTO_SOFA3, escala_final * MULTIPLICADOR_SOFA3)
 
 	print("[MOBILIARIO] hecho.")

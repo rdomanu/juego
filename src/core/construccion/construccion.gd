@@ -1795,7 +1795,7 @@ const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
 ## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
 static func _sprites_comodidad() -> Dictionary:
 	return {
-		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.493, 0.751)},
+		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.479, 0.628)},
 		COMODIDAD_PAPELERA: {"rotacion": 0, "ancla": Vector2(0.508, 0.861)},
 		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.495, 0.911)},
 		COMODIDAD_RADIO: {"rotacion": 0, "ancla": Vector2(0.493, 0.803)},
@@ -1810,14 +1810,20 @@ static func _sprites_comodidad() -> Dictionary:
 ##
 ## DOS rotaciones, no cuatro: el eje LARGO del sofá (1,90 m) corre en Z de mundo en su render a 0°,
 ## que es el mismo eje que usa `Proyeccion`/`Construccion` para VERTICAL (`render_mobiliario.gd`
-## explica por qué: "el render usa X y Z donde la rejilla usa X e Y") — así que 0° es la pose
-## VERTICAL y 90° la HORIZONTAL. 180°/270° están renderizadas (por si hacen falta algún día) pero
-## no se usan aquí.
+## explica por qué: "el render usa X y Z donde la rejilla usa X e Y") — así que el par 0°/180° es
+## la pose VERTICAL y el par 90°/270° la HORIZONTAL. Dentro de cada par, CUÁL de las dos se elige
+## se decide por el asiento VACÍO (mismo criterio que las sillas, más arriba): tiene que abrir
+## hacia ABAJO-IZQUIERDA de pantalla, hacia la sala — 180°/90° lo hacen, 0°/270° enseñan el
+## RESPALDO de espaldas a cámara (comprobado mirando los 4 PNG el 2026-08-02, 2ª pasada: la
+## primera elección —0° para VERTICAL— enseñaba el respaldo, no el asiento; corregido a 180°).
 const ASIENTO_SOFA3 := "asiento_sofa3"
-const ROT_ASIENTO_SOFA3_VERTICAL: int = 0
+const ROT_ASIENTO_SOFA3_VERTICAL: int = 180
 const ROT_ASIENTO_SOFA3_HORIZONTAL: int = 90
-## Ancla actualizada 2026-08-02 (nuevo re-render — dato definitivo).
-const ANCLA_FRACCION_ASIENTO_SOFA3 := Vector2(0.499, 0.651)
+## Una ancla por rotación — el encuadre de 90°/270° no es el mismo que el de 0°/180° (dato del
+## coordinador, 2026-08-02, midiendo la base real de cada PNG — no el centro de encuadre que
+## imprimía antes la herramienta).
+const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.247, 0.814)      # rot 180
+const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.747, 0.814)    # rot 90
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -2115,6 +2121,12 @@ func _ruta_sprite_asiento_sofa3(orientacion: int) -> String:
 	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, ASIENTO_SOFA3, _rotacion_asiento_sofa3(orientacion)]
 
 
+## El ancla que toca según `orientacion` — ver el aviso junto a las dos constantes.
+func _ancla_asiento_sofa3(orientacion: int) -> Vector2:
+	return ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL if orientacion == HORIZONTAL \
+		else ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL
+
+
 ## El sofá de 3 plazas de sprite, en la rotación que toca según `orientacion` (H/V, rotar con R) —
 ## mismo patrón de ancla que el resto.
 func _pieza_sprite_asiento_sofa3(orientacion: int) -> Node2D:
@@ -2125,10 +2137,8 @@ func _pieza_sprite_asiento_sofa3(orientacion: int) -> Node2D:
 	sprite.centered = false
 	var textura: Texture2D = load(_ruta_sprite_asiento_sofa3(orientacion))
 	sprite.texture = textura
-	sprite.offset = Vector2(
-		-textura.get_width() * ANCLA_FRACCION_ASIENTO_SOFA3.x,
-		-textura.get_height() * ANCLA_FRACCION_ASIENTO_SOFA3.y
-	)
+	var ancla: Vector2 = _ancla_asiento_sofa3(orientacion)
+	sprite.offset = Vector2(-textura.get_width() * ancla.x, -textura.get_height() * ancla.y)
 	raiz.add_child(sprite)
 	return raiz
 

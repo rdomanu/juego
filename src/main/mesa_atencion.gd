@@ -92,11 +92,14 @@ const ID_SPRITE_MOSTRADOR_2 := "mostrador_atencion2"
 ## enseña la pantalla al ciudadano, ver la cabecera del fichero) y sin nada raro en el encuadre.
 const ROT_MOSTRADOR: int = 0
 ## Dónde cae el ANCLA (el centro del rombo de la celda, el mismo punto que usa
-## `Proyeccion.centro_iso`) dentro del PNG, como fracción de su ancho/alto — la imprime
-## `render_mobiliario.gd` al renderizar. Re-renderizados los DOS el 2026-08-02 (60×60 el de 1
-## celda, 120×120 el de 2 celdas): comparten la MISMA fracción — dato definitivo confirmado por
-## quien los renderizó; si algún día divergen, basta con separar esta constante en dos.
-const ANCLA_FRACCION_MOSTRADOR := Vector2(0.501, 0.747)
+## `Proyeccion.centro_iso`) dentro del PNG, como fracción de su ancho/alto. Re-renderizados los DOS
+## el 2026-08-02 (60×60 el de 1 celda, 120×120 el de 2 celdas). CORREGIDAS el mismo día: la
+## fracción que imprimía `render_mobiliario.gd` al renderizar era el CENTRO DEL ENCUADRE, no el
+## ancla real — el coordinador derivó la fracción correcta midiendo la BASE de cada PNG. Con la
+## base como referencia, los dos sprites NO comparten fracción (encuadres distintos): una
+## constante por cada uno.
+const ANCLA_FRACCION_MOSTRADOR := Vector2(0.521, 0.727)      # 1 celda (legado)
+const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.824, 0.697)    # 2 celdas (caso normal)
 
 ## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02) ────────────────────────────────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
@@ -130,7 +133,9 @@ static func _ruta_sprite_mostrador(id_sprite: String) -> String:
 
 ## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
 ## centro de la celda, `Vector2.ZERO` en local) — no por su esquina ni por su centro geométrico.
-static func _pieza_sprite_mostrador(id_sprite: String) -> Node2D:
+## `ancla_fraccion`: `ANCLA_FRACCION_MOSTRADOR` (1 celda) o `ANCLA_FRACCION_MOSTRADOR_2` (2 celdas)
+## según qué sprite se esté colocando — cada encuadre tiene la suya, ver la constante.
+static func _pieza_sprite_mostrador(id_sprite: String, ancla_fraccion: Vector2) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Tablero"
 	var sprite := Sprite2D.new()
@@ -139,8 +144,8 @@ static func _pieza_sprite_mostrador(id_sprite: String) -> Node2D:
 	var textura: Texture2D = load(_ruta_sprite_mostrador(id_sprite))
 	sprite.texture = textura
 	sprite.offset = Vector2(
-		-textura.get_width() * ANCLA_FRACCION_MOSTRADOR.x,
-		-textura.get_height() * ANCLA_FRACCION_MOSTRADOR.y
+		-textura.get_width() * ancla_fraccion.x,
+		-textura.get_height() * ancla_fraccion.y
 	)
 	raiz.add_child(sprite)
 	return raiz
@@ -254,8 +259,9 @@ static func construir(es_legado: bool = false) -> Node2D:
 	# la constante para no acoplar este script de piezas visuales al core.
 	var superficie: int = 1 if es_legado else 2
 	var id_sprite: String = ID_SPRITE_MOSTRADOR if es_legado else ID_SPRITE_MOSTRADOR_2
+	var ancla_mostrador: Vector2 = ANCLA_FRACCION_MOSTRADOR if es_legado else ANCLA_FRACCION_MOSTRADOR_2
 	if hay_sprite_mostrador(id_sprite):
-		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite)
+		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, ancla_mostrador)
 		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
 		raiz.add_child(tablero)
 	else:
