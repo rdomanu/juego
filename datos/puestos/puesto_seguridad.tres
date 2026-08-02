@@ -8,3 +8,4 @@ id = &"puesto_seguridad"
 nombre = "Entrada / Seguridad"
 servicio = "Seguridad"
 coste_construccion_eur = 400
+superficie = 2

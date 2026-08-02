@@ -237,10 +237,12 @@ func test_el_equipamiento_acelera_la_atencion_hasta_un_veinte_por_ciento() -> vo
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
 	construccion.usar_personal(personal)
+	# El mostrador ocupa (2,2) y (3,2): mide 2 celdas desde el 2026-08-02.
 	var puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 2))
-	# Equipo (4) + impresora (6) = 10 → 1 − 0.02 × 10 = 0.8 (el suelo).
-	construccion.construir_elemento(&"equipo_informatico", Vector2i(3, 2))
-	construccion.construir_elemento(&"impresora_dni", Vector2i(4, 2))
+	# Equipo (4) + impresora (6) = 10 → 1 − 0.02 × 10 = 0.8 (el suelo). Van DETRÁS del mostrador, en
+	# las primeras celdas libres de la fila (antes iban en (3,2), que ahora es su segunda celda).
+	construccion.construir_elemento(&"equipo_informatico", Vector2i(4, 2))
+	construccion.construir_elemento(&"impresora_dni", Vector2i(5, 2))
 
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())
@@ -262,8 +264,9 @@ func test_el_equipamiento_se_multiplica_sobre_el_agente_no_lo_sustituye() -> voi
 	var personal: Node = auto_free(PersonalScript.new())
 	personal.aplicar_config(ConfigPersonalScript.new())
 	construccion.usar_personal(personal)
+	# El mostrador ocupa (2,2) y (3,2) desde el 2026-08-02: el equipo va en la siguiente celda libre.
 	var puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 2))
-	construccion.construir_elemento(&"equipo_informatico", Vector2i(3, 2))   # rendimiento 4 → 0.92
+	construccion.construir_elemento(&"equipo_informatico", Vector2i(4, 2))   # rendimiento 4 → 0.92
 
 	var flujo: Node = auto_free(FlujoScript.new())
 	flujo.aplicar_config(ConfigFlujoScript.new())

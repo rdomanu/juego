@@ -9,3 +9,4 @@ nombre = "Ventanilla Documentación"
 servicio = "Documentacion"
 atenciones_admitidas = Array[StringName]([&"dni", &"pasaporte"])
 coste_construccion_eur = 500
+superficie = 2

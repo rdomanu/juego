@@ -80,9 +80,14 @@ func test_solape_de_elementos_rechazado() -> void:
 	var construccion: Node = _con_salas()
 	construccion._crear_elemento(&"puesto_doc_general", Vector2i(1, 1), 500.0)
 
-	# Act / Assert — la misma celda queda ocupada; la de al lado sigue libre.
+	# Act / Assert — la misma celda queda ocupada.
 	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(1, 1))).is_false()
-	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(2, 1))).is_true()
+	# La de al lado TAMBIÉN: desde el 2026-08-02 un mostrador ocupa 2 celdas, así que el de (1,1) se
+	# extiende hasta (2,1) — antes de esa decisión esta línea esperaba `true` (ver
+	# `construccion_puesto_huella_test.gd`, que cubre la huella entera).
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(2, 1))).is_false()
+	# Una fila más abajo sigue habiendo sitio para las dos celdas: (0,2)+(1,2).
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 2))).is_true()
 	assert_str(String(construccion.sala_en(Vector2i(1, 1)))).is_equal("sala_1")
 
 

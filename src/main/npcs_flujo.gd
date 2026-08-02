@@ -515,11 +515,16 @@ func _bakear_navegacion() -> void:
 	]))
 	for servicio: String in ["Documentacion", "ODAC", "Seguridad"]:
 		for puesto_id: StringName in _construccion.puestos_de_servicio(servicio):
-			var esquina: Vector2 = Vector2(_construccion.posicion_de(puesto_id)) * float(_tam_celda)
-			var lado := float(_tam_celda)
-			datos.add_obstruction_outline(PackedVector2Array([
-				esquina, esquina + Vector2(lado, 0), esquina + Vector2(lado, lado), esquina + Vector2(0, lado),
-			]))
+			# El puesto ocupa su CUERPO entero (2 celdas desde 2026-08-02, o 1 si es huella legado) —
+			# antes solo se recortaba la celda ancla y la mitad nueva del mostrador se quedaba
+			# pisable, así que los NPCs la atravesaban. `celdas_de_elemento` es la MISMA verdad que
+			# usa el modelo (`Construccion`), así que esto no puede desincronizarse de la huella real.
+			for celda_cuerpo: Vector2i in _construccion.celdas_de_elemento(puesto_id):
+				var esquina: Vector2 = Vector2(celda_cuerpo) * float(_tam_celda)
+				var lado := float(_tam_celda)
+				datos.add_obstruction_outline(PackedVector2Array([
+					esquina, esquina + Vector2(lado, 0), esquina + Vector2(lado, lado), esquina + Vector2(0, lado),
+				]))
 	# FASE E (2026-07-30): los MUROS bloquean de verdad. Cada tabique se recorta como una franja fina
 	# de obstáculo sobre su arista — las PUERTAS no se recortan, y por eso son lo único por donde se
 	# puede entrar en una sala cerrada. Las ventanas SÍ bloquean (se ve a través, no se pasa).
@@ -1337,7 +1342,12 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	silla_funcionario.name = "SillaFuncionario"
 	silla_funcionario.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	_insertar_en_capa(contenedor, silla_funcionario, CAPA_FONDO)
-	_insertar_en_capa(contenedor, MesaAtencionScript.construir(), CAPA_PERSONAJE)
+	# `es_huella_legado`: un puesto de save viejo que no cabe en 2 celdas hoy usa el mostrador de 1
+	# celda (ver `MesaAtencion.construir` y la cabecera "LA HUELLA DEL PUESTO" en `Construccion`).
+	_insertar_en_capa(
+		contenedor, MesaAtencionScript.construir(_construccion.es_huella_legado(puesto_id)),
+		CAPA_PERSONAJE
+	)
 	policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	_insertar_en_capa(contenedor, policia, CAPA_FRENTE)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font

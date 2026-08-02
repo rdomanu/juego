@@ -118,7 +118,15 @@ func _generar_denuncias() -> void:
 	_guardar(_denuncia(&"reclamacion", "Hoja de reclamaciones", 30, "Normal"), "denuncias")
 
 
-## F3 · Tipos de Puesto. superficie=1, plazas_agente=1 (defaults del esquema, coinciden con F3).
+## HUELLA DEL PUESTO (decisión de diseño 2026-08-02): un puesto de atención —el mostrador— ocupa
+## **2 celdas** de la rejilla, no una. El dato vive AQUÍ (catálogo) y no en el código de Construcción:
+## es una propiedad del objeto, igual que la `superficie` 3 del sofá. La celda ANCLA es la CELDA DE
+## TRABAJO (el funcionario atiende desde la celda de arriba y el ciudadano espera en la de abajo); la
+## segunda es ocupación pura. Ver `Construccion._superficie_de` y `celda_de_trabajo`.
+const SUPERFICIE_PUESTO: int = 2
+
+
+## F3 · Tipos de Puesto. superficie=2 (ver SUPERFICIE_PUESTO), plazas_agente=1 (default del esquema).
 ## `puesto_odac.atenciones_admitidas` = TODAS las atenciones de ODAC (IDS_DENUNCIAS, misma lista fuente que
 ## F2 → no diverge). Incluye la 14ª `reclamacion`: `puesto_odac` DEBE admitirla para que la valide `Datos`
 ## (integridad referencial) y para que Paciencia (PS13) pueda encolarla en ODAC.
@@ -246,7 +254,9 @@ func _puesto(
 	r.atenciones_admitidas = admitidas
 	r.reconfigurable = reconfigurable
 	r.coste_construccion_eur = coste_eur
-	# plazas_agente=1, superficie=1 son los defaults del esquema (coinciden con F3).
+	# plazas_agente=1 es el default del esquema (coincide con F3). La superficie NO: un mostrador mide
+	# 2 celdas desde la decisión del 2026-08-02 (ver SUPERFICIE_PUESTO).
+	r.superficie = SUPERFICIE_PUESTO
 	return r
 
 

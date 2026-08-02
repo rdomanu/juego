@@ -69,16 +69,22 @@ const ESCALA_SILLA: float = 0.42
 const COLOR_SILLA := Color(0.30, 0.32, 0.38)
 
 
-## ── SPRITE DEL MOSTRADOR (2026-08-01) ─────────────────────────────────────────────────────────
+## ── SPRITE DEL MOSTRADOR: 1 CELDA (legado) Y 2 CELDAS (2026-08-02) ────────────────────────────
 ## Igual que el muñeco del policía (`muneco.gd::hay_sprites`): si hay un render 3D del pack de
-## oficina para el mostrador (`tools/render_mobiliario.gd`, receta `mostrador_atencion` = OBJ_021
-## SIN la silla que traía horneada — el funcionario usa la suya propia, de OBJ_042, en otra
-## pasada), se dibuja ESE en vez de las cajas de código. El sprite ya trae su propio monitor,
-## teclado, ratón y teléfono montados encima, así que Tablero/Teclado/Monitor/Papeles/Papeles2
-## SOBRAN con él puesto — se decidió MIRANDO el render (un papel no pinta nada sobre un
-## escritorio de madera que ya trae su propio teléfono). Las SILLAS siguen siendo de código: no
-## vinieron en este render.
+## oficina para el mostrador (`tools/render_mobiliario.gd`), se dibuja ESE en vez de las cajas de
+## código. El sprite ya trae su propio monitor, teclado, ratón y teléfono montados encima, así que
+## Tablero/Teclado/Monitor/Papeles/Papeles2 SOBRAN con él puesto — se decidió MIRANDO el render (un
+## papel no pinta nada sobre un escritorio de madera que ya trae su propio teléfono). Las SILLAS
+## siguen siendo de código: no vinieron en este render.
+##
+## DOS sprites, no uno, desde que el puesto pasó a ocupar 2 celdas de verdad (ver la cabecera de
+## `Construccion` — "LA HUELLA DEL PUESTO: 2 CELDAS"): `ID_SPRITE_MOSTRADOR_2` para el caso normal
+## y `ID_SPRITE_MOSTRADOR` (el de 1 celda de siempre) SOLO para la excepción de huella legado — un
+## puesto de una partida guardada que no cabe en 2 celdas de hoy (`Construccion.es_huella_legado`).
+## `construir()` elige uno u otro con `es_legado`.
 const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
+const ID_SPRITE_MOSTRADOR := "mostrador_atencion"
+const ID_SPRITE_MOSTRADOR_2 := "mostrador_atencion2"
 ## Solo 0° por ahora: los puestos de atención SIEMPRE se construyen con la misma orientación fija
 ## (`CELDA_FUNCIONARIO`/`CELDA_CIUDADANO` no dependen de `orientacion` — `Construccion._crear_
 ## pieza` ni se la pasa a los puestos), así que no hace falta elegir entre las 4 rotaciones
@@ -87,11 +93,10 @@ const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
 const ROT_MOSTRADOR: int = 0
 ## Dónde cae el ANCLA (el centro del rombo de la celda, el mismo punto que usa
 ## `Proyeccion.centro_iso`) dentro del PNG, como fracción de su ancho/alto — la imprime
-## `render_mobiliario.gd` al renderizar (no se adivina: sale de centrar la cámara 3D en el punto
-## donde el mueble "pisa" el suelo, ver la cabecera de esa herramienta). Actualizada 2026-08-01 al
-## re-renderizar con `ESCALA_OBJETIVO_MOSTRADOR` = 0,92 (antes 0,78) — el lienzo cambia de tamaño y
-## la fracción con él; el número viejo (0,503; 0,765) quedaba corto.
-const ANCLA_FRACCION_MOSTRADOR := Vector2(0.497, 0.771)
+## `render_mobiliario.gd` al renderizar. Re-renderizados los DOS el 2026-08-02 (60×60 el de 1
+## celda, 120×120 el de 2 celdas): comparten la MISMA fracción — dato definitivo confirmado por
+## quien los renderizó; si algún día divergen, basta con separar esta constante en dos.
+const ANCLA_FRACCION_MOSTRADOR := Vector2(0.501, 0.747)
 
 ## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02) ────────────────────────────────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
@@ -114,24 +119,24 @@ const CELDA_FUNCIONARIO := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALT
 const CELDA_CIUDADANO := Vector2(-Proyeccion.MEDIO_ANCHO, Proyeccion.MEDIO_ALTO)     # sur, delante
 
 
-## ¿Hay un sprite renderizado del mostrador?
-static func hay_sprite_mostrador() -> bool:
-	return ResourceLoader.exists(_ruta_sprite_mostrador())
+## ¿Hay un sprite renderizado para este mostrador (`ID_SPRITE_MOSTRADOR` o `ID_SPRITE_MOSTRADOR_2`)?
+static func hay_sprite_mostrador(id_sprite: String) -> bool:
+	return ResourceLoader.exists(_ruta_sprite_mostrador(id_sprite))
 
 
-static func _ruta_sprite_mostrador() -> String:
-	return "%smostrador_atencion_%d.png" % [RUTA_SPRITES_MOBILIARIO, ROT_MOSTRADOR]
+static func _ruta_sprite_mostrador(id_sprite: String) -> String:
+	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_sprite, ROT_MOSTRADOR]
 
 
 ## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
 ## centro de la celda, `Vector2.ZERO` en local) — no por su esquina ni por su centro geométrico.
-static func _pieza_sprite_mostrador() -> Node2D:
+static func _pieza_sprite_mostrador(id_sprite: String) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Tablero"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
 	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_mostrador())
+	var textura: Texture2D = load(_ruta_sprite_mostrador(id_sprite))
 	sprite.texture = textura
 	sprite.offset = Vector2(
 		-textura.get_width() * ANCLA_FRACCION_MOSTRADOR.x,
@@ -160,8 +165,9 @@ const ID_SPRITE_SILLA_ESPERA := "silla_espera"
 ##    cámara, a la espalda del ciudadano.
 const ROT_SILLA_FUNCIONARIO: int = 180
 const ROT_SILLA_ESPERA: int = 270
-const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.846)
-const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.815)
+## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
+const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.824)
+const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.797)
 
 
 static func hay_sprite_silla_funcionario() -> bool:
@@ -230,12 +236,28 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 	return raiz
 
 
-## Monta la mesa completa. Se coloca en el CENTRO de la celda del puesto y todo va en local.
-static func construir() -> Node2D:
+## Monta la mesa completa. Se coloca en el CENTRO de la celda de TRABAJO (el ancla del modelo) y
+## todo va en local. `es_legado`: el puesto es una huella legado de 1 celda
+## (`Construccion.es_huella_legado`) — usa el sprite/tablero de 1 celda, sin desplazar; si no (el
+## caso normal desde 2026-08-02), usa el de 2 celdas y desplaza SOLO el "Tablero" a la ÚLTIMA
+## celda de su cuerpo: regla verificada por composites — un sprite a rotación 0 ancla en la celda
+## ESTE de su cuerpo, no en la celda del modelo (`Proyeccion.delta_ultima_celda`, la MISMA cuenta
+## que usa `Construccion` para sus comodidades multi-celda — no es un caso especial del
+## mostrador). "Mesa" en sí se queda en el ancla del modelo (silla/policía siguen anclando ahí vía
+## `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`, sin tocar); con 1 celda el delta es cero, así que el
+## camino legado no necesita su propio `if` de posición.
+static func construir(es_legado: bool = false) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Mesa"
-	if hay_sprite_mostrador():
-		raiz.add_child(_pieza_sprite_mostrador())
+	# Superficie del cuerpo en celdas: 2 el caso normal (catálogo, `TipoPuesto.superficie`), 1 la
+	# excepción de huella legado (`Construccion.SUPERFICIE_LEGADO`) — mismos números, sin importar
+	# la constante para no acoplar este script de piezas visuales al core.
+	var superficie: int = 1 if es_legado else 2
+	var id_sprite: String = ID_SPRITE_MOSTRADOR if es_legado else ID_SPRITE_MOSTRADOR_2
+	if hay_sprite_mostrador(id_sprite):
+		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite)
+		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
+		raiz.add_child(tablero)
 	else:
 		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))
 		# Todo lo que va ENCIMA se sube el alto de la mesa: si no, quedaría metido dentro del tablero.

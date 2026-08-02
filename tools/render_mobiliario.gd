@@ -69,9 +69,12 @@ extends Node3D
 const MODELO := "res://capturas/NPC/Oficina/isometric_office.glb"
 const SALIDA := "res://assets/sprites/mobiliario/"
 
-## Mismo ángulo que `render_catalogo_objetos.gd` / `render_sprites.gd`: `atan(1/2)` en grados, el
-## que hace que un suelo 3D encaje con el rombo 2:1 del juego.
-const ELEVACION_GRADOS: float = 26.565
+## CORREGIDO 2026-08-02: el rombo 2:1 de `Proyeccion` exige sin(elevación)=0,5 -> 30,0° exactos;
+## los 26,565° (`atan(1/2)`, heredados de `render_catalogo_objetos.gd`, que NO necesita casar con
+## la rejilla del juego) tumbaban los bordes de base a pendiente ~0,447 y el mobiliario montaba en
+## celdas ajenas — aviso del usuario 2026-08-02. Verificar con el cubo de calibración (más abajo)
+## antes de re-renderizar nada: pendiente 0,500±0,01 en los dos bordes de base.
+const ELEVACION_GRADOS: float = 30.0
 ## Se renderiza GRANDE y se reduce después (mismo criterio que el resto de la herramientas de
 ## render): perder detalle al achicar se nota mucho menos que renderizar ya pequeño.
 const TAM_RENDER: int = 512
@@ -81,6 +84,23 @@ const MARGEN: float = 1.15
 const ESCALA_OBJETIVO_MOSTRADOR: float = 0.92
 ## Las 4 rotaciones que pide cada receta (el juego rota mobiliario con R en incrementos de 90°).
 const ROTACIONES: Array[int] = [0, 90, 180, 270]
+
+## Pedido del usuario (2026-08-02): variante del mostrador a ESCALA DE 2 CELDAS (el mueble real de
+## una ventanilla de dos puestos), archivos aparte (`mostrador_atencion2_<rot>.png`). Su lado largo
+## de base debe medir EXACTAMENTE 2,00 celdas — ver `MULTIPLICADOR_MOSTRADOR2`/
+## `_guardar_receta_a_escala` (paso 5 de `_ejecutar`).
+const ID_MOSTRADOR_2CELDAS := "mostrador_atencion2"
+
+## REGLA GENERAL (usuario, 2026-08-02): la base de CUALQUIER sprite multi-celda debe medir
+## EXACTAMENTE su `superficie` de catálogo en celdas. `sofa_descanso` (superficie=3 en
+## `datos/comodidades/sofa_descanso.tres`) usa el sprite `asiento_sofa3` (ver
+## `construccion.gd::ASIENTO_SOFA3`, SOLO LECTURA) — se sobrescribe con esta regla (ver
+## `MULTIPLICADOR_SOFA3`). `sillas_office` (superficie=2) NO tiene sprite propio todavía (no está
+## en ninguna receta de este fichero ni en `_sprites_comodidad()` de `construccion.gd`) — no hay
+## nada que reescalar para ella.
+
+## Cubo de calibración (BoxMesh 1×1×1), NO es un sprite de juego — ver `_renderizar_cubo_calibracion`.
+const SALIDA_CUBO_CALIBRACION := "res://tools/_calibracion_cubo.png"
 
 const ID_MOSTRADOR := "mostrador_atencion"
 const ID_EQUIPO_INFORMATICO := "comodidad_equipo_informatico"
@@ -369,6 +389,95 @@ func _colocar_camara(tam_mundo: float) -> void:
 	_camara.size = maxf(tam_mundo, 0.05)
 
 
+## MULTIPLICADORES sobre `escala_final` (la escala YA CALIBRADA de 1 celda del paso 4) para las
+## piezas multi-celda cuya base debe medir EXACTAMENTE su `superficie` de catálogo -- receta del
+## usuario 2026-08-02: "el multiplicador se aplica SOBRE la escala calibrada de 1 celda de cada
+## receta", medido con Python (fuera de Godot: `PIL`+`numpy`, umbral alfa>10/255) sobre el PNG YA
+## GUARDADO por el paso 4, NO con una medida geométrica dentro de Godot -- una pieza compuesta (el
+## mostrador: monitor/cajonera/teléfono a media altura) puede hacer que "el píxel más a la
+## izquierda de toda la silueta" pertenezca a un saliente que no está al nivel del suelo, e
+## infla la medida sin motivo real (bug visto y descartado durante esta misma sesión).
+##
+## Medida S(vértice más bajo)→W/E(esquina más a la izq/dcha, su y más baja) con
+## `L = (|ΔX|/(ANCHO_ROMBO/2) + |ΔY|/(ALTO_ROMBO/2)) / 2` (misma cuenta que `Proyeccion`, 1,0 =
+## una arista de 1 celda):
+##   `mostrador_atencion_0.png` (escala_final, ESCALA_OBJETIVO_MOSTRADOR=0,92): L=1,225 -> mult=1,00/1,225
+##   `asiento_sofa3_0.png` (escala_final, sin reescalar): lado largo L=1,525 -> mult=3,00/1,525
+## Si se vuelve a medir y no cae en el sitio (±0,05 celdas), reajustar estas constantes con una
+## regla de tres sobre la medida real y volver a lanzar — NO tocar la cámara (el cubo ya la valida).
+## `MULTIPLICADOR_MOSTRADOR1` corrige el mostrador de 1 CELDA (el que queda para puestos "legado"
+## de partidas guardadas viejas, ver `mesa_atencion.gd`): su huella medía 1,225 celdas -- contra la
+## regla de huella exacta -- así que se recorta con este multiplicador para que quede en 1,00 (pedido
+## del usuario 2026-08-02, última pieza pendiente).
+const MULTIPLICADOR_MOSTRADOR1: float = 1.00 / 1.225
+const MULTIPLICADOR_MOSTRADOR2: float = 2.00 / 1.225
+const MULTIPLICADOR_SOFA3: float = 3.00 / 1.525
+
+## Reescala y guarda las 4 rotaciones de una receta YA RENDERIZADA (en `crudos`), aplicando
+## `escala` (normalmente `escala_final * MULTIPLICADOR_*`) directamente — sin volver a medir nada
+## dentro de Godot (ver la cabecera de `MULTIPLICADOR_MOSTRADOR2`). Guarda en `id_salida` (puede
+## coincidir con `id_receta` — sobrescribe sus PNG — o ser uno nuevo).
+func _guardar_receta_a_escala(
+	crudos: Dictionary, id_receta: String, id_salida: String, escala: float
+) -> void:
+	if not crudos.has(id_receta):
+		push_warning("RenderMobiliario: no se pudo escalar %s (falta el bruto)" % id_receta)
+		return
+	var escalados: Array[Dictionary] = []
+	for rot: int in ROTACIONES:
+		escalados.append(_escalar(crudos[id_receta][rot], escala))
+	var compuesto: Dictionary = _componer(escalados)
+	var imagenes: Array[Image] = compuesto["imagenes"]
+	for i: int in ROTACIONES.size():
+		var ruta: String = "%s%s_%d.png" % [SALIDA, id_salida, ROTACIONES[i]]
+		imagenes[i].save_png(ProjectSettings.globalize_path(ruta))
+	var ancla: Vector2 = compuesto["ancla"]
+	var ancho: int = compuesto["ancho"]
+	var alto: int = compuesto["alto"]
+	print((
+		"[MOBILIARIO] %s: lienzo %dx%d px, ancla en (%.1f, %.1f) = fraccion (%.3f, %.3f), factor=%.4f"
+	) % [
+		id_salida, ancho, alto, ancla.x, ancla.y, ancla.x / float(ancho), ancla.y / float(alto), escala
+	])
+
+
+## CRITERIO DE ACEPTACIÓN Nº1 (usuario, 2026-08-02): un `BoxMesh` 1×1×1 por el MISMO pipeline
+## (cámara/luces/entorno) que el mobiliario real, para verificar de forma ANALÍTICA que la cámara
+## reproduce el rombo 2:1 de `Proyeccion` antes de gastar el resto del render en el mobiliario. Su
+## base (el cuadrado inferior del cubo) tiene que proyectar con los dos bordes que bajan del
+## vértice más cercano a cámara a pendiente 0,500±0,01 — se mide con Python fuera de Godot (no es
+## un sprite de juego, se guarda en `SALIDA_CUBO_CALIBRACION`, junto a la herramienta). Reutiliza
+## el `_sub`/`_camara` ya montados de `_ejecutar` y los deja tal y como estaban (recoloca la cámara
+## al salir es responsabilidad de quien llama, igual que con cualquier otra receta).
+func _renderizar_cubo_calibracion(mundo: Node3D) -> void:
+	var caja := BoxMesh.new()
+	caja.size = Vector3.ONE
+	var pieza := MeshInstance3D.new()
+	pieza.mesh = caja
+	pieza.position = Vector3(0.0, 0.5, 0.0)  # el cubo está centrado en su propio origen: subir
+	# medio metro deja su cara de ABAJO (el "suelo") justo en el ancla (0,0,0), igual que
+	# `_montar_receta` centra cada pieza real respecto al Y MÍNIMO de su AABB.
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.75, 0.35, 0.35)
+	pieza.material_override = mat
+	var grupo := Node3D.new()
+	grupo.add_child(pieza)
+	mundo.add_child(grupo)
+
+	var radio: float = Vector3(0.5, 1.0, 0.5).length()  # mitad de la diagonal del cubo, desde el ancla
+	_colocar_camara(radio * 2.0 * MARGEN)
+	var bruto: Dictionary = await _renderizar_bruto()
+	var imagen: Image = bruto["imagen"]
+	var ancla: Vector2 = bruto["ancla"]
+	imagen.save_png(ProjectSettings.globalize_path(SALIDA_CUBO_CALIBRACION))
+	print("[MOBILIARIO] cubo de calibración: %dx%d px, ancla en (%.1f, %.1f) -> %s" % [
+		imagen.get_width(), imagen.get_height(), ancla.x, ancla.y, SALIDA_CUBO_CALIBRACION
+	])
+
+	mundo.remove_child(grupo)
+	grupo.free()
+
+
 ## Captura el frame actual, recorta el aire transparente y calcula el píxel del ANCLA dentro de
 ## la imagen recortada. Como la cámara siempre mira a (0,0,0) —el ancla, tras `_montar_receta`—
 ## y la proyección es ortográfica, ese punto cae SIEMPRE en el centro exacto del framebuffer
@@ -476,6 +585,13 @@ func _ejecutar(todas: Dictionary) -> void:
 	mundo.add_child(_camara)
 	_colocar_camara(tam_camara)
 
+	# 1.5) CRITERIO DE ACEPTACIÓN Nº1 (ver la cabecera de `_renderizar_cubo_calibracion`): antes de
+	# gastar el resto del render en el mobiliario real, se comprueba que la cámara reproduce el
+	# rombo 2:1. `_colocar_camara` queda tocada por el cubo (encuadre propio) — se repone el de la
+	# pasada real justo después.
+	await _renderizar_cubo_calibracion(mundo)
+	_colocar_camara(tam_camara)
+
 	var grupo := Node3D.new()
 	mundo.add_child(grupo)
 
@@ -529,6 +645,19 @@ func _ejecutar(todas: Dictionary) -> void:
 			id_salida, ancho_final, alto_final, ancla_final.x, ancla_final.y,
 			ancla_final.x / float(ancho_final), ancla_final.y / float(alto_final)
 		])
+
+	# 5) Piezas cuya base debe medir EXACTAMENTE su `superficie` de catalogo en celdas (usuario
+	# 2026-08-02) -- MISMO bruto ya renderizado en el paso 2, otra escala cada una (independiente
+	# del `escala_final` compartido del paso 4, que salia a 0,92 celdas "a ojo", no a 1,00 exacto).
+	# `mostrador_atencion`: SOBRESCRIBE su propio 1-celda (el que queda para puestos "legado" de
+	# saves viejos, ver `mesa_atencion.gd`). `mostrador_atencion2`: variante nueva de 2 celdas,
+	# archivos aparte. `asiento_sofa3` (sofa_descanso, superficie=3): SOBRESCRIBE sus propios PNG --
+	# es el unico sprite que ya usa el juego para esa comodidad (ver construccion.gd::ASIENTO_SOFA3,
+	# SOLO LECTURA, no se toca). `sillas_office` (superficie=2) NO tiene receta ni sprite propio
+	# todavia -- no hay nada que reescalar.
+	_guardar_receta_a_escala(crudos, ID_MOSTRADOR, ID_MOSTRADOR, escala_final * MULTIPLICADOR_MOSTRADOR1)
+	_guardar_receta_a_escala(crudos, ID_MOSTRADOR, ID_MOSTRADOR_2CELDAS, escala_final * MULTIPLICADOR_MOSTRADOR2)
+	_guardar_receta_a_escala(crudos, ID_ASIENTO_SOFA3, ID_ASIENTO_SOFA3, escala_final * MULTIPLICADOR_SOFA3)
 
 	print("[MOBILIARIO] hecho.")
 	get_tree().quit()

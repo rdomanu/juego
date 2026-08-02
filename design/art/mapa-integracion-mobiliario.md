@@ -69,3 +69,15 @@ Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero,
   a `assets/sprites/mobiliario/` en 4 rotaciones (el juego rota con R).
 - CREDITS.md: la fila del pack pasa a "En uso" cuando el primer sprite entre en `assets/`.
   Solo geometría — las imágenes incrustadas en sus texturas no se usan.
+
+## REGLA DE HUELLA EXACTA (usuario, 2026-08-02)
+
+La base de todo sprite de mobiliario ocupa EXACTAMENTE sus celdas: bordes de base a pendiente
+±0,500 (cámara de `render_mobiliario.gd` a 30° de elevación, NO 26,565° — ese valor tumbaba los
+bordes a ~0,447 y montaba mobiliario en celdas ajenas). Para piezas multi-celda (`mostrador_atencion2`
+= 2 celdas, `asiento_sofa3`/`sofa_descanso` = 3 celdas), la escala se elige para que la base mida
+EXACTAMENTE la `superficie` de catálogo en celdas — nunca "a ojo" ni por el ancho de silueta
+completo (mezcla los dos lados y sobredimensiona). Validación OBLIGATORIA antes de entrar al
+juego: cubo de calibración 1×1×1 (pendiente 0,500±0,01 en los dos bordes) + fotomontaje con la
+pieza sobre rejilla 80×40 dibujada, anclada por su ancla impresa. Lo ALTO de un mueble puede tapar
+visualmente lo de detrás (normal en isométrico); lo que NO puede es pisar celdas ajenas con su base.

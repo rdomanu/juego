@@ -95,13 +95,17 @@ func test_sin_tope_de_puestos() -> void:
 	var mundo: Array = _mundo(6000.0)
 	var construccion: Node = mundo[0]
 	var personal: Node = mundo[2]
-	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 10, 2))
+	# Oficina de 10×3: dos filas para las ventanillas (5 por fila, el mostrador mide 2 celdas) y una
+	# tercera libre — si se llenara la sala entera, la puerta se quedaría sin celda a la que apartarse.
+	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 10, 3))
 
-	# Act — 10 puestos, uno por celda de la fila superior.
+	# Act — 10 puestos: cada mostrador mide 2 celdas (2026-08-02), así que caben 5 por fila en las
+	# dos filas de la oficina. Lo que se prueba sigue siendo lo mismo: no hay TOPE de puestos.
 	var construidos: int = 0
-	for x: int in range(10):
-		if construccion.construir_elemento(&"puesto_doc_general", Vector2i(x, 0)) != &"":
-			construidos += 1
+	for y: int in range(2):
+		for x: int in range(0, 10, 2):
+			if construccion.construir_elemento(&"puesto_doc_general", Vector2i(x, y)) != &"":
+				construidos += 1
 
 	# Assert — los 10 constan, registrados en Personal y visibles para Flujo por servicio.
 	assert_int(construidos).is_equal(10)

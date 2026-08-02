@@ -61,8 +61,10 @@ func test_demoler_sala_en_cascada() -> void:
 	var construccion: Node = mundo[0]
 	var eco: Node = mundo[1]
 	var sala_id: StringName = construccion.construir_sala(&"sala_documentacion", Rect2i(0, 0, 4, 4))
+	# Las dos ventanillas van de 2 en 2 celdas (el mostrador mide 2 desde el 2026-08-02): (0,0)+(1,0)
+	# la primera y (2,0)+(3,0) la segunda — la fila de 4 celdas se llena justa.
 	construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 0))
-	construccion.construir_elemento(&"puesto_doc_general", Vector2i(1, 0))
+	construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 0))
 	assert_float(eco.saldo_eur).is_equal_approx(1680.0, 0.0001)
 
 	# Act — paso 1: la UI listaría el contenido para confirmar; paso 2: cascada.

@@ -92,6 +92,22 @@ static func centro_iso(celda: Vector2i) -> Vector2:
 	return proyectar(centro_cuadrado(celda))
 
 
+## El DESPLAZAMIENTO en pantalla (un delta, no una posición absoluta) de recorrer `celdas - 1`
+## pasos de una celda en la dirección `paso` del plano lógico cuadrado (`Vector2i(1,0)` este /
+## `Vector2i(0,1)` sur — la misma convención de `Construccion._celdas_de`/`_paso_de`).
+##
+## Para qué existe (regla verificada con composites, 2026-08-02): un SPRITE de mobiliario
+## compuesto de varias celdas (`render_mobiliario.gd`) se dibuja con su ancla en la ÚLTIMA celda
+## de su cuerpo, no en la celda donde el modelo pone el ancla lógica — al revés que `PiezaIso`
+## (la caja de código), que SÍ ancla ahí y crece hacia +X/+Y desde ese punto (ver su cabecera).
+## Sumar este delta al `centro_iso` del ancla lógica da el punto de pantalla donde colgar el
+## sprite. Con `celdas` = 1 el delta es `Vector2.ZERO`, así que la misma llamada vale para
+## mobiliario de 1 celda sin distinguir casos con un `if` por mueble — es la ÚNICA fuente de esta
+## cuenta; la comparten `Construccion` (comodidades multi-celda) y `MesaAtencion` (el mostrador).
+static func delta_ultima_celda(paso: Vector2i, celdas: int) -> Vector2:
+	return centro_iso(paso * maxi(celdas - 1, 0)) - centro_iso(Vector2i.ZERO)
+
+
 ## La celda que contiene un punto del plano lógico cuadrado. `floor` y no `int()`: con
 ## coordenadas negativas (la calle está a la izquierda del edificio, en x negativa) `int(-0.5)`
 ## daría 0 y `floor(-0.5)` da -1, que es la celda correcta.
