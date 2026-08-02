@@ -60,6 +60,13 @@ Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero,
   ciudadano: la de delante), y quien se sienta lo hace EN el centro de la celda de su silla,
   coincidiendo con ella. Nada de ajustes de píxel a mano para colocar muebles: celdas enteras,
   de 1 en 1. (Complementa al ADR-0005, que fija el orden de capas.)
+  - **Matiz de la ventanilla (usuario, 2026-08-03, variante C del fotomontaje)**: quien se
+    sienta en la ventanilla PERTENECE a su celda (la lógica del modelo sigue intacta — turnos y
+    navegación no cambian), pero su punto visual de asiento se desplaza al BORDE que mira a su
+    mueble — silla y persona juntas, arrimadas al mostrador en vez de centradas en la
+    cuadrícula. Solo aplica a la ventanilla (`MesaAtencion.CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`,
+    ahora a MEDIO paso de celda en vez de uno completo); el resto del mobiliario sigue con el
+    centro de celda entero de la regla de arriba.
 - **Al validar asientos**: la dirección de una silla se juzga con la silla VACÍA (un muñeco
   sentado encima tapa justo lo que hay que mirar) y la alineación, con la REJILLA dibujada en el
   fotomontaje.

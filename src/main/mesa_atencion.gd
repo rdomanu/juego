@@ -101,7 +101,7 @@ const ROT_MOSTRADOR: int = 0
 const ANCLA_FRACCION_MOSTRADOR := Vector2(0.521, 0.727)      # 1 celda (legado)
 const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.824, 0.697)    # 2 celdas (caso normal)
 
-## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02) ────────────────────────────────────────────
+## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02, MEDIO PASO desde 2026-08-03) ────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
 ## todos los elementos deben ocupar de 1 en 1 cuadrícula; no coincide donde se sientan los
 ## ciudadanos con donde está la silla; las sillas no están en la misma línea que la mesa"*.
@@ -112,14 +112,25 @@ const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.824, 0.697)    # 2 celdas (caso no
 ## celdas en fila en el plano LÓGICO cuadrado (ver `NPCsFlujo._asegurar_visual_puesto`): el
 ## funcionario detrás (norte), el mostrador en medio (la celda del puesto en el modelo) y el
 ## ciudadano delante (sur, `NPCsFlujo._frente_del_puesto` = `centro_de_celda(celda + Vector2i(0,
-## 1))`). Cada silla —y quien se sienta en ella— ancla al CENTRO de SU celda, no a un número
-## suelto: el salto de pantalla de una celda a la vecina en ese eje es
-## `Vector2(±Proyeccion.MEDIO_ANCHO, ∓Proyeccion.MEDIO_ALTO)` (la misma cuenta de
-## `Proyeccion.centro_iso`/`proyectar`, ver ese fichero). ES el mismo offset que ya usaba
-## `NPCsFlujo._POLICIA_DETRAS` para el policía DE PIE — aquí se convierte en la ÚNICA fuente de
-## verdad, para que de pie, sentado, silla y ciudadano coincidan siempre en el mismo punto.
-const CELDA_FUNCIONARIO := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)   # norte, detrás
-const CELDA_CIUDADANO := Vector2(-Proyeccion.MEDIO_ANCHO, Proyeccion.MEDIO_ALTO)     # sur, delante
+## 1))`).
+##
+## DECISIÓN DEL USUARIO (2026-08-03, variante C del fotomontaje): la gente de la ventanilla se
+## ARRIMA AL BORDE de su celda que mira al mostrador — silla y persona JUNTAS, pegadas al
+## mostrador en vez de centradas en su cuadrícula. La celda LÓGICA del modelo **no cambia**
+## (ADR-0004: flujo, turnos y navegación siguen anclando a la celda entera —
+## `NPCsFlujo._frente_del_puesto` sigue devolviendo el centro de la celda sur completa—); lo que
+## se mueve es solo el punto VISUAL del asiento, de un paso COMPLETO de celda a MEDIO paso desde
+## el ancla del mostrador. Por eso estas dos constantes pasan de
+## `Vector2(±Proyeccion.MEDIO_ANCHO, ∓Proyeccion.MEDIO_ALTO)` (el salto de pantalla de una celda
+## entera) a la MITAD de ese salto: `Vector2(±Proyeccion.MEDIO_ANCHO/2.0,
+## ∓Proyeccion.MEDIO_ALTO/2.0)`.
+##
+## Cada silla —y quien se sienta en ella— sigue anclando a estas constantes como ÚNICA fuente de
+## verdad: es el mismo offset que usa el policía DE PIE (`NPCsFlujo._reconstruir_cuerpo_policia`,
+## rama sin sprite) y el sentado (misma función, rama con sprite), así que de pie, sentado y silla
+## coinciden siempre en el mismo punto — ahora ese punto está a medio paso, no a uno entero.
+const CELDA_FUNCIONARIO := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, -Proyeccion.MEDIO_ALTO / 2.0)   # norte, detrás — medio paso
+const CELDA_CIUDADANO := Vector2(-Proyeccion.MEDIO_ANCHO / 2.0, Proyeccion.MEDIO_ALTO / 2.0)     # sur, delante — medio paso
 
 
 ## ¿Hay un sprite renderizado para este mostrador (`ID_SPRITE_MOSTRADOR` o `ID_SPRITE_MOSTRADOR_2`)?

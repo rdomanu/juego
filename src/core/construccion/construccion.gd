@@ -1793,11 +1793,13 @@ const COMODIDAD_RADIO := &"radio"
 ## espera de que el usuario le busque un destino de 1 celda de verdad).
 const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
 ## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
+## Dispensador re-actualizada 2026-08-03: reescalado a ratio humano (pared 32 px, Fase 1 del plan
+## de calidad visual) — lienzo nuevo 14×38, ancla derivada de su base medida.
 static func _sprites_comodidad() -> Dictionary:
 	return {
 		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.479, 0.628)},
 		COMODIDAD_PAPELERA: {"rotacion": 0, "ancla": Vector2(0.508, 0.861)},
-		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.495, 0.911)},
+		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.474, 0.909)},
 		COMODIDAD_RADIO: {"rotacion": 0, "ancla": Vector2(0.493, 0.803)},
 	}
 
