@@ -95,17 +95,20 @@ func test_sin_tope_de_puestos() -> void:
 	var mundo: Array = _mundo(6000.0)
 	var construccion: Node = mundo[0]
 	var personal: Node = mundo[2]
-	# Oficina de 10×3: dos filas para las ventanillas (5 por fila, el mostrador mide 2 celdas) y una
-	# tercera libre — si se llenara la sala entera, la puerta se quedaría sin celda a la que apartarse.
-	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 10, 3))
+	# Cada ventanilla es un bloque 2×3 (mostrador + fila del funcionario detrás + fila del ciudadano
+	# delante, decisión 2026-08-03): 10 puestos en FILA ÚNICA necesitan 20 columnas de ancho (2 cada
+	# uno) y 3 filas de fondo (detrás/ancla/delante); se deja una cuarta fila libre — si se llenara la
+	# sala entera, la puerta se quedaría sin celda a la que apartarse.
+	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 20, 4))
 
-	# Act — 10 puestos: cada mostrador mide 2 celdas (2026-08-02), así que caben 5 por fila en las
-	# dos filas de la oficina. Lo que se prueba sigue siendo lo mismo: no hay TOPE de puestos.
+	# Act — 10 puestos en fila, ancla en y=1 (deja la fila y=0 detrás y la y=2 delante dentro de la
+	# sala); cada mostrador mide 2 celdas, así que el paso entre anclas es 2. Lo que se prueba sigue
+	# siendo lo mismo: no hay TOPE de puestos.
 	var construidos: int = 0
-	for y: int in range(2):
-		for x: int in range(0, 10, 2):
-			if construccion.construir_elemento(&"puesto_doc_general", Vector2i(x, y)) != &"":
-				construidos += 1
+	for i: int in range(10):
+		var x: int = i * 2
+		if construccion.construir_elemento(&"puesto_doc_general", Vector2i(x, 1)) != &"":
+			construidos += 1
 
 	# Assert — los 10 constan, registrados en Personal y visibles para Flujo por servicio.
 	assert_int(construidos).is_equal(10)
@@ -132,9 +135,11 @@ func test_posicion_de_elemento() -> void:
 	# Arrange
 	var construccion: Node = _mundo()[0]
 	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 4, 4))
-	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 3))
+	# Ancla en y=1 (deja su fila de detrás y=0 y de delante y=2 dentro de la sala 4×4 — huella 2×3,
+	# decisión 2026-08-03).
+	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 1))
 
 	# Act / Assert
-	assert_bool(construccion.posicion_de(id_puesto) == Vector2i(2, 3)).is_true()
+	assert_bool(construccion.posicion_de(id_puesto) == Vector2i(2, 1)).is_true()
 	# Inexistente → centinela (-1,-1) con aviso.
 	assert_bool(construccion.posicion_de(&"nada") == Vector2i(-1, -1)).is_true()

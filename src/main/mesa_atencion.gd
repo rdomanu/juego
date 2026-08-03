@@ -145,8 +145,20 @@ const FONDO_BASE_SILLA_FUNCIONARIO_PX: float = 33.0
 const FONDO_SILLA_ESPERA: float = FONDO_BASE_SILLA_ESPERA_PX / Proyeccion.ANCHO_ROMBO        # 0,3875
 const FONDO_SILLA_FUNCIONARIO: float = FONDO_BASE_SILLA_FUNCIONARIO_PX / Proyeccion.ANCHO_ROMBO  # 0,4125
 ## Y el arrime resultante, en PASOS de celda (0,5 = la frontera; menos = dentro de su celda).
-const ARRIME_CIUDADANO: float = 0.5 - FONDO_SILLA_ESPERA / 2.0            # 0,30625
+## RETROCESO_CIUDADANO (usuario 2026-08-03, mirando el juego): *"vamos a echar un poco más para
+## atrás la silla del ciudadano, 1/4 de cuadrícula — ahora mismo está muy pegada"*. Se resta SOLO
+## en el lado del ciudadano; el funcionario se queda donde estaba.
+const RETROCESO_CIUDADANO: float = 0.25
+const ARRIME_CIUDADANO: float = 0.5 - FONDO_SILLA_ESPERA / 2.0 - RETROCESO_CIUDADANO  # 0,05625
 const ARRIME_FUNCIONARIO: float = 0.5 - FONDO_SILLA_FUNCIONARIO / 2.0     # 0,29375
+
+## ALZADO del policía SENTADO (usuario 2026-08-03): *"subimos la altura donde está sentado el
+## policía, le veo muy bajo — se le tiene que ver la cabeza a la altura del ordenador; no le hagas
+## más grande"*. Píxeles de pantalla hacia ARRIBA, aplicados SOLO al muñeco sentado (la silla no se
+## mueve: el mostrador tapa el hueco). Elegido MIRANDO dos candidatos renderizados (−25 vs −33):
+## con −25 la cabeza queda sobre el monitor sin que el reposabrazos asome por encima del tablero
+## (con −33 asomaba y delataba el truco).
+const ALZADO_SENTADO_FUNCIONARIO := Vector2(0.0, -25.0)
 
 ## ── ATENCIÓN CENTRADA EN EL MOSTRADOR (decisión del usuario, 2026-08-03) ─────────────────────
 ## Con solo el arrime de arriba, TODA la atención caía en la celda OESTE del mostrador de 2 celdas

@@ -602,11 +602,14 @@ func _bakear_navegacion() -> void:
 	]))
 	for servicio: String in ["Documentacion", "ODAC", "Seguridad"]:
 		for puesto_id: StringName in _construccion.puestos_de_servicio(servicio):
-			# El puesto ocupa su CUERPO entero (2 celdas desde 2026-08-02, o 1 si es huella legado) —
-			# antes solo se recortaba la celda ancla y la mitad nueva del mostrador se quedaba
-			# pisable, así que los NPCs la atravesaban. `celdas_de_elemento` es la MISMA verdad que
-			# usa el modelo (`Construccion`), así que esto no puede desincronizarse de la huella real.
-			for celda_cuerpo: Vector2i in _construccion.celdas_de_elemento(puesto_id):
+			# Se recorta el CUERPO del puesto (el mostrador: 2 celdas, o 1 si es huella mínima), NO su
+			# huella de colocación. Desde el 2026-08-03 un puesto RESERVA 2×3 = 6 celdas (mostrador +
+			# silla del funcionario + silla del ciudadano), pero las filas de las sillas tienen que
+			# seguir siendo PISABLES: el policía y el ciudadano llegan ANDANDO a sentarse, y con las 6
+			# bloqueadas se quedarían sin camino. Por eso aquí va `celdas_obstaculo_de` y no
+			# `celdas_de_elemento` — dos preguntas distintas, dos funciones distintas (ver la cabecera
+			# de `Construccion`). Sigue siendo la MISMA verdad del modelo: no puede desincronizarse.
+			for celda_cuerpo: Vector2i in _construccion.celdas_obstaculo_de(puesto_id):
 				var esquina: Vector2 = Vector2(celda_cuerpo) * float(_tam_celda)
 				var lado := float(_tam_celda)
 				datos.add_obstruction_outline(PackedVector2Array([
@@ -1622,9 +1625,9 @@ func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: St
 		policia.add_child(MunecoScript.construir_sprite_sentado(
 			prefijo, ALTO_SPRITE_OFICIAL, DIRECCION_POLICIA_SENTADO
 		))
-		# CELDA_FUNCIONARIO, NO un ajuste de píxel a mano: regla de rejilla del usuario 2026-08-02
-		# (ver el comentario junto a esa constante en `mesa_atencion.gd`).
-		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
+		# CELDA_FUNCIONARIO + alzado del sentado (usuario 2026-08-03: la cabeza a la altura del
+		# monitor) — ver ambas constantes en `mesa_atencion.gd`. El alzado es SOLO del muñeco.
+		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO + MesaAtencionScript.ALZADO_SENTADO_FUNCIONARIO
 	else:
 		_anadir_cuerpo_policia(policia)
 		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO

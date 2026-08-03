@@ -82,12 +82,15 @@ func test_solape_de_elementos_rechazado() -> void:
 
 	# Act / Assert — la misma celda queda ocupada.
 	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(1, 1))).is_false()
-	# La de al lado TAMBIÉN: desde el 2026-08-02 un mostrador ocupa 2 celdas, así que el de (1,1) se
-	# extiende hasta (2,1) — antes de esa decisión esta línea esperaba `true` (ver
-	# `construccion_puesto_huella_test.gd`, que cubre la huella entera).
+	# La de al lado TAMBIÉN: desde el 2026-08-03 un puesto RESERVA 2×3 = 6 celdas (mostrador + silla
+	# del funcionario + silla del ciudadano), así que el de (1,1) se extiende a x 1..2 × y 0..2 — antes
+	# de esa decisión esta línea esperaba `true` (ver `construccion_puesto_huella_test.gd`, que cubre
+	# la huella entera y la diferencia entre reservar y bloquear el paso).
 	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(2, 1))).is_false()
-	# Una fila más abajo sigue habiendo sitio para las dos celdas: (0,2)+(1,2).
-	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 2))).is_true()
+	# Una fila más abajo TAMPOCO cabe ya: el bloque de (0,2) pisaría las celdas del de (1,1).
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 2))).is_false()
+	# En una sala de 4×4 solo cabe UNA ventanilla; en la de ODAC, que está libre, la suya sí.
+	assert_bool(construccion.validar_elemento(&"puesto_odac", Vector2i(7, 1))).is_true()
 	assert_str(String(construccion.sala_en(Vector2i(1, 1)))).is_equal("sala_1")
 
 

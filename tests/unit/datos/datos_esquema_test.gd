@@ -72,7 +72,8 @@ func test_tipo_puesto_expone_sus_campos() -> void:
 	var p: Resource = TipoPuestoScript.new()
 	# Assert
 	for campo in ["id", "nombre", "servicio", "atenciones_admitidas", "reconfigurable",
-			"coste_construccion_eur", "plazas_agente", "superficie", "icono"]:
+			"coste_construccion_eur", "plazas_agente", "superficie", "fondo_detras", "fondo_delante",
+			"icono"]:
 		assert_bool(campo in p).is_true()
 
 

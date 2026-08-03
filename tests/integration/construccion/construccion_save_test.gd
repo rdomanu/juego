@@ -32,8 +32,11 @@ func _mundo() -> Array:
 ## Devuelve [id_espera, id_puesto_doc] para los asserts.
 func _layout_rico(construccion: Node) -> Array:
 	construccion.construir_sala(&"sala_documentacion", Rect2i(0, 0, 4, 4))
-	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 0))
-	construccion.construir_elemento(&"puesto_doc_general", Vector2i(1, 0))
+	# Cada ventanilla es un bloque 2×3 (mostrador + fila del funcionario detrás + fila del ciudadano
+	# delante, 2026-08-03): el ancla va en y=1 para que quepan las filas de detrás (y=0) y delante
+	# (y=2) dentro de la sala 4×4; las dos ventanillas van de 2 en 2 columnas (0-1 y 2-3).
+	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 1))
+	construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 1))
 	var id_espera: StringName = construccion.construir_sala(&"sala_espera_doc", Rect2i(0, 6, 3, 3))
 	for i: int in range(3):
 		construccion.construir_elemento(construccion.ASIENTO_BASICO, Vector2i(i, 6))

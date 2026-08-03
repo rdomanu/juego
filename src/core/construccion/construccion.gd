@@ -160,25 +160,26 @@ func validar_sala(tipo_sala_id: StringName, rect: Rect2i) -> bool:
 ## inválido con aviso. `ignorar` excluye un elemento de los chequeos (mover_elemento se valida a sí
 ## mismo sin contarse — story 004).
 ## Bug corregido 2026-07-29 (petición del usuario jugando: "el sofá de 3 plazas debe ocupar 3 huecos,
-## ahora solo ocupa 1, se amontonan"): `celda` es solo el ANCLA — el cuerpo entero (`_celdas_de`,
-## `superficie` celdas hacia +X) tiene que caer DENTRO DE LA MISMA sala que el ancla (ni salirse del
-## edificio ni pisar la sala de al lado) y estar libre de otros elementos (su cuerpo cuenta como
-## ocupado — CO4).
-## Un PUESTO (mostrador) mide 2 celdas desde el 2026-08-02, así que esta misma regla es la que exige
-## que las DOS celdas estén libres y en la MISMA sala — sin código nuevo: la huella sale del catálogo.
+## ahora solo ocupa 1, se amontonan"): `celda` es solo el ANCLA — la HUELLA entera (`_celdas_de`)
+## tiene que caer DENTRO DE LA MISMA sala que el ancla (ni salirse del edificio ni pisar la sala de al
+## lado) y estar libre de otros elementos (CO4).
+## Un PUESTO mide 2×3 = 6 celdas desde el 2026-08-03 (mostrador + silla del funcionario + silla del
+## ciudadano), así que esta misma regla es la que exige que LAS SEIS estén libres y en la MISMA sala
+## — sin código nuevo: la huella sale del catálogo.
 func validar_elemento(
 	id_catalogo: StringName, celda: Vector2i, ignorar: StringName = &"",
 	orientacion: int = HORIZONTAL
 ) -> bool:
-	return _validar_elemento_con(id_catalogo, celda, ignorar, orientacion, 0)
+	return _validar_elemento_con(id_catalogo, celda, ignorar, orientacion, HUELLA_COMPLETA)
 
 
-## La validación de arriba, pudiendo forzar la superficie (`> 0`). Solo la usa la política de huella
-## legado (`migrar_huella_puestos` / `construir_de_oficio_elemento`), que necesita preguntar si un
-## mostrador cabe al menos con SU CELDA DE TRABAJO cuando el cuerpo entero no cabe.
+## La validación de arriba a un ESCALÓN de huella concreto. Solo la usan la migración de saves
+## (`migrar_huella_puestos`) y el trazado de oficio (`construir_de_oficio_elemento`), que necesitan
+## preguntar si un puesto que no cabe con sus 6 celdas cabe al menos con su mostrador, o con su sola
+## celda de trabajo. El jugador siempre construye y mueve con la huella COMPLETA.
 func _validar_elemento_con(
 	id_catalogo: StringName, celda: Vector2i, ignorar: StringName, orientacion: int,
-	superficie_forzada: int
+	nivel: int
 ) -> bool:
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
@@ -187,9 +188,9 @@ func _validar_elemento_con(
 	# suelo: se cuelga encima. (`_celda_ocupada` ya ignora a las de techo en el otro sentido, así que
 	# tampoco impide colocar nada debajo de ellas.)
 	var de_techo: bool = es_de_techo(id_catalogo)
-	for c: Vector2i in _celdas_de(id_catalogo, celda, orientacion, superficie_forzada):
+	for c: Vector2i in _celdas_de(id_catalogo, celda, orientacion, nivel):
 		if sala_en(c) != sala_id:
-			return false   # el cuerpo no cabe entero: se sale de la sala (CO4)
+			return false   # la huella no cabe entera: se sale de la sala (CO4)
 		if not de_techo and _celda_ocupada(c, ignorar):
 			return false   # pisa algo que ya está en el suelo (CO4)
 		# La puerta no se tapia... salvo que la sala tenga OTRO sitio por donde abrirla. Asi el jugador
@@ -197,7 +198,7 @@ func _validar_elemento_con(
 		# se puede recolocar. (Y el montaje inicial de la DGP, que pone asientos antes de que nadie
 		# piense en puertas, deja de ser invalido por accidente.)
 		if es_celda_de_puerta(c) and _perimetro_libre_alternativo(
-			sala_id, _celdas_de(id_catalogo, celda, orientacion)
+			sala_id, _celdas_de(id_catalogo, celda, orientacion, nivel)
 		).is_empty():
 			return false
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
@@ -400,9 +401,10 @@ func tipo_de_sala(sala_id: StringName) -> StringName:
 	return _salas[sala_id]["tipo"]
 
 
-## ¿Hay ya un elemento CUYO CUERPO cubra esta celda? (`ignorar` excluye a uno — para revalidar al
-## moverlo). Un sofá de superficie 3 ocupa sus 3 celdas para este chequeo, no solo su ancla —
-## petición del usuario 2026-07-29.
+## ¿Hay ya un elemento CUYA HUELLA cubra esta celda? (`ignorar` excluye a uno — para revalidar al
+## moverlo). Un sofá de superficie 3 ocupa sus 3 celdas para este chequeo, no solo su ancla
+## (petición del usuario 2026-07-29), y un puesto sus 6: la silla del funcionario está tan reservada
+## como el mostrador — ahí no se pone una papelera.
 func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 	for elemento_id: StringName in _elementos:
 		if elemento_id == ignorar:
@@ -410,36 +412,68 @@ func _celda_ocupada(celda: Vector2i, ignorar: StringName = &"") -> bool:
 		var elemento: Dictionary = _elementos[elemento_id]
 		if es_de_techo(elemento["catalogo"]):
 			continue   # cuelga del techo: no ocupa suelo, así que no estorba a nadie
-		if celda in _cuerpo_de(elemento):
+		if celda in _huella_de(elemento):
 			return true
 	return false
 
 
-## ── LA HUELLA DEL PUESTO: 2 CELDAS (decisión de diseño 2026-08-02) ──────────────────────────────
-## El puesto de atención (el mostrador) ocupa **DOS celdas** de la rejilla, no una: un mostrador de
-## ventanilla es un mueble largo, y la ley del juego es que los objetos ocupan celdas ENTERAS y no se
-## montan unos con otros. La medida vive en el CATÁLOGO (`TipoPuesto.superficie` = 2, generado por
-## `tools/build_catalogo.gd`) — el modelo no la hardcodea, exactamente igual que la del sofá de 3.
+## ── LA HUELLA DEL PUESTO: 2×3 = 6 CELDAS (decisión de diseño 2026-08-03) ────────────────────────
+## Petición del usuario: *"vamos a tratar los 3 elementos como 1 solo: la silla del ciudadano, la
+## mesa y la silla del policía; 6 cuadrículas en total, 2×3 — 2 a lo ancho (el ancho de la mesa) y 3
+## de fondo: silla-mesa-silla"*. Una ventanilla no es un mueble suelto: es un PUESTO ENTERO, y lo que
+## reserva en la rejilla es el bloque completo. Así el jugador no puede meter una papelera en la silla
+## del funcionario ni pegar dos ventanillas espalda contra espalda.
 ##
-## De las dos celdas, la ANCLA es la **CELDA DE TRABAJO** (`celda_de_trabajo`): la de siempre, la que
-## devuelve `posicion_de` y la única que miran Flujo y Personal — el funcionario atiende desde la celda
-## de ARRIBA (norte) y el ciudadano espera en la de ABAJO (sur). La segunda celda del cuerpo es
-## ocupación pura: reserva sitio en la rejilla y nadie puede colocar nada encima, pero ningún sistema
-## la consulta. Por eso esta decisión NO tocó ni una línea de Flujo ni de Personal.
+##       ┌───────┬───────┐   fila DETRÁS  (norte): la silla del funcionario
+##       │       │       │
+##       ├───────┼───────┤   fila del ANCLA: EL MOSTRADOR (2 celdas de ancho)  ← celda de trabajo
+##       │ ancla │       │
+##       ├───────┼───────┤   fila DELANTE (sur): la silla / el hueco del ciudadano
+##       │       │       │
+##       └───────┴───────┘
 ##
-## Se rota como cualquier otra pieza (R): `HORIZONTAL` pone la 2ª celda al este, `VERTICAL` al sur.
+## El dato vive en el CATÁLOGO, no aquí: `TipoPuesto.superficie` (= 2, el ancho del mostrador) ×
+## `TipoPuesto.fondo_detras` + 1 + `TipoPuesto.fondo_delante` (= 1 + 1 + 1 = 3 filas). Lo que NO
+## declara fondo (el sofá de 3, las comodidades de 1) se comporta EXACTAMENTE igual que antes: una
+## sola fila, que es el caso 0/0. La huella es una propiedad del objeto, igual que su precio.
 ##
-## ⚠️ La marca `CLAVE_HUELLA_LEGADO` es la excepción: un puesto que viene de una partida guardada
-## cuando el mostrador medía 1 celda y hoy NO CABE en 2 (ver `migrar_huella_puestos`).
-const CLAVE_HUELLA_LEGADO := "huella_legado"
-## Lo que ocupa un puesto marcado legado: solo su celda de trabajo.
-const SUPERFICIE_LEGADO: int = 1
+## El ANCLA sigue siendo la **CELDA DE TRABAJO** (`celda_de_trabajo`): la de siempre, la que devuelve
+## `posicion_de` y la única que miran Flujo y Personal — el funcionario atiende desde la celda de
+## ARRIBA (norte) y el ciudadano espera en la de ABAJO (sur). Ampliar la huella NO movió esa
+## invariante: por eso este cambio no toca ni una línea de Flujo ni de Personal.
+##
+## ⚠️ DOS CONJUNTOS DE CELDAS DISTINTOS — no confundirlos:
+##   · **COLOCACIÓN** (`celdas_de_elemento`, las 6): lo que el puesto RESERVA. La validación exige
+##     las 6 libres y en la misma sala, la demolición las libera y `elemento_en` responde en las 6.
+##   · **OBSTÁCULO** (`celdas_obstaculo_de`, las 2 del mostrador): lo que BLOQUEA EL PASO. Las filas
+##     de las sillas tienen que seguir siendo PISABLES o el funcionario y el ciudadano no podrían
+##     llegar andando a sentarse — el mueble que estorba es la mesa, no la silla de nadie.
+## La navegación (`NPCsFlujo._bakear_navegacion`) recorta la segunda, NUNCA la primera.
+##
+## Se rota como cualquier otra pieza (R): girar mueve el bloque entero en rígido (`_paso_de` da el eje
+## largo del mostrador y `_perpendicular_de` el del fondo).
+##
+## ── LOS TRES ESCALONES DE LA HUELLA (política de migración y de trazado de oficio) ──────────────
+## Un puesto que NO cabe con sus 6 celdas no desaparece ni se mueve solo: BAJA UN ESCALÓN. Están
+## ordenados de MÁS a MENOS huella a propósito (`maxi` sobre ellos = "recorta al menos hasta aquí").
+const HUELLA_COMPLETA: int = 0   ## Lo que dice el catálogo: mostrador + fila del funcionario + fila del ciudadano.
+const HUELLA_SIN_FONDO: int = 1  ## Solo el mostrador (2 celdas): el bloque no cabe, el mueble sí.
+const HUELLA_MINIMA: int = 2     ## Solo la celda de trabajo (1 celda): el suelo — una ventanilla nunca se pierde.
+## Los escalones en el orden en que se prueban (de más huella a menos).
+const NIVELES_HUELLA: Array[int] = [HUELLA_COMPLETA, HUELLA_SIN_FONDO, HUELLA_MINIMA]
+## Clave del escalón en la ficha de un elemento colocado. NO se serializa: se vuelve a deducir del
+## layout en cada carga (`migrar_huella_puestos`), así que no puede quedar obsoleta.
+const CLAVE_NIVEL_HUELLA := "huella_nivel"
+## Los dos campos de fondo del catálogo. Se leen con `in` para que añadirlos mañana a `Comodidad`
+## —una cabina de fotos con su banqueta, por ejemplo— funcione sin tocar este archivo.
+const CAMPO_FONDO_DETRAS := &"fondo_detras"
+const CAMPO_FONDO_DELANTE := &"fondo_delante"
 
 
-## Superficie (celdas) de un id de catálogo. `Comodidad.superficie` y `TipoPuesto.superficie`
-## comparten el mismo campo (el mostrador vale 2, el sofá 3, casi todo lo demás 1); el asiento básico
-## no vive en el catálogo (MVP) y siempre ocupa 1. Id inexistente → 1 (validar_elemento ya avisa por
-## su cuenta; no se duplica aquí).
+## Superficie (celdas) de un id de catálogo A LO LARGO de su eje largo. `Comodidad.superficie` y
+## `TipoPuesto.superficie` comparten el mismo campo (el mostrador vale 2, el sofá 3, casi todo lo
+## demás 1); el asiento básico no vive en el catálogo (MVP) y siempre ocupa 1. Id inexistente → 1
+## (validar_elemento ya avisa por su cuenta; no se duplica aquí).
 func _superficie_de(id_catalogo: StringName) -> int:
 	if id_catalogo == ASIENTO_BASICO:
 		return 1
@@ -452,6 +486,26 @@ func _superficie_de(id_catalogo: StringName) -> int:
 	return 1
 
 
+## El FONDO de un id de catálogo: cuántas filas reserva DETRÁS (`.x`, el lado del funcionario) y
+## DELANTE (`.y`, el lado del ciudadano) de su propia fila. `(0,0)` = pieza de una sola fila, que es
+## todo lo que no sea un puesto (y era el comportamiento único hasta el 2026-08-03).
+func _fondo_de(id_catalogo: StringName) -> Vector2i:
+	if id_catalogo == ASIENTO_BASICO:
+		return Vector2i.ZERO
+	var ficha: Resource = Datos.obtener_silencioso(&"TipoPuesto", id_catalogo)
+	if ficha == null:
+		ficha = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	if ficha == null:
+		return Vector2i.ZERO
+	var detras: int = 0
+	var delante: int = 0
+	if CAMPO_FONDO_DETRAS in ficha:
+		detras = maxi(int(ficha.get(CAMPO_FONDO_DETRAS)), 0)
+	if CAMPO_FONDO_DELANTE in ficha:
+		delante = maxi(int(ficha.get(CAMPO_FONDO_DELANTE)), 0)
+	return Vector2i(detras, delante)
+
+
 ## ¿Esta pieza del catálogo va colgada del TECHO? Una pieza de techo (un fluorescente, un foco) no
 ## ocupa suelo: se puede poner encima de un mostrador o de un sofá, porque no está en medio. La
 ## lámpara de pie NO lo es. Petición del usuario 2026-07-30. El dato vive en el catálogo (`Comodidad
@@ -461,23 +515,40 @@ func es_de_techo(id_catalogo: StringName) -> bool:
 	return comodidad != null and comodidad.en_techo
 
 
-## Las celdas del CUERPO de un elemento: la celda de colocación es el ANCLA y el cuerpo se extiende
-## hacia +X (o hacia +Y si está girado) `superficie - 1` celdas más — sin formas en L (MVP: nada del
-## catálogo mide más de 1×N). SIEMPRE se recalcula desde el catálogo, nunca se guarda (ver
-## `save`/`load_state`) — así el cuerpo no puede desincronizarse del dato de superficie si este cambia
-## de valor. `superficie_forzada` > 0 la sustituye (solo la usa la huella legado, ver
-## `migrar_huella_puestos`).
+## La HUELLA de un elemento: TODAS las celdas que reserva. La celda de colocación es el ANCLA; el
+## cuerpo (el mueble) se extiende desde ella `superficie - 1` celdas hacia +X (o hacia +Y si está
+## girado), y el FONDO añade filas paralelas detrás y delante (el puesto: la silla del funcionario y
+## la del ciudadano). Sin formas en L: la huella siempre es un rectángulo.
+##
+## SIEMPRE se recalcula desde el catálogo, nunca se guarda (ver `save`/`load_state`) — así no puede
+## desincronizarse del dato si la huella del catálogo cambia de valor entre partidas.
+##
+## `nivel` recorta por escalones (ver `HUELLA_COMPLETA`/`HUELLA_SIN_FONDO`/`HUELLA_MINIMA`): lo usan
+## la migración de saves y el trazado de oficio para preguntar "¿y si cabe con menos?".
+##
+## ORDEN GARANTIZADO: primero la fila del ancla (`celdas[0]` es SIEMPRE la celda de trabajo), después
+## las filas de detrás y por último las de delante. Hay código y tests que dependen de `celdas[0]`.
 func _celdas_de(
 	id_catalogo: StringName, celda_ancla: Vector2i, orientacion: int = HORIZONTAL,
-	superficie_forzada: int = 0
+	nivel: int = HUELLA_COMPLETA
 ) -> Array[Vector2i]:
 	var celdas: Array[Vector2i] = []
 	var paso: Vector2i = _paso_de(orientacion)
-	var superficie: int = (
-		superficie_forzada if superficie_forzada > 0 else _superficie_de(id_catalogo)
-	)
-	for i: int in range(superficie):
+	var largo: int = 1 if nivel == HUELLA_MINIMA else _superficie_de(id_catalogo)
+	for i: int in range(largo):
 		celdas.append(celda_ancla + paso * i)
+	if nivel != HUELLA_COMPLETA:
+		return celdas   # escalón recortado: solo el mueble (o solo la celda de trabajo)
+	var fondo: Vector2i = _fondo_de(id_catalogo)
+	if fondo == Vector2i.ZERO:
+		return celdas   # pieza de una sola fila (todo lo que no es un puesto)
+	var perpendicular: Vector2i = _perpendicular_de(orientacion)
+	for fila: int in range(1, fondo.x + 1):        # DETRÁS: el lado del funcionario
+		for i: int in range(largo):
+			celdas.append(celda_ancla - perpendicular * fila + paso * i)
+	for fila: int in range(1, fondo.y + 1):        # DELANTE: el lado del ciudadano
+		for i: int in range(largo):
+			celdas.append(celda_ancla + perpendicular * fila + paso * i)
 	return celdas
 
 
@@ -489,18 +560,51 @@ func _paso_de(orientacion: int) -> Vector2i:
 	return Vector2i(0, 1) if orientacion == VERTICAL else Vector2i(1, 0)
 
 
-## El cuerpo de un elemento YA COLOCADO, a partir de su ficha del modelo. Punto ÚNICO por el que pasa
-## todo el que pregunta qué celdas ocupa algo que está puesto: así la excepción de la huella legado
-## (un mostrador de save viejo que se quedó en 1 celda) se respeta en todos los sitios a la vez.
-func _cuerpo_de(elemento: Dictionary) -> Array[Vector2i]:
+## El vector de UNA celda hacia DELANTE (el lado del ciudadano); hacia detrás es el mismo en negativo.
+## Es `_paso_de` girado 90° en el mismo sentido, así que rotar una pieza con fondo la gira ENTERA y
+## rígida: en `HORIZONTAL` el mostrador crece al este y su fondo va norte/sur (el ciudadano al SUR,
+## que es justo donde lo planta Flujo: `celda + (0,1)`); en `VERTICAL`, mostrador al sur y fondo
+## este/oeste.
+func _perpendicular_de(orientacion: int) -> Vector2i:
+	return Vector2i(-1, 0) if orientacion == VERTICAL else Vector2i(0, 1)
+
+
+## La HUELLA de un elemento YA COLOCADO (lo que RESERVA: las 6 celdas de un puesto), a partir de su
+## ficha del modelo. Punto ÚNICO por el que pasa todo el que pregunta qué sitio ocupa algo puesto:
+## así el escalón de huella recortada (un puesto que no cabía entero) se respeta a la vez en la
+## validación, en la demolición y en el clic.
+func _huella_de(elemento: Dictionary) -> Array[Vector2i]:
 	return _celdas_de(
 		elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL),
-		SUPERFICIE_LEGADO if elemento.get(CLAVE_HUELLA_LEGADO, false) else 0
+		int(elemento.get(CLAVE_NIVEL_HUELLA, HUELLA_COMPLETA))
 	)
 
 
-## Las celdas del cuerpo de un elemento YA COLOCADO, respetando la orientación con la que se puso.
+## El CUERPO de un elemento YA COLOCADO: el mueble en sí, sin las filas del fondo. Es lo que BLOQUEA
+## EL PASO — a una silla se llega andando, a través del mostrador no. `maxi` con `HUELLA_SIN_FONDO`
+## porque los escalones van de más a menos huella: quita el fondo, y si el elemento ya venía más
+## recortado (huella mínima), respeta lo suyo.
+func _cuerpo_de(elemento: Dictionary) -> Array[Vector2i]:
+	var nivel: int = int(elemento.get(CLAVE_NIVEL_HUELLA, HUELLA_COMPLETA))
+	return _celdas_de(
+		elemento["catalogo"], elemento["celda"], elemento.get("orientacion", HORIZONTAL),
+		maxi(nivel, HUELLA_SIN_FONDO)
+	)
+
+
+## Las celdas que un elemento colocado RESERVA (COLOCACIÓN): las 6 de un puesto, las 3 de un sofá, la
+## 1 de una papelera. Nada se puede construir encima de ellas y la demolición las libera todas.
+## ⚠️ Para la NAVEGACIÓN NO es esta: es `celdas_obstaculo_de` (las sillas se pisan).
 func celdas_de_elemento(elemento_id: StringName) -> Array[Vector2i]:
+	if not _elementos.has(elemento_id):
+		return []
+	return _huella_de(_elementos[elemento_id])
+
+
+## Las celdas que un elemento colocado BLOQUEA FÍSICAMENTE (OBSTÁCULO): el mueble, sin las filas del
+## fondo. Es lo que recorta la navegación (`NPCsFlujo._bakear_navegacion`) — bloquear las 6 de un
+## puesto dejaría al funcionario y al ciudadano sin forma de llegar andando a sus sillas.
+func celdas_obstaculo_de(elemento_id: StringName) -> Array[Vector2i]:
 	if not _elementos.has(elemento_id):
 		return []
 	return _cuerpo_de(_elementos[elemento_id])
@@ -1055,23 +1159,20 @@ func _reubicar_puerta_si_estorba(sala_id: StringName, celdas: Array) -> void:
 
 
 ## Da de alta un elemento YA validado y pagado (guarda `coste_pagado` — lo necesita el reembolso F4).
-## `legado`: el mostrador se queda con su sola celda de trabajo (ver `migrar_huella_puestos`).
+## `nivel`: el escalón de huella con el que entra (COMPLETA salvo saves viejos / trazado apretado).
 func _crear_elemento(
 	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &"",
-	orientacion: int = HORIZONTAL, legado: bool = false
+	orientacion: int = HORIZONTAL, nivel: int = HUELLA_COMPLETA
 ) -> StringName:
-	var superficie: int = SUPERFICIE_LEGADO if legado else 0
 	# Si el mueble cae sobre la puerta, la puerta se aparta (la validacion ya comprobo que hay sitio).
-	_reubicar_puerta_si_estorba(
-		sala_en(celda), _celdas_de(id_catalogo, celda, orientacion, superficie)
-	)
+	_reubicar_puerta_si_estorba(sala_en(celda), _celdas_de(id_catalogo, celda, orientacion, nivel))
 	var elemento_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(id_catalogo)
 	_elementos[elemento_id] = {
 		"catalogo": id_catalogo, "celda": celda, "sala": sala_en(celda), "coste_pagado": coste_pagado,
 		"orientacion": orientacion,
 	}
-	if legado:
-		_elementos[elemento_id][CLAVE_HUELLA_LEGADO] = true
+	if nivel != HUELLA_COMPLETA:
+		_elementos[elemento_id][CLAVE_NIVEL_HUELLA] = nivel
 	_refrescar_visual()
 	return elemento_id
 
@@ -1192,10 +1293,10 @@ func construir_elemento(
 ## Alta común (construir normal y de oficio): registra en el modelo + puente a Personal si es puesto.
 func _alta_elemento(
 	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &"",
-	orientacion: int = HORIZONTAL, legado: bool = false
+	orientacion: int = HORIZONTAL, nivel: int = HUELLA_COMPLETA
 ) -> StringName:
 	var elemento_id: StringName = _crear_elemento(
-		id_catalogo, celda, coste_pagado, id_forzado, orientacion, legado
+		id_catalogo, celda, coste_pagado, id_forzado, orientacion, nivel
 	)
 	# Solo los PUESTOS se registran en Personal (son plazas de trabajo). Ni los asientos ni las
 	# comodidades lo son: una máquina de vending no es una vacante que cubrir.
@@ -1224,23 +1325,28 @@ func construir_de_oficio_sala(
 
 
 ## Construye un elemento del montaje inicial (coste 0; `id_forzado` para los ids compat doc_1...).
-## Si un MOSTRADOR del trazado de oficio no cabe con sus 2 celdas (2026-08-02), se monta LEGADO —con
-## su sola celda de trabajo— en vez de desaparecer: misma política que los saves viejos, y así una
-## partida nueva nunca pierde una ventanilla por una celda. Ver `migrar_huella_puestos`.
+## Si un PUESTO del trazado de oficio no cabe con sus 6 celdas (2026-08-03), BAJA UN ESCALÓN —primero
+## a su mostrador de 2, y si tampoco, a su sola celda de trabajo— en vez de desaparecer: misma
+## política que los saves (`migrar_huella_puestos`), y así una comisaría recién entregada nunca pierde
+## una ventanilla por una celda. Cada escalón avisa: un trazado inicial apretado es un dato de diseño,
+## no un detalle interno.
 func construir_de_oficio_elemento(
 	id_catalogo: StringName, celda: Vector2i, id_forzado: StringName = &"",
 	orientacion: int = HORIZONTAL
 ) -> StringName:
 	if validar_elemento(id_catalogo, celda, &"", orientacion):
 		return _alta_elemento(id_catalogo, celda, 0.0, id_forzado, orientacion)
-	if _es_puesto(id_catalogo) and _validar_elemento_con(
-		id_catalogo, celda, &"", orientacion, SUPERFICIE_LEGADO
-	):
-		push_warning(
-			"Construccion: el mostrador '%s' en %s no cabe con sus 2 celdas -> montado LEGADO (1)"
-			% [id_catalogo, celda]
-		)
-		return _alta_elemento(id_catalogo, celda, 0.0, id_forzado, orientacion, true)
+	if _es_puesto(id_catalogo):
+		for nivel: int in NIVELES_HUELLA:
+			if nivel == HUELLA_COMPLETA:
+				continue   # ya se ha probado arriba
+			if not _validar_elemento_con(id_catalogo, celda, &"", orientacion, nivel):
+				continue
+			push_warning(
+				"Construccion: el puesto '%s' en %s no cabe con su huella completa (2x3) -> montado en el escalon %d"
+				% [id_catalogo, celda, nivel]
+			)
+			return _alta_elemento(id_catalogo, celda, 0.0, id_forzado, orientacion, nivel)
 	push_warning("Construccion: montaje de oficio INVALIDO ('%s' en %s)" % [id_catalogo, celda])
 	return &""
 
@@ -1322,13 +1428,15 @@ func puestos_utiles(tasa_llegadas_pico: float, throughput_hora_puesto: float) ->
 	return ceili(tasa_llegadas_pico / throughput_hora_puesto)
 
 
-## El elemento cuyo CUERPO cubre una celda (&"" si ninguno) — lo usa la herramienta de demolición
-## (007). Un clic en CUALQUIER celda de un sofá de 3 lo encuentra, no solo en su ancla.
+## El elemento cuya HUELLA cubre una celda (&"" si ninguno) — lo usa la herramienta de demolición
+## (007). Un clic en CUALQUIER celda de un sofá de 3 lo encuentra, no solo en su ancla; y en un puesto
+## responde también desde la celda de cualquiera de sus dos sillas: la ventanilla es UNA sola cosa, así
+## que se selecciona y se demuele como una sola cosa.
 func elemento_en(celda: Vector2i) -> StringName:
 	var en_suelo: StringName = &""
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
-		if not (celda in _cuerpo_de(elemento)):
+		if not (celda in _huella_de(elemento)):
 			continue
 		# Si en esa celda hay una pieza de TECHO y algo en el suelo, gana la de techo: es la que está
 		# dibujada encima y a la que el jugador está apuntando. Si no, la del suelo.
@@ -1359,57 +1467,78 @@ func puede_pagar(coste: float) -> bool:
 
 ## La CELDA DE TRABAJO de un puesto: donde se atiende. Es la celda ANCLA, la misma de toda la vida —
 ## el funcionario se pone en la de arriba (norte) y el ciudadano espera en la de abajo (sur). Que el
-## mostrador mida 2 celdas desde el 2026-08-02 NO cambia esta invariante: la 2ª celda es solo bulto.
+## puesto reserve 2×3 celdas desde el 2026-08-03 NO cambia esta invariante: las otras cinco son sitio
+## reservado, y Flujo y Personal siguen preguntando solo por esta.
 func celda_de_trabajo(puesto_id: StringName) -> Vector2i:
 	return posicion_de(puesto_id)
 
 
-## ¿Este puesto se quedó con la huella vieja de 1 celda? (ver `migrar_huella_puestos`). Falso para
-## todo lo demás — un asiento o una comodidad nunca son "legado".
-func es_huella_legado(elemento_id: StringName) -> bool:
+## El ESCALÓN de huella con el que está colocado un elemento (`HUELLA_COMPLETA` para todo lo normal).
+## Lo consulta la capa visual para saber cuánto mueble tiene que dibujar.
+func nivel_de_huella(elemento_id: StringName) -> int:
 	if not _elementos.has(elemento_id):
-		return false
-	return bool(_elementos[elemento_id].get(CLAVE_HUELLA_LEGADO, false))
+		return HUELLA_COMPLETA
+	return int(_elementos[elemento_id].get(CLAVE_NIVEL_HUELLA, HUELLA_COMPLETA))
 
 
-## MIGRACIÓN IDEMPOTENTE de la huella de los puestos (2026-08-02) — mismo patrón que
+## ¿Este puesto se quedó con UNA SOLA celda (la de trabajo)? Es el escalón más bajo — la excepción de
+## un save o un trazado donde no cabe ni el mostrador. La capa visual lo usa para dibujar el mostrador
+## de 1 celda en vez del de 2 (`MesaAtencion.construir`). Falso para todo lo demás: un asiento o una
+## comodidad nunca son "legado".
+func es_huella_legado(elemento_id: StringName) -> bool:
+	return nivel_de_huella(elemento_id) == HUELLA_MINIMA
+
+
+## MIGRACIÓN IDEMPOTENTE de la huella de los puestos, **v2: 2×3** (2026-08-03) — mismo patrón que
 ## `levantar_fachada`: se puede llamar mil veces seguidas y el resultado es exactamente el mismo.
 ##
-## Una partida guardada ANTES de esta decisión tiene mostradores que ocupaban 1 celda. El cuerpo no se
-## guarda (se recalcula del catálogo en cada consulta, ver `save`), así que al cargar TODOS pasan a 2
-## celdas ellos solos. Eso es lo que queremos... salvo cuando la 2ª celda ya está pillada (otro
-## mostrador pegado, un armario) o cae fuera de la sala: expandir ahí rompería la partida dejando dos
-## objetos montados uno encima de otro, justo lo que la ley del juego prohíbe.
+## ⚠️ CLAVE: **el save NUNCA ha guardado la huella**, solo el ANCLA (ver `save`). Así que "migrar" no
+## es convertir un dato viejo: es VOLVER A DEDUCIR, con el catálogo de hoy y el layout que hay, cuánto
+## ocupa cada puesto. Por eso un save de cuando el mostrador medía 1 celda y otro de cuando medía 2 son
+## el MISMO JSON y pasan por aquí exactamente igual.
 ##
-## POLÍTICA (la más simple que no rompe partidas): el que cabe se expande; el que NO cabe se queda con
-## su CELDA DE TRABAJO y se marca LEGADO. Un legado sigue jugándose igual que ayer —misma celda de
-## trabajo, mismo funcionario, mismo ciudadano— y no desplaza nada de lo que el jugador colocó.
-## Descartadas: recolocarlo (le mueve la ventanilla sin avisar) y rotarlo (la 2ª celda caería sobre la
-## celda del ciudadano, que es peor que no expandir). La marca NO se serializa: se vuelve a deducir en
-## cada carga, así que si el jugador demuele el estorbo, el mostrador se expande solo la próxima vez.
+## POLÍTICA (la más simple que no rompe partidas) — el puesto BAJA ESCALONES hasta que quepa:
+##   1. `HUELLA_COMPLETA` (2×3): el bloque entero cabe en su sala y libre → se expande. Lo normal.
+##   2. `HUELLA_SIN_FONDO` (2×1): las filas de las sillas chocan (otro puesto pegado, un armario, el
+##      borde de la sala) pero el mostrador sí cabe → se queda con el mostrador.
+##   3. `HUELLA_MINIMA` (1×1): ni eso → se queda con su celda de trabajo.
+## Un puesto en un escalón bajo SE JUEGA IGUAL que ayer: misma celda de trabajo, mismo funcionario,
+## mismo ciudadano. Lo único que pierde es sitio reservado. Descartadas: recolocarlo (le mueve la
+## ventanilla sin avisar) y rotarlo (el fondo caería sobre la celda del ciudadano, que es peor).
+##
+## El escalón NO se serializa: se vuelve a deducir en cada carga, así que si el jugador demuele el
+## estorbo, el puesto recupera su huella entera él solo la próxima vez que se cargue la partida.
 ##
 ## Se hace en DOS PASADAS a propósito: primero se borran todas las marcas y luego se decide, para que
 ## el resultado dependa solo del estado del save (anclas, orientaciones, salas y catálogo) y no de qué
-## marcas hubiera puestas antes — que es lo que hace la operación idempotente.
+## marcas hubiera puestas antes — que es lo que hace la operación idempotente. Dentro de la 2ª pasada
+## el orden es el de inserción del save, que es estable: dos puestos que se estorban reparten siempre
+## igual (el primero que cabe se queda el sitio).
 func migrar_huella_puestos() -> void:
 	var puestos: Array[StringName] = []
 	for elemento_id: StringName in _elementos:
 		if _es_puesto(_elementos[elemento_id]["catalogo"]):
 			puestos.append(elemento_id)
-			_elementos[elemento_id].erase(CLAVE_HUELLA_LEGADO)
+			_elementos[elemento_id].erase(CLAVE_NIVEL_HUELLA)
 	for puesto_id: StringName in puestos:
-		if not _cuerpo_entero_cabe(puesto_id):
-			_elementos[puesto_id][CLAVE_HUELLA_LEGADO] = true
+		var nivel: int = _nivel_que_cabe(puesto_id)
+		if nivel != HUELLA_COMPLETA:
+			_elementos[puesto_id][CLAVE_NIVEL_HUELLA] = nivel
 
 
-## ¿El cuerpo COMPLETO (el del catálogo) de un elemento ya colocado cabe donde está? Cabe si todas sus
-## celdas están en la misma sala que su ancla y ninguna la ocupa OTRO elemento.
-func _cuerpo_entero_cabe(elemento_id: StringName) -> bool:
+## El escalón MÁS ALTO de huella con el que un elemento ya colocado cabe donde está: cabe si todas sus
+## celdas están en la misma sala que su ancla y ninguna la ocupa OTRO elemento. Si no cabe con ninguno
+## (p. ej. su ancla se quedó fuera de toda sala tras editar el layout) se queda con el mínimo — un
+## puesto del save nunca se descarta en silencio.
+func _nivel_que_cabe(elemento_id: StringName) -> int:
 	var elemento: Dictionary = _elementos[elemento_id]
-	return _validar_elemento_con(
-		elemento["catalogo"], elemento["celda"], elemento_id,
-		elemento.get("orientacion", HORIZONTAL), 0
-	)
+	for nivel: int in NIVELES_HUELLA:
+		if _validar_elemento_con(
+			elemento["catalogo"], elemento["celda"], elemento_id,
+			elemento.get("orientacion", HORIZONTAL), nivel
+		):
+			return nivel
+	return HUELLA_MINIMA
 
 
 ## Celda de un elemento (getter para Flujo/visual). Inexistente → (-1,-1) con aviso.
@@ -1579,9 +1708,9 @@ func mover_elemento(elemento_id: StringName, celda_destino: Vector2i) -> bool:
 		return false
 	elemento["celda"] = celda_destino
 	elemento["sala"] = sala_en(celda_destino)
-	# Se acaba de revalidar con la huella ENTERA del catálogo: si era un mostrador legado, deja de
-	# serlo (el jugador lo ha llevado a un sitio donde sí caben sus 2 celdas).
-	elemento.erase(CLAVE_HUELLA_LEGADO)
+	# Se acaba de revalidar con la huella ENTERA del catálogo: si el puesto venía de un escalón
+	# recortado, lo recupera (el jugador lo ha llevado a un sitio donde sí caben sus 6 celdas).
+	elemento.erase(CLAVE_NIVEL_HUELLA)
 	_refrescar_visual()
 	return true
 

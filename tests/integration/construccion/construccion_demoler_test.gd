@@ -61,10 +61,12 @@ func test_demoler_sala_en_cascada() -> void:
 	var construccion: Node = mundo[0]
 	var eco: Node = mundo[1]
 	var sala_id: StringName = construccion.construir_sala(&"sala_documentacion", Rect2i(0, 0, 4, 4))
-	# Las dos ventanillas van de 2 en 2 celdas (el mostrador mide 2 desde el 2026-08-02): (0,0)+(1,0)
-	# la primera y (2,0)+(3,0) la segunda — la fila de 4 celdas se llena justa.
-	construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 0))
-	construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 0))
+	# Cada ventanilla es un bloque 2×3 (mostrador + fila del funcionario detrás + fila del ciudadano
+	# delante, decisión 2026-08-03): el ancla va en la fila y=1 para que la fila y=0 (detrás) y la
+	# fila y=2 (delante) quepan dentro de la sala 4×4. La primera ocupa columnas 0-1, la segunda 2-3;
+	# la fila y=3 queda libre (por ahí se aparta la puerta si estorbase).
+	construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 1))
+	construccion.construir_elemento(&"puesto_doc_general", Vector2i(2, 1))
 	assert_float(eco.saldo_eur).is_equal_approx(1680.0, 0.0001)
 
 	# Act — paso 1: la UI listaría el contenido para confirmar; paso 2: cascada.
@@ -74,7 +76,7 @@ func test_demoler_sala_en_cascada() -> void:
 	# Assert — reembolso 250+250 (puestos) + 160 (sala) = +660; todo fuera del modelo.
 	assert_float(eco.saldo_eur).is_equal_approx(2340.0, 0.0001)
 	assert_str(String(construccion.sala_en(Vector2i(1, 1)))).is_equal("")
-	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 0))).is_false()
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 1))).is_false()
 
 
 # ── AC-CO14: mover es gratis, conserva id/agente y reubica ────────────────────────────────
@@ -85,22 +87,25 @@ func test_mover_gratis_y_reubica() -> void:
 	var eco: Node = mundo[1]
 	var personal: Node = mundo[2]
 	construccion._crear_sala(&"sala_documentacion", Rect2i(0, 0, 4, 4))
-	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(1, 1))
+	# Ancla de origen en columnas 0-1 (fila y=1, con su fila de detrás y=0 y de delante y=2 dentro de
+	# la sala 4×4); el destino va en las columnas 2-3 de la MISMA fila — un bloque 2×3 disjunto del de
+	# origen, así que al mover la celda vieja queda REALMENTE libre (huella 2026-08-03: 6 celdas, no 1).
+	var id_puesto: StringName = construccion.construir_elemento(&"puesto_doc_general", Vector2i(0, 1))
 	var agente: RefCounted = _policia_doc()
 	personal.plantilla.append(agente)
 	personal.asignar(agente, id_puesto)
 	var saldo_antes: float = eco.saldo_eur
 
 	# Act
-	assert_bool(construccion.mover_elemento(id_puesto, Vector2i(2, 2))).is_true()
+	assert_bool(construccion.mover_elemento(id_puesto, Vector2i(2, 1))).is_true()
 
 	# Assert — reubicado, gratis, y Personal ni se entera (agente sigue asignado y dotando).
-	assert_bool(construccion.posicion_de(id_puesto) == Vector2i(2, 2)).is_true()
+	assert_bool(construccion.posicion_de(id_puesto) == Vector2i(2, 1)).is_true()
 	assert_float(eco.saldo_eur).is_equal_approx(saldo_antes, 0.0001)
 	assert_bool(personal.puesto_dotado(id_puesto)).is_true()
 	# La celda vieja queda libre; la nueva, ocupada.
-	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(1, 1))).is_true()
-	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(2, 2))).is_false()
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(0, 1))).is_true()
+	assert_bool(construccion.validar_elemento(&"puesto_doc_general", Vector2i(2, 1))).is_false()
 
 
 # ── Edge CO4: mover un puesto a una oficina incompatible se rechaza ───────────────────────
