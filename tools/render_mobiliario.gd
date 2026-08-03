@@ -89,11 +89,17 @@ const ROTACIONES: Array[int] = [0, 90, 180, 270]
 ## una ventanilla de dos puestos), archivos aparte (`mostrador_atencion2_<rot>.png`). CORREGIDO
 ## 2026-08-02 (2ª vez, mismo día): el primer intento reescalaba el mostrador de 1 módulo con un
 ## multiplicador (`MULTIPLICADOR_MOSTRADOR2` ≈×1,63) -- crecía también en ALTURA y quedaba enorme
-## junto a los muñecos de 44 px, rechazado por el usuario. Ahora son DOS MÓDULOS REALES de OBJ_021
-## en fila (ver `_recetas`, entrada `grupos` de `ID_MOSTRADOR_2CELDAS`: módulo A completo + módulo
-## B "solo mueble" pegado en `+X`), cada uno a la MISMA escala del mostrador de 1 celda
-## (`MULTIPLICADOR_MOSTRADOR1`) -- así crece en ANCHURA, no en altura. Su lado largo de base debe
-## medir EXACTAMENTE 2,00 celdas -- ver `_guardar_receta_a_escala` (paso 5 de `_ejecutar`).
+## junto a los muñecos de 44 px, rechazado por el usuario. 2º intento (mismo día): DOS MÓDULOS
+## REALES de OBJ_021 en fila -- RECHAZADO por el usuario 2026-08-03, se veía como "dos mesas juntas"
+## con un ESCALÓN visible en la costura (los módulos no casan, cada uno con su propio despiece de
+## madera). CORREGIDO 2026-08-03 (3er intento, el bueno): UNA SOLA instancia de OBJ_021 -- sin la
+## silla horneada, como siempre -- cuyo CUERPO DE MADERA (`_nombres_obj021_solo_mueble`, 18 piezas)
+## se estira ANISÓTROPAMENTE solo en X (`FACTOR_LARGO_MOSTRADOR2`, alto y fondo intactos) alrededor
+## de un pivote fijo en el borde donde ya se apoya el equipo (`PIVOTE_X_CUERPO_MOSTRADOR`); los
+## accesorios (monitor/teclado/ratón/teléfono) NO se estiran, se quedan en su transformada original
+## -- al no moverse el pivote, ya caen bien colocados "hacia el extremo donde ya estaban", sin
+## recolocarlos a mano. Una pieza única no puede tener costura ni escalón. Su lado largo de base
+## debe medir EXACTAMENTE 2,00 celdas -- ver `_guardar_receta_a_escala` (paso 5 de `_ejecutar`).
 const ID_MOSTRADOR_2CELDAS := "mostrador_atencion2"
 
 ## REGLA GENERAL (usuario, 2026-08-02): la base de CUALQUIER sprite multi-celda debe medir
@@ -141,11 +147,37 @@ const DESPLAZAMIENTO_RADIO := Vector3(-0.488, 0.128, -7.730)
 ## sprite si queda montado sobre el monitor o volando del borde.
 const DESPLAZAMIENTO_TELEFONO := Vector3(-4.841, -0.086, -8.176)
 
+## SOLO para `mostrador_atencion2` (usuario 2026-08-03, retoque tras aprobar la pieza estirada).
+##
+## IDENTIFICACIÓN VERIFICADA por render de diagnóstico (flotando cada grupo +3/+5/+7 m en Y, uno
+## por uno, y mirando qué sube en la imagen -- descarta el primer vistazo a ojo, que había
+## confundido monitor con teléfono): en rot 0, el PIVOTE (`PIVOTE_X_CUERPO_MOSTRADOR`, el borde SIN
+## estirar donde ya vivían monitor/teclado/ratón/teléfono) cae ARRIBA-DERECHA en pantalla -- el
+## extremo EMPUJADO por el estirón (el otro extremo del cuerpo, vacío, hacia -X) cae ARRIBA-
+## IZQUIERDA. El usuario define OESTE = arriba-izquierda en pantalla en rot 0 -- por tanto OESTE es
+## el extremo ESTIRADO (vacío) y ESTE es el extremo del PIVOTE (donde ya estaba todo el equipo).
+##
+## Pedido: monitor+teclado+ratón a la mitad OESTE (el extremo estirado) y teléfono a la ESTE. El
+## teléfono YA estaba en el pivote (`DESPLAZAMIENTO_TELEFONO`) -- que es la mitad ESTE -- así que
+## NO necesita desplazamiento propio: se queda con el mismo que `mostrador_atencion` (ver
+## `desplazamientos_telefono` en `_recetas`). Lo que se mueve es el CLUSTER monitor+teclado+ratón,
+## como bloque rígido (mismo delta para los tres, para no romper su colocación relativa unos con
+## otros), reflejado desde su distancia actual al borde ESTE (pivote) a la MISMA distancia desde el
+## nuevo borde OESTE (el extremo estirado, ver `FACTOR_LARGO_MOSTRADOR2`):
+##   centro_x monitor (sin desplazar) = (-8,5795-8,0337)/2 = -8,3066
+##   distancia al pivote (ESTE, X=-7,7778) = -7,7778-(-8,3066) = 0,5288
+##   borde OESTE ya estirado = -7,7778 + (-9,3681-(-7,7778))×2,00 = -10,9584
+##   objetivo = -10,9584 + 0,5288 = -10,4296
+##   delta = objetivo - centro_x_original = -10,4296-(-8,3066) = -2,1230
+## Solo X (Y/Z intactos: mismo alto sobre el tablero, misma profundidad -- el estirón tampoco los
+## toca). Si se retoca `FACTOR_LARGO_MOSTRADOR2`, el borde oeste se mueve -- recalcular igual.
+const DESPLAZAMIENTO_EQUIPO_MOSTRADOR2 := Vector3(-2.1230, 0.0, 0.0)
+
 ## Piezas de OBJ_021 (el escritorio) SIN la silla horneada (ver el aviso dentro de `_recetas`, en
 ## `ID_MOSTRADOR`, sobre por qué se excluye) -- 27 piezas: cuerpo del escritorio, cajonera,
-## organizador de papeles, monitor, teclado y ratón. Compartida por `mostrador_atencion` (receta
-## original == MÓDULO A de `mostrador_atencion2`) y por el módulo "solo mueble" (MÓDULO B, ver
-## `_nombres_obj021_solo_mueble`) de la variante de 2 celdas.
+## organizador de papeles, monitor, teclado y ratón. Es la receta completa de `mostrador_atencion`
+## (1 celda); `mostrador_atencion2` (2 celdas) reutiliza el CUERPO de este mismo conjunto
+## (`_nombres_obj021_solo_mueble`, sin monitor/teclado/ratón) estirado en X -- ver su cabecera.
 ## `static var` y no `const`: en Godot 4.6 el parser no acepta una llamada al constructor de
 ## `PackedStringArray` como expresión constante ("Assigned value ... isn't a constant expression"),
 ## a diferencia de `Vector3(...)` (sí aceptado, ver `DESPLAZAMIENTO_TELEFONO`) -- se inicializa una
@@ -176,19 +208,34 @@ static var NOMBRES_TECLADO := PackedStringArray(["Object_848", "Object_849"])
 ## el monitor.
 static var NOMBRES_RATON := PackedStringArray(["Object_837", "Object_838", "Object_840"])
 
-## Ancho (eje X de mundo -- el lado LARGO del escritorio) de UN módulo de `mostrador_atencion`,
-## medido con `tools/_diag_obj021_piezas.gd` sobre `Object_829` (el cuerpo grande del tablero, la
-## única pieza cuyo AABB ya delimita la huella entera del mueble -- todas las demás caen dentro):
-## size.x = 1,590 m. Usado para pegar el MÓDULO B de `mostrador_atencion2` justo a continuación del
-## MÓDULO A (offset en `+X`, sin hueco ni solape) -- ver `_recetas`. Si el render muestra un hueco
-## o solape visible entre los dos módulos, es el primer valor a ajustar (ver la cabecera del
-## fichero, "CÓMO SE USA").
-const ANCHO_MODULO_MOSTRADOR: float = 1.590
+## `mostrador_atencion2` (usuario 2026-08-03, 3er intento): el cuerpo de madera se estira en X
+## alrededor de un pivote FIJO -- el borde del cuerpo en +X, donde YA se apoyan monitor/teclado/
+## ratón/teléfono (medido con `tools/_diag_obj021_ejes.gd`: `_nombres_obj021_solo_mueble` -- 18
+## piezas, cuerpo SIN accesorios -- da xmax=-7,7778 en las coordenadas crudas del GLB; el propio
+## `Object_829`, el tablero grande, ya delimitaba esa huella: size.x=1,590 m, con `Object_829`
+## empezando en xmin=-9,3681). Ese borde NO se mueve al estirar -- así el equipo queda "hacia el
+## extremo donde ya estaba" sin recolocar nada a mano (ver `_transform_efectiva`, `escala_x`/
+## `pivote_x`); el cuerpo crece hacia el otro extremo (-X), vacío, para el segundo puesto.
+const PIVOTE_X_CUERPO_MOSTRADOR: float = -7.7778
 
-## MÓDULO B de `mostrador_atencion2`: el escritorio de OBJ_021 SIN monitor/teclado/ratón -- para
-## que el mostrador de 2 puestos no repita el equipo informático (pedido del usuario 2026-08-02:
-## "que no haya 2 monitores"). El teléfono tampoco aparece: no forma parte de
-## `NOMBRES_OBJ021_SIN_SILLA` (ver `NOMBRES_TELEFONO`) y este módulo no lo añade.
+## Estirón del cuerpo (SOLO en X -- alto y fondo intactos) sobre su ancho crudo de 1,590 m. Valor
+## de partida aprobado por el usuario (2026-08-03, "~×2,05"); el mismo multiplicador de celda-exacta
+## que ya usa el mostrador de 1 módulo (`MULTIPLICADOR_MOSTRADOR1`, paso 5 de `_ejecutar`) se aplica
+## DESPUÉS y por igual a las dos piezas del render, así que -- proyección ortográfica, estiramiento
+## puramente en un eje de mundo -- el lado largo final debe escalar de forma exactamente
+## proporcional a este factor (1,00 celda del módulo × este factor). Verificar SIEMPRE con Python
+## sobre el PNG ya guardado (lado largo = 2,00±0,05 celdas, mismo criterio que
+## `MULTIPLICADOR_MOSTRADOR1`) y reajustar aquí si no cae en el sitio -- NO tocar la cámara.
+## AJUSTADO 2026-08-03 tras medir con Python: ×2,05 daba lado_largo=2,056 (rot 0) -- 0,006 por
+## encima de la tolerancia ±0,05 -- bajado a ×2,00 (la proyección ortográfica hace el estirón
+## puramente lineal: medido≈factor, ver la cabecera), releído y confirmado dentro de tolerancia.
+const FACTOR_LARGO_MOSTRADOR2: float = 2.00
+
+## El CUERPO DE MADERA de OBJ_021 -- escritorio SIN monitor/teclado/ratón (ni silla, ya excluida en
+## `NOMBRES_OBJ021_SIN_SILLA`) -- 18 piezas: tablero, cajonera, organizador de papeles. Es el grupo
+## que `mostrador_atencion2` ESTIRA en X (ver `FACTOR_LARGO_MOSTRADOR2`); el teléfono tampoco entra
+## aquí (no forma parte de `NOMBRES_OBJ021_SIN_SILLA`, ver `NOMBRES_TELEFONO`) porque va en el grupo
+## de ACCESORIOS (sin estirar) junto con monitor/teclado/ratón -- ver `_recetas`.
 static func _nombres_obj021_solo_mueble() -> PackedStringArray:
 	var excluir: Dictionary = {}
 	for n: String in NOMBRES_MONITOR:
@@ -225,6 +272,26 @@ static func _recetas() -> Array[Dictionary]:
 		"Object_1170": DESPLAZAMIENTO_TELEFONO,
 		"Object_1171": DESPLAZAMIENTO_TELEFONO,
 	}
+	# Los ACCESORIOS de `mostrador_atencion2` (monitor+teclado+ratón+teléfono): grupo aparte del
+	# cuerpo, SIN `escala_x` (quedan tal cual estaban -- ver la cabecera del fichero). El teléfono
+	# usa el MISMO desplazamiento que en `mostrador_atencion` (ya cae en el pivote, la mitad ESTE);
+	# monitor+teclado+ratón llevan `DESPLAZAMIENTO_EQUIPO_MOSTRADOR2` (los tres, el mismo, para
+	# moverse en bloque a la mitad OESTE sin romper su colocación relativa) -- ver la cabecera de
+	# esa constante para la identificación verificada por render y la cuenta del reflejo.
+	var nombres_accesorios_mostrador: PackedStringArray = NOMBRES_MONITOR.duplicate()
+	nombres_accesorios_mostrador.append_array(NOMBRES_TECLADO)
+	nombres_accesorios_mostrador.append_array(NOMBRES_RATON)
+	nombres_accesorios_mostrador.append_array(NOMBRES_TELEFONO)
+	var desplazamientos_accesorios_mostrador2: Dictionary = {
+		"Object_1169": DESPLAZAMIENTO_TELEFONO,
+		"Object_1170": DESPLAZAMIENTO_TELEFONO,
+		"Object_1171": DESPLAZAMIENTO_TELEFONO,
+		"Object_851": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2, "Object_852": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2,
+		"Object_853": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2, "Object_854": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2,
+		"Object_848": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2, "Object_849": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2,
+		"Object_837": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2, "Object_838": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2,
+		"Object_840": DESPLAZAMIENTO_EQUIPO_MOSTRADOR2,
+	}
 	return [
 		{
 			"id_salida": ID_MOSTRADOR,
@@ -232,27 +299,34 @@ static func _recetas() -> Array[Dictionary]:
 			"desplazamientos": desplazamientos_telefono,
 		},
 		{
-			# `mostrador_atencion2`: el mostrador de DOS PUESTOS — DOS módulos reales de OBJ_021 en
-			# fila (no un estirón del de 1 celda, ver la cabecera del fichero y el aviso del usuario
-			# 2026-08-02). MÓDULO A: completo (monitor+teclado+ratón+teléfono), idéntico a
-			# `mostrador_atencion`, offset cero (referencia del conjunto). MÓDULO B: solo el mueble
-			# de madera (`_nombres_obj021_solo_mueble`, SIN monitor/teclado/ratón/teléfono — para no
-			# duplicar el equipo informático), pegado a continuación del A en `+X`
-			# (`ANCHO_MODULO_MOSTRADOR`, el lado largo real del escritorio). Los dos grupos comparten
-			# el MISMO multiplicador de escala que el mostrador de 1 celda (`MULTIPLICADOR_MOSTRADOR1`,
-			# paso 5 de `_ejecutar`): con geometría real de dos módulos a esa escala, el conjunto sale
-			# en ~2,00 celdas sin necesidad de un multiplicador aparte.
+			# `mostrador_atencion2`: el mostrador de DOS PUESTOS — UNA sola instancia de OBJ_021
+			# (ver la cabecera del fichero: 3er intento, el bueno, tras el escalón visible de los DOS
+			# módulos). Dos grupos, NO dos copias del mueble: "cuerpo" (el tablero+cajonera+
+			# organizador, `_nombres_obj021_solo_mueble`, 18 piezas) ESTIRADO en X con `escala_x`/
+			# `pivote_x` — ver `_transform_efectiva` — y "accesorios" (monitor+teclado+ratón+
+			# teléfono) SIN estirar, tal cual estaban. Comparten el MISMO multiplicador de escala que
+			# el mostrador de 1 celda (`MULTIPLICADOR_MOSTRADOR1`, paso 5 de `_ejecutar`): el cuerpo
+			# ya sale a ~2,00 celdas por construcción (`FACTOR_LARGO_MOSTRADOR2` ≈ ×2 el ancho de 1
+			# módulo), sin necesidad de un multiplicador aparte.
+			# RETOQUE 2026-08-03 (tras aprobar la pieza estirada): identificado por render de
+			# diagnóstico (flotando cada grupo en Y) que el PIVOTE cae en la mitad ESTE en pantalla
+			# (no oeste, como se supuso a ojo la primera vez) -- monitor+teclado+ratón se mueven en
+			# bloque a la mitad OESTE (`DESPLAZAMIENTO_EQUIPO_MOSTRADOR2`) y el teléfono se queda en
+			# el pivote (mitad ESTE, su desplazamiento de siempre), para no amontonar los cuatro
+			# accesorios en la misma punta de un mostrador que ahora mide el doble.
 			"id_salida": ID_MOSTRADOR_2CELDAS,
 			"grupos": [
 				{
-					"nombres": nombres_mostrador,
-					"desplazamientos": desplazamientos_telefono,
-					"offset": Vector3.ZERO,
-				},
-				{
 					"nombres": _nombres_obj021_solo_mueble(),
 					"desplazamientos": {},
-					"offset": Vector3(ANCHO_MODULO_MOSTRADOR, 0.0, 0.0),
+					"offset": Vector3.ZERO,
+					"escala_x": FACTOR_LARGO_MOSTRADOR2,
+					"pivote_x": PIVOTE_X_CUERPO_MOSTRADOR,
+				},
+				{
+					"nombres": nombres_accesorios_mostrador,
+					"desplazamientos": desplazamientos_accesorios_mostrador2,
+					"offset": Vector3.ZERO,
 				},
 			],
 		},
@@ -388,15 +462,35 @@ static func _grupos_de(receta: Dictionary) -> Array[Dictionary]:
 
 
 ## La transformada de mundo de una pieza YA CON su `desplazamiento` de receta aplicado (suma al
-## origen — ver `DESPLAZAMIENTO_TELEFONO`) Y el `offset` UNIFORME de su grupo (ver `_grupos_de`,
-## ZERO salvo en recetas multi-instancia). Sin ninguno de los dos, es la transformada tal cual
-## viene del GLB.
+## origen — ver `DESPLAZAMIENTO_TELEFONO`), el `offset` UNIFORME de su grupo (ver `_grupos_de`,
+## ZERO salvo en recetas multi-instancia) Y, opcionalmente, un ESTIRÓN anisótropo en X.
+##
+## `escala_x`/`pivote_x` (opcionales, 1.0/0.0 = sin efecto): estira la pieza SOLO a lo largo del
+## eje X de MUNDO, alrededor del punto `pivote_x` (ese punto no se mueve; el resto se aleja/acerca
+## `escala_x` veces) -- para `mostrador_atencion2` (usuario 2026-08-03, ver la cabecera del
+## fichero): el cuerpo de madera se estira así, los accesorios NO (quedan con `escala_x`=1.0 por
+## defecto). Es la transformada afín A=diag(escala_x,1,1) aplicada en coordenadas de MUNDO tras
+## sumar `delta`, compuesta a la IZQUIERDA de la transformada de la pieza -- por eso toca tanto el
+## origen como la columna X de cada eje de la base (`b.x.x`/`b.y.x`/`b.z.x`, las tres componentes X
+## de las tres columnas), no solo el origen: una pieza con rotación horneada también debe estirarse
+## en mundo-X, no en su X local. Las piezas de OBJ_021 no llevan rotación horneada (basis identidad,
+## verificado con `tools/_diag_obj021_ejes.gd`), pero la fórmula es general por si se reutiliza con
+## una pieza rotada.
 func _transform_efectiva(
-	n: String, todas: Dictionary, desplazamientos: Dictionary, offset: Vector3 = Vector3.ZERO
+	n: String, todas: Dictionary, desplazamientos: Dictionary, offset: Vector3 = Vector3.ZERO,
+	escala_x: float = 1.0, pivote_x: float = 0.0
 ) -> Transform3D:
 	var t: Transform3D = (todas[n] as Dictionary)["transform"]
 	var delta: Vector3 = desplazamientos.get(n, Vector3.ZERO) + offset
-	return Transform3D(t.basis, t.origin + delta)
+	var origen: Vector3 = t.origin + delta
+	if escala_x == 1.0:
+		return Transform3D(t.basis, origen)
+	origen.x = pivote_x + (origen.x - pivote_x) * escala_x
+	var base: Basis = t.basis
+	base.x.x *= escala_x
+	base.y.x *= escala_x
+	base.z.x *= escala_x
+	return Transform3D(base, origen)
 
 
 ## El ancla de una receta: el centro X/Z de su AABB conjunta -- de TODOS sus grupos (ver
@@ -409,11 +503,13 @@ func _ancla_de(receta: Dictionary, todas: Dictionary) -> Vector3:
 		var nombres: PackedStringArray = g["nombres"]
 		var desplazamientos: Dictionary = g.get("desplazamientos", {})
 		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		var escala_x: float = g.get("escala_x", 1.0)
+		var pivote_x: float = g.get("pivote_x", 0.0)
 		for n: String in nombres:
 			if not todas.has(n):
 				push_warning("RenderMobiliario: no se encontró la pieza %s en el GLB" % n)
 				continue
-			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset, escala_x, pivote_x)
 			var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
 			caja = c if primera else caja.merge(c)
 			primera = false
@@ -432,10 +528,12 @@ func _radio_de(receta: Dictionary, todas: Dictionary, ancla: Vector3) -> float:
 		var nombres: PackedStringArray = g["nombres"]
 		var desplazamientos: Dictionary = g.get("desplazamientos", {})
 		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		var escala_x: float = g.get("escala_x", 1.0)
+		var pivote_x: float = g.get("pivote_x", 0.0)
 		for n: String in nombres:
 			if not todas.has(n):
 				continue
-			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset, escala_x, pivote_x)
 			var c: AABB = t * (todas[n]["malla"] as Mesh).get_aabb()
 			for esquina: Vector3 in _esquinas_de(c):
 				radio = maxf(radio, (esquina - ancla).length())
@@ -486,10 +584,12 @@ func _montar_receta(grupo: Node3D, receta: Dictionary, todas: Dictionary, ancla:
 		var nombres: PackedStringArray = g["nombres"]
 		var desplazamientos: Dictionary = g.get("desplazamientos", {})
 		var offset: Vector3 = g.get("offset", Vector3.ZERO)
+		var escala_x: float = g.get("escala_x", 1.0)
+		var pivote_x: float = g.get("pivote_x", 0.0)
 		for n: String in nombres:
 			if not todas.has(n):
 				continue
-			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset)
+			var t: Transform3D = _transform_efectiva(n, todas, desplazamientos, offset, escala_x, pivote_x)
 			var it: Dictionary = todas[n]
 			_montar_pieza(
 				grupo, it["malla"], Transform3D(t.basis, t.origin - ancla),
@@ -531,12 +631,13 @@ func _colocar_camara(tam_mundo: float) -> void:
 ## `MULTIPLICADOR_MOSTRADOR1` corrige el mostrador de 1 CELDA (el que queda para puestos "legado"
 ## de partidas guardadas viejas, ver `mesa_atencion.gd`): su huella medía 1,225 celdas -- contra la
 ## regla de huella exacta -- así que se recorta con este multiplicador para que quede en 1,00 (pedido
-## del usuario 2026-08-02, última pieza pendiente). REUTILIZADO tal cual (2ª vez, mismo día) para
-## `mostrador_atencion2`: ya NO hay un `MULTIPLICADOR_MOSTRADOR2` aparte -- ese multiplicador
-## estiraba el mostrador de 1 módulo ×1,63 (crecía en altura, rechazado por el usuario). Ahora
-## `mostrador_atencion2` es geometría real de DOS módulos de OBJ_021 en fila (ver `_recetas`), cada
-## uno a la MISMA escala de 1,00 celda que este multiplicador ya da -- el conjunto sale en ~2,00
-## celdas por construcción, sin reescalar aparte.
+## del usuario 2026-08-02, última pieza pendiente). REUTILIZADO tal cual para `mostrador_atencion2`:
+## ya NO hay un `MULTIPLICADOR_MOSTRADOR2` aparte. Pasó por DOS diseños rechazados antes de llegar
+## aquí -- ver la cabecera del fichero -- primero un estirón ×1,63 de TODO el mueble (crecía en
+## altura), luego DOS módulos de OBJ_021 en fila (costura con escalón visible). El diseño actual
+## (2026-08-03) es UNA sola instancia con el cuerpo estirado en X (`FACTOR_LARGO_MOSTRADOR2`,
+## `PIVOTE_X_CUERPO_MOSTRADOR`) y los accesorios sin tocar: el cuerpo ya sale en ~2,00 celdas por
+## construcción con este mismo multiplicador, sin reescalar aparte.
 const MULTIPLICADOR_MOSTRADOR1: float = 1.00 / 1.225
 const MULTIPLICADOR_SOFA3: float = 3.00 / 1.525
 

@@ -99,7 +99,7 @@ const ROT_MOSTRADOR: int = 0
 ## base como referencia, los dos sprites NO comparten fracción (encuadres distintos): una
 ## constante por cada uno.
 const ANCLA_FRACCION_MOSTRADOR := Vector2(0.521, 0.727)      # 1 celda (legado)
-const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.824, 0.697)    # 2 celdas (caso normal)
+const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.825, 0.732)    # 2 celdas (pieza CONTINUA, monitor oeste)
 
 ## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02, MEDIO PASO desde 2026-08-03) ────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
