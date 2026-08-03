@@ -46,6 +46,26 @@ class_name ParedesSalas extends Node2D
 ## Este fichero sigue siendo el ÚNICO que lee el modelo y calcula geometría/alturas/colores; los
 ## `TramoPared` solo pintan lo que se les entrega (misma división de trabajo que había con
 ## `CapaParedes`, pero con un nodo por tramo en vez de dos nodos-pasada).
+##
+## ── UN SOLO CAMINO DE DIBUJO POR ARISTA (2026-08-03, los DOS BUGS DE PUERTAS) ───────────────────
+## El usuario, jugando: *"la puerta SOLO se deja colocar en una única zona de la pared que aparece
+## blanca"* y *"lo intenté en varios sitios (parecía que no dejaba)… y DESPUÉS aparecieron puertas
+## donde había hecho los clics rechazados"*. Los dos síntomas salían de LA MISMA raíz, y estaba
+## aquí: había DOS caminos de dibujo para la misma arista física.
+##
+##   · El del PERÍMETRO DE UNA SALA (paso 2) miraba el `rect` de la sala y pintaba SIEMPRE un tramo
+##     macizo — jamás consultaba el TIPO del muro en el modelo. Y encima RECLAMABA la arista, así que
+##     el camino de MUROS LIBRES (paso 4) —el único que sabía de puertas y ventanas— se la saltaba.
+##     Resultado: abrir una puerta en la pared de una sala funcionaba en el MODELO y no se veía.
+##   · El único sitio donde SÍ se notaba algo era el hueco automático de la sala: el perímetro se lo
+##     saltaba y el paso 4 lo rellenaba con un tabique de su gris de obra, que destacaba sobre el
+##     tono de la sala. Esa era "la zona blanca" del informe.
+##   · Y el fantasma: las puertas guardadas y nunca pintadas aparecían de golpe en cuanto la sala
+##     dejaba de estar "con paredes" (basta derribar un tramo) y el dibujo caía al camino del paso 4.
+##
+## Hoy hay UN SOLO despachador por tipo (`_agregar_arista`) y lo usan los dos pasos: el tipo del
+## modelo manda SIEMPRE sobre el dibujo (ADR-0004), venga la arista del perímetro de una sala o de un
+## muro suelto, en los cuatro lados y en las esquinas. Regresión: `construccion_puertas_visibles_test.gd`.
 
 ## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px"). Con el isométrico se usa
 ## para las jambas y como respaldo si algún tramo llegara sin altura.
@@ -211,34 +231,50 @@ func _recalcular_tramos() -> void:
 	for sala_id: StringName in _todas_las_salas():
 		if _construccion.sala_con_paredes(sala_id):
 			salas.append(sala_id)
-	# 1) Las unidades de perímetro que son HUECO DE PUERTA, de TODAS las salas — con prioridad
-	#    absoluta sobre cualquier pared: una puerta nunca queda tapiada, ni siquiera por la pared de
-	#    la sala vecina si esa pared cae exactamente sobre el mismo tramo compartido.
+	# 1) Las unidades de perímetro que son HUECO DE PUERTA (el acceso automático de cada sala), de
+	#    TODAS las salas — con prioridad absoluta sobre cualquier pared: una puerta nunca queda
+	#    tapiada, ni siquiera por la pared de la sala vecina si esa pared cae exactamente sobre el
+	#    mismo tramo compartido. Este hueco es una decisión de la SALA (`puerta_de_sala`), no un tipo
+	#    de muro: en el modelo esa arista sigue siendo un tabique corriente.
 	var huecos: Dictionary = {}
 	for sala_id: StringName in salas:
 		var clave: String = _clave_de_puerta(sala_id)
 		if clave != "":
 			huecos[clave] = true
-	# 2) Cada sala aporta las unidades de SU perímetro (celda a celda), salvo las de hueco. La
-	#    PRIMERA sala que reclama una unidad se la queda — así dos salas pegadas que comparten un
-	#    tramo de pared lo pintan UNA sola vez (se evita el doble trazo en vez de solaparlo).
+	# 2) Cada sala aporta las unidades de SU perímetro (celda a celda). La PRIMERA sala que reclama
+	#    una unidad se la queda — así dos salas pegadas que comparten un tramo de pared lo pintan UNA
+	#    sola vez (se evita el doble trazo en vez de solaparlo).
+	#
+	#    ⚠️ Las unidades de HUECO también se reclaman aquí (antes se excluían y acababan pintadas por
+	#    el paso 4 con el gris de obra de un muro suelto — "la zona blanca" del informe del usuario).
 	var duenio: Dictionary = {}      # clave de unidad -> color de quien la reclamó primero
-	var geometria: Dictionary = {}   # clave de unidad -> {"desde": Vector2, "hasta": Vector2}
+	var geometria: Dictionary = {}   # clave de unidad -> la unidad entera (geometría + clave_modelo)
 	for sala_id: StringName in salas:
 		var color: Color = _color_de_pared(sala_id)
 		for unidad: Dictionary in _unidades_de_perimetro(sala_id):
 			var clave: String = unidad["clave"]
-			if huecos.has(clave) or duenio.has(clave):
+			if duenio.has(clave):
 				continue
 			duenio[clave] = color
 			geometria[clave] = unidad
 	for clave: String in geometria:
 		var unidad: Dictionary = geometria[clave]
-		var tramo: Dictionary = {
-			"desde": unidad["desde"], "hasta": unidad["hasta"], "color": duenio[clave],
-		}
-		tramo.merge(_cara_de_arista(unidad["detras"]))
-		_tramos.append(tramo)
+		# EL TIPO DEL MODELO MANDA (ADR-0004), también en el perímetro de una sala: aquí estaba el bug
+		# de las puertas invisibles — este camino pintaba siempre macizo sin preguntar el tipo.
+		# `tipo_muro_de_clave` devuelve "" si esa arista no tuviera muro (no debería pasar: solo se
+		# procesan salas cuyo perímetro está entero levantado), y "" cae en el caso macizo, que es
+		# exactamente lo que se pintaba antes: la red de seguridad no cambia nada de lo que ya había.
+		var es_hueco: bool = huecos.has(clave)
+		var tipo: StringName = (
+			_construccion.PUERTA if es_hueco
+			else _construccion.tipo_muro_de_clave(unidad["clave_modelo"])
+		)
+		# El hueco automático ya recibe sus jambas —apuntando hacia DENTRO de la sala— en el paso 3;
+		# las de `_agregar_arista` se le apagan para no pintarlas dos veces.
+		_agregar_arista(
+			unidad["desde"], unidad["hasta"], _cara_de_arista(unidad["detras"]),
+			duenio[clave], tipo, not es_hueco
+		)
 	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
 	for sala_id: StringName in salas:
 		_jambas.append_array(_jambas_de_puerta(sala_id))
@@ -248,9 +284,9 @@ func _recalcular_tramos() -> void:
 	#    (`duenio`), NO se repinta encima — `Construccion.clave_de_muro` usa un convenio col:row para
 	#    las aristas horizontales que NO coincide textualmente con el de este fichero (row:col,
 	#    heredado de `_unidad_h`); `_clave_equivalente_en_paredes` traduce entre los dos para comparar
-	#    la MISMA arista física. Los huecos de puerta NO se comprueban aquí a propósito: un muro libre
-	#    es una entidad real del modelo (ADR-0004 — el visual refleja el modelo), así que si el
-	#    jugador construye uno sobre el hueco de una puerta, SE VE (aunque sea una rareza jugable).
+	#    la MISMA arista física. Desde 2026-08-03 los huecos automáticos TAMBIÉN están en `duenio`
+	#    (paso 2), así que este paso ya no los repinta con el gris de obra por encima: quien manda en
+	#    una arista del perímetro es la sala, con su color y con el tipo que diga el modelo.
 	for clave_construccion: String in _construccion.muros():
 		if duenio.has(_clave_equivalente_en_paredes(clave_construccion)):
 			continue
@@ -258,39 +294,14 @@ func _recalcular_tramos() -> void:
 		if geo.is_empty():
 			continue
 		# FASE D (2026-07-30): puertas y ventanas se DIBUJAN distinto de un tabique — el visual
-		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
-		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
+		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista. MISMO despachador que
+		# usa el perímetro de sala (2026-08-03): un tipo se dibuja igual venga de donde venga.
 		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
-		var cara: Dictionary = _cara_de_arista(geo["detras"], fija)
-		if tipo == _construccion.PUERTA:
-			_agregar_puerta_libre(
-				geo["desde"], geo["hasta"], cara, COLOR_FACHADA if fija else COLOR_MURO_LIBRE
-			)
-		elif tipo == _construccion.VENTANA:
-			# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
-			# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
-			#
-			# ⚠️ EXCEPCIÓN a "media altura" (2026-08-03): una ventana en una arista CERCANA se queda a
-			# ALTURA COMPLETA, no a `ALTO_PARED_FRENTE` como el resto de las cercanas. Se decidió así (y
-			# se deja constancia aquí, no en silencio) porque una ventana recortada a media altura no
-			# se lee como ventana: es un cristal a ras de suelo, más parecido a un poyete que a un
-			# hueco por el que se ve hacia fuera. "alto" se fija ANTES del merge con `cara` y
-			# `Dictionary.merge` no pisa claves existentes por defecto, así que el valor de aquí
-			# sobrevive intacto (hoy `cara` ya solo trae "alto", así que el merge no aporta nada más —
-			# se conserva por simetría con los otros dos casos y para no callar la excepción).
-			var ventana: Dictionary = {
-				"desde": geo["desde"], "hasta": geo["hasta"],
-				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
-			}
-			ventana.merge(cara)
-			_tramos.append(ventana)
-		else:
-			var libre: Dictionary = {
-				"desde": geo["desde"], "hasta": geo["hasta"],
-				"color": COLOR_FACHADA if fija else COLOR_MURO_LIBRE,
-			}
-			libre.merge(cara)
-			_tramos.append(libre)
+		_agregar_arista(
+			geo["desde"], geo["hasta"], _cara_de_arista(geo["detras"], fija),
+			COLOR_FACHADA if fija else COLOR_MURO_LIBRE,
+			_construccion.tipo_muro_de_clave(clave_construccion)
+		)
 	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
 	#    los muebles. Se rellena aquí, de una vez, para TODOS los caminos de arriba (perímetro de
 	#    sala, muro libre, ventana y los dos muñones de una puerta) — así ninguno se puede olvidar.
@@ -375,14 +386,56 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 	return {}
 
 
-## Dibuja el HUECO de una PUERTA en un muro libre (FASE D, 2026-07-30): dos tramos cortos de pared en
-## los extremos del tramo —para que la arista siga leyéndose como el mismo tabique— dejando un hueco
-## central por el que se pasa, más dos jambas cortas marcando el marco (mismo recurso `_jamba` que ya
-## usan las puertas de sala). A diferencia de una puerta de sala, un muro libre no pertenece a
-## ninguna habitación — no hay un "lado de dentro" que priorizar—, así que las dos jambas apuntan al
-## MISMO lado (perpendicular al tabique): es un detalle decorativo, no una pista de navegación.
-func _agregar_puerta_libre(
-	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = COLOR_MURO_LIBRE
+## ── EL ÚNICO CAMINO DE DIBUJO DE UNA ARISTA (2026-08-03) ───────────────────────────────────────
+## Convierte UNA arista (sus dos extremos en píxeles + su `cara`, o sea su altura + su color) en las
+## piezas que la pintan, según su TIPO en el modelo. Lo llaman los DOS caminos —el perímetro de una
+## sala y los muros libres— y esa es justo la razón de que exista: mientras cada uno tuvo su propia
+## lógica, una puerta abierta en la pared de una sala se pintaba maciza (ver la cabecera del fichero,
+## "UN SOLO CAMINO DE DIBUJO POR ARISTA"). Un tipo desconocido o vacío se pinta MACIZO — la red de
+## seguridad conservadora: ante la duda, pared.
+##
+## `con_jambas` solo lo apaga el hueco automático de una sala, que ya recibe las suyas —apuntando
+## hacia DENTRO— en `_jambas_de_puerta`.
+func _agregar_arista(
+	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color, tipo: StringName,
+	con_jambas: bool = true
+) -> void:
+	if tipo == _construccion.PUERTA:
+		_agregar_puerta(desde, hasta, cara, color, con_jambas)
+		return
+	if tipo == _construccion.VENTANA:
+		# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
+		# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
+		#
+		# ⚠️ EXCEPCIÓN a "media altura" (2026-08-03): una ventana en una arista CERCANA se queda a
+		# ALTURA COMPLETA, no a `ALTO_PARED_FRENTE` como el resto de las cercanas. Se decidió así (y
+		# se deja constancia aquí, no en silencio) porque una ventana recortada a media altura no
+		# se lee como ventana: es un cristal a ras de suelo, más parecido a un poyete que a un
+		# hueco por el que se ve hacia fuera. "alto" se fija ANTES del merge con `cara` y
+		# `Dictionary.merge` no pisa claves existentes por defecto, así que el valor de aquí
+		# sobrevive intacto (hoy `cara` ya solo trae "alto", así que el merge no aporta nada más —
+		# se conserva por simetría con los otros dos casos y para no callar la excepción).
+		var ventana: Dictionary = {
+			"desde": desde, "hasta": hasta,
+			"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
+		}
+		ventana.merge(cara)
+		_tramos.append(ventana)
+		return
+	var macizo: Dictionary = {"desde": desde, "hasta": hasta, "color": color}
+	macizo.merge(cara)
+	_tramos.append(macizo)
+
+
+## Dibuja el HUECO de una PUERTA (FASE D, 2026-07-30): dos tramos cortos de pared en los extremos del
+## tramo —para que la arista siga leyéndose como el mismo tabique— dejando un hueco central por el
+## que se pasa, más dos jambas cortas marcando el marco (mismo recurso `_jamba` que ya usan las
+## puertas de sala). Las dos jambas apuntan al MISMO lado (perpendicular al tabique): a una arista
+## cualquiera —un muro suelto, o el tramo de sala donde el jugador acaba de abrir un hueco— no se le
+## puede pedir un "lado de dentro" fiable, y es un detalle decorativo, no una pista de navegación.
+func _agregar_puerta(
+	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = COLOR_MURO_LIBRE,
+	con_jambas: bool = true
 ) -> void:
 	var direccion: Vector2 = hasta - desde
 	var inicio_hueco: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
@@ -393,6 +446,8 @@ func _agregar_puerta_libre(
 	var der: Dictionary = {"desde": fin_hueco, "hasta": hasta, "color": color}
 	der.merge(cara)
 	_tramos.append(der)
+	if not con_jambas:
+		return
 	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
 	_jambas.append(_jamba(inicio_hueco, perpendicular, color))
 	_jambas.append(_jamba(fin_hueco, perpendicular, color))
@@ -512,9 +567,14 @@ func _color_de_pared(sala_id: StringName) -> Color:
 ## (`_cara_de_arista`). La del lado de delante (sur) ya no hace falta guardarla: desde el paso a
 ## y-sort (2026-08-03) el orden contra el mobiliario de CADA lado lo decide la profundidad del
 ## tramo, no una clasificación previa que mirase las dos celdas.
+##
+## "clave_modelo" es ESA MISMA arista con el convenio de `Construccion.clave_de_muro` (col:row, al
+## revés que la "clave" de este fichero en las horizontales) — para poder preguntarle su TIPO al
+## modelo sin pasar por la traducción de `_clave_equivalente_en_paredes`.
 func _unidad_h(fila_gridline: int, celda_x: int) -> Dictionary:
 	return {
 		"clave": "h:%d:%d" % [fila_gridline, celda_x],
+		"clave_modelo": "h:%d:%d" % [celda_x, fila_gridline],
 		"desde": _esquina(celda_x, fila_gridline), "hasta": _esquina(celda_x + 1, fila_gridline),
 		"detras": Vector2i(celda_x, fila_gridline - 1),
 	}
@@ -522,10 +582,13 @@ func _unidad_h(fila_gridline: int, celda_x: int) -> Dictionary:
 
 ## Un tramo del eje Y (grid-line en la columna `columna_gridline`, celda `celda_y`). En pantalla
 ## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre. Mismo "detras" que
-## `_unidad_h`, aquí el lado oeste.
+## `_unidad_h`, aquí el lado oeste. En las verticales los dos convenios coinciden, así que
+## "clave_modelo" es idéntica a "clave" (se guarda igual para que quien lea la unidad no tenga que
+## saber cuál de los dos casos es).
 func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 	return {
 		"clave": "v:%d:%d" % [columna_gridline, celda_y],
+		"clave_modelo": "v:%d:%d" % [columna_gridline, celda_y],
 		"desde": _esquina(columna_gridline, celda_y), "hasta": _esquina(columna_gridline, celda_y + 1),
 		"detras": Vector2i(columna_gridline - 1, celda_y),
 	}

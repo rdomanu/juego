@@ -22,6 +22,11 @@ const HUECO_BARRA_INFO := 84.0
 ## Grosor del resalte de ARISTA del pincel de muro (2026-07-30): más fino que la caja de una celda
 ## entera — así el jugador ve claramente que apunta a un LADO, no a la celda completa.
 const GROSOR_PREVIEW_MURO := 10.0
+## Cuánto se queda congelado el resalte de la arista tras un clic, en segundos (2026-08-03). Es el
+## ACUSE DE RECIBO del clic: verde = hecho, rojo = no se puede. Sin él, el fantasma vuelve al color
+## normal en el mismo frame y un clic rechazado se ve exactamente igual que uno que no ha ocurrido —
+## que es justo lo que hizo pensar al usuario que la puerta "no se dejaba poner".
+const DURACION_DESTELLO: float = 0.4
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -66,6 +71,9 @@ var _construyendo_arrastre_muro: bool = true
 ## Última arista YA pintada/demolida en este arrastre: si el ratón sigue sobre el mismo tramo entre
 ## dos eventos de movimiento, no se repite la orden (cero llamadas de más por frame).
 var _arista_arrastre_anterior: String = ""
+## Segundos que le quedan al acuse de recibo del último clic (ver `DURACION_DESTELLO`). Mientras
+## corre, `_process` NO repinta el fantasma: si no, el color de respuesta duraría un solo frame.
+var _destello_restante: float = 0.0
 
 # ── Nodos de UI (construidos por código, patrón del HUD del esqueleto) ───────────────────────
 var _atenuador: ColorRect
@@ -170,7 +178,12 @@ func _unhandled_input(evento: InputEvent) -> void:
 	# DEL EVENTO en ese instante — nunca `get_global_mouse_position()` (gotcha ya sufrido en este
 	# proyecto: el clic derecho del 2026-07-26 se pintaba en el sitio equivocado por leer el puntero
 	# del sistema en vez del punto donde ocurrió el evento).
-	if _arrastrando_muro and evento is InputEventMouseMotion:
+	# ⚠️ `_herramienta == &"muro"` en la guarda (2026-08-03): sin esa condición, un trazo que se quedó
+	# vivo (soltar el botón ENCIMA DE LA BARRA de herramientas se lleva el evento y este nodo nunca ve
+	# el "soltar") seguía creciendo con CUALQUIER herramienta en la mano, y el siguiente clic lo
+	# construía entero. Estado guardado "para luego" sin que el jugador lo viera: exactamente la
+	# familia de bug de las puertas fantasma, aquí en el pincel de muro.
+	if _arrastrando_muro and _herramienta == &"muro" and evento is InputEventMouseMotion:
 		_pintar_arista_muro(_punto_mundo_del_evento((evento as InputEventMouseMotion).position))
 		get_viewport().set_input_as_handled()
 		return
@@ -189,18 +202,16 @@ func _unhandled_input(evento: InputEvent) -> void:
 				_pintar_arista_muro(punto_mundo)
 			else:
 				_cancelar()
-		elif _arrastrando_muro and not _construyendo_arrastre_muro:
+		elif _hay_trazo_de_muro(false):
 			_aplicar_linea_muro()   # se construye AL SOLTAR, no mientras arrastras
-			_arrastrando_muro = false
-			_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
+			_descartar_trazo_muro()
 	elif boton.button_index == MOUSE_BUTTON_LEFT:
 		if boton.pressed:
 			_al_pulsar(punto_mundo)
 		else:
-			if _arrastrando_muro and _construyendo_arrastre_muro:
+			if _hay_trazo_de_muro(true):
 				_aplicar_linea_muro()   # se construye AL SOLTAR, no mientras arrastras
-				_arrastrando_muro = false
-				_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
+				_descartar_trazo_muro()
 			_al_soltar()
 
 
@@ -288,16 +299,67 @@ func _demoler_en(celda: Vector2i, punto_mundo: Vector2) -> void:
 ## valores que `Construccion.PUERTA`/`VENTANA`). Reutiliza `_lado_mas_cercano` (el mismo cálculo que
 ## ya usa el pincel de muro) — nunca `get_global_mouse_position()` ni `celda_bajo_cursor()` para la
 ## ACCIÓN real (gotcha ya sufrido en este proyecto: eso es solo válido para el fantasma).
-## `fijar_tipo_de_muro` es quien decide si hay algo que convertir: si esa arista no tiene tabique
-## avisa y no hace nada — aquí se traduce ese resultado a un mensaje legible en vez de fallar en
-## silencio.
+## ── CRITERIO DE VALIDEZ (fijado el 2026-08-03 tras el bug de las puertas fantasma) ─────────────
+## Una puerta se puede abrir en **CUALQUIER tramo de pared que exista de verdad en el modelo y no
+## sea fachada del edificio**. Y nada más: ni "solo en un lado", ni "no en las esquinas".
+##
+##   · *Tramo de pared real* — hay tabique (o ventana) en esa arista. Si no hay pared no hay nada que
+##     convertir: para eso está el pincel de muro. Es la regla de siempre (`fijar_tipo_de_muro`).
+##   · *No la fachada* — el perímetro del edificio es el plano de la comisaría, no obra del jugador
+##     (`_muros_fijos`); su puerta de acceso ya viene puesta y no se tapia.
+##   · **Las esquinas SÍ valen.** Una esquina es un VÉRTICE donde se juntan dos aristas, y una puerta
+##     vive en una ARISTA: poner una en cualquiera de las dos que forman la esquina es legal y no
+##     rompe nada (el recinto sigue cerrado — `recinto_de` trata la puerta como pared— y el paso se
+##     abre — `deja_pasar` la cruza). Se comprobó en el motor: `tools/_diag_puertas.gd` abre las tres
+##     puertas del caso en tramos distintos, y una de ellas pegada al extremo del muro.
+##
+## El clic SIEMPRE responde a la vista: verde si se abrió, rojo si no (`_destellar_arista`). Antes
+## solo se escribía en la barra de estado de abajo —lejos del cursor, donde nadie mira mientras
+## construye— y un clic aceptado se veía igual que uno rechazado.
 func _convertir_arista_en(punto_mundo: Vector2, tipo: StringName) -> void:
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	var nombre: String = "Puerta" if tipo == &"puerta" else "Ventana"
 	if _construccion.fijar_tipo_de_muro(celda, lado, tipo):
-		_lbl_estado.text = "Puerta abierta" if tipo == &"puerta" else "Ventana abierta"
-	else:
-		_lbl_estado.text = "Primero levanta la pared ahí"
+		_lbl_estado.text = nombre + " abierta"
+		_destellar_arista(celda, lado, COLOR_VALIDO, nombre + " abierta")
+		return
+	# El "no" se explica: sin pared no hay hueco que abrir, y la fachada no se toca.
+	var motivo: String = (
+		"La fachada no se toca" if _construccion.es_muro_fijo(_construccion.clave_de_muro(celda, lado))
+		else "Primero levanta la pared ahí"
+	)
+	_lbl_estado.text = motivo
+	_destellar_arista(celda, lado, COLOR_INVALIDO, motivo)
+
+
+## Congela el resalte de una arista en `color` durante `DURACION_DESTELLO`, con su motivo escrito al
+## lado del cursor. Es el acuse de recibo del clic: reutiliza el MISMO fantasma que ya dibuja el
+## preview (ningún nodo ni ninguna UI nueva), solo que sin dejar que `_process` lo repinte todavía.
+func _destellar_arista(celda: Vector2i, lado: StringName, color: Color, texto: String) -> void:
+	_preview_caja.visible = true
+	_preview_texto.visible = true
+	_colocar_caja_arista(celda, lado, color)
+	_preview_texto.text = texto
+	_destello_restante = DURACION_DESTELLO
+
+
+## ¿Hay un trazo de muro VIVO que le corresponda a este botón? Un trazo solo cuenta si además la
+## herramienta en la mano sigue siendo el pincel de muro — ver la guarda del movimiento.
+func _hay_trazo_de_muro(construyendo: bool) -> bool:
+	return (
+		_arrastrando_muro and _herramienta == &"muro"
+		and _construyendo_arrastre_muro == construyendo
+	)
+
+
+## TIRA EL TRAZO DE MURO A MEDIAS, sin construir nada. Punto único: el trazo se descarta al soltar
+## (ya aplicado), al cancelar, al salir del modo, al cambiar de herramienta y si se perdió el evento
+## de soltar. Ningún clic puede quedarse guardado esperando a materializarse más tarde.
+func _descartar_trazo_muro() -> void:
+	_arrastrando_muro = false
+	_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
+	_arista_arrastre_anterior = ""
 
 
 ## Cancela por capas: primero el arrastre (sala O muro), luego suelta la herramienta, luego sale del modo.
@@ -306,8 +368,7 @@ func _cancelar() -> void:
 		_arrastrando = false
 		# Al CANCELAR o salir del modo el trazo se DESCARTA (no se construye): es lo que
 		# espera quien pulsa Escape o cambia de herramienta a media linea.
-		_arrastrando_muro = false
-		_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
+		_descartar_trazo_muro()
 	elif _herramienta != &"":
 		_fijar_herramienta(&"", false)
 	else:
@@ -319,8 +380,7 @@ func _alternar_modo() -> void:
 	_arrastrando = false
 	# Al CANCELAR o salir del modo el trazo se DESCARTA (no se construye): es lo que
 	# espera quien pulsa Escape o cambia de herramienta a media linea.
-	_arrastrando_muro = false
-	_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
+	_descartar_trazo_muro()
 	_fijar_herramienta(&"", false)
 	_actualizar_visibilidad()
 
@@ -338,6 +398,10 @@ func activar_con_herramienta(id: StringName, es_sala: bool) -> void:
 
 
 func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
+	# Cambiar de herramienta TIRA el trazo de muro a medias (2026-08-03). Los botones de la barra son
+	# `Control`: se comen el clic, así que este nodo nunca ve el "soltar" y el trazo se quedaba vivo
+	# con la herramienta nueva ya en la mano.
+	_descartar_trazo_muro()
 	_herramienta = id
 	_es_sala = es_sala
 	for boton_id: StringName in _botones_herramienta:
@@ -347,13 +411,29 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 
 
 # ── Preview fantasma (dibujo en _process con guarda de celda — ADR-0001) ─────────────────────
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _activo or _herramienta == &"":
 		_preview_caja.visible = false
 		_preview_texto.visible = false
 		_celda_anterior = Vector2i(-999, -999)
 		_lado_anterior = &"-"
+		_destello_restante = 0.0
 		return
+	# RED DE SEGURIDAD DEL TRAZO DE MURO (2026-08-03): si el botón ya no está físicamente pulsado y
+	# aquí seguimos creyendo que hay arrastre, es que el evento de soltar se lo llevó otro (la barra
+	# de herramientas, un diálogo, perder el foco de la ventana). El trazo se TIRA, no se construye:
+	# nada que el jugador no haya visto puede acabar en el modelo.
+	if _arrastrando_muro and not Input.is_mouse_button_pressed(
+		MOUSE_BUTTON_LEFT if _construyendo_arrastre_muro else MOUSE_BUTTON_RIGHT
+	):
+		_descartar_trazo_muro()
+		_celda_anterior = Vector2i(-999, -999)
+	# Acuse de recibo del último clic: mientras dura, el fantasma se queda como se dejó (verde o rojo).
+	if _destello_restante > 0.0:
+		_destello_restante -= delta
+		if _destello_restante > 0.0:
+			return
+		_celda_anterior = Vector2i(-999, -999)   # se acabó: que el preview normal vuelva a pintarse
 	var celda: Vector2i = _construccion.celda_bajo_cursor()
 	# El LADO solo importa para el pincel de muro (los demás previews cubren la celda entera); se
 	# calcula aquí una única vez y se reutiliza tanto en la guarda como en el propio preview. Live
