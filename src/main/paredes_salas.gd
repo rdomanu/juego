@@ -29,6 +29,14 @@ class_name ParedesSalas extends Node2D
 ## la geometría y el modelo los sigue leyendo y calculando ESTE fichero (`_recalcular_tramos`); las
 ## dos pasadas solo reciben ya el paquete de tramos/jambas que les toca y pintan. Ver
 ## `_cara_de_arista` (quién decide "cercana"/"frente") y `_repartir_en_capas` (quién los separa).
+##
+## ── FIX POSTERIOR — PARED TRASERA TAPADA POR EL MOBILIARIO (2026-08-03, misma fecha, otro bug) ──
+## La frase de arriba ("las traseras... se quedan en su capa de siempre") describía un bug, no una
+## garantía: esa "capa de siempre" (z_index 1, por ENCIMA del mobiliario) hacía que un sofá pegado a
+## una pared NORTE/OESTE se dibujara por DEBAJO de ella (reporte de partida del usuario). La ALTURA
+## de la pasada trasera NO cambia (sigue en `ALTO_PARED`, completa); lo que cambia es su CAPA:
+## `Z_PAREDES_FONDO` baja a 0 (empate con el mobiliario, resuelto por orden en el árbol — ver ese
+## const más abajo para el detalle completo). La pasada frontal no se toca — nunca tuvo este bug.
 
 ## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px"). Con el isométrico se usa
 ## para las jambas y como respaldo si algún tramo llegara sin altura.
@@ -48,20 +56,39 @@ const ALTO_PARED: float = 34.0
 const ALTO_PARED_FRENTE: float = ALTO_PARED / 2.0
 ## Largo de cada jamba (marco corto de puerta) — sobrio, sin arte elaborado (andamio hasta el art bible).
 const LARGO_JAMBA: float = 10.0
-## z_index COMPARTIDO por las dos pasadas de pared (fondo y frente): por ENCIMA del mobiliario
-## estático de Construcción (`_capa_elementos`, z_index 0 — sin fijar, raíz de canvas por colgar de
-## un Node no-CanvasItem) y por DEBAJO de los NPCs (`NPCsFlujo`, z_index 2) y de las luces
-## (`LucesObjetos`, z_index 3). Reparto completo: mobiliario (0) < PAREDES fondo+frente (1) <
-## gente (2) < luces (3).
+## z_index de la pasada TRASERA (fondo — norte/oeste, altura completa). 🐛 FIX (2026-08-03, bug
+## reportado en partida: "un sofá contra la pared NORTE se dibuja por DEBAJO de ella"). Hasta este
+## fix valía 1 —igual que la pasada frontal, "quedan como están" heredado del único `ParedesSalas`
+## de antes de partirse en dos— es decir, por ENCIMA del mobiliario estático de Construcción
+## (`_capa_elementos`, z_index 0, sin fijar): una pared trasera con altura (`ALTO_PARED`, sube en
+## pantalla hacia la cámara) dibujada ENCIMA de un mueble arrimado a su cara de dentro lo tapaba —
+## exactamente el caso del sofá. Ese "quedan como están" era justo el bug, no una decisión correcta.
 ##
-## La pasada TRASERA usa exactamente el mismo valor que tenía el único `ParedesSalas` de antes de
-## partirse en dos (2026-08-03) — "quedan como están" fue la instrucción explícita del usuario para
-## norte/oeste; no cambia ni su altura ni su capa. La pasada FRONTAL necesitaba "por encima del
-## mobiliario estático pero por debajo de los NPCs": ese hueco YA es z_index 1, así que tampoco hace
-## falta un valor distinto — lo que cambia para el frente es la ALTURA (`ALTO_PARED_FRENTE`), no la
-## capa. Se mantienen como dos constantes (en vez de reusar una sola) para que el código documente
-## la intención de cada pasada por separado, no para que valgan números distintos.
-const Z_PAREDES_FONDO: int = 1
+## Ahora vale 0: el MISMO z_index —sin fijar— que usa el mobiliario estático (`_capa_elementos`) y
+## el suelo de las salas (`_capa_salas`, la tinta de color por servicio). Los tres EMPATAN a
+## z_index 0, así que quién se dibuja encima de quién lo decide el ORDEN EN EL ÁRBOL, no un número
+## distinto (regla verificada en `docs/engine-reference/godot/modules/isometrico-2d.md` §5: sin
+## y-sort de por medio, el empate a mismo z_index se resuelve en orden de escena; "el y-sort JAMÁS
+## hace que un z_index menor se dibuje delante de uno mayor" tampoco aplica aquí — no hay y-sort
+## entre estas capas). `Main` añade el nodo `ParedesSalas` (y por tanto esta pasada, su hijo
+## `ParedesFondo`) ANTES que `Construccion` en el árbol — ver el comentario en `main.gd` donde se
+## crea `_paredes_salas` — así que `_capa_elementos` queda DESPUÉS y se dibuja ENCIMA de la pared
+## trasera: el sofá delante de su pared, no detrás. `Construccion` no se toca (fuera del alcance de
+## este fix): su capa de mobiliario se queda en el z_index 0 sin fijar que ya tenía.
+##
+## z_index de la pasada FRONTAL (frente — sur/este, media altura): sigue en 1, SIN CAMBIOS — ya
+## estaba bien: por ENCIMA del mobiliario (0 < 1) y por DEBAJO de los NPCs (`NPCsFlujo`, z_index 2)
+## y de las luces (`LucesObjetos`, z_index 3). Esta pasada no tenía ningún bug reportado ("la pasada
+## frontal SÍ está bien por encima"). Antes de este fix, fondo y frente COMPARTÍAN el valor 1 (ver
+## el historial de este fichero, "PAREDES FRONTALES BAJITAS"); ahora son dos valores DISTINTOS a
+## propósito — el empate a 1 ya no le corresponde a la trasera.
+##
+## Escalera completa resultante (suelo < mobiliario < gente < luces, con las dos pasadas de pared
+## intercaladas donde toca cada una): suelo (`Suelo` + `_capa_salas`, z 0, primeros en el árbol) <
+## pared TRASERA (`ParedesFondo`, z 0, tree-order tras el suelo pero antes del mobiliario) <
+## mobiliario estático (`_capa_elementos`, z 0, último del empate) < pared FRONTAL (`ParedesFrente`,
+## z 1) < gente (`NPCsFlujo`, z 2) < luces (`LucesObjetos`, z 3).
+const Z_PAREDES_FONDO: int = 0
 const Z_PAREDES_FRENTE: int = 1
 ## Mismo centinela que `Construccion.CELDA_NULA_PUERTA` (-1,-1), referenciado por VALOR: el proyecto
 ## tipa estas inyecciones como `Node` genérico (mismo criterio que `luces_objetos.gd` /
@@ -134,9 +161,9 @@ func configurar(construccion: Node, tam_celda: int, desplazamiento: Vector2) -> 
 	var frente := CapaParedesScript.new()
 	frente.name = "ParedesFrente"
 	frente.z_index = Z_PAREDES_FRENTE
-	# Añadida DESPUÉS de fondo a propósito: con el mismo z_index, el empate en cualquier vértice
-	# compartido (la esquina donde una arista trasera se junta con una frontal) lo decide el ORDEN
-	# EN EL ÁRBOL, y el frente —más cerca de cámara— tiene que ganar ese empate.
+	# Añadida DESPUÉS de fondo (orden estable, sin necesidad real desde el fix de 2026-08-03: fondo y
+	# frente ya NO comparten z_index —0 y 1— así que frente gana SIEMPRE por número, no por empate de
+	# árbol; ver `Z_PAREDES_FONDO`/`Z_PAREDES_FRENTE` más arriba).
 	add_child(frente)
 	_frente = frente
 	actualizar()

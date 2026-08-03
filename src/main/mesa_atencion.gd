@@ -154,11 +154,21 @@ const ARRIME_FUNCIONARIO: float = 0.5 - FONDO_SILLA_FUNCIONARIO / 2.0     # 0,29
 
 ## ALZADO del policía SENTADO (usuario 2026-08-03): *"subimos la altura donde está sentado el
 ## policía, le veo muy bajo — se le tiene que ver la cabeza a la altura del ordenador; no le hagas
-## más grande"*. Píxeles de pantalla hacia ARRIBA, aplicados SOLO al muñeco sentado (la silla no se
-## mueve: el mostrador tapa el hueco). Elegido MIRANDO dos candidatos renderizados (−25 vs −33):
-## con −25 la cabeza queda sobre el monitor sin que el reposabrazos asome por encima del tablero
-## (con −33 asomaba y delataba el truco).
-const ALZADO_SENTADO_FUNCIONARIO := Vector2(0.0, -25.0)
+## más grande"*. Píxeles de pantalla hacia ARRIBA, aplicados SOLO al muñeco sentado.
+##
+## ── HOY VALE CERO, Y ESO ES LA CURA, NO UN OLVIDO (2026-08-03, mismo día) ────────────────────
+## El −25 se eligió cuando `CELDA_FUNCIONARIO` estaba mal (ver la cabecera de esa constante): el
+## policía se dibujaba DENTRO de la celda del mostrador, o sea media celda MÁS ABAJO en pantalla de
+## donde le toca, y por eso "se le veía muy bajo". El alzado era el parche, y funcionaba porque el
+## mostrador —dibujado por encima— tapaba el hueco entre el muñeco levantado y su silla.
+##
+## Con el policía ya en SU celda norte, el alzado se SUMA al que ya le da la rejilla y lo deja
+## FLOTANDO 25 px por encima del asiento, con el hueco a la vista (el mostrador ya no llega hasta
+## ahí). Verificado A/B en el motor con `tools/_diag_ventanilla2.gd --  sin_alzado`: a cero se
+## sienta sobre la silla Y la cabeza queda a la altura del monitor, que es literalmente lo que
+## pedía el usuario. Se conserva la constante (no se borra la línea) porque es el mando para
+## ajustar esa altura si alguna vez hace falta — hoy la rejilla ya la da bien.
+const ALZADO_SENTADO_FUNCIONARIO := Vector2.ZERO
 
 ## ── ATENCIÓN CENTRADA EN EL MOSTRADOR (decisión del usuario, 2026-08-03) ─────────────────────
 ## Con solo el arrime de arriba, TODA la atención caía en la celda OESTE del mostrador de 2 celdas
@@ -173,12 +183,32 @@ const ALZADO_SENTADO_FUNCIONARIO := Vector2(0.0, -25.0)
 ## — los `ARRIME_*` al borde de la silla (arriba) no cambian, solo se traslada el conjunto entero.
 const DESVIO_CENTRADO_ATENCION := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, Proyeccion.MEDIO_ALTO / 2.0)
 
-const CELDA_FUNCIONARIO := Vector2(   # norte, detrás
-	Proyeccion.MEDIO_ANCHO * ARRIME_FUNCIONARIO, -Proyeccion.MEDIO_ALTO * ARRIME_FUNCIONARIO
-) + DESVIO_CENTRADO_ATENCION
-const CELDA_CIUDADANO := Vector2(     # sur, delante
-	-Proyeccion.MEDIO_ANCHO * ARRIME_CIUDADANO, Proyeccion.MEDIO_ALTO * ARRIME_CIUDADANO
-) + DESVIO_CENTRADO_ATENCION
+## ── DESDE DÓNDE SE MIDE EL ARRIME (bug corregido 2026-08-03, 3er aviso del usuario) ───────────
+## Los `ARRIME_*` de arriba se miden **desde el centro de la celda de la PERSONA** hacia el
+## mostrador (esa es su cuenta: medio paso menos medio fondo de silla, ver arriba). Pero
+## `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO` se escriben en LOCAL del contenedor del puesto, y ese
+## origen es el centro de la celda del MOSTRADOR: un paso entero más allá. Lo que hay que recorrer
+## desde ahí es **`1 − ARRIME` pasos**, nunca `ARRIME` a secas.
+##
+## POR QUÉ ESTUVO MAL Y NO SE VIO (volcado en `tools/_diag_ventanilla2.gd`, captura del motor): el
+## 2026-08-03 estas constantes fueron `paso × 0,5` — medio paso desde el mostrador. Medio paso es
+## la FRONTERA entre las dos celdas, y la frontera cae en el mismo punto se mida desde el lado que
+## se mida, así que el marco de referencia se cambió sin que el dibujo lo delatara. Al sustituir
+## ese 0,5 por `ARRIME` (que se mide desde el extremo CONTRARIO) la silla del ciudadano se metió
+## 0,44 celdas DENTRO del mostrador, y el `RETROCESO_CIUDADANO` de 0,25 —que existe justamente
+## para separarla— la empujó otras 0,25 celdas ENCIMA de la mesa: silla y ciudadana subidas al
+## tablero. Con `1 − ARRIME` el signo del retroceso vuelve a ser el que dice su comentario.
+##
+## Los dos pasos de celda EN PANTALLA, con nombre: es la misma cuenta de `Proyeccion.centro_iso`
+## entre celdas vecinas en el eje norte-sur del plano lógico.
+const PASO_NORTE := Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+const PASO_SUR := Vector2(-Proyeccion.MEDIO_ANCHO, Proyeccion.MEDIO_ALTO)
+const CELDA_FUNCIONARIO := (   # norte, detrás: su celda entera, menos el arrime al mostrador
+	PASO_NORTE * (1.0 - ARRIME_FUNCIONARIO) + DESVIO_CENTRADO_ATENCION
+)
+const CELDA_CIUDADANO := (     # sur, delante: ídem por el otro lado
+	PASO_SUR * (1.0 - ARRIME_CIUDADANO) + DESVIO_CENTRADO_ATENCION
+)
 ## Del centro de la celda SUR (donde el modelo planta al ciudadano, `_frente_del_puesto`) al punto
 ## donde está su silla. Es el desvío de DIBUJO que le aplica `NPCsFlujo.colocar_muneco` mientras le
 ## atienden, para que se siente sobre la silla y no en el centro de la celda.
@@ -188,8 +218,9 @@ const CELDA_CIUDADANO := Vector2(     # sur, delante
 ## dejado así, `DESVIO_CENTRADO_ATENCION` habría movido la silla sin mover al ciudadano —la MISMA
 ## familia de bug que ya avisa la cabecera de más arriba, "persona y silla, siempre juntas"—.
 ## Anclar la fórmula a la propia constante es la única forma de que no se puedan volver a separar:
-## un paso entero (`MEDIO_ANCHO, -MEDIO_ALTO`, sin arrime) desde `CELDA_CIUDADANO` hacia el sur.
-const DESVIO_DIBUJO_CIUDADANO := CELDA_CIUDADANO + Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
+## es LITERALMENTE "dónde está la silla menos dónde está el centro de la celda sur", y el centro de
+## la celda sur, en local del contenedor, es `PASO_SUR`.
+const DESVIO_DIBUJO_CIUDADANO := CELDA_CIUDADANO - PASO_SUR
 
 
 ## ¿Hay un sprite renderizado para este mostrador (`ID_SPRITE_MOSTRADOR` o `ID_SPRITE_MOSTRADOR_2`)?

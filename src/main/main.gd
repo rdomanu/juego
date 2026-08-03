@@ -351,9 +351,26 @@ func _instanciar_mundo() -> void:
 	_odac = ODACScript.new()
 	_odac.name = "ODAC"
 	add_child(_odac)
+	# 🐛 FIX (2026-08-03, bug reportado en partida — "un sofá contra la pared NORTE se dibuja por
+	# DEBAJO de ella"): el NODO `ParedesSalas` se crea y se añade AQUÍ, ANTES que `Construccion`.
+	# Todavía va VACÍO (sin `configurar()` — `ParedesFondo`/`ParedesFrente` no existen como hijos
+	# hasta más abajo, cuando ya hay salas que dibujar): lo único que importa en este punto es la
+	# POSICIÓN en el árbol de `_paredes_salas` frente a `_construccion`. `ParedesFondo` (la pasada
+	# trasera) comparte z_index 0 —sin fijar, empate— con el mobiliario estático de Construcción
+	# (`_capa_elementos`) y con el suelo de las salas (`_capa_salas`); ese empate lo decide el ORDEN
+	# EN EL ÁRBOL (docs/engine-reference/godot/modules/isometrico-2d.md §5). Añadiendo `_paredes_salas`
+	# PRIMERO, `_construccion` (con su mobiliario) queda DESPUÉS en el árbol y por tanto se dibuja
+	# ENCIMA de la pared trasera — el sofá delante de su pared, no detrás. Ver `Z_PAREDES_FONDO` en
+	# `paredes_salas.gd` para el resto del reparto de capas.
+	_paredes_salas = ParedesSalasScript.new()
+	_paredes_salas.name = "ParedesSalas"
+	add_child(_paredes_salas)
 	# Construcción (story const-006): el layout REAL. ⚠️ ANTES que Personal en el árbol: el orden de
 	# los hijos es el orden de carga del SaveManager, y las asignaciones de Personal referencian
-	# puestos que Construcción debe registrar primero (invariante de personal-006/const-005).
+	# puestos que Construcción debe registrar primero (invariante de personal-006/const-005). Que
+	# `_paredes_salas` se añada un poco antes (arriba) NO afecta a esta invariante: `ParedesSalas` no
+	# entra al grupo "Persist" (no tiene `save()`/`load_state()` — es puramente cosmético, derivado
+	# del modelo de Construcción), así que el orden de carga del SaveManager sigue intacto.
 	_construccion = ConstruccionScript.new()
 	_construccion.name = "Construccion"
 	_construccion.usar_economia(_economia)
@@ -371,15 +388,11 @@ func _instanciar_mundo() -> void:
 	_construccion.usar_personal(_personal)
 	_montar_comisaria_inicial()
 	# Las paredes de las salas (petición del usuario 2026-07-30: "si no todo el mundo ve a los
-	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte).
-	# 🐛 "PAREDES FRONTALES BAJITAS" (2026-08-03): un sofá pegado a la pared sur se dibujaba sangrando
-	# por encima de ella. `ParedesSalas` reparte AHORA su dibujo en dos hijos internos (`ParedesFondo`/
-	# `ParedesFrente`, ver `paredes_salas.gd`) — Main NO cablea nada distinto aquí: sigue siendo un
-	# único `configurar()`, con el mismo `z_index` de siempre (1); el reparto en dos pasadas y sus
-	# capas viven enteramente dentro de `ParedesSalas`.
-	_paredes_salas = ParedesSalasScript.new()
-	_paredes_salas.name = "ParedesSalas"
-	add_child(_paredes_salas)
+	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte). El nodo
+	# `_paredes_salas` ya está en el árbol (arriba, ANTES que `_construccion` — ver ese comentario, es
+	# el fix de esta sesión); aquí solo toca `configurar()`: crea `ParedesFondo`/`ParedesFrente` (dos
+	# hijos internos, "PAREDES FRONTALES BAJITAS", 2026-08-03 — ver `paredes_salas.gd`) y hace el
+	# primer cálculo, ya con las salas de arranque construidas.
 	_paredes_salas.configurar(_construccion, TAM_CELDA, pos_suelo)
 	_dotar_plantilla_inicial()
 	# Mercado disponible desde el día 1 (decisión de andamio aprobada): el panel de personal necesita
