@@ -21,10 +21,11 @@ Este orden se ha roto ya DOS veces por la misma causa — añadir o reordenar hi
 mecanismo** — nunca `add_child`/`move_child` sueltos repartidos por el código:
 
 ```
-CAPA_FONDO      (0)  → muebles de apoyo sobre los que se está: sillas, banquetas
-CAPA_PERSONAJE  (1)  → el muñeco/sprite del personaje
-CAPA_FRENTE     (2)  → el mueble que da a cámara y tapa: mostrador, mesa
-CAPA_FRENTE_SUR (3)  → lo que está DELANTE del mueble, entre él y la cámara (2026-08-03)
+CAPA_FONDO           (0)  → muebles de apoyo sobre los que se está: sillas, banquetas
+CAPA_PERSONAJE       (1)  → el muñeco/sprite del personaje
+CAPA_FRENTE          (2)  → el mueble que da a cámara y tapa: mostrador, mesa
+CAPA_FRENTE_SUR      (3)  → lo que está DELANTE del mueble, entre él y la cámara (2026-08-03)
+CAPA_FRENTE_SUR_ALTO (4)  → la mitad ALTA de esa pieza cuando el personaje va en medio (respaldo)
 ```
 
 En palabras del usuario (la regla de la ventanilla): *"la silla, luego encima el policía, y luego
@@ -67,6 +68,37 @@ respuestas — las dos dentro del mecanismo:
    faltaba al z_index suelto: la decisión está en UN sitio, depende de un ESTADO del modelo (no del
    orden de creación de nodos) y es reversible. El y-sort sigue ordenando dentro de cada grupo de
    z_index, así que el ciudadano que camina por el mapa no se ve afectado.
+3. **"La silla delante de quien se sienta" — probado y DESCARTADO por evidencia.** Sobre el papel
+   toca: el ciudadano se sienta mirando a la mesa (de espaldas a cámara), así que su respaldo es lo
+   más cercano al espectador. Montado (z de la silla 2 > z 1 del ciudadano) y mirado en el
+   fotomontaje, el resultado es que **la silla BORRA a la persona**: el sprite de `silla_espera`
+   está renderizado con asiento y respaldo macizos y encima del muñeco solo deja asomar el pelo.
+   Regla de proceso que confirma esto: *un orden de capas se decide MIRANDO el fotomontaje, no
+   razonando la geometría* — la misma regla que ya obligó a juzgar las sillas con el asiento vacío.
+4. **La solución buena: OCLUSIÓN PARCIAL con la silla PARTIDA** (decidida el mismo día, tras el
+   descarte anterior). La silla de espera se renderiza en DOS sprites de la misma pieza —
+   `silla_espera_asiento_270` (patas + asiento) y `silla_espera_respaldo_270` (solo respaldo)—
+   anclados en el MISMO punto 3D (la base del asiento), y el muñeco va EN MEDIO:
+
+   **mostrador (capa 2) < asiento (capa 3, z 0) < ciudadano (z 1) < respaldo (capa 4, z 2)**
+
+   Así el respaldo le tapa solo la zona lumbar, que es lo que pasa de verdad, y la persona se
+   sigue viendo. El respaldo necesita capa PROPIA (`CAPA_FRENTE_SUR_ALTO`) además del z: dos hijos
+   con la misma capa quedarían en orden indefinido dentro del contenedor. La silla ENTERA se queda
+   para todos los demás usos (esperas normales), donde no hay nadie entre las dos mitades.
+   Mientras los PNG no existan, `MesaAtencion.hay_silla_espera_partida()` es false y se dibuja la
+   silla entera por debajo del sentado — el cableado no rompe nada al esperar al arte.
+
+## Enmienda 2026-08-03 (bis) — el arrime no puede cruzar la frontera de celdas
+
+El "arrime al borde" se implementó como MEDIO paso de celda, y medio paso deja el centro de la
+silla justo EN la frontera: media silla invade la celda del mostrador, contra la regla de rejilla.
+La cuenta correcta es `arrime = 0,5 pasos − medio fondo de la silla`, con el fondo medido sobre la
+BASE del PNG y pasado a celdas (`ancho_base_px / ANCHO_ROMBO`). Medidos: silla de espera 31 px
+(0,3875 celdas) y silla del funcionario 33 px (0,4125) ⇒ arrimes de **0,306** y **0,294** pasos.
+Vive en `MesaAtencion` (`FONDO_BASE_SILLA_*_PX` → `ARRIME_*` → `CELDA_FUNCIONARIO`/
+`CELDA_CIUDADANO` → `DESVIO_DIBUJO_CIUDADANO`), una sola cadena para silla y persona: quien se
+sienta va SIEMPRE donde su silla.
 
 ## Alternativas descartadas
 

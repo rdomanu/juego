@@ -119,18 +119,47 @@ const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.825, 0.732)    # 2 celdas (pieza C
 ## mostrador en vez de centradas en su cuadrícula. La celda LÓGICA del modelo **no cambia**
 ## (ADR-0004: flujo, turnos y navegación siguen anclando a la celda entera —
 ## `NPCsFlujo._frente_del_puesto` sigue devolviendo el centro de la celda sur completa—); lo que
-## se mueve es solo el punto VISUAL del asiento, de un paso COMPLETO de celda a MEDIO paso desde
-## el ancla del mostrador. Por eso estas dos constantes pasan de
-## `Vector2(±Proyeccion.MEDIO_ANCHO, ∓Proyeccion.MEDIO_ALTO)` (el salto de pantalla de una celda
-## entera) a la MITAD de ese salto: `Vector2(±Proyeccion.MEDIO_ANCHO/2.0,
-## ∓Proyeccion.MEDIO_ALTO/2.0)`.
+## se mueve es solo el punto VISUAL del asiento.
 ##
-## Cada silla —y quien se sienta en ella— sigue anclando a estas constantes como ÚNICA fuente de
-## verdad: es el mismo offset que usa el policía DE PIE (`NPCsFlujo._reconstruir_cuerpo_policia`,
-## rama sin sprite) y el sentado (misma función, rama con sprite), así que de pie, sentado y silla
-## coinciden siempre en el mismo punto — ahora ese punto está a medio paso, no a uno entero.
-const CELDA_FUNCIONARIO := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, -Proyeccion.MEDIO_ALTO / 2.0)   # norte, detrás — medio paso
-const CELDA_CIUDADANO := Vector2(-Proyeccion.MEDIO_ANCHO / 2.0, Proyeccion.MEDIO_ALTO / 2.0)     # sur, delante — medio paso
+## ── CUÁNTO ES "AL BORDE" (corregido 2026-08-03, 2º aviso del usuario) ─────────────────────────
+## El primer intento movió el asiento MEDIO paso de celda, y medio paso pone el CENTRO de la silla
+## justo EN la frontera entre celdas: media silla se le mete al mostrador, que es lo que la regla
+## de rejilla prohíbe. "Al borde" es que la silla TOQUE la frontera sin cruzarla, o sea que su
+## BASE quepa entera en su celda:
+##
+##     arrime = medio paso − medio fondo de la silla
+##
+## El fondo se mide en el PNG, sobre la base (las patas), y se pasa a celdas dividiendo por el
+## ancho del rombo (una huella cuadrada de lado `s` celdas proyecta un rombo de `s`×80 px de
+## ancho). Medido el 2026-08-03 sobre los renders actuales: silla de espera 31 px y silla del
+## funcionario 33 px de base ⇒ 0,3875 y 0,4125 celdas de fondo ⇒ arrimes de 0,306 y 0,294 pasos
+## (≈ 0,3, casi el mismo para las dos: son dos sillas de oficina del mismo tamaño).
+##
+## Cada silla —y quien se sienta en ella— ancla a estas constantes como ÚNICA fuente de verdad: es
+## el mismo offset que usa el policía DE PIE (`NPCsFlujo._reconstruir_cuerpo_policia`, rama sin
+## sprite) y el sentado (misma función, rama con sprite), y el que aplica al ciudadano
+## `NPCsFlujo.colocar_muneco` vía `DESVIO_DIBUJO_CIUDADANO`. Persona y silla, siempre juntas.
+const FONDO_BASE_SILLA_ESPERA_PX: float = 31.0
+const FONDO_BASE_SILLA_FUNCIONARIO_PX: float = 33.0
+## El fondo de cada silla en CELDAS (huella cuadrada de lado `s`: proyecta `s`×ANCHO_ROMBO px).
+const FONDO_SILLA_ESPERA: float = FONDO_BASE_SILLA_ESPERA_PX / Proyeccion.ANCHO_ROMBO        # 0,3875
+const FONDO_SILLA_FUNCIONARIO: float = FONDO_BASE_SILLA_FUNCIONARIO_PX / Proyeccion.ANCHO_ROMBO  # 0,4125
+## Y el arrime resultante, en PASOS de celda (0,5 = la frontera; menos = dentro de su celda).
+const ARRIME_CIUDADANO: float = 0.5 - FONDO_SILLA_ESPERA / 2.0            # 0,30625
+const ARRIME_FUNCIONARIO: float = 0.5 - FONDO_SILLA_FUNCIONARIO / 2.0     # 0,29375
+const CELDA_FUNCIONARIO := Vector2(   # norte, detrás
+	Proyeccion.MEDIO_ANCHO * ARRIME_FUNCIONARIO, -Proyeccion.MEDIO_ALTO * ARRIME_FUNCIONARIO
+)
+const CELDA_CIUDADANO := Vector2(     # sur, delante
+	-Proyeccion.MEDIO_ANCHO * ARRIME_CIUDADANO, Proyeccion.MEDIO_ALTO * ARRIME_CIUDADANO
+)
+## Del centro de la celda SUR (donde el modelo planta al ciudadano, `_frente_del_puesto`) al punto
+## donde está su silla. Es el desvío de DIBUJO que le aplica `NPCsFlujo.colocar_muneco` mientras le
+## atienden, para que se siente sobre la silla y no en el centro de la celda. Un paso entero menos
+## el arrime, con el signo cambiado porque va hacia el norte (hacia el mostrador).
+const DESVIO_DIBUJO_CIUDADANO := Vector2(
+	Proyeccion.MEDIO_ANCHO * (1.0 - ARRIME_CIUDADANO), -Proyeccion.MEDIO_ALTO * (1.0 - ARRIME_CIUDADANO)
+)
 
 
 ## ¿Hay un sprite renderizado para este mostrador (`ID_SPRITE_MOSTRADOR` o `ID_SPRITE_MOSTRADOR_2`)?
@@ -184,6 +213,45 @@ const ROT_SILLA_ESPERA: int = 270
 ## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
 const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.824)
 const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.797)
+
+
+## ── LA SILLA DE ESPERA, PARTIDA EN DOS (2026-08-03) ──────────────────────────────────────────
+## Por qué: en el frente de la ventanilla el ciudadano se sienta MIRANDO A LA MESA (de espaldas a
+## cámara), así que lo correcto es que el RESPALDO le tape la zona lumbar. Con la silla entera solo
+## caben dos órdenes y los dos mienten: la silla entera delante lo BORRA (probado con fotomontaje,
+## ver ADR-0005) y detrás deja el respaldo escondido tras él. La solución es oclusión PARCIAL: dos
+## sprites de la MISMA silla —asiento (patas+asiento) y respaldo— anclados en el MISMO punto, con
+## el muñeco EN MEDIO.
+##
+## Solo hace falta la rotación 270 (la única que usa el frente de la ventanilla). Para el resto de
+## usos (esperas normales, `Construccion.ASIENTO_BASICO`) sigue la silla ENTERA de siempre: ahí no
+## hay nadie entre las dos mitades y partirla no aportaría nada.
+##
+## MIENTRAS NO EXISTAN LOS PNG, `hay_silla_espera_partida()` devuelve false y todo se comporta como
+## hasta ahora (silla entera en `CAPA_FRENTE_SUR`, por debajo del sentado) — el cableado ya está
+## puesto y se activa solo en cuanto aparezcan los ficheros.
+const ID_SPRITE_SILLA_ESPERA_ASIENTO := "silla_espera_asiento"
+const ID_SPRITE_SILLA_ESPERA_RESPALDO := "silla_espera_respaldo"
+## Anclas DEFINITIVAS (2026-08-03): los dos PNG salieron con lienzos recortados a su propia caja
+## (30×33 el asiento, 27×21 el respaldo), así que el coordinador localizó el ENCAJE exacto de cada
+## pieza dentro de la silla entera por correlación de píxeles (asiento en offset +2,+10; respaldo
+## en +0,+7 sobre el lienzo 34×44) y trasladó el ancla de la silla entera (0.495, 0.797) a cada
+## encuadre. Verificado superponiendo: asiento+respaldo reconstruyen la silla entera sin fantasmas.
+## La `y` del respaldo es >1 a propósito: su punto de anclaje (el suelo de la celda) queda por
+## debajo de su recorte flotante.
+const ANCLA_FRACCION_SILLA_ESPERA_ASIENTO := Vector2(0.494, 0.760)
+const ANCLA_FRACCION_SILLA_ESPERA_RESPALDO := Vector2(0.623, 1.337)
+
+
+## ¿Están renderizadas las DOS mitades de la silla de espera (rotación 270)? Con una sola no vale:
+## media silla es peor que la silla entera.
+static func hay_silla_espera_partida() -> bool:
+	return (
+		ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA_ASIENTO, ROT_SILLA_ESPERA))
+		and ResourceLoader.exists(
+			_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA_RESPALDO, ROT_SILLA_ESPERA)
+		)
+	)
 
 
 static func hay_sprite_silla_funcionario() -> bool:
@@ -322,6 +390,30 @@ static func silla_ciudadano() -> Node2D:
 	del_ciudadano.name = "SillaCiudadano"
 	del_ciudadano.position = CELDA_CIUDADANO
 	return del_ciudadano
+
+
+## El ASIENTO (patas + asiento) de la silla partida, ya colocado. Va en `CAPA_FRENTE_SUR`, como la
+## silla entera: por encima del mostrador y por debajo de quien se sienta.
+static func silla_ciudadano_asiento() -> Node2D:
+	var asiento: Node2D = _pieza_sprite_silla(
+		ID_SPRITE_SILLA_ESPERA_ASIENTO, ROT_SILLA_ESPERA, ANCLA_FRACCION_SILLA_ESPERA_ASIENTO
+	)
+	asiento.name = "SillaCiudadano"
+	asiento.position = CELDA_CIUDADANO
+	return asiento
+
+
+## El RESPALDO de la silla partida, ya colocado — MISMA posición que el asiento (las dos mitades
+## comparten punto de anclaje; lo que las separa es su fracción de ancla dentro de cada PNG). Va
+## por ENCIMA del ciudadano sentado, para taparle solo la zona lumbar (ver `NPCsFlujo.
+## CAPA_FRENTE_SUR_ALTO` / `Z_RESPALDO_FRENTE_SUR`).
+static func silla_ciudadano_respaldo() -> Node2D:
+	var respaldo: Node2D = _pieza_sprite_silla(
+		ID_SPRITE_SILLA_ESPERA_RESPALDO, ROT_SILLA_ESPERA, ANCLA_FRACCION_SILLA_ESPERA_RESPALDO
+	)
+	respaldo.name = "SillaCiudadanoRespaldo"
+	respaldo.position = CELDA_CIUDADANO
+	return respaldo
 
 
 static func _pieza(nombre: String, pos: Vector2, alto: float, escala: float, color: Color) -> Node2D:

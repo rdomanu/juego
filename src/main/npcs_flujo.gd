@@ -123,10 +123,16 @@ var _capa_descansos: Node2D = null
 ## DEBAJO del mostrador: silla y piernas ocultas, como si el ciudadano estuviera subido a la mesa.
 ## El CIUDADANO no cuelga de aqui (vive en la capa global de munecos), asi que usa el equivalente
 ## por z_index: ver `Z_FRENTE_PUESTO` / `marcar_frente_de_puesto`.
+##
+## CAPA_FRENTE_SUR_ALTO (2026-08-03) es para la mitad de arriba de un mueble del frente cuando el
+## personaje va EN MEDIO: el RESPALDO de la silla de espera partida (`MesaAtencion.
+## silla_ciudadano_respaldo`). Necesita capa propia —y no compartir la de su asiento— porque
+## `_insertar_en_capa` ordena por capa y dos hijos con la MISMA capa quedarían en orden indefinido.
 const CAPA_FONDO: int = 0
 const CAPA_PERSONAJE: int = 1
 const CAPA_FRENTE: int = 2
 const CAPA_FRENTE_SUR: int = 3
+const CAPA_FRENTE_SUR_ALTO: int = 4
 
 ## Coloca/reordena `hijo` en la capa `capa` dentro de `contenedor`. Si `hijo` no es aún su hijo, lo
 ## añade primero. Reordena SOLO los nodos con capa declarada (metadato `capa_iso`), de menor a
@@ -384,10 +390,11 @@ func configurar(
 func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	var destino: Vector2 = Proyeccion.proyectar(punto_cuadrado)
 	# ARRIME al mostrador: desvío de DIBUJO de quien está en el frente de una ventanilla, para que
-	# se siente sobre su silla y no media celda por debajo (ver `ARRIME_FRENTE_PUESTO`). Nadie más
-	# lleva este metadato, así que ni los que caminan ni los funcionarios se enteran.
+	# se siente sobre su silla y no en el centro de su celda (ver `marcar_frente_de_puesto` y la
+	# cuenta del arrime en `mesa_atencion.gd`). Nadie más lleva este metadato, así que ni los que
+	# caminan ni los funcionarios se enteran.
 	if bool(visual.get_meta(&"arrime_puesto", false)):
-		destino += ARRIME_FRENTE_PUESTO
+		destino += MesaAtencionScript.DESVIO_DIBUJO_CIUDADANO
 	# Gotcha de Godot: `get_meta(clave, defecto)` avisa igualmente si la clave no existe, así que se
 	# pregunta primero con `has_meta` (el primer frame de cada muñeco no tiene posición previa).
 	var recorrido: float = float(visual.get_meta(&"recorrido")) if visual.has_meta(&"recorrido") else 0.0
@@ -503,6 +510,18 @@ func en_frente_del_puesto(npc: Node) -> bool:
 ## DENTRO de cada grupo de z_index y jamás dibuja un z menor por delante de uno mayor.
 const Z_FRENTE_PUESTO: int = 1
 
+## ⚠️ PROBADO Y DESCARTADO CON FOTOMONTAJE (2026-08-03): poner la silla ENTERA por encima de la
+## persona sentada (z 2 > `Z_FRENTE_PUESTO`), que sobre el papel es lo correcto —se sienta mirando
+## a la mesa, con el respaldo del lado de cámara—, en la práctica la BORRA: el sprite está
+## renderizado con asiento y respaldo macizos y encima del muñeco solo deja asomar el pelo. Ver la
+## enmienda del ADR-0005.
+##
+## La solución buena es OCLUSIÓN PARCIAL con la silla PARTIDA en dos sprites, y para eso está la
+## constante de abajo: solo el RESPALDO se dibuja por encima del sentado (le tapa la lumbar, que es
+## lo físicamente cierto), mientras su asiento se queda debajo. Mientras no existan los PNG de las
+## dos mitades, se usa la silla entera por DEBAJO del sentado y esta constante no se aplica a nadie.
+const Z_RESPALDO_FRENTE_SUR: int = 2
+
 ## ── Y EL ARRIME AL MOSTRADOR (mismo estado, misma función) ────────────────────────────────────
 ## El 2026-08-03 el usuario eligió el "arrime al borde" (variante C): silla y persona PEGADAS al
 ## mostrador, a MEDIO paso del ancla en vez de en el centro de su celda. La silla se movió
@@ -511,9 +530,9 @@ const Z_FRENTE_PUESTO: int = 1
 ## (`_frente_del_puesto`; ADR-0004: la navegación y el modelo no se tocan por un ajuste visual).
 ## Resultado: se sentaba media celda por debajo de su silla, otra vez el *"no coincide donde se
 ## sientan los ciudadanos con donde está la silla"*. Se corrige con un desvío SOLO DE DIBUJO, del
-## mismo estado que el z_index: media celda hacia el norte (hacia el mostrador), que es la mitad
-## exacta del salto de pantalla de una celda.
-const ARRIME_FRENTE_PUESTO := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, -Proyeccion.MEDIO_ALTO / 2.0)
+## mismo estado que el z_index: `MesaAtencion.DESVIO_DIBUJO_CIUDADANO`, que es exactamente lo que
+## hay del centro de la celda sur a la silla (una sola fuente de verdad con la propia silla, ver la
+## cuenta del arrime en `mesa_atencion.gd`).
 
 
 ## Marca el muñeco de un ciudadano como "en el frente de su ventanilla": z_index por encima del
@@ -1421,7 +1440,18 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# LA SILLA DE ESPERA (lado SUR, el que da a camara) va por ENCIMA del mostrador: es lo que hay
 	# DELANTE de la ventanilla, no detras. Hermana de "Mesa" y en su propia capa (2026-08-03, ver
 	# CAPA_FRENTE_SUR) -- antes era hija de "Mesa" y el mostrador de 2 celdas la tapaba.
-	_insertar_en_capa(contenedor, MesaAtencionScript.silla_ciudadano(), CAPA_FRENTE_SUR)
+	#
+	# PARTIDA EN DOS si estan renderizadas sus mitades: asiento DEBAJO del ciudadano y respaldo
+	# ENCIMA (oclusion parcial: le tapa la lumbar y se le sigue viendo). Las dos van a la misma
+	# posicion; lo que las ordena contra el muneco -- que vive en otra capa de escena -- es el z.
+	# Sin las dos mitades, la silla ENTERA por debajo del sentado, como hasta ahora.
+	if MesaAtencionScript.hay_silla_espera_partida():
+		_insertar_en_capa(contenedor, MesaAtencionScript.silla_ciudadano_asiento(), CAPA_FRENTE_SUR)
+		var respaldo: Node2D = MesaAtencionScript.silla_ciudadano_respaldo()
+		respaldo.z_index = Z_RESPALDO_FRENTE_SUR
+		_insertar_en_capa(contenedor, respaldo, CAPA_FRENTE_SUR_ALTO)
+	else:
+		_insertar_en_capa(contenedor, MesaAtencionScript.silla_ciudadano(), CAPA_FRENTE_SUR)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
 	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
 	# accionable (feedback 2026-07-29 de solape) — si algo tiene que ceder espacio, es él.

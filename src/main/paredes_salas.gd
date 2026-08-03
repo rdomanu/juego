@@ -13,24 +13,56 @@ class_name ParedesSalas extends Node2D
 ## Rendimiento (regla del proyecto — cero redibujado por frame): sin `_process`. `actualizar()` la
 ## llama Main desde el hook de cambio de layout (`_al_cambiar_layout`, disparado por
 ## `Construccion._refrescar_visual` en cada construcción/demolición/movimiento/carga — nunca por
-## frame) y compara una FIRMA de lo dibujado; si no cambió, ni se recalculan tramos ni se llama a
-## `queue_redraw()`. Mismo patrón DIFF que `npcs_flujo._firma` / `luces_objetos._firma`.
+## frame) y compara una FIRMA de lo dibujado; si no cambió, ni se recalculan tramos ni se reparte
+## nada a las dos pasadas. Mismo patrón DIFF que `npcs_flujo._firma` / `luces_objetos._firma`.
+##
+## ── PAREDES FRONTALES BAJITAS (2026-08-03) ──────────────────────────────────────────────────────
+## Bug con captura del usuario: un sofá de 3 celdas pegado a la pared SUR de una sala se dibujaba
+## sangrando POR ENCIMA de ella (la altura de esa pared no alcanzaba a cubrir el respaldo del sofá,
+## así que el mueble parecía salirse del recinto). Decisión del usuario, la solución clásica del
+## género (Theme Hospital / Two Point Hospital): las dos aristas de una sala cuyo lado EXTERIOR mira
+## a cámara (sur y este) se dibujan a MEDIA altura y en una capa POR ENCIMA del mobiliario estático
+## —así tapan la base de cualquier mueble arrimado a ellas, sofá incluido—; las traseras (norte y
+## oeste) se quedan exactamente como estaban: altura completa, en su capa de siempre.
+##
+## El reparto en dos pasadas (`_fondo`/`_frente`, ambas instancias de `CapaParedes`) es puro DIBUJO:
+## la geometría y el modelo los sigue leyendo y calculando ESTE fichero (`_recalcular_tramos`); las
+## dos pasadas solo reciben ya el paquete de tramos/jambas que les toca y pintan. Ver
+## `_cara_de_arista` (quién decide "cercana"/"frente") y `_repartir_en_capas` (quién los separa).
 
 ## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px"). Con el isométrico se usa
 ## para las jambas y como respaldo si algún tramo llegara sin altura.
 const GROSOR_PARED: float = 4.0
 ## ── PAREDES CON ALTURA (ISOMÉTRICO, 2026-07-30) ────────────────────────────────────────────────
-## Alto de la cara de una pared, en píxeles. 34 px: más alto que un muñeco (22 px) para que se lea
-## como pared y no como bordillo, y menos que el alto del rombo (40) para que no ahogue el dibujo.
+## Alto de la cara de una pared TRASERA (norte/oeste — "fondo"), en píxeles. 34 px: más alto que un
+## muñeco (22 px) para que se lea como pared y no como bordillo, y menos que el alto del rombo (40)
+## para que no ahogue el dibujo.
 const ALTO_PARED: float = 34.0
-## Grosor del remate superior de la pared (la franja clara de arriba, que es lo que da la sensación
-## de espesor — se ve claramente en `capturas/entorno.PNG`).
-const GROSOR_REMATE: float = 3.0
-## Alto de una pared CERCANA a la cámara. 10 px: se ve el pretil y las esquinas enlazan, pero no
-## llega ni a la cintura de un muñeco (22 px), así que no tapa a nadie de dentro de la sala.
-const ALTO_PARED_CERCANA: float = 10.0
+## Alto de una pared FRONTAL (sur/este — "frente", da a cámara), en píxeles. MEDIA altura de
+## `ALTO_PARED` (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera del fichero): lo bastante
+## alta para tapar la base de un mueble arrimado a ella (el bug del sofá — con la antigua altura de
+## 10 px el respaldo se salía por encima), y aun así claramente más baja que la trasera, que es la
+## lectura que pide el género. No hace falta preocuparse por tapar a la gente: los NPCs van en su
+## PROPIA capa por encima de CUALQUIER pared (`Z_PAREDES_FRENTE` < capa de NPCs, ver más abajo), así
+## que su altura no compite con la de un muñeco como sí competía antes.
+const ALTO_PARED_FRENTE: float = ALTO_PARED / 2.0
 ## Largo de cada jamba (marco corto de puerta) — sobrio, sin arte elaborado (andamio hasta el art bible).
 const LARGO_JAMBA: float = 10.0
+## z_index COMPARTIDO por las dos pasadas de pared (fondo y frente): por ENCIMA del mobiliario
+## estático de Construcción (`_capa_elementos`, z_index 0 — sin fijar, raíz de canvas por colgar de
+## un Node no-CanvasItem) y por DEBAJO de los NPCs (`NPCsFlujo`, z_index 2) y de las luces
+## (`LucesObjetos`, z_index 3). Reparto completo: mobiliario (0) < PAREDES fondo+frente (1) <
+## gente (2) < luces (3).
+##
+## La pasada TRASERA usa exactamente el mismo valor que tenía el único `ParedesSalas` de antes de
+## partirse en dos (2026-08-03) — "quedan como están" fue la instrucción explícita del usuario para
+## norte/oeste; no cambia ni su altura ni su capa. La pasada FRONTAL necesitaba "por encima del
+## mobiliario estático pero por debajo de los NPCs": ese hueco YA es z_index 1, así que tampoco hace
+## falta un valor distinto — lo que cambia para el frente es la ALTURA (`ALTO_PARED_FRENTE`), no la
+## capa. Se mantienen como dos constantes (en vez de reusar una sola) para que el código documente
+## la intención de cada pasada por separado, no para que valgan números distintos.
+const Z_PAREDES_FONDO: int = 1
+const Z_PAREDES_FRENTE: int = 1
 ## Mismo centinela que `Construccion.CELDA_NULA_PUERTA` (-1,-1), referenciado por VALOR: el proyecto
 ## tipa estas inyecciones como `Node` genérico (mismo criterio que `luces_objetos.gd` /
 ## `modo_construccion.gd`), así que no se tipa `_construccion` como `Construccion` para leer su
@@ -55,68 +87,58 @@ const COLOR_VENTANA := Color(0.62, 0.80, 0.95, 0.85)
 ## sobra para que se lea "por aquí se pasa".
 const PROPORCION_STUB_PUERTA: float = 0.25
 
+## El script de `CapaParedes` (dos instancias — fondo/frente, ver la cabecera). Preload por el mismo
+## convenio que usa el resto del proyecto para clases con `class_name` (p. ej. `MesaAtencionScript`
+## en `npcs_flujo.gd`): un `const …Script` en vez de depender del registro global del `class_name`.
+const CapaParedesScript := preload("res://src/main/capa_paredes.gd")
+
 var _construccion: Node = null
 var _tam_celda: int = 40
 var _desplazamiento: Vector2 = Vector2.ZERO
 ## Firma de lo último dibujado ("sala:rect:tipo:puerta" por sala, unidas): si no cambia entre dos
-## llamadas a `actualizar()`, no se toca nada (ni cálculo ni `queue_redraw`).
+## llamadas a `actualizar()`, no se toca nada (ni cálculo ni reparto a las pasadas).
 var _firma: String = ""
-## Tramos de pared cacheados por `_recalcular_tramos()` — `_draw()` SOLO los pinta; el trabajo de
-## consultar a Construcción ocurre una vez por cambio de layout, nunca dentro de `_draw()`.
+## Tramos de pared cacheados por `_recalcular_tramos()` — lista de trabajo COMBINADA (fondo+frente)
+## que `_repartir_en_capas()` separa al final en los dos paquetes que de verdad se pintan. Este
+## fichero NO dibuja nada directamente (sin `_draw()` propio): eso es cosa de `CapaParedes`.
 var _tramos: Array[Dictionary] = []
 ## Jambas (el detalle de puerta) cacheadas igual que los tramos.
 var _jambas: Array[Dictionary] = []
+## Las dos pasadas de dibujo (instancias de `CapaParedes`), creadas una vez en `configurar()`.
+## Tipadas como `Node2D` genérico (mismo convenio que `Main._paredes_salas` para un `…Script.new()`
+## preloaded: la asignación estática no refina el tipo exacto de la subclase) — se castea a
+## `CapaParedes` en el único sitio que necesita su API propia (`_repartir_en_capas`).
+var _fondo: Node2D = null
+var _frente: Node2D = null
 
 
-func _draw() -> void:
-	# Los tramos ya vienen ordenados de FONDO a FRENTE por `_recalcular_tramos` — en isométrico el
-	# orden de pintado ES la profundidad, y una pared del fondo pintada después taparía a la de
-	# delante.
-	for tramo: Dictionary in _tramos:
-		var desde: Vector2 = tramo["desde"]
-		var hasta: Vector2 = tramo["hasta"]
-		var color: Color = tramo["color"]
-		var alto: float = tramo.get("alto", ALTO_PARED)
-		if alto <= 0.0:
-			draw_line(desde, hasta, color, tramo.get("grosor", GROSOR_PARED) as float, true)
-			continue
-		# TODAS las paredes suben; lo que cambia es CUÁNTO (ver `_cara_de_arista`).
-		var subir := Vector2(0.0, -alto)
-		draw_colored_polygon(
-			PackedVector2Array([desde, hasta, hasta + subir, desde + subir]), color
-		)
-		# Remate claro en el canto de arriba (el espesor) y línea oscura abajo, que la asienta.
-		draw_line(desde + subir, hasta + subir, color.lightened(0.35), GROSOR_REMATE, true)
-		draw_line(desde, hasta, color.darkened(0.4), 1.5, true)
-	for jamba: Dictionary in _jambas:
-		draw_line(
-			jamba["desde"] as Vector2, jamba["hasta"] as Vector2, jamba["color"] as Color,
-			GROSOR_PARED, true
-		)
-
-
-## Engancha las referencias y hace el primer dibujado. La comisaría inicial (`_montar_comisaria_
-## inicial`) ya tiene salas construidas ANTES de que Main cablee el hook de layout (mismo caso ya
-## documentado en `Main._actualizar_etiquetas_salas`), así que este primer `actualizar()` es
-## necesario para que esas salas de arranque no se queden sin pared hasta la primera compra.
+## Engancha las referencias, crea las dos pasadas de dibujo y hace el primer cálculo. La comisaría
+## inicial (`_montar_comisaria_inicial`) ya tiene salas construidas ANTES de que Main cablee el hook
+## de layout (mismo caso ya documentado en `Main._actualizar_etiquetas_salas`), así que este primer
+## `actualizar()` es necesario para que esas salas de arranque no se queden sin pared hasta la
+## primera compra.
 func configurar(construccion: Node, tam_celda: int, desplazamiento: Vector2) -> void:
 	_construccion = construccion
 	_tam_celda = tam_celda
 	_desplazamiento = desplazamiento
-	# Por ENCIMA del suelo/salas: la capa de Construcción (TileMapLayer "Salas" + "Elementos") cuelga
-	# de un Node que NO es CanvasItem, así que esos nodos son raíces de canvas con z_index 0 por
-	# defecto (mismo razonamiento ya documentado en `Main._crear_capa_etiquetas_sala`). Con z_index 0
-	# aquí TAMBIÉN, el desempate entre iguales lo decide el ORDEN EN EL ÁRBOL: Main añade este nodo
-	# DESPUÉS de instanciar Construcción y montar la comisaría inicial, así que las paredes se pintan
-	# encima del relleno de sala. Por DEBAJO de la gente/etiquetas (z_index 1) y de las luces
-	# (z_index 2) por tener un z_index menor — ahí el orden en el árbol ya no importa.
-	# 🐛 Corregido 2026-07-30 (el usuario: "las paredes no las puedo poner en mitad de una sala, solo
-	# en los bordes"). SÍ se podían poner —el modelo lo permitía y hay test que lo prueba—, pero NO SE
-	# VEÍAN: con z_index 0 el suelo de las salas (TileMapLayer) se dibuja ENCIMA, así que un muro
-	# interior quedaba tapado y solo asomaban los del borde, donde el suelo ya termina. Es el mismo
-	# problema que ya tuvieron los NPCs ("se dibujan DEBAJO de las salas al cruzarlas").
-	# Orden de capas: suelo (0) < PAREDES (1) < gente (2) < luces (3).
-	z_index = 1
+	# DOS PASADAS (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera del fichero): antes
+	# había un único `ParedesSalas._draw()` con z_index 1. Ahora ese dibujo lo hacen dos hijos
+	# `CapaParedes`, cada uno con el z_index que le toca (ver `Z_PAREDES_FONDO`/`Z_PAREDES_FRENTE`).
+	# `ParedesSalas` en sí ya no dibuja nada (queda en z_index 0, el de por defecto, que es
+	# irrelevante porque no tiene contenido propio que pintar).
+	var fondo := CapaParedesScript.new()
+	fondo.name = "ParedesFondo"
+	fondo.z_index = Z_PAREDES_FONDO
+	add_child(fondo)
+	_fondo = fondo
+	var frente := CapaParedesScript.new()
+	frente.name = "ParedesFrente"
+	frente.z_index = Z_PAREDES_FRENTE
+	# Añadida DESPUÉS de fondo a propósito: con el mismo z_index, el empate en cualquier vértice
+	# compartido (la esquina donde una arista trasera se junta con una frontal) lo decide el ORDEN
+	# EN EL ÁRBOL, y el frente —más cerca de cámara— tiene que ganar ese empate.
+	add_child(frente)
+	_frente = frente
 	actualizar()
 
 
@@ -131,7 +153,7 @@ func actualizar() -> void:
 		return
 	_firma = firma
 	_recalcular_tramos()
-	queue_redraw()
+	_repartir_en_capas()
 
 
 ## Las salas construidas, en los TRES tipos válidos (mismo patrón que usa Main para "todas las
@@ -246,9 +268,18 @@ func _recalcular_tramos() -> void:
 		elif tipo == _construccion.VENTANA:
 			# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
 			# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
+			#
+			# ⚠️ EXCEPCIÓN a "media altura" (2026-08-03): una ventana en una arista FRONTAL se queda a
+			# ALTURA COMPLETA, no a `ALTO_PARED_FRENTE` como el resto de esa pasada. Se decidió así (y
+			# se deja constancia aquí, no en silencio) porque una ventana recortada a media altura no
+			# se lee como ventana: es un cristal a ras de suelo, más parecido a un poyete que a un
+			# hueco por el que se ve hacia fuera. "alto" se fija ANTES del merge con `cara` y
+			# `Dictionary.merge` no pisa claves existentes por defecto, así que el valor de aquí
+			# sobrevive; lo que SÍ toma de `cara` es "frente" (para que la ventana se reparta a la
+			# pasada que le toca por capa, aunque su altura no sea la de esa pasada).
 			var ventana: Dictionary = {
 				"desde": geo["desde"], "hasta": geo["hasta"],
-				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA,
+				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
 			}
 			ventana.merge(cara)
 			_tramos.append(ventana)
@@ -269,6 +300,30 @@ func _recalcular_tramos() -> void:
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return maxf(a["desde"].y, a["hasta"].y) < maxf(b["desde"].y, b["hasta"].y)
 	)
+
+
+## Separa `_tramos`/`_jambas` (la lista de trabajo combinada) en los dos paquetes que de verdad se
+## pintan y se los entrega a cada pasada (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera
+## del fichero). La clave "frente" de cada dict la puso `_cara_de_arista`/`_jamba`; se ORDENA primero
+## (paso anterior) y se particiona DESPUÉS, así que el orden de fondo-a-frente sobrevive DENTRO de
+## cada paquete — el reparto en dos nodos no puede romper el orden de profundidad que ya se calculó.
+func _repartir_en_capas() -> void:
+	var tramos_fondo: Array[Dictionary] = []
+	var tramos_frente: Array[Dictionary] = []
+	for tramo: Dictionary in _tramos:
+		if tramo.get("frente", false):
+			tramos_frente.append(tramo)
+		else:
+			tramos_fondo.append(tramo)
+	var jambas_fondo: Array[Dictionary] = []
+	var jambas_frente: Array[Dictionary] = []
+	for jamba: Dictionary in _jambas:
+		if jamba.get("frente", false):
+			jambas_frente.append(jamba)
+		else:
+			jambas_fondo.append(jamba)
+	(_fondo as CapaParedes).fijar(tramos_fondo, jambas_fondo)
+	(_frente as CapaParedes).fijar(tramos_frente, jambas_frente)
 
 
 ## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
@@ -330,8 +385,11 @@ func _agregar_puerta_libre(
 	der.merge(cara)
 	_tramos.append(der)
 	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
-	_jambas.append(_jamba(inicio_hueco, perpendicular, color))
-	_jambas.append(_jamba(fin_hueco, perpendicular, color))
+	# `cara["frente"]` ya lo puso `_cara_de_arista` — se reusa aquí para que las jambas de esta
+	# puerta vayan a la MISMA pasada que sus dos tramos flanqueantes (arriba).
+	var frente: bool = cara.get("frente", false)
+	_jambas.append(_jamba(inicio_hueco, perpendicular, color, frente))
+	_jambas.append(_jamba(fin_hueco, perpendicular, color, frente))
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el
@@ -396,30 +454,35 @@ func _jambas_de_puerta(sala_id: StringName) -> Array[Dictionary]:
 	var rect: Rect2i = info["rect"]
 	var puerta: Vector2i = info["puerta"]
 	var color: Color = _color_de_pared(sala_id)
+	# Mismo criterio que `_cara_de_arista`: "izquierda"/"arriba" son las aristas TRASERAS (oeste/
+	# norte — pasada fondo); "derecha"/"abajo" dan a cámara (este/sur — pasada frente). Sin esto, la
+	# puerta de una sala con pared frontal se repartiría siempre al fondo, sin importar en qué lado
+	# esté de verdad.
+	var frente: bool = info["lado"] == "derecha" or info["lado"] == "abajo"
 	# ISOMÉTRICO: los puntos salen de `_esquina` y las direcciones "hacia dentro" pasan por
 	# `_direccion` — en rombos, "hacia dentro" ya no es horizontal ni vertical en pantalla.
 	if info["lado"] == "izquierda":
 		var dentro: Vector2 = _direccion(Vector2(LARGO_JAMBA, 0.0))
 		return [
-			_jamba(_esquina(rect.position.x, puerta.y), dentro, color),
-			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color),
+			_jamba(_esquina(rect.position.x, puerta.y), dentro, color, frente),
+			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color, frente),
 		]
 	if info["lado"] == "derecha":
 		var dentro: Vector2 = _direccion(Vector2(-LARGO_JAMBA, 0.0))
 		return [
-			_jamba(_esquina(rect.end.x, puerta.y), dentro, color),
-			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color),
+			_jamba(_esquina(rect.end.x, puerta.y), dentro, color, frente),
+			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color, frente),
 		]
 	if info["lado"] == "arriba":
 		var dentro: Vector2 = _direccion(Vector2(0.0, LARGO_JAMBA))
 		return [
-			_jamba(_esquina(puerta.x, rect.position.y), dentro, color),
-			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color),
+			_jamba(_esquina(puerta.x, rect.position.y), dentro, color, frente),
+			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color, frente),
 		]
 	var dentro_abajo: Vector2 = _direccion(Vector2(0.0, -LARGO_JAMBA))   # "abajo"
 	return [
-		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color),
-		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color),
+		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color, frente),
+		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color, frente),
 	]
 
 
@@ -486,7 +549,23 @@ func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 ## solapa colgando, y encima descuadra las esquinas donde se junta con una pared que sube. Bajar
 ## la altura es la solución 2D, y es exactamente lo que hacía Theme Hospital.
 ##
-## Devuelve `{"alto": float}` — listo para fundirse en el diccionario del tramo.
+## ── ENMIENDA 2026-08-03 — "PAREDES FRONTALES BAJITAS" (bug del sofá) ────────────────────────────
+## Bajar la altura no bastaba: con solo 10 px, un mueble con silueta alta arrimado a la pared
+## CERCANA (un sofá contra la pared SUR, captura del usuario) subía por ENCIMA de esa franja y se
+## leía como si se saliera de la sala — "sangrando" hacia fuera. Dos cambios, los dos en este método:
+##
+## 1. La pared CERCANA sube a `ALTO_PARED_FRENTE` (media altura de la trasera) en vez de un simple
+##    "bordillo" de 10 px: ahora sí tapa la base de un mueble arrimado a ella.
+## 2. Cada arista ahora se etiqueta con `"frente": bool` (antes solo llevaba "alto") — es la clave
+##    que usa `ParedesSalas._repartir_en_capas` para mandar la arista a la pasada `ParedesFrente`
+##    (capa por ENCIMA del mobiliario estático, por DEBAJO de los NPCs) o a `ParedesFondo` (la pasada
+##    de siempre, altura completa, sin tocar). Antes de esta enmienda solo existía UNA pasada, así
+##    que "cercana"/"alta" únicamente cambiaba la ALTURA, nunca la capa — con la pared cercana a solo
+##    10 px, no hacía falta más para no tapar al mobiliario, pero al subir la altura a media (para
+##    tapar la base de un mueble alto) hacía falta separarla en su propia capa para que un NPC que
+##    camina por delante de la sala se siga dibujando POR ENCIMA de ella, no por detrás.
+##
+## Devuelve `{"alto": float, "frente": bool}` — listo para fundirse en el diccionario del tramo.
 func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
 	# La FACHADA del edificio (2026-07-30) se mide contra el EDIFICIO, no contra las salas: sus dos
 	# lados del fondo (arriba e izquierda) tienen detrás la calle y van altos —son el telón de la
@@ -495,7 +574,7 @@ func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
 	var cercana: bool = (
 		_celda_en_edificio(detras) if fija else _construccion.sala_en(detras) != &""
 	)
-	return {"alto": ALTO_PARED_CERCANA if cercana else ALTO_PARED}
+	return {"alto": ALTO_PARED_FRENTE if cercana else ALTO_PARED, "frente": cercana}
 
 
 ## ¿Esa celda cae dentro de la rejilla del edificio? (espeja `Construccion._celda_en_edificio`,
@@ -507,9 +586,16 @@ func _celda_en_edificio(celda: Vector2i) -> bool:
 	)
 
 
-## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala.
-func _jamba(desde: Vector2, hacia_dentro: Vector2, color: Color) -> Dictionary:
-	return {"desde": desde, "hasta": desde + hacia_dentro, "color": color}
+## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala. `frente` enruta la jamba
+## a la pasada que toca (`_repartir_en_capas`) — mismo criterio que `_cara_de_arista`: TRUE si su
+## arista da a cámara (sur/este), FALSE si es trasera (norte/oeste). El "grosor" viaja en el propio
+## diccionario para que `CapaParedes` no necesite conocer `GROSOR_PARED` (esa constante es de
+## MODELO/geometría, no de dibujo — vive aquí).
+func _jamba(desde: Vector2, hacia_dentro: Vector2, color: Color, frente: bool = false) -> Dictionary:
+	return {
+		"desde": desde, "hasta": desde + hacia_dentro, "color": color, "frente": frente,
+		"grosor": GROSOR_PARED,
+	}
 
 
 ## El VÉRTICE de la rejilla en la intersección (columna, fila), en píxeles de PANTALLA.

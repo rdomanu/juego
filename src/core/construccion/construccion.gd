@@ -1799,7 +1799,7 @@ static func _sprites_comodidad() -> Dictionary:
 	return {
 		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.479, 0.628)},
 		COMODIDAD_PAPELERA: {"rotacion": 0, "ancla": Vector2(0.508, 0.861)},
-		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.474, 0.909)},
+		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.444, 0.888)},
 		COMODIDAD_RADIO: {"rotacion": 0, "ancla": Vector2(0.493, 0.803)},
 	}
 

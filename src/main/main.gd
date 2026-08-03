@@ -372,6 +372,11 @@ func _instanciar_mundo() -> void:
 	_montar_comisaria_inicial()
 	# Las paredes de las salas (petición del usuario 2026-07-30: "si no todo el mundo ve a los
 	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte).
+	# 🐛 "PAREDES FRONTALES BAJITAS" (2026-08-03): un sofá pegado a la pared sur se dibujaba sangrando
+	# por encima de ella. `ParedesSalas` reparte AHORA su dibujo en dos hijos internos (`ParedesFondo`/
+	# `ParedesFrente`, ver `paredes_salas.gd`) — Main NO cablea nada distinto aquí: sigue siendo un
+	# único `configurar()`, con el mismo `z_index` de siempre (1); el reparto en dos pasadas y sus
+	# capas viven enteramente dentro de `ParedesSalas`.
 	_paredes_salas = ParedesSalasScript.new()
 	_paredes_salas.name = "ParedesSalas"
 	add_child(_paredes_salas)
