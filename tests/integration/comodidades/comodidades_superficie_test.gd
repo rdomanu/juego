@@ -9,7 +9,7 @@ const ConfigConstruccionScript := preload("res://src/core/construccion/config_co
 const EconomiaScript := preload("res://src/core/economia/economia.gd")
 const ConfigEconomiaScript := preload("res://src/core/economia/config_economia.gd")
 
-const SOFA := &"sofa_descanso"      # superficie 3 (3 plazas)
+const SOFA := &"sofa_descanso"      # superficie 2 (3 plazas; usuario 2026-08-03: sofa a 2 celdas)
 const SILLAS := &"sillas_office"    # superficie 2 (2 plazas)
 
 
@@ -29,26 +29,25 @@ func _mundo() -> Array:
 
 # ── El catálogo trae las superficies pedidas por el usuario ──────────────────────────────
 func test_el_catalogo_trae_las_superficies_pedidas() -> void:
-	assert_int(Datos.obtener(&"Comodidad", SOFA).superficie).is_equal(3)
+	assert_int(Datos.obtener(&"Comodidad", SOFA).superficie).is_equal(2)
 	assert_int(Datos.obtener(&"Comodidad", SILLAS).superficie).is_equal(2)
 	# El resto del catálogo se queda en el default 1 (muestreo de un par).
 	assert_int(Datos.obtener(&"Comodidad", &"nevera").superficie).is_equal(1)
 	assert_int(Datos.obtener(&"Comodidad", &"television").superficie).is_equal(1)
 
 
-# ── Un sofá de superficie 3 ocupa las 3 celdas de su cuerpo, no solo el ancla ─────────────
-func test_el_sofa_ocupa_las_tres_celdas_no_solo_el_ancla() -> void:
+# ── Un sofá de superficie 2 (2026-08-03) ocupa las 2 celdas de su cuerpo, no solo el ancla ─
+func test_el_sofa_ocupa_sus_celdas_no_solo_el_ancla() -> void:
 	var construccion: Node = _mundo()[0]
 
 	var id: StringName = construccion.construir_elemento(SOFA, Vector2i(0, 0))
 
 	assert_str(String(id)).is_not_equal("")
-	# Las 3 celdas del cuerpo (0,0)-(2,0) quedan ocupadas: nada más (misma familia "descanso") cabe ahí.
+	# Las 2 celdas del cuerpo (0,0)-(1,0) quedan ocupadas: nada más (misma familia "descanso") cabe ahí.
 	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(0, 0))).is_false()
 	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(1, 0))).is_false()
-	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(2, 0))).is_false()
-	# La celda 3 (fuera del cuerpo del sofá) sigue libre.
-	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(3, 0))).is_true()
+	# La celda 2 (fuera del cuerpo del sofá desde que mide 2) sigue libre.
+	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(2, 0))).is_true()
 
 
 # ── Las sillas de superficie 2 ocupan 2 celdas (no 3, no 1) ───────────────────────────────
@@ -63,12 +62,13 @@ func test_las_sillas_ocupan_dos_celdas() -> void:
 	assert_bool(construccion.validar_elemento(&"nevera", Vector2i(2, 0))).is_true()
 
 
-# ── No se puede colocar si no caben las 3 celdas: ni saliéndose de la sala ni pisando otro objeto ──
-func test_no_se_puede_colocar_si_no_caben_las_tres_celdas() -> void:
+# ── No se puede colocar si no caben TODAS sus celdas: ni saliéndose de la sala ni pisando otro ──
+func test_no_se_puede_colocar_si_no_caben_todas_sus_celdas() -> void:
 	var construccion: Node = _mundo()[0]
 
-	# Pegado al borde derecho de la sala (columnas 0..3): el cuerpo (ancla + 2) se saldría fuera.
-	assert_bool(construccion.validar_elemento(SOFA, Vector2i(2, 0))).is_false()
+	# Pegado al borde derecho de la sala (columnas 0..3): el cuerpo del sofá de 2 celdas
+	# (ancla + 1) anclado en la última columna se saldría fuera.
+	assert_bool(construccion.validar_elemento(SOFA, Vector2i(3, 0))).is_false()
 
 	# Otro objeto ya ocupa una celda del MEDIO del cuerpo: rechazado aunque el ancla esté libre.
 	construccion.construir_elemento(&"nevera", Vector2i(1, 0))

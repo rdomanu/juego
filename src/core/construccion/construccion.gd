@@ -1953,8 +1953,8 @@ const ROT_ASIENTO_SOFA3_HORIZONTAL: int = 90
 ## Una ancla por rotación — el encuadre de 90°/270° no es el mismo que el de 0°/180° (dato del
 ## coordinador, 2026-08-02, midiendo la base real de cada PNG — no el centro de encuadre que
 ## imprimía antes la herramienta).
-const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.247, 0.814)      # rot 180
-const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.747, 0.814)    # rot 90
+const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.248, 0.731)      # rot 180 (2 celdas, 2026-08-03)
+const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.734, 0.731)    # rot 90 (2 celdas, 2026-08-03)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -1984,6 +1984,12 @@ func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
 	# `local_to_map`/`to_local` siguen contestando en celdas del plano cuadrado, así que el clic
 	# del modo construcción sigue funcionando sin tocar una línea. Ver `Proyeccion.transformada`.
 	_capa_salas.transform = Proyeccion.transformada(desplazamiento)
+	# 🐛 FIX (2026-08-03, muro divisorio): la TINTA de sala baja a z −1, por debajo de cualquier
+	# pared (que están en 0 y 1) y por encima de la rejilla del suelo de Main (z −2). Antes empataba
+	# a z 0 con `ParedesFondo` y, al ir `ParedesSalas` antes que `Construccion` en el árbol, el suelo
+	# de una sala se pintaba ENCIMA de las paredes de esa pasada: el muro divisorio entre dos salas
+	# desaparecía tragado por el suelo de la sala vecina. Ver el comentario largo en `Main._crear_suelo`.
+	_capa_salas.z_index = -1
 	add_child(_capa_salas)
 	_capa_elementos = Node2D.new()
 	_capa_elementos.name = "Elementos"

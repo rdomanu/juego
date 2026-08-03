@@ -400,7 +400,9 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"sofa_descanso", "Sofa", "Se sientan tres y se levantan nuevos. La pieza cara de la sala.",
 		"descanso", 550, 0, 4.0, false, 0.0, 3.0, 0.0,
-		false, Color(1.0, 0.9, 0.7), 90.0, 3, 3    # 3 plazas, superficie 3 (coinciden a proposito)
+		false, Color(1.0, 0.9, 0.7), 90.0, 3, 2    # 3 plazas, superficie 2 (usuario 2026-08-03:
+		# "el sofa es muy grande respecto a los npcs" -> reescalado a 2 celdas; los tres cojines
+		# siguen ahi, solo mas pequenos, asi que las plazas no cambian)
 	), "comodidades")
 	# Familia "iluminacion" (peticion del usuario 2026-07-29: "no veo tampoco la instalacion de
 	# luces para la noche"). Se coloca en CUALQUIER tipo de sala (espera, oficina o descanso) --

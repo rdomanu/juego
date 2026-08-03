@@ -166,14 +166,15 @@ func test_girado_reserva_las_celdas_de_abajo() -> void:
 
 
 # AC-R5: girado en el borde de la sala, NO cabe — la validación mide el cuerpo girado, no el de
-# antes. (La sala llega hasta la fila 3; un mueble de 3 celdas puesto en la fila 2 se sale.)
+# antes. (La sala llega hasta la fila 3; el sofá mide 2 celdas desde 2026-08-03: anclado en la
+# fila 3, girado ocuparía las filas 3 y 4 — y la 4 ya es pasillo.)
 func test_girado_no_cabe_si_se_sale_de_la_sala() -> void:
 	var c: Node = _mundo()
 	c.construir_de_oficio_sala(&"sala_descanso", Rect2i(1, 1, 6, 3))   # filas 1..3
-	# Sin girar, en (2,2) cabe de sobra (columnas 2,3,4 dentro de la sala).
-	assert_bool(c.validar_elemento(MUEBLE_LARGO, Vector2i(2, 2), &"", c.HORIZONTAL)).is_true()
-	# Girado, en (2,2) se saldría por abajo (filas 2,3,4 y la sala acaba en la 3).
-	assert_bool(c.validar_elemento(MUEBLE_LARGO, Vector2i(2, 2), &"", c.VERTICAL)).is_false()
+	# Sin girar, en (2,3) cabe (columnas 2,3 dentro de la sala).
+	assert_bool(c.validar_elemento(MUEBLE_LARGO, Vector2i(2, 3), &"", c.HORIZONTAL)).is_true()
+	# Girado, en (2,3) se saldría por abajo (filas 3,4 y la sala acaba en la 3).
+	assert_bool(c.validar_elemento(MUEBLE_LARGO, Vector2i(2, 3), &"", c.VERTICAL)).is_false()
 
 
 # AC-R6: la orientación SOBREVIVE al guardar y cargar. Si no, girarías el sofá, guardarías, y al

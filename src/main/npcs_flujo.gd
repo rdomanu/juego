@@ -134,6 +134,43 @@ const CAPA_FRENTE: int = 2
 const CAPA_FRENTE_SUR: int = 3
 const CAPA_FRENTE_SUR_ALTO: int = 4
 
+## ── EL PUESTO ES MOBILIARIO, NO GENTE (🐛 FIX 2026-08-03, bug con captura del usuario) ──────────
+## *"el mostrador de la ventanilla TIE pegada al borde sur/este de Documentación se dibuja POR
+## ENCIMA del murete frontal"*. Causa exacta, medida en el motor (`tools/_diag_oclusion_murete.gd`,
+## volcado de z efectivos): el contenedor `"Puesto_<id>"` cuelga de `_capa_escena`, que hereda el
+## `z_index = 2` de este nodo — la capa de GENTE, por diseño POR ENCIMA de `ParedesFrente` (z 1)
+## para que ningún muñeco quede tapado por un murete. Pero de ese contenedor no cuelga solo el
+## policía: cuelgan también su MOSTRADOR y sus DOS SILLAS, que son mobiliario y no tenían por qué
+## viajar en la capa de la gente. Resultado: el mostrador se saltaba el murete que tiene delante.
+##
+## El arreglo NO toca ADR-0005: el orden interno del puesto (silla < policía < mostrador <
+## silla_sur) lo sigue decidiendo `_insertar_en_capa` por orden de árbol, y el orden de árbol solo
+## desempata DENTRO de un mismo z_index. Lo único que cambia es a QUÉ z_index pertenece el bloque
+## entero: `z_index` RELATIVO −2 sobre el 2 de este nodo ⇒ z EFECTIVO 0, el mismo que el mobiliario
+## estático de Construcción (`_capa_elementos`) y el suelo. Así el murete (z 1) le tapa la base,
+## exactamente igual que ya se lo tapa a un sofá (ver `Z_PAREDES_FRENTE` en `paredes_salas.gd`).
+##
+## Por qué NO rompe nada de lo aprobado (comprobado con fotomontaje antes/después):
+##  · mesa tapa las piernas del policía sentado → los dos bajan JUNTOS a z 0, su orden relativo es
+##    el mismo orden de árbol de siempre;
+##  · el CIUDADANO atendido sigue en z 2 (+1 en el frente, `Z_FRENTE_PUESTO`) → sigue viéndose por
+##    encima del mostrador y de su asiento, como se aprobó;
+##  · el RESPALDO de su silla sube a `Z_RESPALDO_FRENTE_SUR` = 4 (antes 2) para conservar el MISMO
+##    z efectivo 4 que tenía y seguir tapándole la lumbar (ver esa constante);
+##  · las etiquetas y barras del puesto llevan `Z_ROTULOS_PUESTO` para conservar su z efectivo 2 —
+##    son información, no mobiliario, y no deben quedar tapadas por un murete.
+##
+## El muñeco del POLICÍA baja también a z 0 (es parte del bloque). Es lo correcto: está DENTRO de
+## su sala, así que el murete de esa sala le queda DELANTE y debe taparle la base como a cualquier
+## otra cosa que esté ahí dentro. Con `ALTO_PARED_FRENTE` = 17 px el murete ni le roza (su celda
+## está una fila más al norte, 20 px más arriba), así que se le sigue viendo entero.
+const Z_MUEBLES_PUESTO: int = -2
+## z RELATIVO de las etiquetas/barras del contenedor del puesto, para que `Z_MUEBLES_PUESTO` no se
+## las lleve por delante. El contenedor queda en z efectivo 0, así que un +2 aquí las devuelve al
+## z efectivo 2 EXACTO que tenían antes del fix (la capa de gente): ni más —no deben pisar a los
+## muñecos, que también están en 2 y se ordenan con ellas por y-sort— ni menos.
+const Z_ROTULOS_PUESTO: int = 2
+
 ## Coloca/reordena `hijo` en la capa `capa` dentro de `contenedor`. Si `hijo` no es aún su hijo, lo
 ## añade primero. Reordena SOLO los nodos con capa declarada (metadato `capa_iso`), de menor a
 ## mayor; los hijos SIN capa (etiquetas, barras de estado…) no se tocan — quedan detrás de todos,
@@ -520,7 +557,12 @@ const Z_FRENTE_PUESTO: int = 1
 ## constante de abajo: solo el RESPALDO se dibuja por encima del sentado (le tapa la lumbar, que es
 ## lo físicamente cierto), mientras su asiento se queda debajo. Mientras no existan los PNG de las
 ## dos mitades, se usa la silla entera por DEBAJO del sentado y esta constante no se aplica a nadie.
-const Z_RESPALDO_FRENTE_SUR: int = 2
+##
+## 🐛 2026-08-03 (fix del murete): pasa de 2 a 4 SIN cambiar el resultado en pantalla. Es un z
+## RELATIVO al contenedor del puesto, y ese contenedor bajó de z efectivo 2 a 0 (`Z_MUEBLES_PUESTO`);
+## sumar 4 en vez de 2 deja el respaldo en el MISMO z efectivo 4 de siempre, que es lo que le
+## mantiene por encima del ciudadano sentado (z efectivo 3 = capa de muñecos 2 + `Z_FRENTE_PUESTO`).
+const Z_RESPALDO_FRENTE_SUR: int = 4
 
 ## ── Y EL ARRIME AL MOSTRADOR (mismo estado, misma función) ────────────────────────────────────
 ## El 2026-08-03 el usuario eligió el "arrime al borde" (variante C): silla y persona PEGADAS al
@@ -1400,6 +1442,10 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var contenedor := Node2D.new()
 	contenedor.name = "Puesto_%s" % puesto_id
 	contenedor.position = Proyeccion.centro_iso(celda)
+	# EL PUESTO ES MOBILIARIO: baja de la capa de gente (z 2) a la del mobiliario (z efectivo 0) para
+	# que el murete frontal de su sala le tape la base. Ver `Z_MUEBLES_PUESTO` para el bug, la causa
+	# medida y por qué no rompe ADR-0005 (el orden INTERNO sigue siendo orden de árbol).
+	contenedor.z_index = Z_MUEBLES_PUESTO
 	# El muñeco policía (torso + cabeza, estilo npc_ciudadano); se muestra solo si el puesto está dotado.
 	var policia := Node2D.new()
 	policia.name = "Policia"
@@ -1496,6 +1542,14 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var lbl_estado := _label_centrada(9, Vector2(-30, -_tam_celda * 0.5))
 	lbl_estado.name = "Estado"
 	contenedor.add_child(lbl_estado)
+	# Los RÓTULOS (nombre, estado, minutos, barra de cansancio) recuperan el z efectivo 2 que tenían
+	# antes de que el contenedor bajara a la capa de mobiliario: son INFORMACIÓN sobre el puesto, no
+	# muebles, y un murete no debe poder tapar el nombre del funcionario. Ver `Z_ROTULOS_PUESTO`.
+	# Se hace en un solo sitio (aquí, al final) en vez de repetirlo nodo a nodo: los hijos SIN
+	# `capa_iso` son, por definición, exactamente los rótulos (ver `_insertar_en_capa`).
+	for hijo: Node in contenedor.get_children():
+		if hijo is CanvasItem and not hijo.has_meta(&"capa_iso"):
+			(hijo as CanvasItem).z_index = Z_ROTULOS_PUESTO
 	_capa_escena.add_child(contenedor)
 	_visual_de_puesto[puesto_id] = contenedor
 

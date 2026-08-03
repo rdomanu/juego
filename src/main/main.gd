@@ -1031,6 +1031,15 @@ func _crear_suelo() -> void:
 	var suelo := TileMapLayer.new()
 	suelo.name = "Suelo"
 	suelo.tile_set = tileset
+	# 🐛 FIX (2026-08-03, muro divisorio): el SUELO baja a z −2 y la tinta de sala de Construcción a
+	# −1 (ver `montar_visual`). Antes los dos empataban a z 0 con las paredes, y el empate lo rompía
+	# el orden del árbol: `ParedesSalas` se añade ANTES que `Construccion` (por el fix del sofá), así
+	# que CUALQUIER suelo se dibujaba ENCIMA de las paredes de la pasada FONDO. No se notaba porque
+	# la cara de una pared trasera sube hacia una zona donde no hay sala... hasta que un DIVISORIO
+	# entró en esa pasada: su cara sube sobre el suelo de la sala vecina, y ese suelo se la comía —
+	# el tabique entre Descanso y ODAC desaparecía. Regla nueva, sin excepciones: **un suelo nunca se
+	# dibuja por encima de una pared**. Los dos siguen ordenados entre sí (rejilla −2 < tinta −1).
+	suelo.z_index = -2
 	# Centrado aproximado en la ventana por defecto (1152×648).
 	suelo.transform = Proyeccion.transformada(pos_suelo)
 	for x in COLUMNAS:

@@ -643,7 +643,7 @@ func _colocar_camara(tam_mundo: float) -> void:
 ## `PIVOTE_X_CUERPO_MOSTRADOR`) y los accesorios sin tocar: el cuerpo ya sale en ~2,00 celdas por
 ## construcción con este mismo multiplicador, sin reescalar aparte.
 const MULTIPLICADOR_MOSTRADOR1: float = 1.00 / 1.225
-const MULTIPLICADOR_SOFA3: float = 3.00 / 1.525
+const MULTIPLICADOR_SOFA3: float = 2.00 / 1.525  # usuario 2026-08-03: sofa a 2 celdas
 
 ## Reescala y guarda las 4 rotaciones de una receta YA RENDERIZADA (en `crudos`), aplicando
 ## `escala` (normalmente `escala_final * MULTIPLICADOR_*`) directamente — sin volver a medir nada

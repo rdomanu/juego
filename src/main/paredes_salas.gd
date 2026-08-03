@@ -263,7 +263,7 @@ func _recalcular_tramos() -> void:
 		var tramo: Dictionary = {
 			"desde": unidad["desde"], "hasta": unidad["hasta"], "color": duenio[clave],
 		}
-		tramo.merge(_cara_de_arista(unidad["detras"]))
+		tramo.merge(_cara_de_arista(unidad["detras"], unidad["delante"]))
 		_tramos.append(tramo)
 	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
 	for sala_id: StringName in salas:
@@ -287,7 +287,7 @@ func _recalcular_tramos() -> void:
 		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
 		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
-		var cara: Dictionary = _cara_de_arista(geo["detras"], fija)
+		var cara: Dictionary = _cara_de_arista(geo["detras"], geo["delante"], fija)
 		if tipo == _construccion.PUERTA:
 			_agregar_puerta_libre(
 				geo["desde"], geo["hasta"], cara, COLOR_FACHADA if fija else COLOR_MURO_LIBRE
@@ -382,6 +382,7 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 		return {
 			"desde": _esquina(a, b), "hasta": _esquina(a, b + 1),
 			"detras": Vector2i(a - 1, b),
+			"delante": Vector2i(a, b),
 		}
 	if partes[0] == "h":
 		# "h:col:row" — arista del eje X en la fila `b`, de la columna `a` a la `a + 1`.
@@ -389,6 +390,7 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 		return {
 			"desde": _esquina(a, b), "hasta": _esquina(a + 1, b),
 			"detras": Vector2i(a, b - 1),
+			"delante": Vector2i(a, b),
 		}
 	return {}
 
@@ -533,21 +535,28 @@ func _color_de_pared(sala_id: StringName) -> Color:
 
 ## Un tramo del eje X (grid-line en la fila `fila_gridline`, celda `celda_x`). En pantalla baja
 ## hacia la derecha; en el modelo sigue siendo la arista "h" de siempre.
+##
+## "detras" y "delante" son las DOS celdas que la arista separa (norte y sur). Antes solo hacía
+## falta la de detrás; "delante" la añade la enmienda del muro divisorio (2026-08-03) — ver
+## `_cara_de_arista`, que necesita saber si hay sala a AMBOS lados.
 func _unidad_h(fila_gridline: int, celda_x: int) -> Dictionary:
 	return {
 		"clave": "h:%d:%d" % [fila_gridline, celda_x],
 		"desde": _esquina(celda_x, fila_gridline), "hasta": _esquina(celda_x + 1, fila_gridline),
 		"detras": Vector2i(celda_x, fila_gridline - 1),
+		"delante": Vector2i(celda_x, fila_gridline),
 	}
 
 
 ## Un tramo del eje Y (grid-line en la columna `columna_gridline`, celda `celda_y`). En pantalla
-## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre.
+## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre. Mismo par
+## "detras"/"delante" que `_unidad_h`, aquí oeste y este.
 func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 	return {
 		"clave": "v:%d:%d" % [columna_gridline, celda_y],
 		"desde": _esquina(columna_gridline, celda_y), "hasta": _esquina(columna_gridline, celda_y + 1),
 		"detras": Vector2i(columna_gridline - 1, celda_y),
+		"delante": Vector2i(columna_gridline, celda_y),
 	}
 
 
@@ -592,8 +601,34 @@ func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 ##    tapar la base de un mueble alto) hacía falta separarla en su propia capa para que un NPC que
 ##    camina por delante de la sala se siga dibujando POR ENCIMA de ella, no por detrás.
 ##
+## ── ENMIENDA 2026-08-03 (2ª) — EL MURO DIVISORIO ENTRE DOS SALAS ────────────────────────────────
+## Bug con captura del usuario, medido en el motor (`tools/_diag_oclusion_murete.gd`, caso
+## `b_divisorio`): *"los dispensadores de agua de Descanso, tras el muro divisorio con ODAC"*
+## aparecían PARTIDOS EN DOS — el muro se pintaba justo por el medio de cada dispensador, pedestal
+## debajo y garrafa encima.
+##
+## La causa es que esta función solo mira UN lado. Un muro compartido por DOS salas (ODAC al norte,
+## Descanso al sur) tiene sala DETRÁS → se clasificaba "cercana" → pasada FRENTE, que vive en
+## `Z_PAREDES_FRENTE` = 1, por ENCIMA de todo el mobiliario (z 0). Pero ese mismo muro es la pared
+## de ATRÁS de la sala de abajo, y lo que ella tiene arrimado por dentro está DELANTE de él: al ir
+## el muro en una capa superior, se pintaba encima de esos muebles y los cortaba por la mitad.
+##
+## La regla nueva: **si hay sala a los DOS lados, es un DIVISORIO** y se manda a la pasada FONDO
+## (z 0, que va ANTES de `Construccion` en el árbol, así que el mobiliario se dibuja encima) pero
+## CONSERVANDO la altura baja de `ALTO_PARED_FRENTE` — no sube a `ALTO_PARED` porque eso taparía el
+## interior de la sala de arriba, que es justo lo que "PAREDES FRONTALES BAJITAS" vino a evitar.
+##
+## TRADE-OFF, escrito a propósito y no en silencio: en un divisorio ya no hay un único orden que
+## sea correcto para las dos salas a la vez (con un z global, o tapa a una o tapa a la otra). Se
+## elige que gane SIEMPRE el mobiliario, en las dos: es la misma regla ya ratificada hoy para las
+## paredes traseras (el sofá se dibuja DELANTE de su pared norte, ver `Z_PAREDES_FONDO`), y el
+## precio —la sala de arriba pierde el recorte de base contra ESA arista concreta, una franja de
+## 17 px— es mucho menor que partir un mueble entero por la mitad. La solución sin trade-off es
+## ordenar paredes y muebles por profundidad con y-sort: Fase 1 del borrador
+## `docs/architecture/borrador-orden-profundidad-rotaciones.md`, fuera del alcance de este fix.
+##
 ## Devuelve `{"alto": float, "frente": bool}` — listo para fundirse en el diccionario del tramo.
-func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
+func _cara_de_arista(detras: Vector2i, delante: Vector2i, fija: bool = false) -> Dictionary:
 	# La FACHADA del edificio (2026-07-30) se mide contra el EDIFICIO, no contra las salas: sus dos
 	# lados del fondo (arriba e izquierda) tienen detrás la calle y van altos —son el telón de la
 	# comisaría—, y los dos de delante tienen detrás el interior entero, así que van bajos. Sin esta
@@ -601,7 +636,14 @@ func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
 	var cercana: bool = (
 		_celda_en_edificio(detras) if fija else _construccion.sala_en(detras) != &""
 	)
-	return {"alto": ALTO_PARED_FRENTE if cercana else ALTO_PARED, "frente": cercana}
+	# La fachada NUNCA es divisorio: por fuera de ella no hay sala, es el borde del edificio.
+	var divisorio: bool = (
+		cercana and not fija and _construccion.sala_en(delante) != &""
+	)
+	return {
+		"alto": ALTO_PARED_FRENTE if cercana else ALTO_PARED,
+		"frente": cercana and not divisorio,
+	}
 
 
 ## ¿Esa celda cae dentro de la rejilla del edificio? (espeja `Construccion._celda_en_edificio`,
