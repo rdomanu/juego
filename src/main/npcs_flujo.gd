@@ -17,6 +17,9 @@ const NPCScript := preload("res://src/main/npc_ciudadano.gd")
 const MunecoScript := preload("res://src/main/muneco.gd")
 ## La mesa de la ventanilla, con su ordenador y sus papeles (2026-07-31).
 const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
+## La señal de prohibido sobre la cabeza de quien está BLOQUEADO sin camino real a su destino
+## (bug 2026-08-03, compartida con `NPCCiudadano`).
+const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
 
 ## Colores placeholder por servicio (los mismos tonos que las salas de Construcción).
 const COLOR_DOC := Color(0.35, 0.55, 0.9)
@@ -241,10 +244,18 @@ const VAIVEN_PASO: float = 0.04
 ## encima del `target_desired_distance` del agente de navegación (6 px), para que la comprobación
 ## física no contradiga a la del propio agente cuando este sí acierta.
 const DISTANCIA_LLEGADA: float = 12.0
-## Cuántos frames se insiste en recalcular el camino antes de dar un viaje por imposible. ~2 s a
-## 60 fps: de sobra para que el NavigationServer sincronice, y corto para no dejar a nadie dando
-## vueltas si su destino es de verdad inalcanzable.
-const MAX_REINTENTOS_CAMINO: int = 120
+## Cuántos physics frames se esperan entre reintentos de camino mientras un caminante está
+## BLOQUEADO (sin camino real a su destino). ~3 s a 60 fps.
+##
+## 🐛 SIN CAMINO ⇒ SIN TELETRANSPORTE (petición del usuario 2026-08-03): esta constante ANTES
+## marcaba cuándo dar un viaje por IMPOSIBLE — pasados los reintentos, el viaje se cerraba igual,
+## el muñeco desaparecía y el mostrador recuperaba a su titular de golpe. Eso ERA el teletransporte
+## disfrazado que reportó el usuario (el funcionario "llegaba" sin haber andado el último tramo).
+## Ahora un caminante bloqueado se queda EXACTAMENTE donde está, con su señal de prohibido
+## (`IconoProhibido`), y esta constante solo dice cada cuánto se le vuelve a preguntar a la rejilla
+## (`hay_camino`) si ya hay puerta — nunca se da la ruta por imposible para siempre. Ver
+## `_fijar_destino_caminante`.
+const FRAMES_RECHEQUEO_BLOQUEO: int = 180
 ## (El mostrador pasó a ser una MESA compuesta el 2026-07-31 — ver `mesa_atencion.gd`.)
 ## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
 ## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
@@ -1073,6 +1084,56 @@ func _camino_hasta(puesto_id: StringName, celda: Vector2i) -> int:
 	return _construccion.distancia_en_celdas(_construccion.posicion_de(puesto_id), celda)
 
 
+## ¿Hay camino REAL (esquivando muros sin puerta) entre estos dos puntos del PLANO LÓGICO
+## CUADRADO? Delega en `Construccion.distancia_en_celdas` — el mismo BFS de aristas transitables
+## que ya usa `_camino_hasta` — así que es la MISMA verdad de la rejilla, independiente de si el
+## NavigationServer ya sincronizó o no (nunca se le pone a nadie un target inalcanzable; ver
+## `NPCCiudadano._actualizar_destino` y `_fijar_destino_caminante`, las dos causas raíz del
+## teletransporte reportado por el usuario 2026-08-03).
+##
+## No es gratis (barre la rejilla entera una vez): quien lo llama lo hace solo al cambiar de
+## destino y luego cada `FRAMES_RECHEQUEO_BLOQUEO` frames mientras esté bloqueado — NUNCA cada
+## physics frame para todo el mundo.
+func hay_camino(origen: Vector2, destino: Vector2) -> bool:
+	if _construccion == null or not _construccion.has_method("distancia_en_celdas"):
+		return true   # sin forma de comprobarlo: se asume que se puede (comportamiento de siempre)
+	var celda_origen: Vector2i = Proyeccion.celda_de_cuadrado(origen)
+	var celda_destino: Vector2i = Proyeccion.celda_de_cuadrado(destino)
+	if celda_origen == celda_destino:
+		return true
+	# LA CALLE NO ES REJILLA (bug 2026-08-03, cazado con el diag de bloqueo): quien entra o sale del
+	# edificio parte/llega a un punto de la ACERA (`_punto_calle`), fuera a propósito de la rejilla —
+	# y el BFS de `distancia_en_celdas` exige que AMBOS extremos estén "en edificio". Sin este ajuste,
+	# CUALQUIER ciudadano al pasar de "esperando_fuera" a "esperando_dentro" se marcaba BLOQUEADO para
+	# siempre, aunque la comisaría estuviera abierta de par en par — la calle jamás es "en edificio".
+	# Se sustituye el extremo callejero por `CELDA_PUERTA_SALIDA` (la puerta real, ya usada para el
+	# mismo propósito por `_iniciar_camino_descanso`) antes de preguntar a la rejilla; si TRAS el
+	# ajuste algún extremo sigue sin poder medirse, no se bloquea (comportamiento de siempre: lo que
+	# no se puede medir no se castiga).
+	if not _celda_en_rejilla(celda_origen):
+		celda_origen = CELDA_PUERTA_SALIDA
+	if not _celda_en_rejilla(celda_destino):
+		celda_destino = CELDA_PUERTA_SALIDA
+	if not _celda_en_rejilla(celda_origen) or not _celda_en_rejilla(celda_destino):
+		return true
+	if celda_origen == celda_destino:
+		return true
+	return _construccion.distancia_en_celdas(celda_origen, celda_destino) >= 0
+
+
+## ¿Esa celda cae dentro de la rejilla del edificio? Espejo de `Construccion._celda_en_edificio`
+## (privado allí): se duplica aquí en vez de exponer un getter nuevo en Construccion solo para esto —
+## el dato (`edificio_columnas`/`edificio_filas`) YA es público y NPCsFlujo ya depende de la forma del
+## edificio en media docena de sitios de este fichero.
+func _celda_en_rejilla(celda: Vector2i) -> bool:
+	if _construccion == null:
+		return false
+	return (
+		celda.x >= 0 and celda.y >= 0
+		and celda.x < int(_construccion.edificio_columnas) and celda.y < int(_construccion.edificio_filas)
+	)
+
+
 ## Da la vuelta a un viaje YA EXISTENTE (nunca crea un muñeco nuevo): libera el asiento si lo tenía y
 ## le quita la taza, y reapunta su destino al mostrador. Si aún iba "yendo" (la pausa terminó antes de
 ## llegar a la sala), gira desde donde esté — no hace falta que "llegue" primero.
@@ -1096,17 +1157,11 @@ func _iniciar_vuelta(viaje: Dictionary) -> void:
 ## pasar a "en_sala"; para la incorporación, cerrar el viaje del todo).
 func _mover_paso(viaje: Dictionary) -> bool:
 	var nav: NavigationAgent2D = viaje["nav"] as NavigationAgent2D
+	var muneco: CharacterBody2D = viaje["muneco"] as CharacterBody2D
 	if not viaje["listo"]:
 		viaje["listo"] = true   # el NavigationServer sincroniza EN este frame: el target va al siguiente
 		return false
 	if viaje.has("destino_pendiente"):
-		nav.target_position = viaje["destino_pendiente"]
-		# Se GUARDA el destino (no solo se aplica): abajo hace falta para comprobar si el muñeco ha
-		# llegado de verdad, en vez de fiarse de lo que diga el agente de navegación.
-		viaje["destino"] = viaje["destino_pendiente"]
-		viaje["reintentos"] = 0
-		viaje.erase("destino_pendiente")
-		return false
 		# 🐛 BUG cazado por el usuario el 2026-07-30 ("siguen entrando 6 funcionarios para 3 puestos
 		# de documentación") y confirmado instrumentando el juego en ventana: cada agente arrancaba
 		# el viaje DOS VECES (y más), y se veía un desfile de policías entrando una y otra vez.
@@ -1119,11 +1174,26 @@ func _mover_paso(viaje: Dictionary) -> bool:
 		#
 		# Se sale ANTES de preguntar: este frame solo sirve para encargar el camino. Es el mismo
 		# gotcha del primer physics frame que ya está documentado arriba, una vuelta de tuerca más.
+		var destino: Vector2 = viaje["destino_pendiente"]
+		viaje.erase("destino_pendiente")
+		viaje["frames_bloqueo"] = 0
+		_fijar_destino_caminante(viaje, muneco, nav, destino)
 		return false
 	var mult: float = Tiempo.multiplicador_velocidad
 	if mult <= 0.0:
 		return false
-	var muneco: CharacterBody2D = viaje["muneco"] as CharacterBody2D
+	# SIN CAMINO ⇒ SIN TELETRANSPORTE (petición del usuario 2026-08-03): mientras esté BLOQUEADO no
+	# se toca ni el agente de navegación ni la posición — se queda EXACTAMENTE donde está, con su
+	# señal de prohibido, y solo se reintenta cada `FRAMES_RECHEQUEO_BLOQUEO` (ver la constante y
+	# `_fijar_destino_caminante`: antes, pasado ese plazo, el viaje se daba por terminado igual, que
+	# era el teletransporte disfrazado que reportó el usuario).
+	if bool(viaje.get("bloqueado", false)):
+		var frames: int = int(viaje.get("frames_bloqueo", 0)) + 1
+		viaje["frames_bloqueo"] = frames
+		if frames >= FRAMES_RECHEQUEO_BLOQUEO:
+			viaje["frames_bloqueo"] = 0
+			_fijar_destino_caminante(viaje, muneco, nav, viaje["destino"])
+		return false
 	if nav.is_navigation_finished():
 		# 🐛 BUG cazado por el usuario el 2026-07-30 ("siguen entrando 6 funcionarios para 3 puestos")
 		# y medido instrumentando la ventana: `is_navigation_finished()` MIENTE mientras el
@@ -1134,17 +1204,11 @@ func _mover_paso(viaje: Dictionary) -> bool:
 		#
 		# Así que no se pregunta al agente de navegación, se MIDE: solo ha llegado quien está de
 		# verdad al lado de su destino. Si dice que ha terminado pero sigue lejos, se le vuelve a
-		# encargar el camino (el servidor ya habrá sincronizado) en vez de darlo por llegado.
+		# encargar el camino (el servidor ya habrá sincronizado) en vez de darlo por llegado. Esta
+		# rama es SIEMPRE sobre un destino que `_fijar_destino_caminante` ya comprobó alcanzable — si
+		# no lo fuera, `bloqueado` habría cortado la función más arriba.
 		var destino: Vector2 = viaje.get("destino", muneco.position)
 		if muneco.position.distance_to(destino) <= DISTANCIA_LLEGADA:
-			return true
-		# Red de seguridad: si el destino es INALCANZABLE (un recinto sin puerta, por ejemplo) esto
-		# no puede reintentar para siempre. Tras `MAX_REINTENTOS_CAMINO` se da por terminado igual —
-		# el muñeco desaparece y el mostrador vuelve a enseñar a su titular, que es mucho mejor que
-		# un policía dando vueltas eternamente por la comisaría.
-		var reintentos: int = int(viaje.get("reintentos", 0)) + 1
-		viaje["reintentos"] = reintentos
-		if reintentos > MAX_REINTENTOS_CAMINO:
 			return true
 		nav.target_position = destino
 		return false
@@ -1152,6 +1216,37 @@ func _mover_paso(viaje: Dictionary) -> bool:
 	muneco.velocity = muneco.global_position.direction_to(siguiente) * _flujo.velocidad_npc_px_s * mult
 	muneco.move_and_slide()
 	return false
+
+
+## Aplica (o rechaza) el destino de un caminante según haya camino REAL hasta él — misma verdad que
+## `NPCCiudadano._actualizar_destino` (`hay_camino`, BFS de `Construccion.distancia_en_celdas`). Sin
+## camino: el viaje queda BLOQUEADO (bandera en el propio `viaje` + señal de prohibido sobre la
+## cabeza, `_marcar_bloqueo_caminante`) y NUNCA se le da al agente de navegación un target
+## inalcanzable — es la causa raíz del teletransporte que reportó el usuario (2026-08-03).
+func _fijar_destino_caminante(
+	viaje: Dictionary, muneco: CharacterBody2D, nav: NavigationAgent2D, destino: Vector2
+) -> void:
+	viaje["destino"] = destino
+	if hay_camino(muneco.position, destino):
+		if bool(viaje.get("bloqueado", false)):
+			viaje["bloqueado"] = false
+			_marcar_bloqueo_caminante(muneco, false)
+		nav.target_position = destino
+	else:
+		viaje["bloqueado"] = true
+		_marcar_bloqueo_caminante(muneco, true)
+
+
+## Muestra/oculta la señal de prohibido sobre la cabeza de un caminante (funcionario en descanso o
+## incorporación) BLOQUEADO por un camino imposible. Mismo icono y mismo criterio que
+## `NPCCiudadano._actualizar_destino` — ver `IconoProhibido`.
+func _marcar_bloqueo_caminante(cuerpo: Node, bloqueado: bool) -> void:
+	var visual: Node2D = _visual_caminante(cuerpo)
+	if visual == null:
+		return
+	var icono: Variant = visual.get_meta(&"icono_bloqueo", null)
+	if icono != null and is_instance_valid(icono):
+		(icono as Node2D).visible = bloqueado
 
 
 ## Avanza un viaje de DESCANSO un paso (delega el movimiento en `_mover_paso`, compartido con la
@@ -1430,6 +1525,14 @@ func _crear_muneco_caminante(agente: RefCounted = null) -> CharacterBody2D:
 		_anadir_cuerpo_policia(visual)
 	registrar_muneco(visual)
 	muneco.set_meta(&"visual", visual)
+	# SEÑAL DE PROHIBIDO (bug 2026-08-03): mismo icono que `NPCCiudadano`, colgado del VISUAL (no del
+	# cuerpo que anda) para que `_marcar_bloqueo_caminante` lo encuentre por metadato, igual que hace
+	# `_poner_taza`/`_quitar_taza` con la taza de café.
+	var icono_bloqueo := IconoProhibidoScript.new()
+	icono_bloqueo.position = Vector2(0.0, -46.0)
+	icono_bloqueo.visible = false
+	visual.add_child(icono_bloqueo)
+	visual.set_meta(&"icono_bloqueo", icono_bloqueo)
 	return muneco
 
 

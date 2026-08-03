@@ -22,6 +22,23 @@ var _estado_visto: StringName = &""
 var _comodidad_vista: StringName = &""
 ## El NavigationServer sincroniza en el 1er physics frame: hasta entonces ni target ni camino.
 var _nav_lista: bool = false
+## ¿Está BLOQUEADO ahora mismo (sin camino REAL hasta su destino — una sala amurallada sin puerta,
+## un tabique recién levantado sobre su ruta)? Mientras sea `true`: SIN CAMINO ⇒ SIN
+## TELETRANSPORTE (bug reportado por el usuario 2026-08-03: *"las personas... SALTAN"*) — el cuerpo
+## no se mueve ni un píxel y encima de su cabeza se ve la señal de prohibido (`IconoProhibido`).
+## Ver `_actualizar_destino`.
+var _bloqueado: bool = false
+## El destino que se le negó (o el vigente, si no está bloqueado): el que se reintenta al recheck.
+var _destino_deseado: Vector2 = Vector2.ZERO
+## Frames transcurridos desde el último intento de reencontrar camino, mientras está bloqueado.
+var _frames_bloqueo: int = 0
+## Cuántos physics frames se esperan entre reintentos de camino mientras está BLOQUEADO (~3 s a
+## 60 fps). Ni cada frame —el BFS de `NPCsFlujo.hay_camino` barre la rejilla entera, gasto inútil
+## si el jugador no ha tocado la obra— ni tan espaciado que se note tardar en desbloquearse tras
+## abrir una puerta.
+const FRAMES_RECHEQUEO_BLOQUEO: int = 180
+## La señal de prohibido sobre la cabeza (nace oculta; ver `configurar` y `_actualizar_destino`).
+var _icono_bloqueo: Node2D = null
 ## Tamaño de la barra de paciencia (px). Ancha para leerse a distancia de cámara sin acercarse.
 const ANCHO_BARRA := 16.0
 const ALTO_BARRA := 3.0
@@ -48,6 +65,8 @@ var muneco: Node2D = null
 
 ## El muñeco de piezas que anda (compartido con los funcionarios: el andar es el mismo para todos).
 const MunecoScript := preload("res://src/main/muneco.gd")
+## La señal de prohibido (bloqueo de camino), compartida con el caminante de NPCsFlujo.
+const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
 ## Prueba de arte: el personaje 3D pre-renderizado que hace de ciudadano mientras se decide el
 ## estilo definitivo. Prefijo vacío = vuelve al muñeco de piezas.
 const PREFIJO_SPRITE := "girl"
@@ -109,6 +128,12 @@ func configurar(
 	_animo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo.visible = false
 	muneco.add_child(_animo)
+	# SEÑAL DE PROHIBIDO (story bug 2026-08-03): por encima de la barra de paciencia, bien despegada
+	# de la cabeza para que no se confunda con ella. Nace oculta — la conmuta `_actualizar_destino`.
+	_icono_bloqueo = IconoProhibidoScript.new()
+	_icono_bloqueo.position = Vector2(0.0, -46.0)
+	_icono_bloqueo.visible = false
+	muneco.add_child(_icono_bloqueo)
 	_manager.registrar_muneco(muneco)
 
 
@@ -150,11 +175,22 @@ func _physics_process(_delta: float) -> void:
 	if persona.estado != _estado_visto or comodidad != _comodidad_vista:
 		_estado_visto = persona.estado
 		_comodidad_vista = comodidad
-		_nav.target_position = _manager.destino_de(self)
+		_actualizar_destino(_manager.destino_de(self))
 	_refrescar_animo()
 	# El paseo escala con el reloj (2×/3× caminan más rápido); en Pausa (mult 0) se congela.
 	var mult: float = Tiempo.multiplicador_velocidad
 	if mult <= 0.0:
+		return
+	# SIN CAMINO ⇒ SIN TELETRANSPORTE (petición del usuario 2026-08-03): quieto del todo —ni target
+	# de navegación ni `move_and_slide`— hasta que un recheck periódico (NO cada frame: el BFS de
+	# `NPCsFlujo.hay_camino` barre la rejilla entera) confirme que ya hay camino. La PACIENCIA sigue
+	# corriendo con normalidad mientras tanto (vive en `Paciencia`, ajena a este estado — FL5): un
+	# bloqueo prolongado acaba en abandono como cualquier otra espera larga.
+	if _bloqueado:
+		_frames_bloqueo += 1
+		if _frames_bloqueo >= FRAMES_RECHEQUEO_BLOQUEO:
+			_frames_bloqueo = 0
+			_actualizar_destino(_destino_deseado)   # ¿ya hay puerta? si no, sigue bloqueado
 		return
 	if _nav.is_navigation_finished():
 		if _estado_visto == &"resuelta" or _estado_visto == &"abandonando":
@@ -171,6 +207,31 @@ func _physics_process(_delta: float) -> void:
 	var siguiente: Vector2 = _nav.get_next_path_position()
 	velocity = global_position.direction_to(siguiente) * velocidad * mult
 	move_and_slide()
+
+
+## Fija (o rechaza) un nuevo destino según haya camino REAL hasta él — se pregunta a
+## `NPCsFlujo.hay_camino` (BFS de `Construccion.distancia_en_celdas`, esquivando muros sin puerta;
+## la MISMA verdad que ya usaba el descanso de los funcionarios, `_camino_hasta`). Si no lo hay, el
+## NPC se queda BLOQUEADO exactamente donde está: JAMÁS se le pone a `_nav` un target inalcanzable.
+##
+## Esta es la causa raíz del teletransporte que reportó el usuario 2026-08-03 (*"las personas...
+## SALTAN"*): ante un destino sin camino real (una sala amurallada sin puerta), el NavigationServer
+## no falla limpio — no hay garantía de que la ruta se quede quieta o corte por el borde más
+## cercano, y de ahí salía el salto. Preguntando ANTES, con la rejilla (no con el propio server), se
+## evita del todo: o se anda de verdad, o no se mueve ni un píxel.
+func _actualizar_destino(destino: Vector2) -> void:
+	_destino_deseado = destino
+	if _manager.hay_camino(global_position, destino):
+		if _bloqueado:
+			_bloqueado = false
+			_frames_bloqueo = 0
+			if _icono_bloqueo != null:
+				_icono_bloqueo.visible = false
+		_nav.target_position = destino
+	else:
+		_bloqueado = true
+		if _icono_bloqueo != null:
+			_icono_bloqueo.visible = true
 
 
 ## px/s (a 1×) para cubrir la distancia restante en los minutos LÓGICOS restantes del camino.
