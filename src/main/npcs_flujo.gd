@@ -113,9 +113,20 @@ var _capa_descansos: Node2D = null
 ## que tapar—, así que ahí es al REVÉS: el policía pasa a jugar el papel de FRENTE y el mostrador
 ## el de PERSONAJE. Sigue siendo el MISMO mecanismo de capas (nunca un `move_child` suelto) — lo
 ## que cambia es A QUÉ CAPA se asigna cada nodo según el modo, no cómo se reordena.
+##
+## CAPA_FRENTE_SUR (2026-08-03, bug con captura del usuario): el LADO SUR de la ventanilla -- la
+## silla de espera y quien se sienta en ella -- va por ENCIMA de todo, mostrador incluido. Es el
+## lado que da a camara: el mostrador de 2 celdas se dibuja desplazado a su celda este y su PNG cae
+## 82 px a la izquierda del ancla, asi que tapa la celda sur entera. Con la silla metida dentro de
+## "Mesa" (era NIETA del contenedor, o sea fuera del mecanismo de capas) su orden dependia del
+## orden interno de ese nodo -- que ademas se permuta entero con el policia -- y acababa saliendo
+## DEBAJO del mostrador: silla y piernas ocultas, como si el ciudadano estuviera subido a la mesa.
+## El CIUDADANO no cuelga de aqui (vive en la capa global de munecos), asi que usa el equivalente
+## por z_index: ver `Z_FRENTE_PUESTO` / `marcar_frente_de_puesto`.
 const CAPA_FONDO: int = 0
 const CAPA_PERSONAJE: int = 1
 const CAPA_FRENTE: int = 2
+const CAPA_FRENTE_SUR: int = 3
 
 ## Coloca/reordena `hijo` en la capa `capa` dentro de `contenedor`. Si `hijo` no es aún su hijo, lo
 ## añade primero. Reordena SOLO los nodos con capa declarada (metadato `capa_iso`), de menor a
@@ -372,6 +383,11 @@ func configurar(
 ## rápido, solo. Y en Pausa se queda quieto sin tener que comprobar la pausa en ningún sitio.
 func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	var destino: Vector2 = Proyeccion.proyectar(punto_cuadrado)
+	# ARRIME al mostrador: desvío de DIBUJO de quien está en el frente de una ventanilla, para que
+	# se siente sobre su silla y no media celda por debajo (ver `ARRIME_FRENTE_PUESTO`). Nadie más
+	# lleva este metadato, así que ni los que caminan ni los funcionarios se enteran.
+	if bool(visual.get_meta(&"arrime_puesto", false)):
+		destino += ARRIME_FRENTE_PUESTO
 	# Gotcha de Godot: `get_meta(clave, defecto)` avisa igualmente si la clave no existe, así que se
 	# pregunta primero con `has_meta` (el primer frame de cada muñeco no tiene posición previa).
 	var recorrido: float = float(visual.get_meta(&"recorrido")) if visual.has_meta(&"recorrido") else 0.0
@@ -459,6 +475,58 @@ func esta_sentado(npc: Node) -> bool:
 	# Su plaza es un ASIENTO si en esa celda hay un elemento de tipo asiento.
 	var elemento: StringName = _construccion.elemento_en(plaza)
 	return elemento != &"" and _construccion.catalogo_de(elemento) == _construccion.ASIENTO_BASICO
+
+
+## ¿Está este ciudadano PLANTADO EN EL FRENTE de su ventanilla (sentado o de pie, mientras le
+## atienden)? Es lectura pura del estado lógico (FL5): `en_atencion` es exactamente el tramo en el
+## que el juego le manda a `_frente_del_puesto`, la celda sur del mostrador. Mientras camina por el
+## mapa (incluida la llamada anticipada, que espera DOS celdas más atrás) devuelve `false`.
+func en_frente_del_puesto(npc: Node) -> bool:
+	if npc == null or npc.get("persona") == null:
+		return false
+	return npc.persona.estado == &"en_atencion"
+
+
+## ── EL CIUDADANO ATENDIDO, POR ENCIMA DEL MOSTRADOR (2026-08-03) ──────────────────────────────
+## La silla de espera lo resuelve con una capa del contenedor (`CAPA_FRENTE_SUR`, ADR-0005), pero el
+## ciudadano NO cuelga de ese contenedor: vive en la capa global de muñecos (`registrar_muneco`),
+## donde se le copia la posición proyectada cada physics frame y donde el y-sort le ordena contra
+## todo lo demás. Meterlo en el contenedor del puesto para poder darle capa sería peor: dejaría de
+## ser hermano del resto de muñecos justo mientras le atienden, y el y-sort de la capa de escena ya
+## no le compararía con nadie (entraría y saldría del contenedor en cada llamada).
+##
+## Alternativa elegida, la del ADR para casos entre capas de escena distintas: **z_index de ESTADO**
+## — sube a `Z_FRENTE_PUESTO` SOLO mientras está en el frente del puesto y vuelve a 0 al salir. Es
+## determinista (depende de un estado del modelo, no del orden de creación de nodos), reversible y
+## no toca a nadie más: el ciudadano que ANDA por el mapa se queda en z 0 y lo sigue ordenando el
+## y-sort como siempre. Verificado en engine-reference (isometrico-2d.md §5): el y-sort ordena
+## DENTRO de cada grupo de z_index y jamás dibuja un z menor por delante de uno mayor.
+const Z_FRENTE_PUESTO: int = 1
+
+## ── Y EL ARRIME AL MOSTRADOR (mismo estado, misma función) ────────────────────────────────────
+## El 2026-08-03 el usuario eligió el "arrime al borde" (variante C): silla y persona PEGADAS al
+## mostrador, a MEDIO paso del ancla en vez de en el centro de su celda. La silla se movió
+## (`MesaAtencion.CELDA_CIUDADANO`) pero el CIUDADANO no, porque a él no le coloca esa constante
+## sino su cuerpo del plano lógico, que sigue —y debe seguir— en el centro de la celda sur
+## (`_frente_del_puesto`; ADR-0004: la navegación y el modelo no se tocan por un ajuste visual).
+## Resultado: se sentaba media celda por debajo de su silla, otra vez el *"no coincide donde se
+## sientan los ciudadanos con donde está la silla"*. Se corrige con un desvío SOLO DE DIBUJO, del
+## mismo estado que el z_index: media celda hacia el norte (hacia el mostrador), que es la mitad
+## exacta del salto de pantalla de una celda.
+const ARRIME_FRENTE_PUESTO := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, -Proyeccion.MEDIO_ALTO / 2.0)
+
+
+## Marca el muñeco de un ciudadano como "en el frente de su ventanilla": z_index por encima del
+## mostrador y arrime de medio paso a su silla. Por DIFF (solo escribe si cambia); se llama una vez
+## por ciudadano y physics frame. Al salir del estado se deshacen las dos cosas.
+func marcar_frente_de_puesto(visual: Node2D, en_frente: bool) -> void:
+	if visual == null:
+		return
+	var z: int = Z_FRENTE_PUESTO if en_frente else 0
+	if visual.z_index != z:
+		visual.z_index = z
+	if bool(visual.get_meta(&"arrime_puesto", false)) != en_frente:
+		visual.set_meta(&"arrime_puesto", en_frente)
 
 
 ## Un punto del plano lógico cuadrado, llevado a coordenadas de PANTALLA (globales). Lo usan el
@@ -1350,6 +1418,10 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	)
 	policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	_insertar_en_capa(contenedor, policia, CAPA_FRENTE)
+	# LA SILLA DE ESPERA (lado SUR, el que da a camara) va por ENCIMA del mostrador: es lo que hay
+	# DELANTE de la ventanilla, no detras. Hermana de "Mesa" y en su propia capa (2026-08-03, ver
+	# CAPA_FRENTE_SUR) -- antes era hija de "Mesa" y el mostrador de 2 celdas la tapaba.
+	_insertar_en_capa(contenedor, MesaAtencionScript.silla_ciudadano(), CAPA_FRENTE_SUR)
 	# Etiqueta de nombre (bajo el muñeco). Ancho fijo 60 + centrado para no depender del texto. Font
 	# 8 (un punto menos que el resto): entre nombre/estado/minutos, el nombre es el dato MENOS
 	# accionable (feedback 2026-07-29 de solape) — si algo tiene que ceder espacio, es él.
@@ -1528,11 +1600,13 @@ func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: St
 		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
 	if contenedor.get_meta(&"policia_sentado", false) != con_sprite:
 		contenedor.set_meta(&"policia_sentado", con_sprite)
+		# POR CAPAS, nunca con `move_child` sueltos (ADR-0005): lo unico que cambia entre modos es a
+		# QUE capa va cada nodo. Sentado: el mostrador delante, tapandole las piernas. De pie: el
+		# muneco es mas alto que el mostrador y va el delante. La silla del funcionario (FONDO) y la
+		# del ciudadano (FRENTE_SUR) no se tocan: su capa no depende del modo.
 		var mesa: Node2D = contenedor.get_node("Mesa")
-		if con_sprite:
-			contenedor.move_child(policia, mesa.get_index())   # el mostrador pasa a pintarse DESPUÉS
-		else:
-			contenedor.move_child(mesa, policia.get_index())   # el policía vuelve a pintarse POR ENCIMA
+		_insertar_en_capa(contenedor, policia, CAPA_PERSONAJE if con_sprite else CAPA_FRENTE)
+		_insertar_en_capa(contenedor, mesa, CAPA_FRENTE if con_sprite else CAPA_PERSONAJE)
 
 
 ## Color del RELLENO de la barra de cansancio, por tramo. Reutiliza tonos que YA existen en este

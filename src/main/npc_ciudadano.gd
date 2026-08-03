@@ -133,6 +133,12 @@ func _physics_process(_delta: float) -> void:
 		# ¿Sentado? Se marca en el muñeco y la capa visual elige el sprite que toca. Se consulta
 		# aquí (una vez por frame y por persona) porque depende del estado lógico, que cambia solo.
 		muneco.set_meta(&"sentado", _manager.esta_sentado(self))
+		# ORDEN DE DIBUJO EN LA VENTANILLA (2026-08-03): mientras le atienden está en la celda sur,
+		# DELANTE del mostrador, y tiene que verse por encima de él (piernas y silla incluidas). Se
+		# hace con z_index de estado porque el muñeco no cuelga del contenedor del puesto y no puede
+		# usar sus capas — ver `NPCsFlujo.marcar_frente_de_puesto` para el porqué completo. Andando
+		# por el mapa vuelve a z 0 y lo ordena el y-sort de siempre.
+		_manager.marcar_frente_de_puesto(muneco, _manager.en_frente_del_puesto(self))
 		_manager.colocar_muneco(muneco, position)
 	if not _nav_lista:
 		_nav_lista = true   # a partir de aquí el server ya sincronizó: los targets valen

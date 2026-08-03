@@ -294,27 +294,34 @@ static func construir(es_legado: bool = false) -> Node2D:
 			"Papeles2", encima + DECOR_HACIA_CIUDADANO + Vector2(6.0, 2.0), ALTO_PAPEL, ESCALA_PAPEL,
 			COLOR_PAPEL.darkened(0.08)
 		))
-	# LA SILLA DEL CIUDADANO va aquí dentro, AL FINAL para que se dibuje por encima del tablero
-	# (código o sprite) — está delante de la mesa, no dentro, pero el orden de dibujo de un solo
-	# lado (mesa → silla) no tiene ningún tercero (policía) de por medio, así que basta con el
-	# orden interno de este nodo.
-	#
-	# LA SILLA DEL FUNCIONARIO **NO** vive aquí — aviso del usuario 2026-08-01, viendo el juego:
-	# *"la silla, luego encima el policía, y luego la mesa tapando al policía y a la silla"*. Con
-	# la silla como hija de "Mesa", todo el bloque Mesa (tablero + silla) se moja junto al
-	# intercambiar mesa↔policía en `npcs_flujo._reconstruir_cuerpo_policia`, y la silla salía
-	# SIEMPRE por encima del policía sentado (el bug que reportó). Ahora es HERMANA de "Mesa" y
-	# "Policia" en el contenedor del puesto —la monta `_asegurar_visual_puesto`, SIEMPRE la
-	# primera— así puede quedarse fija al fondo mientras mesa y policía se intercambian entre sí.
-	#
-	# LA POSICIÓN usa `CELDA_CIUDADANO` (centro de la celda sur, regla de rejilla 2026-08-02) — es
-	# el MISMO punto al que `NPCsFlujo._frente_del_puesto` manda al ciudadano ya sentado, así que
-	# silla y ciudadano SIEMPRE coinciden (ver el comentario junto a la constante, arriba).
+	# NINGUNA DE LAS DOS SILLAS vive aquí dentro: las dos son HERMANAS de "Mesa" en el contenedor
+	# del puesto, cada una en SU CAPA con nombre (ADR-0005) — ver `silla_ciudadano()` abajo y
+	# `NPCsFlujo._asegurar_visual_puesto`. La del funcionario salió el 2026-08-01 (aviso del
+	# usuario: *"la silla, luego encima el policía, y luego la mesa tapando al policía y a la
+	# silla"*) y la del ciudadano el 2026-08-03, por el mismo motivo de fondo: siendo NIETAS del
+	# contenedor quedaban fuera del mecanismo de capas y su orden dependía del orden interno de
+	# este nodo, que además se intercambia entero con el policía en `_reconstruir_cuerpo_policia`.
+	return raiz
+
+
+## LA SILLA DEL CIUDADANO, suelta y ya colocada — la cuelga `NPCsFlujo._asegurar_visual_puesto` en
+## la capa `CAPA_FRENTE_SUR` del contenedor del puesto (ADR-0005), POR ENCIMA del mostrador.
+##
+## Por qué encima y no dentro de "Mesa" (bug del 2026-08-03, con captura): el mostrador de 2 celdas
+## se dibuja desplazado a su celda ESTE (`Proyeccion.delta_ultima_celda`) y su PNG cae 82 px hacia
+## la izquierda del ancla, así que TAPA la celda sur entera — justo donde están la silla de espera
+## y el ciudadano al que atienden. Metida dentro de "Mesa" la silla dependía del orden interno de
+## ese nodo (y ese nodo entero se permuta con el policía), y acababa saliendo DEBAJO del mostrador:
+## silla y piernas ocultas, como si estuvieran subidos a la mesa. Con capa propia el orden es fijo:
+## mostrador (FRENTE) < silla de espera (FRENTE_SUR).
+##
+## LA POSICIÓN usa `CELDA_CIUDADANO` (arrime de medio paso, ver la constante): el mismo punto al que
+## mira el ciudadano cuando le atienden.
+static func silla_ciudadano() -> Node2D:
 	var del_ciudadano: Node2D = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
 	del_ciudadano.name = "SillaCiudadano"
 	del_ciudadano.position = CELDA_CIUDADANO
-	raiz.add_child(del_ciudadano)
-	return raiz
+	return del_ciudadano
 
 
 static func _pieza(nombre: String, pos: Vector2, alto: float, escala: float, color: Color) -> Node2D:
