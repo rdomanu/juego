@@ -67,6 +67,9 @@ Las tres lámparas (punto de luz ámbar), televisión, radio, prensa, revistero,
     cuadrícula. Solo aplica a la ventanilla (`MesaAtencion.CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`,
     ahora a MEDIO paso de celda en vez de uno completo); el resto del mobiliario sigue con el
     centro de celda entero de la regla de arriba.
+  - **Atención centrada en el mostrador (decisión usuario 2026-08-03)**: las sillas de la
+    ventanilla forman parte del puesto compuesto y pueden pisar la costura de SUS celdas — la
+    regla de rejilla de arriba aplica a objetos COLOCABLES.
 - **Al validar asientos**: la dirección de una silla se juzga con la silla VACÍA (un muñeco
   sentado encima tapa justo lo que hay que mirar) y la alineación, con la REJILLA dibujada en el
   fotomontaje.

@@ -99,7 +99,7 @@ const ROT_MOSTRADOR: int = 0
 ## base como referencia, los dos sprites NO comparten fracción (encuadres distintos): una
 ## constante por cada uno.
 const ANCLA_FRACCION_MOSTRADOR := Vector2(0.521, 0.727)      # 1 celda (legado)
-const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.825, 0.732)    # 2 celdas (pieza CONTINUA, monitor oeste)
+const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.825, 0.703)    # 2 celdas (monitor CENTRADO, lienzo 100×74)
 
 ## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02, MEDIO PASO desde 2026-08-03) ────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
@@ -147,19 +147,37 @@ const FONDO_SILLA_FUNCIONARIO: float = FONDO_BASE_SILLA_FUNCIONARIO_PX / Proyecc
 ## Y el arrime resultante, en PASOS de celda (0,5 = la frontera; menos = dentro de su celda).
 const ARRIME_CIUDADANO: float = 0.5 - FONDO_SILLA_ESPERA / 2.0            # 0,30625
 const ARRIME_FUNCIONARIO: float = 0.5 - FONDO_SILLA_FUNCIONARIO / 2.0     # 0,29375
+
+## ── ATENCIÓN CENTRADA EN EL MOSTRADOR (decisión del usuario, 2026-08-03) ─────────────────────
+## Con solo el arrime de arriba, TODA la atención caía en la celda OESTE del mostrador de 2 celdas
+## (la que pisan `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`, ambas ancladas a la celda del puesto en el
+## modelo). Viendo el mostrador ya colocado, el usuario pidió: *"pon la mesa justo en la mitad
+## entre el asiento del policía y la silla del ciudadano; la atención puede ser en la mitad"*.
+##
+## Se resuelve corriendo a la gente (silla+persona juntas, los dos lados — ver la cabecera de
+## arriba) MEDIO PASO DE CELDA hacia el ESTE en pantalla: de la celda OESTE del mostrador a la
+## COSTURA entre sus 2 celdas. Medio paso es la mitad de `MEDIO_ANCHO`/`MEDIO_ALTO` (que YA es el
+## paso de una celda completa), sumado al punto donde NACEN `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`
+## — los `ARRIME_*` al borde de la silla (arriba) no cambian, solo se traslada el conjunto entero.
+const DESVIO_CENTRADO_ATENCION := Vector2(Proyeccion.MEDIO_ANCHO / 2.0, Proyeccion.MEDIO_ALTO / 2.0)
+
 const CELDA_FUNCIONARIO := Vector2(   # norte, detrás
 	Proyeccion.MEDIO_ANCHO * ARRIME_FUNCIONARIO, -Proyeccion.MEDIO_ALTO * ARRIME_FUNCIONARIO
-)
+) + DESVIO_CENTRADO_ATENCION
 const CELDA_CIUDADANO := Vector2(     # sur, delante
 	-Proyeccion.MEDIO_ANCHO * ARRIME_CIUDADANO, Proyeccion.MEDIO_ALTO * ARRIME_CIUDADANO
-)
+) + DESVIO_CENTRADO_ATENCION
 ## Del centro de la celda SUR (donde el modelo planta al ciudadano, `_frente_del_puesto`) al punto
 ## donde está su silla. Es el desvío de DIBUJO que le aplica `NPCsFlujo.colocar_muneco` mientras le
-## atienden, para que se siente sobre la silla y no en el centro de la celda. Un paso entero menos
-## el arrime, con el signo cambiado porque va hacia el norte (hacia el mostrador).
-const DESVIO_DIBUJO_CIUDADANO := Vector2(
-	Proyeccion.MEDIO_ANCHO * (1.0 - ARRIME_CIUDADANO), -Proyeccion.MEDIO_ALTO * (1.0 - ARRIME_CIUDADANO)
-)
+## atienden, para que se siente sobre la silla y no en el centro de la celda.
+##
+## Reescrita 2026-08-03 EN TÉRMINOS DE `CELDA_CIUDADANO` (antes: "un paso entero menos el arrime,
+## con el signo cambiado", una cuenta paralela que duplicaba el arrime a mano). Si se hubiera
+## dejado así, `DESVIO_CENTRADO_ATENCION` habría movido la silla sin mover al ciudadano —la MISMA
+## familia de bug que ya avisa la cabecera de más arriba, "persona y silla, siempre juntas"—.
+## Anclar la fórmula a la propia constante es la única forma de que no se puedan volver a separar:
+## un paso entero (`MEDIO_ANCHO, -MEDIO_ALTO`, sin arrime) desde `CELDA_CIUDADANO` hacia el sur.
+const DESVIO_DIBUJO_CIUDADANO := CELDA_CIUDADANO + Vector2(Proyeccion.MEDIO_ANCHO, -Proyeccion.MEDIO_ALTO)
 
 
 ## ¿Hay un sprite renderizado para este mostrador (`ID_SPRITE_MOSTRADOR` o `ID_SPRITE_MOSTRADOR_2`)?
@@ -320,6 +338,19 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 	return raiz
 
 
+## ── MESA CENTRADA ENTRE LOS ASIENTOS (decisión del usuario, 2026-08-03) ──────────────────────
+## La base del sprite de 2 celdas (`mostrador_atencion2`) mide ~0,44 celdas de FONDO (el eje
+## perpendicular al mostrador), y hoy su esquina sur queda pegada al borde sur de sus celdas: toda
+## la holgura (~0,56 celdas) cae al norte. Mismo pedido que `DESVIO_CENTRADO_ATENCION` de arriba
+## — centrar la mesa entre el asiento del policía y la silla del ciudadano—, aplicado al MUEBLE en
+## vez de a la gente: la mitad de esa holgura (0,28 celdas) se corre hacia el NORTE en pantalla.
+##
+## Solo al sprite de 2 celdas (`superficie == 2`, el caso normal desde 2026-08-02): el de 1 celda
+## (huella legado, `es_legado`) no se ha vuelto a medir con esta regla y es una excepción de saves
+## viejos, no del juego de hoy — tocarlo sin verificar sería inventar un número.
+const DESVIO_CENTRADO_MESA := Vector2(0.28 * Proyeccion.MEDIO_ANCHO, -0.28 * Proyeccion.MEDIO_ALTO)
+
+
 ## Monta la mesa completa. Se coloca en el CENTRO de la celda de TRABAJO (el ancla del modelo) y
 ## todo va en local. `es_legado`: el puesto es una huella legado de 1 celda
 ## (`Construccion.es_huella_legado`) — usa el sprite/tablero de 1 celda, sin desplazar; si no (el
@@ -329,7 +360,8 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 ## que usa `Construccion` para sus comodidades multi-celda — no es un caso especial del
 ## mostrador). "Mesa" en sí se queda en el ancla del modelo (silla/policía siguen anclando ahí vía
 ## `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`, sin tocar); con 1 celda el delta es cero, así que el
-## camino legado no necesita su propio `if` de posición.
+## camino legado no necesita su propio `if` de posición. Al de 2 celdas, además, se le suma
+## `DESVIO_CENTRADO_MESA` (ver esa constante) para centrarlo entre los dos asientos.
 static func construir(es_legado: bool = false) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Mesa"
@@ -342,6 +374,8 @@ static func construir(es_legado: bool = false) -> Node2D:
 	if hay_sprite_mostrador(id_sprite):
 		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, ancla_mostrador)
 		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
+		if not es_legado:
+			tablero.position += DESVIO_CENTRADO_MESA
 		raiz.add_child(tablero)
 	else:
 		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))

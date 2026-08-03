@@ -147,7 +147,7 @@ const DESPLAZAMIENTO_RADIO := Vector3(-0.488, 0.128, -7.730)
 ## sprite si queda montado sobre el monitor o volando del borde.
 const DESPLAZAMIENTO_TELEFONO := Vector3(-4.841, -0.086, -8.176)
 
-## SOLO para `mostrador_atencion2` (usuario 2026-08-03, retoque tras aprobar la pieza estirada).
+## SOLO para `mostrador_atencion2` (usuario 2026-08-03, 2º retoque: la atención pasa al CENTRO).
 ##
 ## IDENTIFICACIÓN VERIFICADA por render de diagnóstico (flotando cada grupo +3/+5/+7 m en Y, uno
 ## por uno, y mirando qué sube en la imagen -- descarta el primer vistazo a ojo, que había
@@ -157,21 +157,25 @@ const DESPLAZAMIENTO_TELEFONO := Vector3(-4.841, -0.086, -8.176)
 ## IZQUIERDA. El usuario define OESTE = arriba-izquierda en pantalla en rot 0 -- por tanto OESTE es
 ## el extremo ESTIRADO (vacío) y ESTE es el extremo del PIVOTE (donde ya estaba todo el equipo).
 ##
-## Pedido: monitor+teclado+ratón a la mitad OESTE (el extremo estirado) y teléfono a la ESTE. El
-## teléfono YA estaba en el pivote (`DESPLAZAMIENTO_TELEFONO`) -- que es la mitad ESTE -- así que
-## NO necesita desplazamiento propio: se queda con el mismo que `mostrador_atencion` (ver
-## `desplazamientos_telefono` en `_recetas`). Lo que se mueve es el CLUSTER monitor+teclado+ratón,
-## como bloque rígido (mismo delta para los tres, para no romper su colocación relativa unos con
-## otros), reflejado desde su distancia actual al borde ESTE (pivote) a la MISMA distancia desde el
-## nuevo borde OESTE (el extremo estirado, ver `FACTOR_LARGO_MOSTRADOR2`):
+## Decisión previa (SUSTITUIDA, ver historial git): monitor+teclado+ratón a la mitad OESTE
+## (el extremo estirado). Rechazada/reemplazada por el usuario 2026-08-03: la atención pasa al
+## CENTRO del mostrador de dos puestos -- el teléfono SÍ puede quedarse en un extremo (ESTE, el
+## pivote; sigue sin desplazamiento propio, ver `desplazamientos_telefono`). La pantalla sigue
+## mirando al NORTE (regla fija): esta traslación es solo en X, ninguna pieza rota, así que la
+## orientación del monitor no cambia.
+##
+## Cálculo (mismo cluster rígido monitor+teclado+ratón, delta común a los tres para no romper su
+## colocación relativa entre ellos):
 ##   centro_x monitor (sin desplazar) = (-8,5795-8,0337)/2 = -8,3066
-##   distancia al pivote (ESTE, X=-7,7778) = -7,7778-(-8,3066) = 0,5288
-##   borde OESTE ya estirado = -7,7778 + (-9,3681-(-7,7778))×2,00 = -10,9584
-##   objetivo = -10,9584 + 0,5288 = -10,4296
-##   delta = objetivo - centro_x_original = -10,4296-(-8,3066) = -2,1230
+##   borde ESTE (pivote, sin estirar) = -7,7778
+##   borde OESTE (estirado, `FACTOR_LARGO_MOSTRADOR2`=2,00) = -7,7778 + (-9,3681-(-7,7778))×2,00
+##                                                          = -10,9584
+##   centro del cuerpo estirado ("centro del mostrador") = (-10,9584 + -7,7778) / 2 = -9,3681
+##   delta = objetivo - centro_x_original = -9,3681 - (-8,3066) = -1,0615
 ## Solo X (Y/Z intactos: mismo alto sobre el tablero, misma profundidad -- el estirón tampoco los
-## toca). Si se retoca `FACTOR_LARGO_MOSTRADOR2`, el borde oeste se mueve -- recalcular igual.
-const DESPLAZAMIENTO_EQUIPO_MOSTRADOR2 := Vector3(-2.1230, 0.0, 0.0)
+## toca). Si se retoca `FACTOR_LARGO_MOSTRADOR2` se mueve el borde OESTE y por tanto el centro --
+## recalcular igual.
+const DESPLAZAMIENTO_EQUIPO_MOSTRADOR2 := Vector3(-1.0615, 0.0, 0.0)
 
 ## Piezas de OBJ_021 (el escritorio) SIN la silla horneada (ver el aviso dentro de `_recetas`, en
 ## `ID_MOSTRADOR`, sobre por qué se excluye) -- 27 piezas: cuerpo del escritorio, cajonera,
@@ -276,8 +280,8 @@ static func _recetas() -> Array[Dictionary]:
 	# cuerpo, SIN `escala_x` (quedan tal cual estaban -- ver la cabecera del fichero). El teléfono
 	# usa el MISMO desplazamiento que en `mostrador_atencion` (ya cae en el pivote, la mitad ESTE);
 	# monitor+teclado+ratón llevan `DESPLAZAMIENTO_EQUIPO_MOSTRADOR2` (los tres, el mismo, para
-	# moverse en bloque a la mitad OESTE sin romper su colocación relativa) -- ver la cabecera de
-	# esa constante para la identificación verificada por render y la cuenta del reflejo.
+	# moverse en bloque al CENTRO del mostrador sin romper su colocación relativa) -- ver la
+	# cabecera de esa constante para la identificación verificada por render y la cuenta del centrado.
 	var nombres_accesorios_mostrador: PackedStringArray = NOMBRES_MONITOR.duplicate()
 	nombres_accesorios_mostrador.append_array(NOMBRES_TECLADO)
 	nombres_accesorios_mostrador.append_array(NOMBRES_RATON)
@@ -310,10 +314,10 @@ static func _recetas() -> Array[Dictionary]:
 			# módulo), sin necesidad de un multiplicador aparte.
 			# RETOQUE 2026-08-03 (tras aprobar la pieza estirada): identificado por render de
 			# diagnóstico (flotando cada grupo en Y) que el PIVOTE cae en la mitad ESTE en pantalla
-			# (no oeste, como se supuso a ojo la primera vez) -- monitor+teclado+ratón se mueven en
-			# bloque a la mitad OESTE (`DESPLAZAMIENTO_EQUIPO_MOSTRADOR2`) y el teléfono se queda en
-			# el pivote (mitad ESTE, su desplazamiento de siempre), para no amontonar los cuatro
-			# accesorios en la misma punta de un mostrador que ahora mide el doble.
+			# (no oeste, como se supuso a ojo la primera vez). 2º retoque, mismo día: la atención
+			# pasa al CENTRO -- monitor+teclado+ratón se mueven en bloque al centro del mostrador
+			# (`DESPLAZAMIENTO_EQUIPO_MOSTRADOR2`) y el teléfono se queda en el pivote (mitad ESTE,
+			# su desplazamiento de siempre), en un extremo, como pide el usuario.
 			"id_salida": ID_MOSTRADOR_2CELDAS,
 			"grupos": [
 				{
