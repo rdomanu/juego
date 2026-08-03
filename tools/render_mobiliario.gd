@@ -373,13 +373,28 @@ static func _recetas() -> Array[Dictionary]:
 		{
 			# ARQ_007: el sofá de 3 plazas (mal archivado como "arquitectura" por tamaño — lado
 			# mayor 1,90 m, por encima de `UMBRAL_ARQUITECTURA` de `render_catalogo_objetos.gd`).
-			# Pieza única, sin rotación propia (base identidad). Su eje LARGO (1,90 m) corre en Z
-			# de mundo, que es el mismo eje que usa `Proyeccion`/`Construccion` para VERTICAL (ver
-			# la cabecera del fichero: "como el render usa X y Z donde la rejilla usa X e Y") — así
-			# que la rotación 0° de este render YA es la pose VERTICAL del asiento, y la de 90° es
-			# la HORIZONTAL. `Construccion` elige entre esas dos, nunca 180/270.
+			# Su eje LARGO (1,90 m) corre en Z de mundo, que es el mismo eje que usa
+			# `Proyeccion`/`Construccion` para VERTICAL (ver la cabecera del fichero: "como el
+			# render usa X y Z donde la rejilla usa X e Y") — así que la rotación 0° de este render
+			# YA es la pose VERTICAL del asiento, y la de 90° es la HORIZONTAL. `Construccion`
+			# elige entre esas dos, nunca 180/270.
+			#
+			# BUG (usuario + coordinador, 2026-08-03): faltaba el cojín de respaldo de la PRIMERA
+			# plaza (rot 90/180 dejaban un hueco atravesable hasta el asiento). El "despiece por
+			# volumen" del catálogo (ver `catalogo_objetos_manifest.json`) partió el sofá en DOS
+			# clusters: `ARQ_007` (`Object_384`, cuerpo+brazos+2 de los 3 cojines de respaldo
+			# horneados en la misma malla) y, SEPARADO, `OBJ_010` (`Object_385`, 1 pieza) — la
+			# clasificación por tamaño lo mandó a "objetos" en vez de agruparlo con `ARQ_007`. La
+			# receta original solo tiraba de `ARQ_007` y se dejaba fuera `Object_385`. Confirmado
+			# con `tools/_diag_arq007.gd` (desechable): en un radio de 2,5 m alrededor del sofá,
+			# las ÚNICAS DOS piezas del `.glb` son `Object_384` y `Object_385` (ninguna firma de
+			# forma —tamaño local, ver `_firma_forma` de `render_despiece_objetos.gd`— de ninguna
+			# de las dos se repite en NINGÚN otro punto del modelo) — no hay una tercera instancia
+			# perdida en otra parte, así que "añadir la semilla que falta" es sumar `Object_385` a
+			# esta receta. Verificado visualmente con `_reescalar_sofa.tscn`: con las dos piezas,
+			# rot 90/180 muestran los TRES cojines de respaldo, sin hueco.
 			"id_salida": ID_ASIENTO_SOFA3,
-			"nombres": PackedStringArray(["Object_384"]),
+			"nombres": PackedStringArray(["Object_384", "Object_385"]),
 		},
 		{
 			# La silla de espera "canónica": de OBJ_023/024/030/032 (misma silla, 4 copias — sin

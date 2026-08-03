@@ -392,6 +392,14 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 ## (huella legado, `es_legado`) no se ha vuelto a medir con esta regla y es una excepción de saves
 ## viejos, no del juego de hoy — tocarlo sin verificar sería inventar un número.
 const DESVIO_CENTRADO_MESA := Vector2(0.28 * Proyeccion.MEDIO_ANCHO, -0.28 * Proyeccion.MEDIO_ALTO)
+## Corrección A LO LARGO del eje del mostrador (2026-08-03, medida sobre la rejilla del diagnóstico
+## de oclusión, caso C4): la masa del sprite asomaba ~0,4 celdas por el sureste de su huella y se
+## quedaba ~0,37 corta por el noroeste. Desplazamiento de 0,38 pasos hacia el NOROESTE de pantalla
+## (dirección −u: un paso al oeste lógico proyecta (−MEDIO_ANCHO, −MEDIO_ALTO)). Verificado
+## re-lanzando el diagnóstico hasta asomos simétricos.
+const DESVIO_CENTRADO_MESA_LARGO := Vector2(
+	-0.38 * Proyeccion.MEDIO_ANCHO, -0.38 * Proyeccion.MEDIO_ALTO
+)
 
 
 ## Monta la mesa completa. Se coloca en el CENTRO de la celda de TRABAJO (el ancla del modelo) y
@@ -418,7 +426,7 @@ static func construir(es_legado: bool = false) -> Node2D:
 		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, ancla_mostrador)
 		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
 		if not es_legado:
-			tablero.position += DESVIO_CENTRADO_MESA
+			tablero.position += DESVIO_CENTRADO_MESA + DESVIO_CENTRADO_MESA_LARGO
 		raiz.add_child(tablero)
 	else:
 		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))

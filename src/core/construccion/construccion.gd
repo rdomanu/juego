@@ -1957,8 +1957,8 @@ const ROT_ASIENTO_SOFA3_HORIZONTAL: int = 90
 ## Una ancla por rotación — el encuadre de 90°/270° no es el mismo que el de 0°/180° (dato del
 ## coordinador, 2026-08-02, midiendo la base real de cada PNG — no el centro de encuadre que
 ## imprimía antes la herramienta).
-const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.248, 0.731)      # rot 180 (2 celdas, 2026-08-03)
-const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.734, 0.731)    # rot 90 (2 celdas, 2026-08-03)
+const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.284, 0.728)      # rot 180 (respaldo recuperado)
+const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.697, 0.728)    # rot 90 (respaldo recuperado)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
