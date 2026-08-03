@@ -21,22 +21,31 @@ class_name ParedesSalas extends Node2D
 ## sangrando POR ENCIMA de ella (la altura de esa pared no alcanzaba a cubrir el respaldo del sofá,
 ## así que el mueble parecía salirse del recinto). Decisión del usuario, la solución clásica del
 ## género (Theme Hospital / Two Point Hospital): las dos aristas de una sala cuyo lado EXTERIOR mira
-## a cámara (sur y este) se dibujan a MEDIA altura y en una capa POR ENCIMA del mobiliario estático
-## —así tapan la base de cualquier mueble arrimado a ellas, sofá incluido—; las traseras (norte y
-## oeste) se quedan exactamente como estaban: altura completa, en su capa de siempre.
+## a cámara (sur y este) se dibujan a MEDIA altura —así tapan la base de cualquier mueble arrimado a
+## ellas, sofá incluido— y las traseras (norte y oeste) se quedan a altura completa. Esa parte
+## (`_cara_de_arista`, la regla "si detrás hay sala, es pared cercana y va baja") SIGUE VIGENTE.
 ##
-## El reparto en dos pasadas (`_fondo`/`_frente`, ambas instancias de `CapaParedes`) es puro DIBUJO:
-## la geometría y el modelo los sigue leyendo y calculando ESTE fichero (`_recalcular_tramos`); las
-## dos pasadas solo reciben ya el paquete de tramos/jambas que les toca y pintan. Ver
-## `_cara_de_arista` (quién decide "cercana"/"frente") y `_repartir_en_capas` (quién los separa).
+## ── ORDEN POR PROFUNDIDAD, UN NODO POR TRAMO (2026-08-03, 3ª enmienda: el arreglo ESTRUCTURAL) ──
+## Lo que se retira hoy es el REPARTO EN CAPAS. Hasta ahora estas paredes se pintaban en dos pasadas
+## (`ParedesFondo` z 0 / `ParedesFrente` z 1), cada una un `_draw()` con TODOS sus tramos dentro: el
+## orden contra el mobiliario lo decidía un z GLOBAL por pasada. Con eso, un muro DIVISORIO entre dos
+## salas no tiene orden correcto posible —es la pared de delante de una sala y la de atrás de la
+## otra— y el parche de ayer ("en un divisorio gana siempre el mobiliario, en las dos") lo rechazó el
+## usuario con su caso real: una ventanilla pegada al divisorio Documentación/ODAC dibujaba el
+## mostrador ENCIMA del muro que le debía tapar la base.
 ##
-## ── FIX POSTERIOR — PARED TRASERA TAPADA POR EL MOBILIARIO (2026-08-03, misma fecha, otro bug) ──
-## La frase de arriba ("las traseras... se quedan en su capa de siempre") describía un bug, no una
-## garantía: esa "capa de siempre" (z_index 1, por ENCIMA del mobiliario) hacía que un sofá pegado a
-## una pared NORTE/OESTE se dibujara por DEBAJO de ella (reporte de partida del usuario). La ALTURA
-## de la pasada trasera NO cambia (sigue en `ALTO_PARED`, completa); lo que cambia es su CAPA:
-## `Z_PAREDES_FONDO` baja a 0 (empate con el mobiliario, resuelto por orden en el árbol — ver ese
-## const más abajo para el detalle completo). La pasada frontal no se toca — nunca tuvo este bug.
+## Ahora cada tramo es un `TramoPared` propio (un `CanvasItem` por tramo) y todos viven en la BOLSA
+## DE Y-SORT COMPARTIDA del juego (`Main` → "MundoProfundo"), junto con el mobiliario estático de
+## Construcción (`_capa_elementos`) y los contenedores de las ventanillas (`NPCsFlujo`). El motor
+## ordena la bolsa entera por la Y de pantalla de cada pieza (algoritmo del pintor): cada muro sale
+## automáticamente DETRÁS de lo que tiene delante y DELANTE de lo que tiene detrás, sin elegir. El
+## punto por el que se compara cada tramo es el CENTRO DE SU BASE (`_punto_de_orden`), que en esta
+## proyección cae siempre entre el centro de la celda de detrás y el de la de delante — ver esa
+## función para la cuenta. Fase 1 de `docs/architecture/borrador-orden-profundidad-rotaciones.md`.
+##
+## Este fichero sigue siendo el ÚNICO que lee el modelo y calcula geometría/alturas/colores; los
+## `TramoPared` solo pintan lo que se les entrega (misma división de trabajo que había con
+## `CapaParedes`, pero con un nodo por tramo en vez de dos nodos-pasada).
 
 ## Grosor de la línea de pared, en píxeles (encargo: "gruesa, 3-4 px"). Con el isométrico se usa
 ## para las jambas y como respaldo si algún tramo llegara sin altura.
@@ -51,45 +60,25 @@ const ALTO_PARED: float = 34.0
 ## alta para tapar la base de un mueble arrimado a ella (el bug del sofá — con la antigua altura de
 ## 10 px el respaldo se salía por encima), y aun así claramente más baja que la trasera, que es la
 ## lectura que pide el género. No hace falta preocuparse por tapar a la gente: los NPCs van en su
-## PROPIA capa por encima de CUALQUIER pared (`Z_PAREDES_FRENTE` < capa de NPCs, ver más abajo), así
-## que su altura no compite con la de un muñeco como sí competía antes.
+## PROPIA capa (`NPCsFlujo`, z_index 2) por encima de CUALQUIER pared (todas viven en la bolsa de
+## y-sort compartida, z 0), así que su altura no compite con la de un muñeco.
 const ALTO_PARED_FRENTE: float = ALTO_PARED / 2.0
 ## Largo de cada jamba (marco corto de puerta) — sobrio, sin arte elaborado (andamio hasta el art bible).
 const LARGO_JAMBA: float = 10.0
-## z_index de la pasada TRASERA (fondo — norte/oeste, altura completa). 🐛 FIX (2026-08-03, bug
-## reportado en partida: "un sofá contra la pared NORTE se dibuja por DEBAJO de ella"). Hasta este
-## fix valía 1 —igual que la pasada frontal, "quedan como están" heredado del único `ParedesSalas`
-## de antes de partirse en dos— es decir, por ENCIMA del mobiliario estático de Construcción
-## (`_capa_elementos`, z_index 0, sin fijar): una pared trasera con altura (`ALTO_PARED`, sube en
-## pantalla hacia la cámara) dibujada ENCIMA de un mueble arrimado a su cara de dentro lo tapaba —
-## exactamente el caso del sofá. Ese "quedan como están" era justo el bug, no una decisión correcta.
+## ── LA ESCALERA DE CAPAS DEL JUEGO, TRAS EL PASO A Y-SORT (2026-08-03) ─────────────────────────
+## Ya NO hay constantes de z para las paredes: todas viven en z_index 0, dentro de la bolsa de
+## y-sort compartida ("MundoProfundo", ver `main.gd`), y su orden contra cada mueble lo decide la
+## profundidad, tramo a tramo (ver `_punto_de_orden`). El z_index solo separa lo que NUNCA debe
+## entrelazarse con esa bolsa:
 ##
-## Ahora vale 0: el MISMO z_index —sin fijar— que usa el mobiliario estático (`_capa_elementos`) y
-## el suelo de las salas (`_capa_salas`, la tinta de color por servicio). Los tres EMPATAN a
-## z_index 0, así que quién se dibuja encima de quién lo decide el ORDEN EN EL ÁRBOL, no un número
-## distinto (regla verificada en `docs/engine-reference/godot/modules/isometrico-2d.md` §5: sin
-## y-sort de por medio, el empate a mismo z_index se resuelve en orden de escena; "el y-sort JAMÁS
-## hace que un z_index menor se dibuje delante de uno mayor" tampoco aplica aquí — no hay y-sort
-## entre estas capas). `Main` añade el nodo `ParedesSalas` (y por tanto esta pasada, su hijo
-## `ParedesFondo`) ANTES que `Construccion` en el árbol — ver el comentario en `main.gd` donde se
-## crea `_paredes_salas` — así que `_capa_elementos` queda DESPUÉS y se dibuja ENCIMA de la pared
-## trasera: el sofá delante de su pared, no detrás. `Construccion` no se toca (fuera del alcance de
-## este fix): su capa de mobiliario se queda en el z_index 0 sin fijar que ya tenía.
-##
-## z_index de la pasada FRONTAL (frente — sur/este, media altura): sigue en 1, SIN CAMBIOS — ya
-## estaba bien: por ENCIMA del mobiliario (0 < 1) y por DEBAJO de los NPCs (`NPCsFlujo`, z_index 2)
-## y de las luces (`LucesObjetos`, z_index 3). Esta pasada no tenía ningún bug reportado ("la pasada
-## frontal SÍ está bien por encima"). Antes de este fix, fondo y frente COMPARTÍAN el valor 1 (ver
-## el historial de este fichero, "PAREDES FRONTALES BAJITAS"); ahora son dos valores DISTINTOS a
-## propósito — el empate a 1 ya no le corresponde a la trasera.
-##
-## Escalera completa resultante (suelo < mobiliario < gente < luces, con las dos pasadas de pared
-## intercaladas donde toca cada una): suelo (`Suelo` + `_capa_salas`, z 0, primeros en el árbol) <
-## pared TRASERA (`ParedesFondo`, z 0, tree-order tras el suelo pero antes del mobiliario) <
-## mobiliario estático (`_capa_elementos`, z 0, último del empate) < pared FRONTAL (`ParedesFrente`,
-## z 1) < gente (`NPCsFlujo`, z 2) < luces (`LucesObjetos`, z 3).
-const Z_PAREDES_FONDO: int = 0
-const Z_PAREDES_FRENTE: int = 1
+##   rejilla del suelo (`Main/Suelo`, z −2)
+##     < tinta de las salas (`Construccion/_capa_salas`, z −1)
+##       < ▓ BOLSA DE Y-SORT, z 0 ▓  → paredes (`TramoPared`) + mobiliario (`_capa_elementos`)
+##                                     + contenedores de ventanilla (`NPCsFlujo/Puestos`),
+##                                     ordenados entre sí por su Y de base
+##         < rótulos de sala/puesto (z 1-2: información, no la tapa un muro)
+##           < gente (`NPCsFlujo`, z 2)
+##             < luces (`LucesObjetos`, z 3)
 ## Mismo centinela que `Construccion.CELDA_NULA_PUERTA` (-1,-1), referenciado por VALOR: el proyecto
 ## tipa estas inyecciones como `Node` genérico (mismo criterio que `luces_objetos.gd` /
 ## `modo_construccion.gd`), así que no se tipa `_construccion` como `Construccion` para leer su
@@ -114,10 +103,10 @@ const COLOR_VENTANA := Color(0.62, 0.80, 0.95, 0.85)
 ## sobra para que se lea "por aquí se pasa".
 const PROPORCION_STUB_PUERTA: float = 0.25
 
-## El script de `CapaParedes` (dos instancias — fondo/frente, ver la cabecera). Preload por el mismo
+## El script de `TramoPared` (una instancia POR TRAMO, ver la cabecera). Preload por el mismo
 ## convenio que usa el resto del proyecto para clases con `class_name` (p. ej. `MesaAtencionScript`
 ## en `npcs_flujo.gd`): un `const …Script` en vez de depender del registro global del `class_name`.
-const CapaParedesScript := preload("res://src/main/capa_paredes.gd")
+const TramoParedScript := preload("res://src/main/tramo_pared.gd")
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -125,47 +114,32 @@ var _desplazamiento: Vector2 = Vector2.ZERO
 ## Firma de lo último dibujado ("sala:rect:tipo:puerta" por sala, unidas): si no cambia entre dos
 ## llamadas a `actualizar()`, no se toca nada (ni cálculo ni reparto a las pasadas).
 var _firma: String = ""
-## Tramos de pared cacheados por `_recalcular_tramos()` — lista de trabajo COMBINADA (fondo+frente)
-## que `_repartir_en_capas()` separa al final en los dos paquetes que de verdad se pintan. Este
-## fichero NO dibuja nada directamente (sin `_draw()` propio): eso es cosa de `CapaParedes`.
+## Tramos de pared cacheados por `_recalcular_tramos()` — la lista de trabajo que
+## `_reconstruir_nodos()` convierte en un `TramoPared` por entrada. Este fichero NO dibuja nada
+## directamente (sin `_draw()` propio): eso es cosa de `TramoPared`.
 var _tramos: Array[Dictionary] = []
-## Jambas (el detalle de puerta) cacheadas igual que los tramos.
+## Jambas (el detalle de puerta) cacheadas igual que los tramos — también se dibujan con un
+## `TramoPared` cada una (sin altura: una línea de suelo).
 var _jambas: Array[Dictionary] = []
-## Las dos pasadas de dibujo (instancias de `CapaParedes`), creadas una vez en `configurar()`.
-## Tipadas como `Node2D` genérico (mismo convenio que `Main._paredes_salas` para un `…Script.new()`
-## preloaded: la asignación estática no refina el tipo exacto de la subclase) — se castea a
-## `CapaParedes` en el único sitio que necesita su API propia (`_repartir_en_capas`).
-var _fondo: Node2D = null
-var _frente: Node2D = null
 
 
-## Engancha las referencias, crea las dos pasadas de dibujo y hace el primer cálculo. La comisaría
+## Engancha las referencias, activa el y-sort de este nodo y hace el primer cálculo. La comisaría
 ## inicial (`_montar_comisaria_inicial`) ya tiene salas construidas ANTES de que Main cablee el hook
 ## de layout (mismo caso ya documentado en `Main._actualizar_etiquetas_salas`), así que este primer
 ## `actualizar()` es necesario para que esas salas de arranque no se queden sin pared hasta la
 ## primera compra.
+##
+## ⚠️ `y_sort_enabled` AQUÍ es la mitad del mecanismo: la otra mitad es que `Main` cuelgue este nodo
+## de "MundoProfundo" (que también lo tiene). Verificado en el motor 4.6 (sonda de esta sesión, con
+## captura): cuando un nodo con y-sort cuelga de OTRO con y-sort, sus hijos **no** se ordenan como
+## un bloque aparte — entran en la MISMA bolsa que los hermanos del padre. Por eso cada `TramoPared`
+## compite pieza a pieza contra el mobiliario de Construcción sin que este fichero tenga que saber
+## nada de él (ni al revés): cada sistema conserva la propiedad de sus nodos.
 func configurar(construccion: Node, tam_celda: int, desplazamiento: Vector2) -> void:
 	_construccion = construccion
 	_tam_celda = tam_celda
 	_desplazamiento = desplazamiento
-	# DOS PASADAS (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera del fichero): antes
-	# había un único `ParedesSalas._draw()` con z_index 1. Ahora ese dibujo lo hacen dos hijos
-	# `CapaParedes`, cada uno con el z_index que le toca (ver `Z_PAREDES_FONDO`/`Z_PAREDES_FRENTE`).
-	# `ParedesSalas` en sí ya no dibuja nada (queda en z_index 0, el de por defecto, que es
-	# irrelevante porque no tiene contenido propio que pintar).
-	var fondo := CapaParedesScript.new()
-	fondo.name = "ParedesFondo"
-	fondo.z_index = Z_PAREDES_FONDO
-	add_child(fondo)
-	_fondo = fondo
-	var frente := CapaParedesScript.new()
-	frente.name = "ParedesFrente"
-	frente.z_index = Z_PAREDES_FRENTE
-	# Añadida DESPUÉS de fondo (orden estable, sin necesidad real desde el fix de 2026-08-03: fondo y
-	# frente ya NO comparten z_index —0 y 1— así que frente gana SIEMPRE por número, no por empate de
-	# árbol; ver `Z_PAREDES_FONDO`/`Z_PAREDES_FRENTE` más arriba).
-	add_child(frente)
-	_frente = frente
+	y_sort_enabled = true
 	actualizar()
 
 
@@ -180,7 +154,7 @@ func actualizar() -> void:
 		return
 	_firma = firma
 	_recalcular_tramos()
-	_repartir_en_capas()
+	_reconstruir_nodos()
 
 
 ## Las salas construidas, en los TRES tipos válidos (mismo patrón que usa Main para "todas las
@@ -263,7 +237,7 @@ func _recalcular_tramos() -> void:
 		var tramo: Dictionary = {
 			"desde": unidad["desde"], "hasta": unidad["hasta"], "color": duenio[clave],
 		}
-		tramo.merge(_cara_de_arista(unidad["detras"], unidad["delante"]))
+		tramo.merge(_cara_de_arista(unidad["detras"]))
 		_tramos.append(tramo)
 	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
 	for sala_id: StringName in salas:
@@ -287,7 +261,7 @@ func _recalcular_tramos() -> void:
 		# refleja el tipo del modelo (ADR-0004), no solo si hay o no arista.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(clave_construccion)
 		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
-		var cara: Dictionary = _cara_de_arista(geo["detras"], geo["delante"], fija)
+		var cara: Dictionary = _cara_de_arista(geo["detras"], fija)
 		if tipo == _construccion.PUERTA:
 			_agregar_puerta_libre(
 				geo["desde"], geo["hasta"], cara, COLOR_FACHADA if fija else COLOR_MURO_LIBRE
@@ -296,14 +270,14 @@ func _recalcular_tramos() -> void:
 			# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
 			# no se pasa (fase E). Si esta recortada por la regla de la camara, queda la linea fina.
 			#
-			# ⚠️ EXCEPCIÓN a "media altura" (2026-08-03): una ventana en una arista FRONTAL se queda a
-			# ALTURA COMPLETA, no a `ALTO_PARED_FRENTE` como el resto de esa pasada. Se decidió así (y
+			# ⚠️ EXCEPCIÓN a "media altura" (2026-08-03): una ventana en una arista CERCANA se queda a
+			# ALTURA COMPLETA, no a `ALTO_PARED_FRENTE` como el resto de las cercanas. Se decidió así (y
 			# se deja constancia aquí, no en silencio) porque una ventana recortada a media altura no
 			# se lee como ventana: es un cristal a ras de suelo, más parecido a un poyete que a un
 			# hueco por el que se ve hacia fuera. "alto" se fija ANTES del merge con `cara` y
 			# `Dictionary.merge` no pisa claves existentes por defecto, así que el valor de aquí
-			# sobrevive; lo que SÍ toma de `cara` es "frente" (para que la ventana se reparta a la
-			# pasada que le toca por capa, aunque su altura no sea la de esa pasada).
+			# sobrevive intacto (hoy `cara` ya solo trae "alto", así que el merge no aporta nada más —
+			# se conserva por simetría con los otros dos casos y para no callar la excepción).
 			var ventana: Dictionary = {
 				"desde": geo["desde"], "hasta": geo["hasta"],
 				"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
@@ -317,40 +291,48 @@ func _recalcular_tramos() -> void:
 			}
 			libre.merge(cara)
 			_tramos.append(libre)
-	# 5) ORDEN POR PROFUNDIDAD (ISOMÉTRICO, 2026-07-30). Todas las paredes salen de UN solo `_draw`,
-	#    así que aquí el orden de la lista ES el orden de dibujo: lo que se pinta después, tapa. Se
-	#    ordenan de FONDO a FRENTE por el punto más bajo de su base — sin esto, una pared del fondo
-	#    calculada más tarde se pintaría encima de una que está delante de ella, y el dibujo se
-	#    leería del revés. (`_tramos` se recalcula solo al cambiar el layout, nunca por frame, así
-	#    que ordenar aquí no cuesta nada en partida.)
+	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
+	#    los muebles. Se rellena aquí, de una vez, para TODOS los caminos de arriba (perímetro de
+	#    sala, muro libre, ventana y los dos muñones de una puerta) — así ninguno se puede olvidar.
+	for tramo: Dictionary in _tramos:
+		tramo["orden"] = _punto_de_orden(tramo["desde"], tramo["hasta"])
+	# 6) ORDEN EN EL ÁRBOL, de fondo a frente (ISOMÉTRICO, 2026-07-30). Desde el paso a y-sort esto
+	#    YA NO decide el dibujo —lo decide la Y de cada `TramoPared`—, pero se conserva porque el
+	#    y-sort no documenta cómo desempata dos piezas con la MISMA Y (dos aristas perpendiculares que
+	#    se juntan en una esquina las tienen): dejar el árbol ya ordenado por profundidad hace que ese
+	#    caso caiga siempre del lado correcto y que un volcado del árbol se lea igual que el dibujo.
+	#    (`_tramos` se recalcula solo al cambiar el layout, nunca por frame, así que no cuesta nada.)
 	_tramos.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
-			return maxf(a["desde"].y, a["hasta"].y) < maxf(b["desde"].y, b["hasta"].y)
+			return (a["orden"] as Vector2).y < (b["orden"] as Vector2).y
 	)
 
 
-## Separa `_tramos`/`_jambas` (la lista de trabajo combinada) en los dos paquetes que de verdad se
-## pintan y se los entrega a cada pasada (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera
-## del fichero). La clave "frente" de cada dict la puso `_cara_de_arista`/`_jamba`; se ORDENA primero
-## (paso anterior) y se particiona DESPUÉS, así que el orden de fondo-a-frente sobrevive DENTRO de
-## cada paquete — el reparto en dos nodos no puede romper el orden de profundidad que ya se calculó.
-func _repartir_en_capas() -> void:
-	var tramos_fondo: Array[Dictionary] = []
-	var tramos_frente: Array[Dictionary] = []
+## Reconstruye los nodos de dibujo: un `TramoPared` por tramo y por jamba, hijos DIRECTOS de este
+## nodo (que tiene y-sort, ver `configurar`), cada uno colocado en su punto de orden.
+##
+## Se rehace entero en vez de reciclar nodos a propósito: solo corre cuando la firma del layout
+## cambió de verdad (`actualizar()`), es decir, en una construcción/demolición/carga — nunca por
+## frame. Reciclar añadiría estado que mantener a cambio de nada medible.
+##
+## `free()` inmediato y no `queue_free()`: los nuevos tramos se añaden en la MISMA llamada, y con un
+## borrado diferido convivirían un frame con los viejos (dos veces cada pared, con z-fighting visible
+## al mover un muro). Mismo criterio que `Construccion._refrescar_visual` con su mobiliario.
+func _reconstruir_nodos() -> void:
+	for hijo: Node in get_children():
+		hijo.free()
 	for tramo: Dictionary in _tramos:
-		if tramo.get("frente", false):
-			tramos_frente.append(tramo)
-		else:
-			tramos_fondo.append(tramo)
-	var jambas_fondo: Array[Dictionary] = []
-	var jambas_frente: Array[Dictionary] = []
+		_crear_nodo(tramo)
 	for jamba: Dictionary in _jambas:
-		if jamba.get("frente", false):
-			jambas_frente.append(jamba)
-		else:
-			jambas_fondo.append(jamba)
-	(_fondo as CapaParedes).fijar(tramos_fondo, jambas_fondo)
-	(_frente as CapaParedes).fijar(tramos_frente, jambas_frente)
+		_crear_nodo(jamba)
+
+
+## Un `TramoPared` para una pieza ya calculada (tramo o jamba). El `add_child` va ANTES del `fijar`
+## para que el `queue_redraw()` de dentro caiga sobre un nodo que ya está en el árbol.
+func _crear_nodo(pieza: Dictionary) -> void:
+	var nodo := TramoParedScript.new()
+	add_child(nodo)
+	nodo.fijar(pieza)
 
 
 ## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
@@ -382,7 +364,6 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 		return {
 			"desde": _esquina(a, b), "hasta": _esquina(a, b + 1),
 			"detras": Vector2i(a - 1, b),
-			"delante": Vector2i(a, b),
 		}
 	if partes[0] == "h":
 		# "h:col:row" — arista del eje X en la fila `b`, de la columna `a` a la `a + 1`.
@@ -390,7 +371,6 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 		return {
 			"desde": _esquina(a, b), "hasta": _esquina(a + 1, b),
 			"detras": Vector2i(a, b - 1),
-			"delante": Vector2i(a, b),
 		}
 	return {}
 
@@ -414,11 +394,8 @@ func _agregar_puerta_libre(
 	der.merge(cara)
 	_tramos.append(der)
 	var perpendicular: Vector2 = direccion.normalized().rotated(PI / 2.0) * LARGO_JAMBA
-	# `cara["frente"]` ya lo puso `_cara_de_arista` — se reusa aquí para que las jambas de esta
-	# puerta vayan a la MISMA pasada que sus dos tramos flanqueantes (arriba).
-	var frente: bool = cara.get("frente", false)
-	_jambas.append(_jamba(inicio_hueco, perpendicular, color, frente))
-	_jambas.append(_jamba(fin_hueco, perpendicular, color, frente))
+	_jambas.append(_jamba(inicio_hueco, perpendicular, color))
+	_jambas.append(_jamba(fin_hueco, perpendicular, color))
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el
@@ -483,35 +460,30 @@ func _jambas_de_puerta(sala_id: StringName) -> Array[Dictionary]:
 	var rect: Rect2i = info["rect"]
 	var puerta: Vector2i = info["puerta"]
 	var color: Color = _color_de_pared(sala_id)
-	# Mismo criterio que `_cara_de_arista`: "izquierda"/"arriba" son las aristas TRASERAS (oeste/
-	# norte — pasada fondo); "derecha"/"abajo" dan a cámara (este/sur — pasada frente). Sin esto, la
-	# puerta de una sala con pared frontal se repartiría siempre al fondo, sin importar en qué lado
-	# esté de verdad.
-	var frente: bool = info["lado"] == "derecha" or info["lado"] == "abajo"
 	# ISOMÉTRICO: los puntos salen de `_esquina` y las direcciones "hacia dentro" pasan por
 	# `_direccion` — en rombos, "hacia dentro" ya no es horizontal ni vertical en pantalla.
 	if info["lado"] == "izquierda":
 		var dentro: Vector2 = _direccion(Vector2(LARGO_JAMBA, 0.0))
 		return [
-			_jamba(_esquina(rect.position.x, puerta.y), dentro, color, frente),
-			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color, frente),
+			_jamba(_esquina(rect.position.x, puerta.y), dentro, color),
+			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color),
 		]
 	if info["lado"] == "derecha":
 		var dentro: Vector2 = _direccion(Vector2(-LARGO_JAMBA, 0.0))
 		return [
-			_jamba(_esquina(rect.end.x, puerta.y), dentro, color, frente),
-			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color, frente),
+			_jamba(_esquina(rect.end.x, puerta.y), dentro, color),
+			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color),
 		]
 	if info["lado"] == "arriba":
 		var dentro: Vector2 = _direccion(Vector2(0.0, LARGO_JAMBA))
 		return [
-			_jamba(_esquina(puerta.x, rect.position.y), dentro, color, frente),
-			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color, frente),
+			_jamba(_esquina(puerta.x, rect.position.y), dentro, color),
+			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color),
 		]
 	var dentro_abajo: Vector2 = _direccion(Vector2(0.0, -LARGO_JAMBA))   # "abajo"
 	return [
-		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color, frente),
-		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color, frente),
+		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color),
+		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color),
 	]
 
 
@@ -536,27 +508,26 @@ func _color_de_pared(sala_id: StringName) -> Color:
 ## Un tramo del eje X (grid-line en la fila `fila_gridline`, celda `celda_x`). En pantalla baja
 ## hacia la derecha; en el modelo sigue siendo la arista "h" de siempre.
 ##
-## "detras" y "delante" son las DOS celdas que la arista separa (norte y sur). Antes solo hacía
-## falta la de detrás; "delante" la añade la enmienda del muro divisorio (2026-08-03) — ver
-## `_cara_de_arista`, que necesita saber si hay sala a AMBOS lados.
+## "detras" es la celda del lado del FONDO (norte) — la que decide la altura de la cara
+## (`_cara_de_arista`). La del lado de delante (sur) ya no hace falta guardarla: desde el paso a
+## y-sort (2026-08-03) el orden contra el mobiliario de CADA lado lo decide la profundidad del
+## tramo, no una clasificación previa que mirase las dos celdas.
 func _unidad_h(fila_gridline: int, celda_x: int) -> Dictionary:
 	return {
 		"clave": "h:%d:%d" % [fila_gridline, celda_x],
 		"desde": _esquina(celda_x, fila_gridline), "hasta": _esquina(celda_x + 1, fila_gridline),
 		"detras": Vector2i(celda_x, fila_gridline - 1),
-		"delante": Vector2i(celda_x, fila_gridline),
 	}
 
 
 ## Un tramo del eje Y (grid-line en la columna `columna_gridline`, celda `celda_y`). En pantalla
-## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre. Mismo par
-## "detras"/"delante" que `_unidad_h`, aquí oeste y este.
+## baja hacia la izquierda; en el modelo sigue siendo la arista "v" de siempre. Mismo "detras" que
+## `_unidad_h`, aquí el lado oeste.
 func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 	return {
 		"clave": "v:%d:%d" % [columna_gridline, celda_y],
 		"desde": _esquina(columna_gridline, celda_y), "hasta": _esquina(columna_gridline, celda_y + 1),
 		"detras": Vector2i(columna_gridline - 1, celda_y),
-		"delante": Vector2i(columna_gridline, celda_y),
 	}
 
 
@@ -592,43 +563,35 @@ func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 ##
 ## 1. La pared CERCANA sube a `ALTO_PARED_FRENTE` (media altura de la trasera) en vez de un simple
 ##    "bordillo" de 10 px: ahora sí tapa la base de un mueble arrimado a ella.
-## 2. Cada arista ahora se etiqueta con `"frente": bool` (antes solo llevaba "alto") — es la clave
-##    que usa `ParedesSalas._repartir_en_capas` para mandar la arista a la pasada `ParedesFrente`
-##    (capa por ENCIMA del mobiliario estático, por DEBAJO de los NPCs) o a `ParedesFondo` (la pasada
-##    de siempre, altura completa, sin tocar). Antes de esta enmienda solo existía UNA pasada, así
-##    que "cercana"/"alta" únicamente cambiaba la ALTURA, nunca la capa — con la pared cercana a solo
-##    10 px, no hacía falta más para no tapar al mobiliario, pero al subir la altura a media (para
-##    tapar la base de un mueble alto) hacía falta separarla en su propia capa para que un NPC que
-##    camina por delante de la sala se siga dibujando POR ENCIMA de ella, no por detrás.
+## 2. Esa pared pasó a dibujarse en una CAPA por encima del mobiliario (`ParedesFrente`, z 1), para
+##    que de verdad recortase la base de lo que tuviera arrimado.
 ##
-## ── ENMIENDA 2026-08-03 (2ª) — EL MURO DIVISORIO ENTRE DOS SALAS ────────────────────────────────
-## Bug con captura del usuario, medido en el motor (`tools/_diag_oclusion_murete.gd`, caso
-## `b_divisorio`): *"los dispensadores de agua de Descanso, tras el muro divisorio con ODAC"*
-## aparecían PARTIDOS EN DOS — el muro se pintaba justo por el medio de cada dispensador, pedestal
-## debajo y garrafa encima.
+## ── ENMIENDA 2026-08-03 (2ª) — EL MURO DIVISORIO, Y POR QUÉ SE RETIRÓ EL REPARTO EN CAPAS ───────
+## El punto 2 duró un día. Bug con captura del usuario, medido en el motor
+## (`tools/_diag_oclusion_murete.gd`): un muro compartido por DOS salas se clasificaba "cercano"
+## (tiene sala detrás) y subía a la capa de encima del mobiliario… pero ese MISMO muro es la pared de
+## ATRÁS de la sala de abajo, y lo que ella tiene arrimado por dentro está DELANTE de él: el muro se
+## dibujaba encima de esos muebles y los partía por la mitad (los dispensadores de Descanso).
 ##
-## La causa es que esta función solo mira UN lado. Un muro compartido por DOS salas (ODAC al norte,
-## Descanso al sur) tiene sala DETRÁS → se clasificaba "cercana" → pasada FRENTE, que vive en
-## `Z_PAREDES_FRENTE` = 1, por ENCIMA de todo el mobiliario (z 0). Pero ese mismo muro es la pared
-## de ATRÁS de la sala de abajo, y lo que ella tiene arrimado por dentro está DELANTE de él: al ir
-## el muro en una capa superior, se pintaba encima de esos muebles y los cortaba por la mitad.
+## Se intentó primero mandar los divisorios a la capa de abajo ("que gane siempre el mobiliario, en
+## las dos salas"). El usuario rechazó ese trade-off con su caso real: una ventanilla pegada al
+## divisorio Documentación/ODAC dibujaba el mostrador ENCIMA del muro que le debía tapar la base.
+## Tenía razón, y la conclusión es estructural: **con un z GLOBAL por capa no existe un orden
+## correcto para los dos lados de un divisorio**. Elijas la capa que elijas, una de las dos salas se
+## dibuja mal.
 ##
-## La regla nueva: **si hay sala a los DOS lados, es un DIVISORIO** y se manda a la pasada FONDO
-## (z 0, que va ANTES de `Construccion` en el árbol, así que el mobiliario se dibuja encima) pero
-## CONSERVANDO la altura baja de `ALTO_PARED_FRENTE` — no sube a `ALTO_PARED` porque eso taparía el
-## interior de la sala de arriba, que es justo lo que "PAREDES FRONTALES BAJITAS" vino a evitar.
+## Por eso hoy esta función ya NO clasifica capas: devuelve solo la ALTURA. Quién tapa a quién lo
+## decide la PROFUNDIDAD, tramo a tramo, en la bolsa de y-sort compartida (ver la cabecera del
+## fichero y `_punto_de_orden`) — y un divisorio sale, a la vez, delante del mobiliario de la sala de
+## arriba y detrás del de la de abajo, que es justo lo que la escena pide.
 ##
-## TRADE-OFF, escrito a propósito y no en silencio: en un divisorio ya no hay un único orden que
-## sea correcto para las dos salas a la vez (con un z global, o tapa a una o tapa a la otra). Se
-## elige que gane SIEMPRE el mobiliario, en las dos: es la misma regla ya ratificada hoy para las
-## paredes traseras (el sofá se dibuja DELANTE de su pared norte, ver `Z_PAREDES_FONDO`), y el
-## precio —la sala de arriba pierde el recorte de base contra ESA arista concreta, una franja de
-## 17 px— es mucho menor que partir un mueble entero por la mitad. La solución sin trade-off es
-## ordenar paredes y muebles por profundidad con y-sort: Fase 1 del borrador
-## `docs/architecture/borrador-orden-profundidad-rotaciones.md`, fuera del alcance de este fix.
+## La regla de ALTURA no cambia ni una coma: **si lo que hay DETRÁS es sala (o interior del edificio,
+## para la fachada), la pared es CERCANA y va a media altura; si no, altura completa**. Un divisorio
+## tiene sala detrás → cercano → bajito, que es lo correcto: es la pared de delante de la sala de
+## arriba y no debe tapar su interior.
 ##
-## Devuelve `{"alto": float, "frente": bool}` — listo para fundirse en el diccionario del tramo.
-func _cara_de_arista(detras: Vector2i, delante: Vector2i, fija: bool = false) -> Dictionary:
+## Devuelve `{"alto": float}` — listo para fundirse en el diccionario del tramo.
+func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
 	# La FACHADA del edificio (2026-07-30) se mide contra el EDIFICIO, no contra las salas: sus dos
 	# lados del fondo (arriba e izquierda) tienen detrás la calle y van altos —son el telón de la
 	# comisaría—, y los dos de delante tienen detrás el interior entero, así que van bajos. Sin esta
@@ -636,14 +599,26 @@ func _cara_de_arista(detras: Vector2i, delante: Vector2i, fija: bool = false) ->
 	var cercana: bool = (
 		_celda_en_edificio(detras) if fija else _construccion.sala_en(detras) != &""
 	)
-	# La fachada NUNCA es divisorio: por fuera de ella no hay sala, es el borde del edificio.
-	var divisorio: bool = (
-		cercana and not fija and _construccion.sala_en(delante) != &""
-	)
-	return {
-		"alto": ALTO_PARED_FRENTE if cercana else ALTO_PARED,
-		"frente": cercana and not divisorio,
-	}
+	return {"alto": ALTO_PARED_FRENTE if cercana else ALTO_PARED}
+
+
+## EL PUNTO DE ORDEN de un tramo: por dónde lo compara el y-sort contra el mobiliario. Es el CENTRO
+## de su base (la línea que toca el suelo), y esa elección no es arbitraria — es la que hace que el
+## mecanismo funcione en los dos lados de un divisorio. La cuenta, con la proyección del proyecto
+## (`Proyeccion`: `iso.y = (col + fila) · MEDIO_ALTO`, con `MEDIO_ALTO` = 20 px por celda):
+##
+##   · una arista horizontal en la línea de rejilla `F`, sobre la columna `C`, tiene sus extremos en
+##     `y = (C + F)·20` y `y = (C + 1 + F)·20` → su centro cae en `(C + F + 0.5)·20`;
+##   · el centro de la celda de DETRÁS (norte, `(C, F−1)`) cae en `(C + F)·20`;
+##   · el centro de la celda de DELANTE (sur, `(C, F)`) cae en `(C + F + 1)·20`.
+##
+## El centro de la base queda SIEMPRE estrictamente entre los dos (y lo mismo, por simetría, para
+## una arista vertical con sus celdas oeste/este). Traducido: el muro se dibuja DESPUÉS de lo que
+## está en la celda de detrás (le tapa la base) y ANTES de lo que está en la de delante (queda
+## detrás de ello). Las dos cosas a la vez, sin decidir nada — que es exactamente lo que un z global
+## no podía dar.
+func _punto_de_orden(desde: Vector2, hasta: Vector2) -> Vector2:
+	return (desde + hasta) * 0.5
 
 
 ## ¿Esa celda cae dentro de la rejilla del edificio? (espeja `Construccion._celda_en_edificio`,
@@ -655,15 +630,19 @@ func _celda_en_edificio(celda: Vector2i) -> bool:
 	)
 
 
-## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala. `frente` enruta la jamba
-## a la pasada que toca (`_repartir_en_capas`) — mismo criterio que `_cara_de_arista`: TRUE si su
-## arista da a cámara (sur/este), FALSE si es trasera (norte/oeste). El "grosor" viaja en el propio
-## diccionario para que `CapaParedes` no necesite conocer `GROSOR_PARED` (esa constante es de
+## Un tramo de jamba: `desde` + un desplazamiento hacia dentro de la sala. El "grosor" viaja en el
+## propio diccionario para que `TramoPared` no necesite conocer `GROSOR_PARED` (esa constante es de
 ## MODELO/geometría, no de dibujo — vive aquí).
-func _jamba(desde: Vector2, hacia_dentro: Vector2, color: Color, frente: bool = false) -> Dictionary:
+##
+## Su "orden" (la Y con la que compite en la bolsa de y-sort) es su PROPIO centro, no el de la arista
+## de la que sale: una jamba es un trocito de marco apoyado en el suelo, medio paso hacia dentro de
+## la sala, y ahí es donde de verdad está — así queda por delante de la pared del fondo con la que
+## enlaza y por detrás de un mueble que esté más adentro, sin ningún caso especial.
+func _jamba(desde: Vector2, hacia_dentro: Vector2, color: Color) -> Dictionary:
+	var hasta: Vector2 = desde + hacia_dentro
 	return {
-		"desde": desde, "hasta": desde + hacia_dentro, "color": color, "frente": frente,
-		"grosor": GROSOR_PARED,
+		"desde": desde, "hasta": hasta, "color": color,
+		"orden": _punto_de_orden(desde, hasta), "grosor": GROSOR_PARED,
 	}
 
 

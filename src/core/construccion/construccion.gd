@@ -1893,6 +1893,10 @@ const ALTO_MOSTRADOR: float = 16.0
 const ALTO_ASIENTO: float = 7.0
 ## Ámbar del punto con el que se marca una luz de techo: el color universal de "aquí hay una luz".
 const COLOR_LUZ_TECHO := Color(1.0, 0.82, 0.35)
+## z_index del rótulo de cada sala, RELATIVO a "Elementos" (que va a 0, dentro de la bolsa de y-sort
+## compartida). 1 = por encima de cualquier pared y por debajo de la gente (`NPCsFlujo`, z 2) y de
+## sus rótulos (`Z_ROTULOS_PUESTO`, z 2). Ver el porqué junto a su asignación en `_refrescar_visual`.
+const Z_ETIQUETA_SALA: int = 1
 ## Color de las sillas de la sala de espera: gris de mobiliario institucional, un punto más cálido
 ## que las de las ventanillas para que las dos zonas se distingan de un vistazo.
 const COLOR_SILLA_ESPERA := Color(0.38, 0.36, 0.34)
@@ -1963,7 +1967,20 @@ var _origen: Vector2 = Vector2.ZERO
 
 ## Crea la capa visual (la llama Main tras add_child): TileMapLayer "Salas" + Node2D "Elementos",
 ## alineados con el suelo del esqueleto (`desplazamiento` = posición del suelo; `tam_celda` = 40).
-func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
+##
+## `capa_profunda` (2026-08-03, orden de profundidad estructural): el nodo con `y_sort_enabled` del
+## que debe colgar "Elementos" para que su mobiliario COMPITA POR PROFUNDIDAD con las paredes
+## (`ParedesSalas` → `TramoPared`) y con los contenedores de las ventanillas (`NPCsFlujo`), en vez de
+## ordenarse solo contra sí mismo. Lo crea `Main` ("MundoProfundo") y se lo pasa a los tres sistemas;
+## cada uno sigue siendo dueño de SUS nodos —Construcción no sabe qué más hay ahí dentro, ni falta
+## que le hace—. Verificado en el motor 4.6: un nodo con y-sort colgado de otro con y-sort mete a sus
+## hijos en la MISMA bolsa de ordenación, no en una aparte.
+##
+## Si llega `null` (tests/herramientas que montan el visual sueltos), "Elementos" cuelga de este nodo
+## como toda la vida: sigue ordenándose por profundidad entre sus propios muebles, sin paredes.
+func montar_visual(
+	tam_celda: int, desplazamiento: Vector2, capa_profunda: Node2D = null
+) -> void:
 	_tam_celda = tam_celda
 	_origen = desplazamiento
 	var tileset := TileSet.new()
@@ -2001,7 +2018,10 @@ func montar_visual(tam_celda: int, desplazamiento: Vector2) -> void:
 	# más abajo en pantalla se pinta encima de lo que está detrás. Sin esto, un mostrador del fondo
 	# taparía al de delante según el orden en que se construyeron, que no significa nada.
 	_capa_elementos.y_sort_enabled = true
-	add_child(_capa_elementos)
+	if capa_profunda != null:
+		capa_profunda.add_child(_capa_elementos)
+	else:
+		add_child(_capa_elementos)
 	_refrescar_visual()
 
 
@@ -2090,6 +2110,12 @@ func _refrescar_visual() -> void:
 		# ISOMÉTRICO: el rótulo va sobre el vértice de ARRIBA de la caja que envuelve la sala (que en
 		# rombos es la esquina más alta del dibujo, no la de arriba-izquierda de un rectángulo).
 		etiqueta.position = Proyeccion.esquina_iso(rect.position.x, rect.position.y) + Vector2(-22, 2)
+		# El rótulo es INFORMACIÓN, no un mueble: sale del empate por profundidad (2026-08-03). Cae
+		# justo sobre la esquina norte de la sala, donde ahora hay una pared de fondo de 34 px que le
+		# gana por Y (la base del muro está más abajo que el texto) y se lo comería. Un z propio lo
+		# saca de la bolsa de y-sort entera —el z manda sobre el y-sort— y lo deja por encima de
+		# cualquier pared (0) y por debajo de la gente (2). Mismo criterio que `Z_ROTULOS_PUESTO`.
+		etiqueta.z_index = Z_ETIQUETA_SALA
 		_capa_elementos.add_child(etiqueta)
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]

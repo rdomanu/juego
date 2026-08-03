@@ -172,6 +172,9 @@ var _capa_etiquetas_sala: Node2D
 var _etiqueta_de_sala: Dictionary[StringName, Label] = {}
 ## Las paredes de las salas (2026-07-30): capa cosmética aparte, mismo hook de layout que las de arriba.
 var _paredes_salas: Node2D
+## La bolsa de ordenación por PROFUNDIDAD (2026-08-03): paredes + mobiliario + ventanillas, todo lo
+## que se apoya en el suelo y puede taparse entre sí. Ver el comentario largo de `_instanciar_mundo`.
+var _mundo_profundo: Node2D
 
 
 func _ready() -> void:
@@ -351,20 +354,38 @@ func _instanciar_mundo() -> void:
 	_odac = ODACScript.new()
 	_odac.name = "ODAC"
 	add_child(_odac)
-	# 🐛 FIX (2026-08-03, bug reportado en partida — "un sofá contra la pared NORTE se dibuja por
-	# DEBAJO de ella"): el NODO `ParedesSalas` se crea y se añade AQUÍ, ANTES que `Construccion`.
-	# Todavía va VACÍO (sin `configurar()` — `ParedesFondo`/`ParedesFrente` no existen como hijos
-	# hasta más abajo, cuando ya hay salas que dibujar): lo único que importa en este punto es la
-	# POSICIÓN en el árbol de `_paredes_salas` frente a `_construccion`. `ParedesFondo` (la pasada
-	# trasera) comparte z_index 0 —sin fijar, empate— con el mobiliario estático de Construcción
-	# (`_capa_elementos`) y con el suelo de las salas (`_capa_salas`); ese empate lo decide el ORDEN
-	# EN EL ÁRBOL (docs/engine-reference/godot/modules/isometrico-2d.md §5). Añadiendo `_paredes_salas`
-	# PRIMERO, `_construccion` (con su mobiliario) queda DESPUÉS en el árbol y por tanto se dibuja
-	# ENCIMA de la pared trasera — el sofá delante de su pared, no detrás. Ver `Z_PAREDES_FONDO` en
-	# `paredes_salas.gd` para el resto del reparto de capas.
+	# ── LA CAPA "MUNDO PROFUNDO" (2026-08-03, arreglo ESTRUCTURAL del orden de dibujo) ────────────
+	# Una ÚNICA bolsa de ordenación por profundidad (`y_sort_enabled`) donde conviven las tres cosas
+	# que están APOYADAS EN EL SUELO y pueden taparse entre sí:
+	#
+	#   · cada TRAMO de pared            (`ParedesSalas` → `TramoPared`, hijo directo de aquí)
+	#   · el MOBILIARIO estático          (`Construccion/Elementos`, ver `montar_visual`)
+	#   · los CONTENEDORES de ventanilla  (`NPCsFlujo/Puestos`, ver su `configurar`)
+	#
+	# Godot ordena esa bolsa por la Y de pantalla de cada pieza (algoritmo del pintor): lo que está
+	# más abajo tapa a lo que está más arriba. Con eso, un muro DIVISORIO entre dos salas sale a la
+	# vez por delante del mobiliario de la sala de arriba y por detrás del de la de abajo — lo que
+	# NINGÚN reparto por z_index podía dar (era el trade-off que el usuario rechazó con su captura de
+	# la ventanilla pegada al divisorio Documentación/ODAC). Ver la cabecera de `paredes_salas.gd`.
+	#
+	# ⚠️ Cada sistema sigue siendo dueño de sus nodos: aquí solo se les pasa DÓNDE colgarlos. Y los
+	# tres cuelgan a través de un nodo intermedio con `y_sort_enabled` propio, que es lo que hace que
+	# sus hijos entren en ESTA bolsa en vez de ordenarse como un bloque aparte (comprobado en el
+	# motor 4.6 con una sonda: y-sort anidado = una sola bolsa).
+	#
+	# Lo que NO entra aquí, y por qué: el suelo (z −2) y la tinta de las salas (z −1) van siempre
+	# debajo; la GENTE (`NPCsFlujo`, z 2) y las LUCES (z 3), siempre encima. El z_index manda sobre
+	# el y-sort, así que ponerlos fuera de la bolsa es exactamente la garantía que se quiere: ningún
+	# muro puede tapar a un muñeco por muy adelante que esté.
+	_mundo_profundo = Node2D.new()
+	_mundo_profundo.name = "MundoProfundo"
+	_mundo_profundo.y_sort_enabled = true
+	add_child(_mundo_profundo)
+	# `ParedesSalas` va vacío todavía (sus `TramoPared` nacen en `configurar()`, más abajo, cuando ya
+	# hay salas que dibujar): lo que importa aquí es que cuelgue de la bolsa.
 	_paredes_salas = ParedesSalasScript.new()
 	_paredes_salas.name = "ParedesSalas"
-	add_child(_paredes_salas)
+	_mundo_profundo.add_child(_paredes_salas)
 	# Construcción (story const-006): el layout REAL. ⚠️ ANTES que Personal en el árbol: el orden de
 	# los hijos es el orden de carga del SaveManager, y las asignaciones de Personal referencian
 	# puestos que Construcción debe registrar primero (invariante de personal-006/const-005). Que
@@ -375,7 +396,9 @@ func _instanciar_mundo() -> void:
 	_construccion.name = "Construccion"
 	_construccion.usar_economia(_economia)
 	add_child(_construccion)
-	_construccion.montar_visual(TAM_CELDA, pos_suelo)
+	# Su capa de mobiliario ("Elementos") entra en la bolsa de profundidad; la tinta de suelo de las
+	# salas se queda colgando de Construcción, con su z −1 de siempre (nunca compite: va debajo).
+	_construccion.montar_visual(TAM_CELDA, pos_suelo, _mundo_profundo)
 	# Personal (story personal-007): la plantilla REAL. Su _ready carga config, registra las ausencias
 	# en el dispatcher (nuevo_dia prio 30) y entra a Persist (clave "Personal"). La nómina que cobra
 	# Economía sale de los salarios F1 de estos agentes (fijar_salarios_dia, enmienda 006).
@@ -389,9 +412,8 @@ func _instanciar_mundo() -> void:
 	_montar_comisaria_inicial()
 	# Las paredes de las salas (petición del usuario 2026-07-30: "si no todo el mundo ve a los
 	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte). El nodo
-	# `_paredes_salas` ya está en el árbol (arriba, ANTES que `_construccion` — ver ese comentario, es
-	# el fix de esta sesión); aquí solo toca `configurar()`: crea `ParedesFondo`/`ParedesFrente` (dos
-	# hijos internos, "PAREDES FRONTALES BAJITAS", 2026-08-03 — ver `paredes_salas.gd`) y hace el
+	# `_paredes_salas` ya está en el árbol (arriba, dentro de `_mundo_profundo`); aquí solo toca
+	# `configurar()`: crea un `TramoPared` por tramo (2026-08-03 — ver `paredes_salas.gd`) y hace el
 	# primer cálculo, ya con las salas de arranque construidas.
 	_paredes_salas.configurar(_construccion, TAM_CELDA, pos_suelo)
 	_dotar_plantilla_inicial()
@@ -440,7 +462,11 @@ func _instanciar_mundo() -> void:
 	# La capa cosmética: NPCs + navegación bakeada del layout real.
 	_npcs = NPCsFlujoScript.new()
 	_npcs.name = "NPCs"
-	_npcs.configurar(_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS)
+	# La GENTE se queda en la capa de NPCs (z 2, por encima de cualquier pared); lo que entra en la
+	# bolsa de profundidad son los CONTENEDORES de ventanilla, que son mobiliario (ver `npcs_flujo`).
+	_npcs.configurar(
+		_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS, _mundo_profundo
+	)
 	_npcs.usar_paciencia(_paciencia)   # el aro de ánimo sobre cada ciudadano (story paciencia-008)
 	add_child(_npcs)
 	_sincronizar_puestos_flujo()

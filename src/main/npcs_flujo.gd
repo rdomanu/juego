@@ -137,26 +137,31 @@ const CAPA_FRENTE_SUR_ALTO: int = 4
 ## ── EL PUESTO ES MOBILIARIO, NO GENTE (🐛 FIX 2026-08-03, bug con captura del usuario) ──────────
 ## *"el mostrador de la ventanilla TIE pegada al borde sur/este de Documentación se dibuja POR
 ## ENCIMA del murete frontal"*. Causa exacta, medida en el motor (`tools/_diag_oclusion_murete.gd`,
-## volcado de z efectivos): el contenedor `"Puesto_<id>"` cuelga de `_capa_escena`, que hereda el
-## `z_index = 2` de este nodo — la capa de GENTE, por diseño POR ENCIMA de `ParedesFrente` (z 1)
-## para que ningún muñeco quede tapado por un murete. Pero de ese contenedor no cuelga solo el
-## policía: cuelgan también su MOSTRADOR y sus DOS SILLAS, que son mobiliario y no tenían por qué
-## viajar en la capa de la gente. Resultado: el mostrador se saltaba el murete que tiene delante.
+## volcado de z efectivos): el contenedor `"Puesto_<id>"` colgaba de `_capa_escena`, que hereda el
+## `z_index = 2` de este nodo — la capa de GENTE, por diseño POR ENCIMA de las paredes para que
+## ningún muñeco quede tapado por un murete. Pero de ese contenedor no cuelga solo el policía:
+## cuelgan también su MOSTRADOR y sus DOS SILLAS, que son mobiliario y no tenían por qué viajar en
+## la capa de la gente. Resultado: el mostrador se saltaba el murete que tiene delante.
 ##
 ## El arreglo NO toca ADR-0005: el orden interno del puesto (silla < policía < mostrador <
-## silla_sur) lo sigue decidiendo `_insertar_en_capa` por orden de árbol, y el orden de árbol solo
-## desempata DENTRO de un mismo z_index. Lo único que cambia es a QUÉ z_index pertenece el bloque
-## entero: `z_index` RELATIVO −2 sobre el 2 de este nodo ⇒ z EFECTIVO 0, el mismo que el mobiliario
-## estático de Construcción (`_capa_elementos`) y el suelo. Así el murete (z 1) le tapa la base,
-## exactamente igual que ya se lo tapa a un sofá (ver `Z_PAREDES_FRENTE` en `paredes_salas.gd`).
+## silla_sur) lo sigue decidiendo `_insertar_en_capa` por orden de árbol. Lo que cambia es DÓNDE
+## cuelga el bloque entero: de `_capa_puestos`, que vive en la BOLSA DE Y-SORT COMPARTIDA del juego
+## ("MundoProfundo" de `Main`, z 0) junto al mobiliario estático de Construcción y a cada tramo de
+## pared. Ahí el contenedor compite por PROFUNDIDAD como un mueble más, con la Y de la celda de su
+## mostrador: el muro que tiene delante le tapa la base y el que tiene detrás queda detrás.
+##
+## ⚠️ El contenedor NO lleva `y_sort_enabled`: sus hijos se dibujan EN BLOQUE, todos a la Y del
+## contenedor, y por tanto en el orden de árbol que les da ADR-0005 (regla citada en la doc de
+## `CanvasItem.y_sort_enabled` y verificada en el motor). Es exactamente lo que queremos: la
+## ventanilla se ordena por fuera como una pieza, y por dentro sigue mandando el ADR.
 ##
 ## Por qué NO rompe nada de lo aprobado (comprobado con fotomontaje antes/después):
-##  · mesa tapa las piernas del policía sentado → los dos bajan JUNTOS a z 0, su orden relativo es
-##    el mismo orden de árbol de siempre;
+##  · mesa tapa las piernas del policía sentado → van JUNTOS en el bloque, su orden relativo es el
+##    mismo orden de árbol de siempre;
 ##  · el CIUDADANO atendido sigue en z 2 (+1 en el frente, `Z_FRENTE_PUESTO`) → sigue viéndose por
 ##    encima del mostrador y de su asiento, como se aprobó;
-##  · el RESPALDO de su silla sube a `Z_RESPALDO_FRENTE_SUR` = 4 (antes 2) para conservar el MISMO
-##    z efectivo 4 que tenía y seguir tapándole la lumbar (ver esa constante);
+##  · el RESPALDO de su silla sigue en `Z_RESPALDO_FRENTE_SUR` = 4 (z efectivo 4) y le tapa la
+##    lumbar (ver esa constante);
 ##  · las etiquetas y barras del puesto llevan `Z_ROTULOS_PUESTO` para conservar su z efectivo 2 —
 ##    son información, no mobiliario, y no deben quedar tapadas por un murete.
 ##
@@ -164,6 +169,10 @@ const CAPA_FRENTE_SUR_ALTO: int = 4
 ## su sala, así que el murete de esa sala le queda DELANTE y debe taparle la base como a cualquier
 ## otra cosa que esté ahí dentro. Con `ALTO_PARED_FRENTE` = 17 px el murete ni le roza (su celda
 ## está una fila más al norte, 20 px más arriba), así que se le sigue viendo entero.
+##
+## `Z_MUEBLES_PUESTO` solo se aplica en el camino de RESPALDO (sin capa profunda inyectada, ver
+## `configurar`): ahí la capa de puestos sigue colgando de `_capa_escena` (z 2) y necesita este −2
+## para volver al z efectivo 0 del mobiliario. Con capa profunda no hace falta: ya nace en el 0.
 const Z_MUEBLES_PUESTO: int = -2
 ## z RELATIVO de las etiquetas/barras del contenedor del puesto, para que `Z_MUEBLES_PUESTO` no se
 ## las lleve por delante. El contenedor queda en z efectivo 0, así que un +2 aquí las devuelve al
@@ -250,6 +259,11 @@ var _ya_entro: Dictionary[RefCounted, StringName] = {}
 var _en_su_puesto: Dictionary[StringName, bool] = {}
 var _capa_logica: Node2D = null
 var _capa_escena: Node2D = null
+## Capa de los CONTENEDORES de ventanilla ("Puesto_<id>"). Vive en la bolsa de y-sort compartida del
+## juego cuando Main la inyecta (ver `configurar` y `Z_MUEBLES_PUESTO`); si no, cuelga de
+## `_capa_escena` como antes. Tiene `y_sort_enabled` para que cada puesto compita por su cuenta —
+## sin él, todas las ventanillas se dibujarían a la misma profundidad, en bloque.
+var _capa_puestos: Node2D = null
 
 # ── Trayecto cosmético del descanso (feedback demo 2026-07-29: *"debe estar la animación del
 # abandono del puesto y estar en la sala de descanso sin el puesto atendido"*) ───────────────────
@@ -363,6 +377,11 @@ func color_de_animo(animo: StringName) -> Color:
 	return COLOR_ANIMO.get(animo, Color(1, 1, 1, 0.5))
 
 
+## `capa_profunda` (2026-08-03): el nodo con `y_sort_enabled` de `Main` ("MundoProfundo") donde se
+## ordenan por profundidad las paredes y el mobiliario. Los CONTENEDORES de ventanilla cuelgan de
+## ahí (vía `_capa_puestos`) porque son mobiliario — ver `Z_MUEBLES_PUESTO`. La GENTE no: se queda
+## en `_capa_escena` (z 2), por encima de cualquier pared. `null` → todo como antes del cambio
+## (herramientas y tests que montan este nodo sueltos).
 func configurar(
 	flujo: Node,
 	construccion: Node,
@@ -371,6 +390,7 @@ func configurar(
 	pos_suelo: Vector2,
 	columnas: int,
 	filas: int,
+	capa_profunda: Node2D = null,
 ) -> void:
 	# Gotcha de orden de dibujo: las capas visuales de Construcción cuelgan de un nodo NO-CanvasItem
 	# → son RAÍCES de canvas aparte que se pintan después del bloque de Main (donde vivimos). Sin
@@ -407,6 +427,20 @@ func configurar(
 	# uno en un subnodo suyo.
 	_capa_escena.y_sort_enabled = true
 	add_child(_capa_escena)
+	# La capa de VENTANILLAS: mobiliario, no gente. Va a la bolsa compartida si Main la inyecta (así
+	# cada puesto se ordena contra las paredes y los muebles de su sala); si no, se queda dentro de
+	# `_capa_escena` compensando con `Z_MUEBLES_PUESTO` para conservar su z efectivo de siempre.
+	# Misma `position` en los dos casos: los contenedores se colocan con `Proyeccion.centro_iso`
+	# PELADA (ver `_actualizar_visual_puesto`), que no incluye el origen del suelo.
+	_capa_puestos = Node2D.new()
+	_capa_puestos.name = "Puestos"
+	_capa_puestos.position = pos_suelo
+	_capa_puestos.y_sort_enabled = true
+	if capa_profunda != null:
+		capa_profunda.add_child(_capa_puestos)
+	else:
+		_capa_puestos.z_index = Z_MUEBLES_PUESTO
+		_capa_escena.add_child(_capa_puestos)
 	_region = NavigationRegion2D.new()
 	_region.name = "Navegacion"
 	_capa_logica.add_child(_region)
@@ -912,7 +946,7 @@ func _refrescar_puestos() -> void:
 			contenedor.set_meta(&"celda", celda)
 			# ISOMETRICO: el mostrador se DIBUJA, asi que va en pantalla; y se ancla por la BASE
 			# (el centro del rombo de su celda), no flotando media celda por encima como antes.
-			# OJO al origen: el contenedor cuelga de `_capa_escena`, que YA esta puesta en
+			# OJO al origen: el contenedor cuelga de `_capa_puestos`, que YA esta puesta en
 			# `pos_suelo` — asi que aqui va la proyeccion PELADA (`Proyeccion.centro_iso`) y NO
 			# `Construccion.centro_en_pantalla`, que ademas suma el origen. Sumarlo dos veces fue
 			# el bug que reporto el usuario nada mas abrir la ventana: "los funcionarios no estan
@@ -1442,10 +1476,10 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var contenedor := Node2D.new()
 	contenedor.name = "Puesto_%s" % puesto_id
 	contenedor.position = Proyeccion.centro_iso(celda)
-	# EL PUESTO ES MOBILIARIO: baja de la capa de gente (z 2) a la del mobiliario (z efectivo 0) para
-	# que el murete frontal de su sala le tape la base. Ver `Z_MUEBLES_PUESTO` para el bug, la causa
-	# medida y por qué no rompe ADR-0005 (el orden INTERNO sigue siendo orden de árbol).
-	contenedor.z_index = Z_MUEBLES_PUESTO
+	# EL PUESTO ES MOBILIARIO: no lleva z propio — el suyo se lo da `_capa_puestos`, que es quien
+	# decide si el bloque vive en la bolsa de profundidad compartida o compensando dentro de la capa
+	# de gente. Ver `Z_MUEBLES_PUESTO` para el bug, la causa medida y por qué no rompe ADR-0005 (el
+	# orden INTERNO sigue siendo orden de árbol, dentro de un bloque sin y-sort propio).
 	# El muñeco policía (torso + cabeza, estilo npc_ciudadano); se muestra solo si el puesto está dotado.
 	var policia := Node2D.new()
 	policia.name = "Policia"
@@ -1550,7 +1584,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	for hijo: Node in contenedor.get_children():
 		if hijo is CanvasItem and not hijo.has_meta(&"capa_iso"):
 			(hijo as CanvasItem).z_index = Z_ROTULOS_PUESTO
-	_capa_escena.add_child(contenedor)
+	_capa_puestos.add_child(contenedor)
 	_visual_de_puesto[puesto_id] = contenedor
 
 

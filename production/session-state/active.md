@@ -2487,3 +2487,21 @@ vistazo:
   compartido) + arranque en pausa con `-- --pausa` para los hitos visibles.
 - Pendientes heredados: sign-off Bienestar #13 · U9 muros · ODAC "a medida" en panel O · falda de
   girl · pantalla de créditos del juego (obligación CC BY) · impresora de DNI sin asset.
+
+---
+
+# ⚡ CIERRE RÁPIDO 2026-08-02 (usuario apaga el equipo)
+
+HITO CASI CERRADO: "huella exacta + mostrador 2 celdas". TODO el trabajo está en disco:
+- Cámara de render corregida (26,565°→30°) + cubo de calibración (0,498/0,498 ✓). TODOS los
+  sprites re-renderizados con base EXACTA a sus celdas (mostrador2 2,000 · sofá 3,025 · legado 0,975).
+- MODELO: puesto huella 2×1 (ancla=celda de trabajo, cuerpo al ESTE, dato en catálogo superficie=2),
+  migración idempotente de saves (legado si no cabe), tests nuevos. Unit 333/333 + integración 376/376
+  verificados por agentes; VERIFICACIÓN FINAL MÍA de la suite completa en curso al cerrar.
+- INTEGRACIÓN VISUAL: regla "sprite ancla en la ÚLTIMA celda del cuerpo" (Proyeccion.delta_ultima_celda),
+  mesa_atencion con 2 sprites (2 celdas / 1 legado, ancla 0.501,0.747), navegación recorta el cuerpo entero.
+- DECISIONES DEL USUARIO HOY: rejilla implacable para TODO · REHACER LA COMISARÍA INICIAL (salas para
+  puestos 2×1 + impresora obligatoria TIE/ODAC + descanso + 2 esperas) — diseñar plano CON él ·
+  rotaciones con capas por ángulo (borrador docs/architecture/borrador-orden-profundidad-rotaciones.md).
+- PENDIENTE INMEDIATO SESIÓN SIGUIENTE: si no hubo commit, pasar suite completa → commit por hitos →
+  abrir en pausa → veredicto del usuario. Después: plano comisaría nueva → impresora completa (GDD cerrado).
