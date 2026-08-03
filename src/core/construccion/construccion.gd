@@ -1909,11 +1909,15 @@ const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 ## nueva comodidad sin sprite, ni para las que YA tienen sprite pero superficie > 1 (esas van por
 ## el camino especial de `_pieza_comodidad`, ver más abajo: `sofa_descanso`).
 ##
-## Por comodidad: `rotacion` (de las 4 que renderiza `render_mobiliario.gd`; todas a 0° por ahora
-## — una comodidad no tiene "frente" al que mirar, a diferencia del mostrador de la ventanilla, así
-## que cualquiera vale y se deja la de calibración) y `ancla` (fracción del ancho/alto del PNG
-## donde cae el centro de la celda — la imprime la propia herramienta al renderizar, no se
-## adivina).
+## Por comodidad, UN solo dato: `rotacion` (de las 4 que renderiza `render_mobiliario.gd`; todas a
+## 0° por ahora — una comodidad no tiene "frente" al que mirar, a diferencia del mostrador de la
+## ventanilla, así que cualquiera vale y se deja la de calibración).
+##
+## El `ancla` que había aquí (fracción del ancho/alto del PNG, una por comodidad, escrita a mano)
+## se BORRÓ el 2026-08-03 con el auto-anclaje: la calcula `AnclajeSprite` midiendo los límites
+## opacos del propio PNG. Ley del usuario: *"un objeto no puede salir de sus celdas — sabes los
+## límites del objeto y los límites de las celdas"*. Añadir una comodidad con sprite ya no pide
+## medir nada: basta con renderizarla y ponerla en esta lista.
 const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
 const COMODIDAD_EQUIPO_INFORMATICO := &"equipo_informatico"
 const COMODIDAD_PAPELERA := &"papelera"
@@ -1925,15 +1929,12 @@ const COMODIDAD_RADIO := &"radio"
 ## `comodidad_sofa_descanso` (OBJ_011, un sofá de 1 plaza: quedó renderizado pero SIN USAR, a la
 ## espera de que el usuario le busque un destino de 1 celda de verdad).
 const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
-## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
-## Dispensador re-actualizada 2026-08-03: reescalado a ratio humano (pared 32 px, Fase 1 del plan
-## de calidad visual) — lienzo nuevo 14×38, ancla derivada de su base medida.
 static func _sprites_comodidad() -> Dictionary:
 	return {
-		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0, "ancla": Vector2(0.479, 0.628)},
-		COMODIDAD_PAPELERA: {"rotacion": 0, "ancla": Vector2(0.508, 0.861)},
-		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "ancla": Vector2(0.444, 0.888)},
-		COMODIDAD_RADIO: {"rotacion": 0, "ancla": Vector2(0.493, 0.803)},
+		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0},
+		COMODIDAD_PAPELERA: {"rotacion": 0},
+		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0},
+		COMODIDAD_RADIO: {"rotacion": 0},
 	}
 
 
@@ -1954,11 +1955,11 @@ static func _sprites_comodidad() -> Dictionary:
 const ASIENTO_SOFA3 := "asiento_sofa3"
 const ROT_ASIENTO_SOFA3_VERTICAL: int = 180
 const ROT_ASIENTO_SOFA3_HORIZONTAL: int = 90
-## Una ancla por rotación — el encuadre de 90°/270° no es el mismo que el de 0°/180° (dato del
-## coordinador, 2026-08-02, midiendo la base real de cada PNG — no el centro de encuadre que
-## imprimía antes la herramienta).
-const ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL := Vector2(0.284, 0.728)      # rot 180 (respaldo recuperado)
-const ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL := Vector2(0.697, 0.728)    # rot 90 (respaldo recuperado)
+## Aquí vivían `ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL` (0.284, 0.728) y `..._HORIZONTAL`
+## (0.697, 0.728) — una fracción de ancla a mano por rotación, porque el encuadre de 90°/270° no es
+## el mismo que el de 0°/180°. BORRADAS el 2026-08-03: el auto-anclaje (`AnclajeSprite`) mide cada
+## PNG por separado, así que la diferencia entre encuadres sale sola y no hay que mantener dos
+## números. (No confundir con dónde se SIENTA la gente en el sofá: eso no vive aquí.)
 ## Dónde cae en pantalla la esquina (0,0) de la rejilla. Lo fija Main al montar el visual. Con la
 ## proyección isométrica NO es la esquina de arriba a la izquierda del dibujo, sino el vértice
 ## SUPERIOR del rombo grande (desde ahí el tablero se abre hacia los dos lados).
@@ -2207,11 +2208,13 @@ func _crear_pieza(
 		return raiz
 	var sprites_comodidad: Dictionary = _sprites_comodidad()
 	if not de_techo and id_catalogo == COMODIDAD_SOFA_DESCANSO and _hay_sprite_asiento_sofa3(orientacion):
-		var sprite_pieza: Node2D = _pieza_sprite_asiento_sofa3(orientacion)
+		var sprite_pieza: Node2D = _pieza_sprite_asiento_sofa3(orientacion, celdas)
 		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
 		raiz.add_child(sprite_pieza)
 	elif not de_techo and sprites_comodidad.has(id_catalogo) and _hay_sprite_comodidad(id_catalogo):
-		var sprite_pieza: Node2D = _pieza_sprite_comodidad(id_catalogo, sprites_comodidad[id_catalogo])
+		var sprite_pieza: Node2D = _pieza_sprite_comodidad(
+			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas
+		)
 		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
 		raiz.add_child(sprite_pieza)
 	else:
@@ -2254,19 +2257,20 @@ func _ruta_sprite_comodidad(id_catalogo: StringName, rotacion: int) -> String:
 
 
 ## La comodidad de sprite: un `Sprite2D` anclado por el mismo punto que la `PiezaIso` que sustituye
-## (el centro de la celda, `Vector2.ZERO` en local) — mismo patrón que
-## `MesaAtencionScript._pieza_sprite_mostrador`. `datos` es la entrada de `_sprites_comodidad()`
-## para este id (`rotacion` + `ancla`).
-func _pieza_sprite_comodidad(id_catalogo: StringName, datos: Dictionary) -> Node2D:
+## (el centro del rombo de la celda donde cuelga el nodo, `Vector2.ZERO` en local) — mismo patrón
+## que `MesaAtencionScript._pieza_sprite_mostrador`. `datos` es la entrada de `_sprites_comodidad()`
+## para este id (solo `rotacion`: el ancla la mide `AnclajeSprite`). `paso`/`celdas` son los mismos
+## con los que el llamante calcula `Proyeccion.delta_ultima_celda` para posicionar el nodo — el
+## auto-anclaje los necesita para saber cuánto hay del centro de la huella al de la última celda.
+func _pieza_sprite_comodidad(
+	id_catalogo: StringName, datos: Dictionary, paso: Vector2i, celdas: int
+) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Caja"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_comodidad(id_catalogo, datos["rotacion"]))
-	sprite.texture = textura
-	var ancla: Vector2 = datos["ancla"]
-	sprite.offset = Vector2(-textura.get_width() * ancla.x, -textura.get_height() * ancla.y)
+	sprite.texture = load(_ruta_sprite_comodidad(id_catalogo, datos["rotacion"]))
+	AnclajeSprite.aplicar(sprite, paso, celdas)
 	raiz.add_child(sprite)
 	return raiz
 
@@ -2284,24 +2288,16 @@ func _ruta_sprite_asiento_sofa3(orientacion: int) -> String:
 	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, ASIENTO_SOFA3, _rotacion_asiento_sofa3(orientacion)]
 
 
-## El ancla que toca según `orientacion` — ver el aviso junto a las dos constantes.
-func _ancla_asiento_sofa3(orientacion: int) -> Vector2:
-	return ANCLA_FRACCION_ASIENTO_SOFA3_HORIZONTAL if orientacion == HORIZONTAL \
-		else ANCLA_FRACCION_ASIENTO_SOFA3_VERTICAL
-
-
-## El sofá de 3 plazas de sprite, en la rotación que toca según `orientacion` (H/V, rotar con R) —
-## mismo patrón de ancla que el resto.
-func _pieza_sprite_asiento_sofa3(orientacion: int) -> Node2D:
+## El sofá de sprite, en la rotación que toca según `orientacion` (H/V, rotar con R) — mismo patrón
+## de ancla que el resto: la mide `AnclajeSprite` del PNG de ESA rotación, así que los dos encuadres
+## (0°/180° y 90°/270°, que no coinciden) se resuelven solos. `celdas` = la superficie de catálogo.
+func _pieza_sprite_asiento_sofa3(orientacion: int, celdas: int) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Caja"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_asiento_sofa3(orientacion))
-	sprite.texture = textura
-	var ancla: Vector2 = _ancla_asiento_sofa3(orientacion)
-	sprite.offset = Vector2(-textura.get_width() * ancla.x, -textura.get_height() * ancla.y)
+	sprite.texture = load(_ruta_sprite_asiento_sofa3(orientacion))
+	AnclajeSprite.aplicar(sprite, _paso_de(orientacion), celdas)
 	raiz.add_child(sprite)
 	return raiz
 

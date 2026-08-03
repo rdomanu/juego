@@ -21,22 +21,37 @@ const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
 const ProyeccionScript := preload("res://src/foundation/proyeccion/proyeccion.gd")
 const MunecoScript := preload("res://src/main/muneco.gd")
+## Las constantes que MANDAN sobre la composición interna de la ventanilla (ADR-0005 + el arrime).
+const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 
 const TAM_CELDA: int = 40
 const TAM_RENDER := Vector2i(720, 540)
 
 ## Carpeta del scratchpad de esta sesión (fuera del repo — PROHIBIDO escribir en assets/capturas/).
-const CARPETA_SALIDA := "C:/Users/manur/AppData/Local/Temp/claude/C--Users-manur-juego/75e951ac-fc51-440b-b566-49ccd66ebf86/scratchpad/"
+const CARPETA_SALIDA := "C:/Users/manur/AppData/Local/Temp/claude/C--Users-manur-juego/97b28cec-f535-4ea2-8bd3-af9a5b118451/scratchpad/"
 
 ## Sufijo de los PNG de esta pasada ("antes"/"despues"): lo pasa el runner por línea de comandos
 ## (`-- antes`), para no pisar la captura de referencia al re-capturar tras el arreglo.
 var _sufijo: String = "antes"
+
+## ── EL JUEZ ES UN NÚMERO, NO UNA CAPTURA (regla nueva 2026-08-03) ─────────────────────────────
+## Margen del test de esquina del mostrador, en píxeles de pantalla. ±3 px: por debajo del grosor
+## de la línea de la rejilla del diagnóstico, o sea indistinguible a ojo — justo lo que no se
+## podía decidir mirando la foto.
+const TOLERANCIA_ESQUINA_PX: float = 3.0
+
+## Resultados del test de esquina de esta pasada: etiqueta → PASA/FALLA. Se resume al final para que
+## el veredicto quede en UNA línea, sin bucear en el volcado.
+var _veredictos: Dictionary[String, bool] = {}
 
 
 func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg != "":
 			_sufijo = arg
+	await _caso_ventanilla_completa(true)
+	await _caso_ventanilla_completa(false)
+	await _caso_ventanilla_legado()
 	await _caso_ventanilla_divisorio()
 	await _caso_sofa_paredes()
 	await _caso_ventanilla(true)
@@ -45,8 +60,138 @@ func _ready() -> void:
 	await _caso_dispensador(true)
 	await _caso_divisorio()
 	await _caso_general()
+	var fallos: int = 0
+	for etiqueta: String in _veredictos:
+		if not _veredictos[etiqueta]:
+			fallos += 1
+	print("[DIAG ESQUINA] RESUMEN: %d test(s), %d FALLA(N) -> %s" % [
+		_veredictos.size(), fallos, "PASA" if fallos == 0 else "FALLA"
+	])
 	print("[DIAG OCLUSION] hecho (%s) -- ver %soclusion_*_%s.png" % [_sufijo, CARPETA_SALIDA, _sufijo])
 	get_tree().quit()
+
+
+## ── TEST DE ESQUINA NUMÉRICO DEL MOSTRADOR (2026-08-03) ───────────────────────────────────────
+## POR QUÉ EXISTE: el corrido del mostrador de 2 celdas resistió DOS arreglos porque los dos se
+## midieron A OJO sobre una captura (y el segundo metió un desvío de 0,38 pasos que dejó la mesa una
+## celda entera fuera de su huella). Una captura dice "algo no cuadra"; no dice CUÁNTO ni HACIA
+## DÓNDE. Este test sí, y es el ÚNICO juez admisible para tocar `MesaAtencion.DESVIO_CENTRADO_MESA*`.
+##
+## QUÉ COMPARA — un punto contra otro punto, los dos en coordenadas globales de pantalla:
+##   · ESPERADO: la esquina SUR del rombo de la ÚLTIMA celda de la huella del mostrador (la celda
+##     ESTE con 2 celdas; la propia celda con 1). Sale de `Proyeccion.esquina_iso`, o sea del modelo.
+##   · REAL: el mismo punto, pero calculado desde el DIBUJO. El sprite ancla su píxel `ancla_px`
+##     (= −`Sprite2D.offset`, lo que de verdad tiene puesto el nodo, no la constante) en el centro
+##     del rombo de su celda; la esquina sur de ese rombo cae `MEDIO_ALTO` px más abajo, o sea en el
+##     píxel `(ancla_px.x, ancla_px.y + 20)` del PNG. Ese píxel se dibuja en
+##     `sprite.global_position + offset + punto_sur_png`.
+## El delta entre los dos es el corrido, en píxeles y con signo. ±3 px = PASA.
+##
+## OJO al ORIGEN: se deriva del propio contenedor (`global_position − centro_iso(celda)`) en vez de
+## suponer que la capa está en (0,0). Así el test sigue valiendo aunque el suelo se mueva.
+func _test_esquina_mostrador(
+	npcs: Node2D, puesto_id: StringName, celda: Vector2i, construccion: Node, etiqueta: String
+) -> bool:
+	var contenedor: Node2D = npcs._visual_de_puesto[puesto_id]
+	var tablero: Node2D = contenedor.get_node_or_null("Mesa/Tablero") as Node2D
+	var sprite: Sprite2D = null
+	if tablero != null:
+		sprite = tablero.get_node_or_null("Sprite") as Sprite2D
+	if sprite == null or sprite.texture == null:
+		push_error("[DIAG ESQUINA %s] SIN sprite de mostrador (mesa de cajas) -- test no aplicable" % etiqueta)
+		_veredictos[etiqueta] = false
+		return false
+	var es_legado: bool = construccion.es_huella_legado(puesto_id)
+	var superficie: int = 1 if es_legado else 2
+	var celda_ultima: Vector2i = celda + Vector2i(superficie - 1, 0)
+	var origen: Vector2 = contenedor.global_position - ProyeccionScript.centro_iso(celda)
+	# Esquina SUR del rombo: el vértice (x+1, y+1) de la rejilla (ver `Proyeccion.esquina_iso`).
+	var esperado: Vector2 = origen + ProyeccionScript.esquina_iso(celda_ultima.x + 1, celda_ultima.y + 1)
+	var ancla_px: Vector2 = -sprite.offset
+	var punto_sur_png: Vector2 = ancla_px + Vector2(0.0, ProyeccionScript.MEDIO_ALTO)
+	var real: Vector2 = sprite.global_position + sprite.offset + punto_sur_png
+	var delta: Vector2 = real - esperado
+	var pasa: bool = absf(delta.x) <= TOLERANCIA_ESQUINA_PX and absf(delta.y) <= TOLERANCIA_ESQUINA_PX
+	print("[DIAG ESQUINA %s] puesto='%s' celda=%s legado=%s superficie=%d celda_ultima=%s huella=%s" % [
+		etiqueta, puesto_id, celda, es_legado, superficie, celda_ultima,
+		construccion.celdas_de_elemento(puesto_id),
+	])
+	print("[DIAG ESQUINA %s]   cadena: contenedor.global=%s | tablero.local=%s (delta_ultima=%s + DESVIO_MESA=%s + DESVIO_LARGO=%s) | tablero.global=%s" % [
+		etiqueta, contenedor.global_position, tablero.position,
+		ProyeccionScript.delta_ultima_celda(Vector2i(1, 0), superficie),
+		MesaAtencionScript.DESVIO_CENTRADO_MESA if not es_legado else Vector2.ZERO,
+		MesaAtencionScript.DESVIO_CENTRADO_MESA_LARGO if not es_legado else Vector2.ZERO,
+		tablero.global_position,
+	])
+	print("[DIAG ESQUINA %s]   PNG %dx%d ancla_px=%s punto_sur_png=%s" % [
+		etiqueta, sprite.texture.get_width(), sprite.texture.get_height(), ancla_px, punto_sur_png,
+	])
+	print("[DIAG ESQUINA %s]   ESPERADO esquina sur huella=%s | REAL esquina sur base sprite=%s" % [
+		etiqueta, esperado, real,
+	])
+	print("[DIAG ESQUINA %s]   DELTA=%s (|%.2f| px)  VEREDICTO: %s" % [
+		etiqueta, delta, delta.length(), "PASA" if pasa else "FALLA",
+	])
+	_volcar_masa_png(sprite, origen, celda, celda_ultima, etiqueta)
+	_veredictos[etiqueta] = pasa
+	return pasa
+
+
+## CONTRASTE INDEPENDIENTE del test de arriba: mide EN EL PNG dónde está de verdad la masa opaca del
+## mueble y la sitúa en pantalla. El test de esquina valida la CADENA (posición del nodo + ancla
+## declarada); esto valida el ANCLA en sí — si la fracción `ANCLA_FRACCION_MOSTRADOR*` estuviera mal,
+## el test de esquina pasaría igual (mide contra el ancla, no contra los píxeles) y esta línea lo
+## delataría. No emite veredicto: es el dato con el que se decide si hay que re-medir el ancla.
+func _volcar_masa_png(
+	sprite: Sprite2D, origen: Vector2, celda: Vector2i, celda_ultima: Vector2i, etiqueta: String
+) -> void:
+	var img: Image = sprite.texture.get_image()
+	if img == null:
+		return
+	if img.is_compressed():
+		img.decompress()
+	var ancho: int = img.get_width()
+	var alto: int = img.get_height()
+	var min_x: int = ancho
+	var max_x: int = -1
+	var min_y: int = alto
+	var max_y: int = -1
+	for py: int in range(alto):
+		for px: int in range(ancho):
+			if img.get_pixel(px, py).a <= 0.05:
+				continue
+			min_x = mini(min_x, px)
+			max_x = maxi(max_x, px)
+			min_y = mini(min_y, py)
+			max_y = maxi(max_y, py)
+	if max_y < 0:
+		print("[DIAG ESQUINA %s]   MASA PNG: textura VACÍA" % etiqueta)
+		return
+	# El punto más al SUR de la masa (la esquina inferior de la base del mueble): centro de la fila
+	# opaca más baja.
+	var sur_ini: int = -1
+	var sur_fin: int = -1
+	for px: int in range(ancho):
+		if img.get_pixel(px, max_y).a > 0.05:
+			if sur_ini < 0:
+				sur_ini = px
+			sur_fin = px
+	var base_png := Vector2((float(sur_ini) + float(sur_fin)) * 0.5 + 0.5, float(max_y) + 1.0)
+	var base_pantalla: Vector2 = sprite.global_position + sprite.offset + base_png
+	var esquina_sur_huella: Vector2 = (
+		origen + ProyeccionScript.esquina_iso(celda_ultima.x + 1, celda_ultima.y + 1)
+	)
+	var esquina_oeste_huella: Vector2 = origen + ProyeccionScript.esquina_iso(celda.x, celda.y + 1)
+	# Extremo izquierdo de la masa, contra el vértice OESTE de la huella (el otro extremo del eje
+	# largo): con los dos se ve si el mueble está corrido a lo largo o solo mal centrado en fondo.
+	var izq_pantalla: Vector2 = sprite.global_position + sprite.offset + Vector2(float(min_x), 0.0)
+	print("[DIAG ESQUINA %s]   MASA PNG: bbox opaco x[%d..%d] y[%d..%d] de %dx%d" % [
+		etiqueta, min_x, max_x, min_y, max_y, ancho, alto,
+	])
+	print("[DIAG ESQUINA %s]   MASA: punto sur=%s (esperado ~%s, delta=%s) | x izq=%.1f (vértice oeste huella x=%.1f, delta=%.1f)" % [
+		etiqueta, base_pantalla, esquina_sur_huella, base_pantalla - esquina_sur_huella,
+		izq_pantalla.x, esquina_oeste_huella.x, izq_pantalla.x - esquina_oeste_huella.x,
+	])
 
 
 ## Un SubViewport montado como lo monta Main: fondo opaco + `ParedesSalas` ANTES que `Construccion`.
@@ -91,6 +236,19 @@ func _montar(foco: Vector2, zoom: float) -> Array:
 	return [sub, mundo, construccion, paredes, profundo]
 
 
+## Igual que `_capturar` pero SIN soltar el viewport: para sacar dos fotos del mismo montaje (con y
+## sin la rejilla de diagnóstico encima).
+func _capturar_sin_liberar(sub: SubViewport, nombre: String) -> void:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var ruta: String = "%soclusion_%s_%s.png" % [CARPETA_SALIDA, nombre, _sufijo]
+	var err: Error = sub.get_texture().get_image().save_png(ruta)
+	if err != OK:
+		push_error("[DIAG OCLUSION] save_png '%s' fallo (error %d)" % [ruta, err])
+	else:
+		print("[DIAG OCLUSION] %s -> %s" % [nombre, ruta])
+
+
 func _capturar(sub: SubViewport, nombre: String) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
@@ -129,10 +287,29 @@ func _volcar_puesto(npcs: Node2D, puesto_id: StringName, etiqueta: String) -> vo
 	])
 	for hijo: Node in contenedor.get_children():
 		if hijo is CanvasItem:
-			print("[DIAG %s]   hijo '%s' z=%d (efectivo %d) capa_iso=%s" % [
+			print("[DIAG %s]   hijo '%s' z=%d (efectivo %d) capa_iso=%s pos=%s" % [
 				etiqueta, hijo.name, (hijo as CanvasItem).z_index, _z_efectivo(hijo as CanvasItem),
 				str(hijo.get_meta(&"capa_iso")) if hijo.has_meta(&"capa_iso") else "-",
+				(hijo as Node2D).position if hijo is Node2D else Vector2.INF,
 			])
+	# ── LA COMPOSICIÓN INTERNA CONTRA SUS CONSTANTES (2026-08-03) ──────────────────────────────
+	# Las constantes de `mesa_atencion.gd` MANDAN: si una pieza no está donde dice su constante, el
+	# corrido está aquí dentro. Se compara pieza a pieza en vez de "a ojo" sobre la captura.
+	var tablero: Node2D = contenedor.get_node_or_null("Mesa/Tablero")
+	var esperado_tablero: Vector2 = (
+		ProyeccionScript.delta_ultima_celda(Vector2i(1, 0), 2) + MesaAtencionScript.DESVIO_CENTRADO_MESA
+	)
+	print("[DIAG %s]   ESPERADO silla_func=%s silla_ciud=%s tablero(2 celdas)=%s" % [
+		etiqueta, MesaAtencionScript.CELDA_FUNCIONARIO, MesaAtencionScript.CELDA_CIUDADANO,
+		esperado_tablero,
+	])
+	print("[DIAG %s]   REAL     silla_func=%s silla_ciud=%s tablero=%s (delta_ultima=%s)" % [
+		etiqueta,
+		(contenedor.get_node("SillaFuncionario") as Node2D).position,
+		(contenedor.get_node("SillaCiudadano") as Node2D).position,
+		tablero.position if tablero != null else Vector2.INF,
+		ProyeccionScript.delta_ultima_celda(Vector2i(1, 0), 2),
+	])
 
 
 func _z_efectivo(item: CanvasItem) -> int:
@@ -143,6 +320,112 @@ func _z_efectivo(item: CanvasItem) -> int:
 		z += item.z_index
 		padre = item.get_parent()
 	return z
+
+
+## ── LA VENTANILLA SOLA, HUELLA COMPLETA, A/B DE LA MIGRACIÓN AL POOL (2026-08-03) ──────────────
+## Una ÚNICA ventanilla 2×3 con su huella completa (mostrador de 2 celdas), SIN paredes y muy de
+## cerca: es la foto con la que se juzga la composición interna (mesa cubriendo sus 2 celdas, silla
+## del funcionario detrás, silla de espera delante).
+##
+## Se renderiza DOS veces, y ahí está la prueba: `en_pool` = true monta los contenedores en la bolsa
+## de profundidad (el cambio de esta sesión) y `false` los deja donde estaban antes (dentro de
+## `_capa_escena`, con su compensación de z). Sin paredes en cuadro, las dos imágenes tienen que
+## salir IDÉNTICAS PÍXEL A PÍXEL: si lo son, la migración no ha movido nada dentro de la ventanilla
+## y cualquier corrido que se vea viene de las constantes de `mesa_atencion.gd`, no de las capas.
+func _caso_ventanilla_completa(en_pool: bool) -> void:
+	var piezas: Array = _montar(Vector2(2.6, 2.6), 4.6)
+	var sub: SubViewport = piezas[0]
+	var mundo: Node2D = piezas[1]
+	var construccion: Node = piezas[2]
+	var paredes: Node = piezas[3]
+	var profundo: Node2D = piezas[4]
+	var sala: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(1, 1, 6, 4)
+	)
+	construccion.fijar_paredes_de_sala(sala, false)
+	construccion.construir_de_oficio_elemento(&"puesto_doc_general", Vector2i(2, 2), &"doc_1")
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+	var npcs: Node2D = NPCsFlujoScript.new()
+	mundo.add_child(npcs)
+	npcs.configurar(
+		null, construccion, null, TAM_CELDA, Vector2.ZERO, 24, 13, profundo if en_pool else null
+	)
+	npcs.set_physics_process(false)
+	npcs._asegurar_visual_puesto(&"doc_1", Vector2i(2, 2))
+	npcs._actualizar_visual_puesto(&"doc_1", true, "Marta", &"libre", "")
+	_plantar_ciudadano_atendido(npcs, Vector2i(2, 3))
+	if not en_pool:
+		await _capturar(sub, "c4_ventanilla_previo")
+		return
+	_volcar_puesto(npcs, &"doc_1", "C4")
+	# EL JUEZ (2026-08-03): el veredicto numérico, ANTES de la foto. La captura solo ilustra.
+	_test_esquina_mostrador(npcs, &"doc_1", Vector2i(2, 2), construccion, "C4-2celdas")
+	# La foto LIMPIA primero (es la mitad del A/B píxel a píxel contra `c4_ventanilla_previo`)…
+	await _capturar_sin_liberar(sub, "c4_ventanilla_pool")
+	# …y luego la MISMA con la rejilla marcada encima: la única forma de decidir sin discutir si el
+	# mostrador cubre sus 2 celdas o está corrido. Amarillo = las 2 celdas del mostrador, (2,2) y
+	# (3,2); cian = la celda del funcionario (norte, (2,1)) y la del ciudadano (sur, (2,3)).
+	_marcar_celdas(mundo, [Vector2i(2, 2), Vector2i(3, 2)], Color(1.0, 0.9, 0.1))
+	_marcar_celdas(mundo, [Vector2i(2, 1), Vector2i(2, 3)], Color(0.2, 0.9, 1.0))
+	await _capturar(sub, "c4_ventanilla_rejilla")
+
+
+## ── EL MOSTRADOR DE 1 CELDA (huella legado), CON SU PROPIO TEST NUMÉRICO (2026-08-03) ─────────
+## El camino `es_legado` usa OTRO PNG (`mostrador_atencion`, 60×59), OTRA ancla y un
+## `delta_ultima_celda` que vale cero — o sea, no comparte NI UNA línea de cuenta con el de 2 celdas
+## salvo la función que las junta. Arreglar el de 2 sin mirar este es cómo se cuelan las regresiones.
+##
+## Cómo se fuerza el escalón `HUELLA_MINIMA` sin tocar el modelo: una sala de UNA columna de ancho.
+## Ni el bloque 2×3 ni el mostrador de 2 caben dentro, así que `construir_de_oficio_elemento` baja
+## los dos escalones él solo (con su `push_warning`, que es exactamente lo que hace en el juego).
+func _caso_ventanilla_legado() -> void:
+	var piezas: Array = _montar(Vector2(1.6, 2.6), 4.6)
+	var sub: SubViewport = piezas[0]
+	var mundo: Node2D = piezas[1]
+	var construccion: Node = piezas[2]
+	var paredes: Node = piezas[3]
+	var profundo: Node2D = piezas[4]
+	var sala: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(1, 1, 1, 4)
+	)
+	construccion.fijar_paredes_de_sala(sala, false)
+	var puesto: StringName = construccion.construir_de_oficio_elemento(
+		&"puesto_doc_general", Vector2i(1, 2), &"leg_1"
+	)
+	print("[DIAG C5] sala='%s' puesto='%s' nivel_huella=%d legado=%s" % [
+		sala, puesto, construccion.nivel_de_huella(&"leg_1"), construccion.es_huella_legado(&"leg_1"),
+	])
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+	var npcs: Node2D = NPCsFlujoScript.new()
+	mundo.add_child(npcs)
+	npcs.configurar(null, construccion, null, TAM_CELDA, Vector2.ZERO, 24, 13, profundo)
+	npcs.set_physics_process(false)
+	npcs._asegurar_visual_puesto(&"leg_1", Vector2i(1, 2))
+	npcs._actualizar_visual_puesto(&"leg_1", true, "Rosa", &"libre", "")
+	_plantar_ciudadano_atendido(npcs, Vector2i(1, 3))
+	_test_esquina_mostrador(npcs, &"leg_1", Vector2i(1, 2), construccion, "C5-1celda")
+	# Amarillo = la ÚNICA celda del mostrador legado; cian = funcionario (norte) y ciudadano (sur).
+	_marcar_celdas(mundo, [Vector2i(1, 2)], Color(1.0, 0.9, 0.1))
+	_marcar_celdas(mundo, [Vector2i(1, 1), Vector2i(1, 3)], Color(0.2, 0.9, 1.0))
+	await _capturar(sub, "c5_ventanilla_legado")
+
+
+## Dibuja el contorno de unas celdas de la rejilla POR ENCIMA de todo (z 10), para comprobar contra
+## qué casillas cae de verdad cada mueble. Solo diagnóstico: nada de esto existe en el juego.
+func _marcar_celdas(mundo: Node2D, celdas: Array, color: Color) -> void:
+	for celda: Vector2i in celdas:
+		var borde := Line2D.new()
+		borde.z_index = 10
+		borde.width = 1.5
+		borde.default_color = color
+		borde.closed = true
+		borde.points = PackedVector2Array([
+			ProyeccionScript.esquina_iso(celda.x, celda.y),
+			ProyeccionScript.esquina_iso(celda.x + 1, celda.y),
+			ProyeccionScript.esquina_iso(celda.x + 1, celda.y + 1),
+			ProyeccionScript.esquina_iso(celda.x, celda.y + 1),
+		])
+		mundo.add_child(borde)
 
 
 ## ── CASO 1 (2026-08-03) — EL CASO DEL USUARIO: LA VENTANILLA CONTRA EL MURO DIVISORIO ──────────

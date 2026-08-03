@@ -91,15 +91,15 @@ const ID_SPRITE_MOSTRADOR_2 := "mostrador_atencion2"
 ## renderizadas. 0° es la que se vio, mirando las 4: el monitor de espaldas a cámara (nunca se le
 ## enseña la pantalla al ciudadano, ver la cabecera del fichero) y sin nada raro en el encuadre.
 const ROT_MOSTRADOR: int = 0
-## Dónde cae el ANCLA (el centro del rombo de la celda, el mismo punto que usa
-## `Proyeccion.centro_iso`) dentro del PNG, como fracción de su ancho/alto. Re-renderizados los DOS
-## el 2026-08-02 (60×60 el de 1 celda, 120×120 el de 2 celdas). CORREGIDAS el mismo día: la
-## fracción que imprimía `render_mobiliario.gd` al renderizar era el CENTRO DEL ENCUADRE, no el
-## ancla real — el coordinador derivó la fracción correcta midiendo la BASE de cada PNG. Con la
-## base como referencia, los dos sprites NO comparten fracción (encuadres distintos): una
-## constante por cada uno.
-const ANCLA_FRACCION_MOSTRADOR := Vector2(0.521, 0.727)      # 1 celda (legado)
-const ANCLA_FRACCION_MOSTRADOR_2 := Vector2(0.825, 0.703)    # 2 celdas (monitor CENTRADO, lienzo 100×74)
+## ── EL ANCLA YA NO SE ESCRIBE A MANO (2026-08-03, orden del usuario) ──────────────────────────
+## Aquí vivían `ANCLA_FRACCION_MOSTRADOR` (0.521, 0.727) y `ANCLA_FRACCION_MOSTRADOR_2`
+## (0.825, 0.703): la fracción del ancho/alto del PNG donde cae el ancla, medida a mano sobre la
+## imagen. BORRADAS. Cada re-render del arte las dejaba desfasadas sin que nada lo delatara, y
+## encima se les apilaban desvíos de corrección igual de manuales (`DESVIO_CENTRADO_MESA*`) que
+## tapaban unos errores con otros — tres arreglos seguidos del mostrador de 2 celdas fallaron por
+## esa cadena. Ley del usuario: *"un objeto no puede salir de sus celdas — sabes los límites del
+## objeto y los límites de las celdas"*. Ahora el ancla la CALCULA `AnclajeSprite` midiendo los
+## límites opacos del propio PNG (ver ese fichero); si el arte cambia, el ancla cambia sola.
 
 ## ── ANCLAS DE CELDA DE LA VENTANILLA (2026-08-02, MEDIO PASO desde 2026-08-03) ────────────────
 ## Regla del usuario, viendo el juego: *"la mesa debe ocupar 1 o 2 cuadrículas, las sillas 1, y
@@ -233,21 +233,18 @@ static func _ruta_sprite_mostrador(id_sprite: String) -> String:
 
 
 ## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
-## centro de la celda, `Vector2.ZERO` en local) — no por su esquina ni por su centro geométrico.
-## `ancla_fraccion`: `ANCLA_FRACCION_MOSTRADOR` (1 celda) o `ANCLA_FRACCION_MOSTRADOR_2` (2 celdas)
-## según qué sprite se esté colocando — cada encuadre tiene la suya, ver la constante.
-static func _pieza_sprite_mostrador(id_sprite: String, ancla_fraccion: Vector2) -> Node2D:
+## centro del rombo de la celda donde se cuelga el nodo, `Vector2.ZERO` en local) — no por su
+## esquina ni por su centro geométrico. El ancla NO se pasa: la MIDE `AnclajeSprite` del PNG.
+## `superficie` = cuántas celdas ocupa el cuerpo a lo largo del eje este (2 el mostrador normal, 1
+## el legado); es lo que le dice al auto-anclaje cuánto hay entre el centro de la huella y el
+## centro de la última celda, que es donde se posiciona el nodo (ver `construir`).
+static func _pieza_sprite_mostrador(id_sprite: String, superficie: int) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Tablero"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.centered = false
-	var textura: Texture2D = load(_ruta_sprite_mostrador(id_sprite))
-	sprite.texture = textura
-	sprite.offset = Vector2(
-		-textura.get_width() * ancla_fraccion.x,
-		-textura.get_height() * ancla_fraccion.y
-	)
+	sprite.texture = load(_ruta_sprite_mostrador(id_sprite))
+	AnclajeSprite.aplicar(sprite, Vector2i(1, 0), superficie)
 	raiz.add_child(sprite)
 	return raiz
 
@@ -381,25 +378,39 @@ static func silla(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 	return raiz
 
 
-## ── MESA CENTRADA ENTRE LOS ASIENTOS (decisión del usuario, 2026-08-03) ──────────────────────
-## La base del sprite de 2 celdas (`mostrador_atencion2`) mide ~0,44 celdas de FONDO (el eje
-## perpendicular al mostrador), y hoy su esquina sur queda pegada al borde sur de sus celdas: toda
-## la holgura (~0,56 celdas) cae al norte. Mismo pedido que `DESVIO_CENTRADO_ATENCION` de arriba
-## — centrar la mesa entre el asiento del policía y la silla del ciudadano—, aplicado al MUEBLE en
-## vez de a la gente: la mitad de esa holgura (0,28 celdas) se corre hacia el NORTE en pantalla.
+## ── MESA CENTRADA ENTRE LOS ASIENTOS — YA NO ES UN DESVÍO, ES LA MEDIDA (2026-08-03) ─────────
+## Lo que pidió el usuario sigue en pie: *"pon la mesa justo en la mitad entre el asiento del
+## policía y la silla del ciudadano"*. Lo que cambia es QUIÉN lo consigue.
 ##
-## Solo al sprite de 2 celdas (`superficie == 2`, el caso normal desde 2026-08-02): el de 1 celda
-## (huella legado, `es_legado`) no se ha vuelto a medir con esta regla y es una excepción de saves
-## viejos, no del juego de hoy — tocarlo sin verificar sería inventar un número.
-const DESVIO_CENTRADO_MESA := Vector2(0.28 * Proyeccion.MEDIO_ANCHO, -0.28 * Proyeccion.MEDIO_ALTO)
+## Esta constante valía `0,28 celdas hacia el norte` y era un PARCHE de un ancla mal puesta: el
+## ancla a mano clavaba la punta sur de la base del mueble en el borde sur de sus celdas (la base
+## mide ~0,44 celdas de fondo, así que las otras ~0,56 quedaban de holgura al norte) y este desvío
+## devolvía media holgura para volver a centrarla. Dos números a mano peleándose para dar uno bueno
+## — y cada re-render del arte los descuadraba.
+##
+## Desde el auto-anclaje (`AnclajeSprite`) el centrado ya no hay que pedirlo: el ancla se calcula
+## para que el CENTRO de la base medida caiga en el CENTRO de la huella, así que la mesa nace
+## centrada entre los dos asientos y dentro de sus celdas. Verificado con el test de esquina
+## numérico de `tools/_diag_oclusion_murete.gd`: el mueble se queda a ±1,4 px de donde estaba (o
+## sea, la composición aprobada NO se mueve) y el test pasa, que con el desvío puesto no pasaba
+## (delta = exactamente este vector: (11,2, −5,6) px).
+##
+## ⚠️ SE QUEDA A CERO, NO SE BORRA: es el mando por si algún día hace falta descentrar la mesa a
+## propósito. Cualquier valor distinto de cero vuelve a mover el NODO fuera de su celda y el test
+## de esquina lo cantará al instante. Ese test es el ÚNICO juez admisible para tocarla.
+const DESVIO_CENTRADO_MESA := Vector2.ZERO
 ## Corrección A LO LARGO del eje del mostrador (2026-08-03, medida sobre la rejilla del diagnóstico
 ## de oclusión, caso C4): la masa del sprite asomaba ~0,4 celdas por el sureste de su huella y se
 ## quedaba ~0,37 corta por el noroeste. Desplazamiento de 0,38 pasos hacia el NOROESTE de pantalla
 ## (dirección −u: un paso al oeste lógico proyecta (−MEDIO_ANCHO, −MEDIO_ALTO)). Verificado
 ## re-lanzando el diagnóstico hasta asomos simétricos.
-const DESVIO_CENTRADO_MESA_LARGO := Vector2(
-	-0.38 * Proyeccion.MEDIO_ANCHO, -0.38 * Proyeccion.MEDIO_ALTO
-)
+## ⚠️ REVERTIDO a cero (2026-08-03): el 0,38 NW se decidió sobre una lectura visual confusa y la
+## lupa del usuario destapó que la mesa quedaba UNA CELDA entera al NW de su huella. El corrido
+## real se diagnostica ahora con el TEST DE ESQUINA NUMÉRICO dentro del diagnóstico de oclusión —
+## esta constante solo debe recibir un valor salido de ese test, nunca de un ojo.
+## ⚠️ Y desde el auto-anclaje (ver `DESVIO_CENTRADO_MESA` justo arriba) ni eso: el corrido a lo
+## largo del eje también sale medido del PNG. Se queda a cero como mando de emergencia.
+const DESVIO_CENTRADO_MESA_LARGO := Vector2.ZERO
 
 
 ## Monta la mesa completa. Se coloca en el CENTRO de la celda de TRABAJO (el ancla del modelo) y
@@ -421,12 +432,12 @@ static func construir(es_legado: bool = false) -> Node2D:
 	# la constante para no acoplar este script de piezas visuales al core.
 	var superficie: int = 1 if es_legado else 2
 	var id_sprite: String = ID_SPRITE_MOSTRADOR if es_legado else ID_SPRITE_MOSTRADOR_2
-	var ancla_mostrador: Vector2 = ANCLA_FRACCION_MOSTRADOR if es_legado else ANCLA_FRACCION_MOSTRADOR_2
 	if hay_sprite_mostrador(id_sprite):
-		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, ancla_mostrador)
+		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, superficie)
+		# LA POSICIÓN DEL NODO ES SOLO REJILLA: el centro de la ÚLTIMA celda del cuerpo, ni un píxel
+		# más (ver `DESVIO_CENTRADO_MESA`, hoy cero). Todo lo que tenga que ver con la FORMA del
+		# dibujo lo resuelve el `offset` medido de `AnclajeSprite`, no esta línea.
 		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
-		if not es_legado:
-			tablero.position += DESVIO_CENTRADO_MESA + DESVIO_CENTRADO_MESA_LARGO
 		raiz.add_child(tablero)
 	else:
 		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))
