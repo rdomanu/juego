@@ -2523,3 +2523,23 @@ Resumen de un vistazo:
   bucle de horas. EN VUELO al cerrar (con puertas y accesos/señal 🚫) — ver traspaso.
 - Commiteado y pusheado hasta `041284c` (suite 713/713 Exit 0 en ese punto). WIP de 3 agentes SIN
   commitear, documentado archivo a archivo en el traspaso.
+
+---
+
+# ✅ CICLO CERRADO 2026-08-04 (sesión siguiente al traspaso)
+
+Las 3 tareas en vuelo del traspaso están TERMINADAS, verificadas y commiteadas:
+- `116a1f2` puertas (cualquier tramo + acuse verde/rojo + fantasmas muertos; causa raíz: dos
+  caminos de dibujo por arista en paredes_salas.gd). Test regresión 5/5.
+- `86cd75d` accesos (sin camino ⇒ sin teletransporte, señal 🚫, recheck ~3 s; bug extra cazado:
+  hay_camino bloqueaba todo origen en la CALLE — arreglado con CELDA_PUERTA_SALIDA). Test 4 casos.
+- `2fcbb8f` AUTO-ANCLAJE POR LÍMITES (AnclajeSprite en foundation/proyeccion): mostradores, sofá y
+  4 comodidades medidos de sus píxeles; 7 constantes de ancla borradas; DESVIO_CENTRADO_MESA a
+  ZERO. Test de esquina C4/C5 delta (0.0, 0.0) PASA. **Mesa aprobada por el usuario en imagen
+  ("me vale así si") ANTES de commitear** — regla nueva reforzada: todo tema visual (tamaño/
+  posición/objeto nuevo o mejorado) se le enseña en imagen CON CELDAS antes de su OK.
+- Suite completa tras todo: **722/722 Exit 0** + arranque headless limpio (solo warning puesto_tie).
+
+PENDIENTE INMEDIATO: cola del traspaso — plano de la comisaría inicial NUEVA (con el usuario),
+impresora de documentos (GDD cerrado), Fase 2 plan visual (hero asset ventanilla). Menor: señal 🚫
+se ve algo grande → proponer A/B/C en imagen con celdas cuando toque.
