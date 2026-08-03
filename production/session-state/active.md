@@ -2505,3 +2505,21 @@ HITO CASI CERRADO: "huella exacta + mostrador 2 celdas". TODO el trabajo está e
   rotaciones con capas por ángulo (borrador docs/architecture/borrador-orden-profundidad-rotaciones.md).
 - PENDIENTE INMEDIATO SESIÓN SIGUIENTE: si no hubo commit, pasar suite completa → commit por hitos →
   abrir en pausa → veredicto del usuario. Después: plano comisaría nueva → impresora completa (GDD cerrado).
+
+---
+
+# 🏁 CIERRE DE SESIÓN 2026-08-03 (por contexto) — TRASPASO
+
+**El prompt de traspaso COMPLETO está en `production/session-state/traspaso-proxima-sesion.md`
+(leerlo ENTERO: leyes nuevas, 3 tareas en vuelo con su estado de disco, cola y comandos).**
+Resumen de un vistazo:
+
+- Sesión MARATÓN de calidad visual con el usuario dirigiendo en vivo: investigación completa
+  (plan-calidad-visual.md + sintesis-como-hacer-un-tycoon.md, listón = BIG PHARMA), ventanilla
+  FIRMADA como escena patrón, unidad 2×3, MundoProfundo (y-sort fase 1) implementado, sofá a 2
+  celdas con sus 3 respaldos, muros modelo Sims por tramo.
+- **LEY nueva Nº1 (la dio el usuario)**: AUTO-ANCLAJE POR LÍMITES — los sprites se colocan
+  midiendo sus propios píxeles contra su huella; muere la cadena de anclas a mano que causó el
+  bucle de horas. EN VUELO al cerrar (con puertas y accesos/señal 🚫) — ver traspaso.
+- Commiteado y pusheado hasta `041284c` (suite 713/713 Exit 0 en ese punto). WIP de 3 agentes SIN
+  commitear, documentado archivo a archivo en el traspaso.

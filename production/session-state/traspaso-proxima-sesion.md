@@ -1,100 +1,94 @@
-# Prompt de traspaso — sesión siguiente (actualizado 2026-08-02)
+# Prompt de traspaso — sesión siguiente (actualizado 2026-08-03, cierre por contexto)
 
 Copiar y pegar tal cual como primer mensaje de la sesión nueva.
 
 ---
 
-Continúa el proyecto "Comisario" (tycoon de gestión de una comisaría del CNP; Godot 4.6 + GDScript, 2D ISOMÉTRICO; plantilla CCGS; repo rdomanu/juego, rama main). ETAPA = PRODUCCIÓN.
+Continúa el proyecto "Comisario" (tycoon de gestión de una comisaría del CNP; Godot 4.6 + GDScript, 2D ISOMÉTRICO; plantilla CCGS; repo rdomanu/juego, rama main). ETAPA = PRODUCCIÓN. **Listón de calidad elegido por el usuario: BIG PHARMA** (tycoon iso hecho por 1 persona — "tiene jugabilidad, es bonito y diseño bien hecho").
 
 ═══ MODO DE TRABAJO (orden del usuario — ES LO PRIMERO) ═══
-TÚ (Fable 5) SOLO COORDINAS, DIRIGES Y REVISAS. El trabajo va a subagentes, y el modelo del subagente se elige POR LA DIFICULTAD DE LA TAREA:
-- model: sonnet (Sonnet 5) — el caso normal: papeleo, documentación, exploración, inventarios, herramientas derivadas de otras que ya funcionan, integraciones con patrón claro, tests de una cosa.
-- model: opus (Opus 5) — solo cuando es DE VERDAD difícil: arquitectura, un bug que ya resistió un intento, refactor que cruza sistemas, razonar sobre concurrencia/orden de ejecución.
+TÚ (Fable 5) SOLO COORDINAS, DIRIGES Y REVISAS. El trabajo va a subagentes por dificultad:
+- model: sonnet (Sonnet 5) — caso normal: papeleo, docs, exploración, herramientas derivadas de otras que funcionan, integraciones con patrón claro, renders con receta, tests de una cosa.
+- model: opus (Opus 5) — solo DE VERDAD difícil: arquitectura, bug que ya resistió un intento, refactor cruza-sistemas, razonar sobre orden de dibujo/concurrencia.
+Paralelo solo si no tocan los mismos archivos. NO delegar: decisiones de diseño con el usuario, balance, el veredicto final, el corazón del juego.
 
-Lanza EN PARALELO los que no toquen los mismos archivos. NO delegues: decisiones de diseño con el usuario, balance, el veredicto final de si algo vale, y lo que toque el corazón del juego.
+⚠️ GESTIÓN DE AGENTES (afinada a base de dolor esta sesión):
+- Se quedan SIN TURNO constantemente; MUCHOS queman el primer turno entero SOLO LEYENDO. En el prompt SIEMPRE: "plan YA APROBADO, NO pidas aprobación, ejecuta YA", "NO commit", prioridades explícitas, "texto final telegráfico".
+- Al reanudar (SendMessage): receta masticada de pasos numerados + "sin releer nada". Si tras 2 reanudaciones no ejecuta, LO HACES TÚ (los remates de 1-5 líneas, anclas, imports y montajes los hizo el coordinador más rápido que otra vuelta de agente).
+- SIEMPRE verificar su informe contra el DISCO (git status/diff, mtimes, Read de PNGs). "Terminado" sin archivos nuevos = no terminado. Informes con ancla "(0.5, ...)" = centro de encuadre = MAL (ver ley del auto-anclaje).
 
-⚠️ VERIFICA SIEMPRE TÚ MISMO — suite completa + arranque headless + MIRAR los PNG/composites con Read — sin fiarte del informe de ningún subagente. Los agentes se quedan SIN TURNO constantemente, casi siempre justo antes de verificar; el patrón que funciona: mirar el disco (ls/mtimes/tamaños/Read de imágenes), reanudar con SendMessage con instrucción TELEGRÁFICA ("textos de UNA línea") y prioridades explícitas ("código > composite > suite") por si el turno aprieta; si un agente quema un turno entero solo LEYENDO, reanudarlo con la receta masticada y orden de implementar YA. En el prompt de cada agente: "plan YA APROBADO, NO pidas aprobación, ejecuta" y "NO hagas commit". Los commits los haces TÚ tras verificar (mensajes largos con git commit -F).
+═══ PRIMER PASO DE LA SESIÓN ═══
+1. Lee production/session-state/active.md y ESTE archivo entero.
+2. `git status` — hay TRABAJO EN VUELO SIN COMMITEAR de 3 agentes que se pausaron por contexto (detalle en "EN VUELO"). NO lo pises: primero inspecciona qué dejó cada uno (diffs por archivo) y decide si se termina o se rehace.
+3. Suite completa + arranque headless para saber el estado real del árbol mixto (puede NO estar verde con el WIP — no pasa nada, se documenta y se termina el WIP; verde exigido solo para commitear).
+4. Saluda al usuario en llano: dónde estamos (3 tareas en vuelo + cola) y qué toca.
 
-═══ PRIMER PASO ═══
-1. Lee production/session-state/active.md (cierre al final) y ESTE archivo entero.
-2. Verifica el estado: suite completa + arranque headless (comandos abajo). Al cerrar la sesión anterior TODO estaba commiteado y pusheado hasta `35a1e5e`, con 698/0 y arranque limpio — no debería haber sorpresas, pero se comprueba igual.
-3. ⚠️ VEREDICTO PENDIENTE DEL USUARIO: se le dejó el juego abierto EN PAUSA con la ventanilla recién ANCLADA A LA REJILLA (cada elemento en su celda; el ciudadano por fin sentado SOBRE su silla). Pregúntale qué le pareció. Cabo suelto conocido: al anclar a celdas enteras, el policía sentado queda hacia el EXTREMO derecho del mostrador (el escritorio es visualmente ancho y él está en el centro exacto de su celda norte). Si al usuario le chirría, la solución de fondo es la que él mismo apuntó — MOSTRADOR DE 2 CELDAS — y eso es DECISIÓN DE MODELO (huella, validaciones de colocación, salas, saves): se diseña con él, no se parchea con píxeles. Podría ser lo primero de la sesión.
+═══ ESTADO AL CERRAR ═══
+- Commiteado y PUSHEADO hasta `041284c`. En ese commit: suite **713/713 Exit 0** verificada por el coordinador + arranque headless limpio (único warning esperado: puesto_tie del trazado inicial en escalón de huella).
+- SIN COMMITEAR (WIP de los 3 agentes en vuelo + una reversión del coordinador):
+  · src/main/mesa_atencion.gd — reversión DESVIO_CENTRADO_MESA_LARGO a Vector2.ZERO (el 0,38 NW fue un error decidido a ojo) + posibles inicios del auto-anclaje.
+  · src/main/paredes_salas.gd + src/main/modo_construccion.gd — agente de PUERTAS (función compartida de dibujo por tipo + flag de jamba, a medio).
+  · src/main/npc_ciudadano.gd + src/main/npcs_flujo.gd + src/main/icono_prohibido.gd (NUEVO) — agente de ACCESOS (señal 🚫 creada, teletransporte a medio matar, faltaba diag+test).
+  · tools/_diag_oclusion_murete.gd — agente del test de esquina (ampliación del volcado, a medio).
+  · Sin trackear inofensivo: tools/_diag_* varios, _check_trazado.gd (sonda de un agente, borrable), tools/_calibracion_cubo.png.
 
-═══ ESTADO VERIFICADO AL CERRAR ═══
-Suite 698 casos / 0 fallos / Exit code 0 de GdUnit — verificada por el hilo principal tras CADA cambio · arranque headless limpio (también con `--pausa`) · árbol limpio (solo tools/_diag_* sin trackear, desechables) · pusheado hasta `35a1e5e`.
+═══ LA SESIÓN DE HOY EN 60 SEGUNDOS (para entender el porqué de todo) ═══
+El usuario estuvo a punto de DEJAR EL PROYECTO ("las mesas son enormes… no damos una"). Se respondió con: investigación profunda (2 docs con fuentes: pipeline visual de tycoons + cómo hacer un tycoon; síntesis con veredicto SÍ-SE-PUEDE en design/art/plan-calidad-visual.md y design/investigacion/sintesis-como-hacer-un-tycoon.md) → plan de 5 fases con listón Big Pharma → y una tarde entera de ciclos feedback-arreglo con él mirando el juego. La ventanilla quedó FIRMADA como escena patrón… y luego el mostrador volvió a descuadrarse de su huella, sobrevivió a DOS intentos de arreglo a ojo, y el usuario dio la clave final (ver LEY Nº1). Sus palabras exactas al borde del cierre: "llevamos horas y es algo sumamente sencillo: un objeto no puede salir de sus celdas — sabes los límites del objeto y los límites de las celdas".
 
-Commits clave de las 2 últimas sesiones: a720398/df673f8 licencias · d98614f/e650e76/43e9c4c catálogos y despiece · 53c4933 pipeline animado · a8cd135 policías EN EL JUEGO · 001097b orientación policías · 4fbe12b art bible §5 CERRADO · 5a2b05f diseño impresora CERRADO · a7369b9 mostrador+pantallas · b8bdcf5 2ª tanda muebles + --pausa · 955332e ADR-0005 · f06bd5f capas de la ventanilla (mecanismo ADR-0005 en código) · 131b2b1 rotación de sillas (con asiento VACÍO) · 35a1e5e ANCLAJE A REJILLA.
+═══ LAS LEYES NUEVAS DE ESTA SESIÓN (grabadas también en memoria persistente) ═══
+1. **AUTO-ANCLAJE POR LÍMITES (la clave del usuario, ORDEN DIRECTA)**: la colocación de TODO sprite de mobiliario se CALCULA de sus límites medidos — el juego escanea una vez los píxeles opacos del sprite (cachea por textura), localiza la esquina sur de su base y la aterriza EXACTA en la esquina sur de su huella lógica. PROHIBIDA la cadena de constantes a mano (ANCLA_FRACCION_* + delta + desvíos): se desfasaba con cada re-render y causó el bucle de horas. Las posiciones de PERSONAS/SILLAS sí siguen en constantes (composición aprobada).
+2. **VERIFICACIÓN EN MOTOR, no en montajes**: los fotomontajes de Python DIVERGIERON del árbol real dos veces. Toda verificación visual va en escenas tools/_diag_*.gd con el CÓDIGO REAL del juego + captura PNG + TEST NUMÉRICO impreso por consola (esquina sur base vs esquina sur huella, PASA/FALLA ±3 px). El ojo solo ilustra; el número juzga.
+3. **Capturas del juego**: el coordinador captura la ventana él mismo (PowerShell PrintWindow con flag 2 — funciona sin traer la ventana al frente; procesos 'Godot_v4.6-stable_win64'). Los pantallazos del usuario a Downloads/borrar*.PNG fallan en silencio a menudo — COMPROBAR SIEMPRE el mtime antes de analizar.
+4. **UNA sola ventana del juego**: taskkill de ambos exes ANTES de relanzar (hubo 2 instancias a la vez y el usuario miraba la vieja — crisis entera por eso).
+5. **.ctex FRESCO**: tras CUALQUIER render, --import y comprobar mtime .ctex > PNG en el acto (mordió otra vez con el sofá).
+6. **Hojas para el usuario**: anclas derivadas EN el propio script desde el PNG (nunca constantes ni fracciones impresas por herramientas) + test de esquina estampado; ajustes de tamaño SIEMPRE con foto antes/después JUNTO A LOS MUÑECOS de 44 px y CON LAS CELDAS DIBUJADAS (lo pidió explícito).
+7. **MundoProfundo** (implementado, commit aa050d9): bolsa única de y-sort donde muros POR TRAMO + mobiliario + contenedores de ventanilla compiten por Y de base. z_index solo para lo que no se entrelaza: suelo −2/−1, rótulos 1-2, gente 2, luces 3. Dato de motor verificado: y-sort anidado se funde en un solo pool; z_index manda sobre y-sort; a igual z gana orden de árbol. ADR-0005 (capas del puesto) sigue vigente DENTRO del contenedor.
+8. **Muros modelo Sims**: traseras (N/O) enteras; frontales (S/E) bajitas por encima del mobiliario; un muro divisorio entre dos salas se decide por TRAMO en la bolsa (ya no por clasificación global).
 
-═══ LO QUE YA ESTÁ EN EL JUEGO (no rehacer) ═══
-- POLICÍAS (pareja J-Toastie, CC BY 3.0): andan (animación propia muestreada), 8 direcciones bien orientadas (calibradas contra girl), sentados en su ventanilla mirando al ciudadano, piel unificada, género determinista por hash del nombre. muneco.gd de piezas = fallback, NO borrar.
-- MOBILIARIO del pack "Isometric office" (CC BY 4.0): mostrador OBJ_021 (con teléfono, monitor de espaldas al ciudadano), pantallas = equipo_informatico, papelera, dispensador, radio sobre mueblecito, sofá 3 plazas ARQ_007 = sofa_descanso (H/V), silla de espera OBJ_023, silla ROJA de OBJ_042 = funcionario. Desvío de comodidades generalizado (diccionario id → {rotación, ancla} en construccion.gd, fallback a caja gris).
-- LA VENTANILLA, con sus tres reglas ya en código:
-  · ADR-0005 (orden de capas): CAPA_FONDO=silla < CAPA_PERSONAJE < CAPA_FRENTE, vía `NPCsFlujo._insertar_en_capa` (metadato capa_iso). De pie las asignaciones se invierten (el muñeco es más alto que el mostrador). PROHIBIDO add_child/move_child suelto en contenedor compartido (Forbidden Pattern).
-  · REGLA DE REJILLA (usuario 2026-08-02): todo elemento ancla al CENTRO de su celda, de 1 en 1 — `MesaAtencion.CELDA_FUNCIONARIO/CELDA_CIUDADANO` es LA única fuente de verdad (de pie, sentado y silla coinciden). Nada de ajustes de píxel a mano.
-  · Rotaciones de silla elegidas con el asiento VACÍO: funcionario 180 (abre hacia el ciudadano), espera 270 (abre hacia la mesa).
-- Arranque EN PAUSA: `godot --path <proyecto> -- --pausa`. El usuario SIEMPRE pide los hitos visibles así ("ábrelo en pausa cuando esté verificado"); Espacio reanuda.
+═══ EN VUELO — LAS 3 TAREAS PAUSADAS (retomarlas con agentes nuevos, brief completo aquí) ═══
 
-═══ LA TAREA SIGUIENTE (orden propuesto; confírmalo con el usuario) ═══
-1. Veredicto del usuario sobre la rejilla (ver PRIMER PASO) y, si procede, diseñar con él el mostrador de 2 celdas (modelo: huella 2, validaciones, trazado inicial, saves — con tests).
-2. ⭐ IMPLEMENTAR LA MECÁNICA DE LA IMPRESORA — diseño 100% CERRADO en design/gdd/impresora-documentos-tramite.md (leerlo ENTERO): comodidad nueva "impresora de documentos" (visual OBJ_008 entero, 600 €, mantenimiento 2 €/TURNO en que su sala atiende — ODAC 24h=6€/día, TIE mañana=2, con peonada=4 —, aporte 2.0); OBJETOS OBLIGATORIOS por sala (Documentación: 1 puesto + 1 impresora; ODAC: igual — validación de Construcción; trazado inicial automático la coloca DETRÁS del puesto, nunca hacia el ciudadano; saves viejos → patrón idempotente tipo fachada); VIAJE DEL PAPEL (T_AVISO=5 min antes del final el funcionario va a la impresora accesible más cercana, coge papel, vuelve, entrega; el trámite no cierra ni el ciudadano se va hasta la entrega; duración desde el MODELO por distancia_en_celdas — ADR-0004; la paciencia no drena; reusar la invariante decidir_entrada). Trámites con papel: TODAS las denuncias + EXPEDICIÓN de TIE. impresora_dni queda de confort. Trabajo de MODELO+tests+visual: valorar OPUS para el modelo (cruza Flujo+Personal+Construcción), sonnet para visual y datos.
-3. Estanterías OBJ_007/OBJ_022 para estancias de trabajo: OBJ_022 son 2 en esquina → DESPIEZAR en 1 suelta (semillas por malla repetida) y el jugador monta la esquina con 2. Decidir con el usuario si decoración o comodidad con números.
-4. Resto del mapa: design/art/mapa-integracion-mobiliario.md es LA FUENTE DE VERDAD (decisiones del usuario fila a fila + reglas de rejilla/validación + ideas futuras).
+**A) AUTO-ANCLAJE POR LÍMITES + mesa fuera de su huella (OPUS — es LA prioridad, el usuario espera esto)**
+Bug vivo: el mostrador de 2 celdas se dibuja ~media celda a la IZQUIERDA de su huella (celda derecha con hueco — palabras del usuario). Dos arreglos a ojo fallaron; DESVIO_CENTRADO_MESA_LARGO ya revertido a ZERO. El agente anterior había empezado: ampliar tools/_diag_oclusion_murete.gd con el test de esquina numérico (volcado consola: esquina sur huella esperada vs esquina sur base real del sprite, delta px, PASA/FALLA ±3). ENCARGO COMPLETO: implementar el auto-anclaje por límites (LEY Nº1) en la capa visual (mesa_atencion.gd construir() para ambos mostradores + desvío de comodidades en construccion.gd + sofá), borrar la cadena de anclas a mano de los SPRITES, validar CADA pieza con el test numérico del diag, capturas de ventanilla+sofá+comodidades con rejilla, headless + integración. OJO: DESVIO_CENTRADO_MESA (profundidad, 0,28 norte) re-evaluarlo tras el auto-anclaje (puede sobrar o re-expresarse documentado). Sospecha pendiente de confirmar con el instrumento: el corrido de "media celda" puede venir de semántica centro-vs-esquina en el punto (sx) de la fila inferior del PNG.
 
-═══ LO QUE NO SE TOCA ═══
-El MODELO no conoce la proyección ni el arte (ADR-0004): Flujo, Personal, Paciencia, Economía, Demanda, Documentación, ODAC, Construcción-modelo, persistencia. LOS 698 TESTS SIGUEN EN VERDE O NO HAY COMMIT. La impresora y el posible mostrador de 2 celdas AÑADEN modelo (con tests nuevos), no rompen el existente.
+**B) PUERTAS: colocación libre + puertas fantasma (OPUS)**
+Bugs del usuario jugando: (a) la puerta solo se deja colocar en UNA zona blanca de la pared; (b) clics "rechazados" en otros tramos SE REGISTRAN EN SILENCIO y materializan puertas después (pista clave del usuario). El agente anterior dejó a medio en paredes_salas.gd + modo_construccion.gd: "función compartida de dibujo por tipo + flag de jamba". ENCARGO: puerta colocable en cualquier tramo válido (criterio documentado), clic inválido NO registra nada y da feedback (resaltado rojo con lo existente), morir el estado fantasma; verificación en motor: _diag_puertas con 3 puertas por el MISMO camino del clic + clic inválido con volcado antes/después idéntico; test de regresión antifantasma en tests/integration/construccion/; headless + integración.
 
-═══ REGLAS Y LECCIONES YA FIJADAS (ley del proyecto) ═══
-- ADR-0005 capas + Forbidden Pattern en technical-preferences.md.
-- REGLA DE REJILLA del usuario (en el mapa de integración): celdas enteras, de 1 en 1; quien se sienta coincide con su silla.
-- VALIDACIÓN VISUAL con composites de Python de los PNG reales ANTES de tocar el juego, y con tres matices que costaron un aviso del usuario cada uno: replicar el ORDEN DE CAPAS real del árbol (no solo offsets) · juzgar la dirección de un asiento con el asIENTO VACÍO (un muñeco encima tapa justo lo que hay que mirar) · juzgar alineación con la REJILLA de rombos dibujada (80×40). El guión de composites vive en scratchpads temporales: si hace falta, se reescribe en minutos.
-- Cambiar la huella de un objeto es decisión de MODELO; los problemas de píxeles se arreglan con píxeles.
-- "Se ve raro" del usuario → pedirle CAPTURA (Downloads/borrar.PNG, la sobreescribe cada vez).
+**C) ACCESOS: sin saltos + señal 🚫 (SONNET)**
+Diseño del usuario: si no hay camino (sala amurallada sin puerta), NADIE se teletransporta (hoy hay un fallback que planta al muñeco en el destino); el bloqueado espera QUIETO con señal de prohibido sobre la cabeza (código, estilo etiquetas; re-evaluar camino cada pocos segundos; desaparece al desbloquear); la PACIENCIA sigue corriendo (no tocar Paciencia — el abandono natural es la consecuencia). El agente dejó: src/main/icono_prohibido.gd CREADO, npc_ciudadano/npcs_flujo a medio (iba por MAX_REINTENTOS_CAMINO), faltaban _diag_bloqueo (2 capturas: bloqueado fuera con señal → abre paso → entra sin señal), test de regresión (sin camino ⇒ posición no cambia), headless + integración. Gotcha: el 1er physics frame de navegación miente (docs/engine-reference/godot/modules/navigation.md).
 
-═══ LICENCIAS (en regla, mantener) ═══
-CREDITS.md al día: "girl" (Karma🔥, CC BY 4.0) · pareja J-Toastie (CC BY 3.0) EN USO, la mujer "— modificado (tono de piel)" · "Isometric office" (Companion_Cube, CC BY 4.0) EN USO, SOLO GEOMETRÍA (texturas incrustadas de pósters/fotos NO se usan; el usuario pidió no mencionar la procedencia televisiva del pack) · restore50 ×2 descartados (0 huesos, medido). Regla: fila en CREDITS ANTES de entrar en assets/; "En uso" al entrar. ⚠️ PENDIENTE ESTRUCTURAL: falta la pantalla de créditos del juego (CC BY exige que las atribuciones aparezcan en ella) — necesaria antes de cualquier build público.
+═══ COLA DESPUÉS (por orden) ═══
+1. Cerrar el ciclo en vuelo → suite completa → COMMIT (mensajes largos con -F, Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>) → ventana única en pausa + captura propia → aviso al usuario.
+2. **Comisaría inicial NUEVA** (decisión del usuario, pendiente desde ayer): plano CON él (salas para puestos 2×3 + impresora obligatoria en Documentación y ODAC + sala de descanso + 2 salas de espera). Le llevas el plano dibujado sobre rejilla. Esto además elimina el escalón de puesto_tie.
+3. ⭐ **IMPRESORA DE DOCUMENTOS** (diseño 100% cerrado en design/gdd/impresora-documentos-tramite.md — leerlo entero): la mecánica estrella pendiente (comodidad 600 €, 2 €/turno de uso, obligatoria por sala, viaje del papel con T_AVISO). Modelo+tests con Opus, visual con el auto-anclaje ya de serie.
+4. Fase 2 del plan visual (design/art/plan-calidad-visual.md): la "ventanilla perfecta" quedó FIRMADA por el usuario — tras el auto-anclaje, congelar esa escena como hero asset. Luego Fase 3 (suelos/paredes con arte + comisaría nueva vestida) → Playtest 0 (persona ajena — el paso más señalado por la investigación).
+5. Pendientes menores: pantalla de créditos (obligación CC BY antes de builds públicos) · iconos de trámite · 2º modelo de ciudadano · U9 resto · sillas y pantallas "se juzgan en escena" (kit v2) · OBJ_000 mostrador curvo reservado para seguridad de la entrada · limpiar tools/_diag_* y _check_trazado.gd cuando estorben.
 
-═══ OTROS PENDIENTES (no urgentes) ═══
-Sign-off Bienestar #13 (production/qa/evidence/bienestar-13-signoff.md) · U9 trazado de muros ("va mejor, no del todo bien" — preguntar qué falla) · ODAC "a medida" sin botones en panel O · impresora de DNI sin asset (buscar en otra fuente CC) · OBJ_011 (sillón 1 plaza) renderizado en el banquillo · ideas futuras del usuario en el mapa: OBJ_000 = seguridad de la entrada (conecta con puesto_seguridad desactivado en datos/), OBJ_006 = despacho Judicial, 9 piezas de decoración de pared, patrón "mantenimiento por turno de uso" generalizable · tools/_diag_* sin trackear, limpiar cuando estorben · falda de girl (Blender).
+═══ DOCUMENTOS CLAVE NUEVOS DE HOY ═══
+- design/art/plan-calidad-visual.md — veredicto + plan 5 fases (listón Big Pharma). Anexos en design/art/investigacion/.
+- design/investigacion/sintesis-como-hacer-un-tycoon.md — 12 mandamientos del género con semáforo de Comisario (2 ROJOS: contrapeso de ODAC pendiente de decisión del usuario; generador de caos en roadmap). Anexos al lado.
+- design/ux/referencia-menus-construccion.md — patrones de UI de las capturas Two Point del usuario (para cuando toque UI).
+- docs/architecture/borrador-orden-profundidad-rotaciones.md — su Fase 1 YA IMPLEMENTADA (MundoProfundo); el resto (rotaciones de ventanilla) sigue pendiente de diseño con el usuario.
 
-═══ HERRAMIENTAS DE ARTE (commiteadas; leer cabeceras antes de tocar) ═══
-- tools/render_sprites.gd — personajes SIN animación propia (girl): posa huesos por fórmula (5 cuentas caras documentadas: 26.565°, ortográfica, frente medido desde los pies, balanceo sobre eje del personaje, escala común).
-- tools/render_sprites_animado.gd — personajes CON animaciones embebidas (policías): muestrea Armature|Walk/Idle, sentado trucado (pierna entera −85° + cuerpo bajado), corrección de frente por modelo, recolor de piel, carga por GLTFDocument (SIN --import).
-- tools/render_mobiliario.gd — muebles por RECETA de los manifiestos (4 rotaciones, escala calibrada al rombo 80×40, imprime el ANCLA). OJO: const anidadas con Vector3 no son constante válida en GDScript → static func.
-- tools/render_catalogo_oficina/objetos/despiece — catálogos del pack (748 mallas / 53+29 ensamblados / despiece por interpenetración + SEMILLAS POR MALLA REPETIDA).
-- tools/diagnostico_orientacion.gd — hoja girl-vs-X en 8 direcciones con flechas de rumbo.
-- Hojas para el usuario (capturas/NPC/Oficina/catalogo/, FUERA de git): index.html, index_objetos.html, index_integracion.html. Manifiestos: catalogo_manifest, catalogo_objetos_manifest, catalogo_despiece_manifest, inventario_construibles.json, clasificacion_objetos.json. Abrir: cmd //c start chrome "C:\\ruta\\archivo.html".
-
-═══ ENTORNO Y COMANDOS ═══
+═══ ENTORNO Y COMANDOS (verificados hoy) ═══
 Godot: C:\Users\manur\Godot\Godot_v4.6-stable_win64_console.exe
-- Tests (fíate SOLO del "Exit code:" de GdUnit):
+- Suite (fiarse SOLO de "Exit code:" de GdUnit; la suite del archivo se corta tras el 1er FAIL):
 "...console.exe" --headless --path /c/Users/manur/juego -s -d --remote-debug tcp://127.0.0.1:6007 res://addons/gdUnit4/bin/GdUnitCmdTool.gd -a res://tests/unit -a res://tests/integration --ignoreHeadlessMode
-- Arranque: añade --quit-after 300 y grepea "error|SCRIPT" (vacío = limpio).
-- Ventana EN PAUSA (así se entregan los hitos visibles): nohup "...console.exe" --path /c/Users/manur/juego -- --pausa > /dev/null 2>&1 &  (NUNCA pipe a tail)
-- Renders: godot --path <proyecto> res://tools/<Herramienta>.tscn (VENTANA, no headless).
+- Arranque check: --headless --path ... --quit-after 300 + grep -iE "error|SCRIPT" (filtrar el warning conocido de puesto_tie).
+- Ventana pausa: taskkill ambos exes → nohup "...console.exe" --path /c/Users/manur/juego -- --pausa > /dev/null 2>&1 &
+- Captura propia: PowerShell PrintWindow flag 2 sobre el proceso 'Godot_v4.6-stable_win64' (snippet en el historial; GetClientRect + Bitmap + PrintWindow(h, dc, 2)). Esperar ~15-20 s tras lanzar para saltarse el splash.
+- Render de una pieza: patrón tools/_reescalar_dispensador.gd / _reescalar_sofa.gd (heredan render_mobiliario.gd, cámara bit-idéntica, guardan solo su pieza). Escenas .tscn de 5 líneas al lado.
+- Diag en motor: "...console.exe" --path /c/Users/manur/juego res://tools/_diag_oclusion_murete.tscn (ventana GPU; escribe PNGs al scratchpad de la sesión).
 
-═══ GOTCHAS (todos han mordido de verdad) ═══
-- Tras RE-renderizar PNGs ya importados: mirar mtime de los .ctex en .godot/imported/ (más viejos que el PNG = el juego enseña el sprite ANTIGUO sin avisar) y recontar .import (las herramientas los borran a veces) → --import + `git status -- datos/` + revertir lo reescrito.
-- grep -c cuenta LÍNEAS, no matches (HTML minificado engaña) → contar con Python.
-- El AnimationPlayer vivo machaca poses manuales cada frame → stop()/override antes de posar.
-- Tras posar, RE-encuadrar la cámara al AABB posado (PNG de 123 bytes = en blanco).
-- En rigs sin rodillas el hueso "pie" es la pierna entera → frente girado → constante de corrección + diagnostico_orientacion contra girl.
-- poly.pizza descarga sin cuenta; los zips de Sketchfab no traen license.txt.
-- Una pose de esqueleto se define ENTERA. Autoloads no existen en -s (cuelga). Ratón: posición del EVENTO. Controls decorativos → MOUSE_FILTER_IGNORE. Lambdas capturan por valor (contador = Array). GDScript: ni concatenación adyacente ni "%.*f". Nunca reconstruir por frame contenedores con controles. Anclar paneles a mano, no PRESET_*. git checkout -- no revierte archivos nuevos. GdUnit corta la suite del archivo tras el primer FAIL ("ERROR Parse JSON" es un test intencionado). Assets 3D en bruto fuera de git.
+═══ GOTCHAS VIVOS (además de los históricos del traspaso anterior, que siguen valiendo) ═══
+- Los muebles del pack a ESCALA REAL no se estiran a N celdas: se COMPONEN módulos a escala de personaje (mostrador = 1 mesa estirada SOLO a lo largo con accesorios sin deformar; el de 2 módulos tenía costura y lo rechazó el usuario).
+- Sofá: superficie=2 (usuario), 3 cojines; la receta perdió un respaldo por las SEMILLAS de mallas repetidas (arreglado — vigilar en futuros despieces).
+- El "ancla" que imprime render_mobiliario es el CENTRO DEL ENCUADRE, NO sirve (fue causa de media docena de desalineados). Con el auto-anclaje esto muere.
+- Los NPC sit sprites: oficial sentado se ALZA +25 px (ALZADO_SENTADO_FUNCIONARIO — cabeza a la altura del monitor, elegido por el usuario entre −25/−33).
+- Arrimes de ventanilla: la cuenta vive en mesa_atencion.gd (fondo de silla medido; ciudadano con RETROCESO 0,25 pedido por el usuario). El marco de referencia de los arrimes ya mordió una vez (se mide desde la celda de la PERSONA; en local del contenedor es 1−arrime).
+- production/session-state/active.md está TRACKEADO (pese a lo que diga directory-structure).
 
-═══ MÉTODO: LO QUE MÁS VALOR DA ═══
-MEDIR > SUPONER. Ejemplos reales: skins=0 medido con Python desechó dos modelos muertos; la pared verde repetida delató las miniaturas contaminadas; las 4 pruebas de sentado idénticas delataron el AnimationPlayer vivo; los composites con rejilla cazaron el desalineado antes de tocar el juego. Con el usuario: si dice "se ve raro" dos veces, CAPTURA; sus reglas ("1 puesto = 1 funcionario", "capas fijas", "todo a la cuadrícula") se blindan como mecanismo/documento, no como parche. Y a los agentes: prioridades explícitas, textos de una línea, y sus informes se creen solo después de mirar el disco.
-
-═══ REGLAS FIJAS ═══
-- ESPAÑOL, modo LEAN, usuario PRINCIPIANTE en gamedev (llano, con analogías).
-- NUNCA ofrecer "parar por hoy" ni cortar por contexto.
-- Hitos VISIBLES: avisar y ABRIR LA VENTANA EN PAUSA (`-- --pausa`).
-- TODO lo que deba leer el usuario va en el MENSAJE FINAL del turno.
-- Commits por hito sin pedir permiso; Conventional Commits; mensajes largos con -F; Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>.
-- Feedback de COMPORTAMIENTO: mismo día. ESTÉTICO: design/ux/pulido-backlog.md. Erratas/ampliaciones del GDD: AL MOMENTO.
-- Diseño y balance los decide el usuario; se le llevan propuestas con números para su OK (la impresora se cerró así: propuesta 2 €/día → él la mejoró a 2 €/turno de uso).
-
-═══ HERRAMIENTAS DEL JUEGO ═══
-H=horario · P=personal · O=ODAC · B=construir · R=rotar · F5/F9=guardar/cargar · F1=panel DEV (solo editor) · Espacio=pausa · 1/2/3=velocidad · CLIC IZQ en VENTANILLA=ficha · CLIC DER en SALA=menú (comodidades) · CLIC DER en CIUDADANO=ficha y colar. Jornada ≈6 min a 1x. Con `-- --pausa` arranca congelado a las 07:30 hasta Espacio.
+═══ REGLAS FIJAS (sin cambios) ═══
+ESPAÑOL, llano, usuario PRINCIPIANTE (aprende haciendo y tiene OJO de diseñador — sus "se ve raro" aciertan SIEMPRE; la clave del auto-anclaje fue suya). NUNCA ofrecer parar. Hitos visibles → ventana en pausa + AHORA TAMBIÉN captura propia de verificación. TODO lo que deba leer va en el MENSAJE FINAL del turno. Commits por hito sin permiso, Conventional Commits, -F. Diseño/balance los decide él con propuestas en imagen (A/B/C con muñecos y celdas). Feedback comportamiento mismo día; estético a design/ux/pulido-backlog.md (OJO: A1/A2/A4 de ese backlog están desfasados). Sus reglas se blindan como mecanismo, no como parche.
 
 ═══ AL EMPEZAR ═══
-Haz el PRIMER PASO (leer estado + verificar suite/arranque + preguntar el veredicto de la rejilla), y salúdame en llano recordándome dónde estamos y qué toca decidir.
+Haz el PRIMER PASO y saluda en llano: dónde estamos (la clave del auto-anclaje que él mismo dio, las 3 tareas en vuelo, la cola) y qué toca: rematar el auto-anclaje y enseñarle la mesa POR FIN clavada en sus celdas, con el test numérico en verde.
