@@ -148,6 +148,19 @@ var _tramos: Array[Dictionary] = []
 ## `TramoPared` cada una (sin altura: una línea de suelo).
 var _jambas: Array[Dictionary] = []
 
+## ── MODO GLOBAL DE ALTURA (2026-08-04, petición del usuario: *"habría que poner la opción de ver
+## o no ver las paredes, como en los Sims; ahora mismo están en algo intermedio pero se tiene que
+## poder ver todas las paredes, o bien todas pequeñas"*) ────────────────────────────────────────
+## Preferencia de VISTA, no de partida — no entra en el save (la fija `main.gd`, por sesión, con
+## `fijar_modo_altura`). `_cara_de_arista` la consulta ANTES de mirar el modelo:
+##   · `&"auto"`    — lo de hoy, sin tocar nada: cercana → baja, lejana → alta.
+##   · `&"todas"`   — TODAS las paredes a `ALTO_PARED` (se ven enteras).
+##   · `&"bajitas"` — TODAS las paredes a `ALTO_PARED_FRENTE` (nunca tapan el interior).
+const MODO_AUTO: StringName = &"auto"
+const MODO_TODAS: StringName = &"todas"
+const MODO_BAJITAS: StringName = &"bajitas"
+var modo_altura: StringName = MODO_AUTO
+
 
 ## Engancha las referencias, activa el y-sort de este nodo y hace el primer cálculo. La comisaría
 ## inicial (`_montar_comisaria_inicial`) ya tiene salas construidas ANTES de que Main cablee el hook
@@ -166,6 +179,17 @@ func configurar(construccion: Node, tam_celda: int, desplazamiento: Vector2) -> 
 	_tam_celda = tam_celda
 	_desplazamiento = desplazamiento
 	y_sort_enabled = true
+	actualizar()
+
+
+## Cambia el modo global de altura (ver la cabecera de `modo_altura`). Entra en la firma del refresco
+## (`_firma_actual`), así que el cambio dispara el repintado solo — no hace falta forzar nada aparte.
+## Un valor desconocido se ignora (red de seguridad: nunca deja el modo en un estado sin nombre).
+func fijar_modo_altura(modo: StringName) -> void:
+	if modo != MODO_AUTO and modo != MODO_TODAS and modo != MODO_BAJITAS:
+		push_warning("ParedesSalas: modo_altura desconocido '%s' -- ignorado" % modo)
+		return
+	modo_altura = modo
 	actualizar()
 
 
@@ -195,6 +219,11 @@ func _todas_las_salas() -> Array[StringName]:
 ## Una línea por sala: rect + tipo (color) + puerta. Si ninguna cambió, la firma entera es idéntica.
 func _firma_actual() -> String:
 	var partes: PackedStringArray = PackedStringArray()
+	# El MODO GLOBAL DE ALTURA entra en la firma (2026-08-04): sin esto, cambiar de "auto" a "todas"
+	# no toca ni el conjunto de claves ni el tipo/color de ningún muro, así que la firma quedaría
+	# idéntica y el repintado no llegaría nunca a ocurrir (mismo agujero ya tapado para el tipo y
+	# el color de cada tramo, más abajo).
+	partes.append("MODO:" + String(modo_altura))
 	for sala_id: StringName in _todas_las_salas():
 		var rect: Rect2i = _construccion.rect_de_sala(sala_id)
 		# La PUERTA salió de la firma (2026-08-04): ya no es un dato de la sala, es un TIPO de muro —
@@ -607,6 +636,14 @@ func _unidad_v(columna_gridline: int, celda_y: int) -> Dictionary:
 ##
 ## Devuelve `{"alto": float}` — listo para fundirse en el diccionario del tramo.
 func _cara_de_arista(detras: Vector2i, fija: bool = false) -> Dictionary:
+	# EL MODO GLOBAL MANDA PRIMERO (2026-08-04, ver la cabecera de `modo_altura`): en "todas"/
+	# "bajitas" ni siquiera hace falta mirar el modelo (ni la fachada se libra — es la lectura
+	# "Sims" de las dos opciones extremas). Solo "auto" (el valor por defecto) sigue la regla de
+	# siempre, sin tocar ni una coma de la lógica que había antes de esta fecha.
+	if modo_altura == MODO_TODAS:
+		return {"alto": ALTO_PARED}
+	if modo_altura == MODO_BAJITAS:
+		return {"alto": ALTO_PARED_FRENTE}
 	# La FACHADA del edificio (2026-07-30) se mide contra el EDIFICIO, no contra las salas: sus dos
 	# lados del fondo (arriba e izquierda) tienen detrás la calle y van altos —son el telón de la
 	# comisaría—, y los dos de delante tienen detrás el interior entero, así que van bajos. Sin esta

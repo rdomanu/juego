@@ -23,6 +23,21 @@ const COLOR_FONDO := Color(0.13, 0.14, 0.16)
 const COLOR_SUELO := Color(0.22, 0.24, 0.27)
 const COLOR_LINEA := Color(0.30, 0.32, 0.36)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
+## ── ZOOM DE CÁMARA (2026-08-04, petición del usuario: "como en los Sims") ────────────────────────
+## Límites en torno al 1.0× con el que se jugaba hasta hoy (sin `Camera2D` la vista era fija: Godot
+## usa la transformada identidad cuando no hay ninguna cámara activa). 0.5× acerca al doble; 2.5×
+## aleja a dos veces y media. `PASO_ZOOM` es el salto por notch de rueda o pulsación de +/-: pasos
+## DISCRETOS, sin lerp — cada notch ya es un salto pequeño y perceptible por sí mismo, así que este
+## nodo no necesita `_process` (regla de rendimiento del proyecto: cero coste cuando nadie toca nada).
+const ZOOM_MIN: float = 0.5
+const ZOOM_MAX: float = 2.5
+const PASO_ZOOM: float = 1.1
+## Modos globales de altura de las paredes (petición del usuario 2026-08-04): el orden en que cicla
+## el botón del HUD / la tecla Home. Ver la cabecera de `ParedesSalas.modo_altura`.
+const ORDEN_MODOS_PARED: Array[StringName] = [&"auto", &"todas", &"bajitas"]
+const NOMBRES_MODO_PARED: Dictionary[StringName, String] = {
+	&"auto": "Auto", &"todas": "Enteras", &"bajitas": "Bajitas",
+}
 
 ## Nombres visibles de los turnos, indexados por el enum `Tiempo.Turno` (0/1/2).
 const NOMBRES_TURNO: Array[String] = ["Mañana", "Tarde", "Noche"]
@@ -175,10 +190,16 @@ var _paredes_salas: Node2D
 ## La bolsa de ordenación por PROFUNDIDAD (2026-08-03): paredes + mobiliario + ventanillas, todo lo
 ## que se apoya en el suelo y puede taparse entre sí. Ver el comentario largo de `_instanciar_mundo`.
 var _mundo_profundo: Node2D
+## La cámara del juego (2026-08-04): rueda del ratón = zoom (ver `_cambiar_zoom`).
+var _camara: Camera2D
+## El botón cíclico "Paredes: Auto/Enteras/Bajitas" del HUD (2026-08-04) — se guarda para refrescar
+## su texto al cambiar de modo (con la tecla Home no pasa por el botón).
+var _btn_paredes: Button
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
+	_crear_camara()
 	_crear_suelo()
 	_instanciar_mundo()
 	_crear_hud()
@@ -305,6 +326,16 @@ func _unhandled_input(evento: InputEvent) -> void:
 				get_canvas_transform().affine_inverse() * raton.position, raton.position
 			)
 			get_viewport().set_input_as_handled()
+			return
+		# Rueda del ratón = ZOOM centrado en el cursor (petición del usuario 2026-08-04, "como en los
+		# Sims"): el punto del MUNDO bajo el puntero se queda quieto mientras el resto se acerca o se
+		# aleja (`_cambiar_zoom`, misma fórmula que el atajo de teclado +/-, más abajo).
+		if raton.pressed and raton.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_cambiar_zoom(1.0 / PASO_ZOOM, raton.position)
+			get_viewport().set_input_as_handled()
+		elif raton.pressed and raton.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_cambiar_zoom(PASO_ZOOM, raton.position)
+			get_viewport().set_input_as_handled()
 		return
 	if not (evento is InputEventKey and evento.pressed and not evento.echo):
 		return
@@ -324,6 +355,14 @@ func _unhandled_input(evento: InputEvent) -> void:
 			_guardar_partida()
 		KEY_F9:
 			_cargar_partida()
+		KEY_EQUAL, KEY_KP_ADD:
+			_cambiar_zoom(1.0 / PASO_ZOOM, get_viewport().get_visible_rect().size * 0.5)
+		KEY_MINUS, KEY_KP_SUBTRACT:
+			_cambiar_zoom(PASO_ZOOM, get_viewport().get_visible_rect().size * 0.5)
+		KEY_HOME:
+			# La tecla de los Sims para alternar el nivel de detalle de paredes (petición del usuario
+			# 2026-08-04). NO es "P": esa tecla ya abre el panel de Personal (`panel_personal.gd`).
+			_alternar_modo_paredes()
 
 
 # ── El mundo (sistemas Core instanciados — arquitectura §3.4 paso 3) ─────────────────────────
@@ -1069,6 +1108,40 @@ func _dotar_plantilla_inicial() -> void:
 		_personal.asignar(agente, dotacion[i][1])
 
 
+# ── Cámara (2026-08-04) ────────────────────────────────────────────────────────────────────────
+## `ANCHOR_MODE_FIXED_TOP_LEFT` + zoom 1.0 + posición (0,0) reproduce EXACTAMENTE la transformada
+## identidad que regía SIN cámara (Godot 4.6: sin ninguna `Camera2D` activa, `get_canvas_transform()`
+## es la identidad) — cero cambios en las conversiones ratón→mundo que ya usan `get_canvas_transform()`
+## en todo el juego (este fichero y `modo_construccion.gd`, ambos con el mismo patrón
+## `get_canvas_transform().affine_inverse() * evento.position`).
+func _crear_camara() -> void:
+	_camara = Camera2D.new()
+	_camara.name = "CamaraJuego"
+	_camara.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	_camara.zoom = Vector2.ONE
+	_camara.position = Vector2.ZERO
+	add_child(_camara)
+	# `make_current()`, NO `.current = true`: esa asignación directa da SCRIPT ERROR en 4.6 ("Invalid
+	# assignment of property or key 'current'") comprobado en el motor — `make_current()` es el
+	# camino que ya usa `tools/_diag_oclusion_murete.gd` y funciona.
+	_camara.make_current()
+
+
+## Cambia el zoom por el factor `mult` (>1 aleja, <1 acerca) manteniendo fijo, bajo `punto_pantalla`,
+## el MISMO punto del mundo que había antes del cambio — fórmula estándar de zoom centrado en cursor:
+## con `ANCHOR_MODE_FIXED_TOP_LEFT`, `mundo = pantalla·zoom + posición`; para que el mundo bajo
+## `punto_pantalla` no se mueva al cambiar de zoom, la posición se corrige por la diferencia exacta
+## que introduce el nuevo zoom en ese punto. El atajo de teclado (+/-) pasa el centro de la pantalla
+## en vez del cursor — no hay cursor que fijar, así que se ancla el centro de la vista.
+func _cambiar_zoom(mult: float, punto_pantalla: Vector2) -> void:
+	var anterior: Vector2 = _camara.zoom
+	var nuevo: Vector2 = (anterior * mult).clamp(Vector2(ZOOM_MIN, ZOOM_MIN), Vector2(ZOOM_MAX, ZOOM_MAX))
+	if nuevo.is_equal_approx(anterior):
+		return
+	_camara.position += (anterior - nuevo) * punto_pantalla
+	_camara.zoom = nuevo
+
+
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
 ## Crea el suelo: un TileSet mínimo generado por código (tile plano con borde de rejilla) y una
 ## rejilla COLUMNAS×FILAS pintada con set_cell. Solo estética; sin interacción de ratón (Construcción #7).
@@ -1151,7 +1224,10 @@ func _crear_hud() -> void:
 		fila_botones.add_child(boton)
 		_botones.append(boton)
 	var nota := Label.new()
-	nota.text = "Espacio pausa · 1/2/3 velocidad · B construcción · P personal (HUD provisional)"
+	nota.text = (
+		"Espacio pausa · 1/2/3 velocidad · B construcción · P personal · rueda/± zoom · "
+		+ "Home paredes (HUD provisional)"
+	)
 	nota.add_theme_font_size_override("font_size", 10)
 	nota.modulate = Color(1, 1, 1, 0.55)
 	caja_velocidad.add_child(nota)
@@ -1213,6 +1289,12 @@ func _crear_hud() -> void:
 	botonera.add_child(_boton_accion("🕐 Horario (H)", func() -> void: _abrir_horario()))
 	botonera.add_child(_boton_accion("💾 Guardar (F5)", func() -> void: _guardar_partida()))
 	botonera.add_child(_boton_accion("📂 Cargar (F9)", func() -> void: _cargar_partida()))
+	# Modo de paredes, estilo Sims (petición del usuario 2026-08-04): cicla auto → enteras → bajitas.
+	_btn_paredes = _boton_accion(
+		"🧱 Paredes: %s (Home)" % NOMBRES_MODO_PARED[ORDEN_MODOS_PARED[0]],
+		func() -> void: _alternar_modo_paredes()
+	)
+	botonera.add_child(_btn_paredes)
 	# El botón de calibrar solo aparece en desarrollo (va con el panel: el jugador no lo ve nunca).
 	if _panel_admin != null:
 		botonera.add_child(_boton_accion("⚙ Calibrar (F1) · DEV", func() -> void: _panel_admin.alternar()))
@@ -1254,6 +1336,18 @@ func _abrir_personal() -> void:
 func _abrir_horario() -> void:
 	_panel_horario.visible = true
 	_panel_horario._refrescar()
+
+
+## Cicla el modo global de altura de las paredes (botón del HUD o tecla Home) — ver la cabecera de
+## `ParedesSalas.modo_altura`. Solo ORDENA por su API pública (ADR-0001): quien decide alturas y
+## repinta es `ParedesSalas`, nunca esta función.
+func _alternar_modo_paredes() -> void:
+	var indice: int = ORDEN_MODOS_PARED.find(_paredes_salas.modo_altura)
+	var siguiente: StringName = ORDEN_MODOS_PARED[(indice + 1) % ORDEN_MODOS_PARED.size()]
+	_paredes_salas.fijar_modo_altura(siguiente)
+	if _btn_paredes != null:
+		_btn_paredes.text = "🧱 Paredes: %s (Home)" % NOMBRES_MODO_PARED[siguiente]
+	_avisar_accion("Paredes: %s" % NOMBRES_MODO_PARED[siguiente], COLOR_TENUE_HUD)
 
 
 ## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que
