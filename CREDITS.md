@@ -13,9 +13,16 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 
 | Asset | Autor | Licencia | Uso en el juego | Estado |
 |---|---|---|---|---|
-| ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (pendiente de vestir con el uniforme del CNP) | **En evaluación** |
+| ["🏫 girl"](https://skfb.ly/orY8Q) | Karma🔥 | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Base para el personaje femenino (prueba de arte) | **Sustituido** (2026-08-04: reemplazado por los 7 modelos de la serie CUTES; sprites `girl_*` se quedan en disco sin usarse) |
 | ["Male Officer"](https://poly.pizza/m/ipEgtSYI8u) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía masculino (sprites vía pipeline 3D→sprites) | **En uso** (2026-08-01) |
 | ["Female Officer"](https://poly.pizza/m/g6Pu2llnES) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Policía femenina (piel unificada al tono del masculino) | **En uso** (2026-08-01) |
+| ["Generic Male"](https://poly.pizza/m/jNp6bjMW9a) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h1` (sprites vía pipeline 3D→sprites) | **En uso** (2026-08-04) |
+| ["Generic Female"](https://poly.pizza/m/qot6C6GS9U) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadana civil `civil_m1` | **En uso** (2026-08-04) |
+| ["Citizen 1"](https://poly.pizza/m/sYl7E9whZH) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h2` | **En uso** (2026-08-04) |
+| ["Citizen 2"](https://poly.pizza/m/M37AwJwOzy) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h3` | **En uso** (2026-08-04) |
+| ["Citizen 3"](https://poly.pizza/m/26UC5iU4Fk) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadana civil `civil_m2` | **En uso** (2026-08-04) |
+| ["Retail Worker"](https://poly.pizza/m/kpw4fiF8St) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h4` | **En uso** (2026-08-04) |
+| ["Crypto Bro"](https://poly.pizza/m/zGOWefrMDQ) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h5` | **En uso** (2026-08-04) |
 | ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En uso** (2026-08-01: mostrador de ventanilla y pantallas del equipo informático) |
 
 ### Texto de atribución a incluir en los créditos del juego
@@ -36,11 +43,38 @@ is licensed under Creative Commons Attribution
 "Isometric office" (https://skfb.ly/6TVso) by Companion_Cube
 is licensed under Creative Commons Attribution
 (http://creativecommons.org/licenses/by/4.0/).
+
+"Generic Male" (https://poly.pizza/m/jNp6bjMW9a) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Generic Female" (https://poly.pizza/m/qot6C6GS9U) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Citizen 1" (https://poly.pizza/m/sYl7E9whZH) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Citizen 2" (https://poly.pizza/m/M37AwJwOzy) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Citizen 3" (https://poly.pizza/m/26UC5iU4Fk) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Retail Worker" (https://poly.pizza/m/kpw4fiF8St) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
+
+"Crypto Bro" (https://poly.pizza/m/zGOWefrMDQ) by J-Toastie
+is licensed under Creative Commons Attribution
+(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
 ```
 
-> ✅ **Atribuciones completas (2026-08-01)**: las cuatro líneas de arriba son las que genera
-> Sketchfab, aportadas por el usuario. Cada fila pasa de "En evaluación" a "En uso" cuando sus
-> sprites entren en `assets/`.
+> ✅ **Atribuciones completas (2026-08-01, ampliadas 2026-08-04)**: las líneas de arriba. Cada fila
+> pasa de "En evaluación" a "En uso" cuando sus sprites entren en `assets/`.
 
 > ⚠️ **Nota sobre el paquete de oficina**: se usa **solo la geometría del mobiliario**, renderizada
 > a sprites propios. Las imágenes incrustadas en sus texturas (pósters, cuadros, diplomas, fotos)

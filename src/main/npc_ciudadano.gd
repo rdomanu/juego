@@ -67,9 +67,15 @@ var muneco: Node2D = null
 const MunecoScript := preload("res://src/main/muneco.gd")
 ## La señal de prohibido (bloqueo de camino), compartida con el caminante de NPCsFlujo.
 const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
-## Prueba de arte: el personaje 3D pre-renderizado que hace de ciudadano mientras se decide el
-## estilo definitivo. Prefijo vacío = vuelve al muñeco de piezas.
-const PREFIJO_SPRITE := "girl"
+## Los 7 modelos de ciudadano civil (2026-08-04, serie CUTES de J-Toastie, poly.pizza, CC BY 3.0 —
+## sustituyen a la prueba de arte "girl", que se conserva en disco pero deja de usarse). Renderizados
+## con `tools/render_sprites_civiles.gd`. Los dos primeros conservan el género del nombre del asset
+## original (`generic_male`/`generic_female`); los otros 5 (`citizen1..3`, `retail_worker`,
+## `crypto_bro`) no lo dicen en el nombre, así que el género de su prefijo se decidió a ojo viendo el
+## render (pelo, silueta, ropa) — ver la nota completa en `render_sprites_civiles.gd`.
+const PREFIJOS_CIVIL: Array[String] = [
+	"civil_h1", "civil_m1", "civil_h2", "civil_h3", "civil_m2", "civil_h4", "civil_h5",
+]
 const ALTO_SPRITE: int = 44
 
 
@@ -103,11 +109,14 @@ func configurar(
 	# ANCLADO POR LA BASE — los pies caen en (0,0) del nodo, que es el punto de la celda donde de
 	# verdad está pisando. El ciudadano no lleva gorra: es lo que le distingue del funcionario de
 	# un vistazo, incluso a tamaño diminuto.
-	# PRUEBA (2026-07-31): si hay sprites 3D pre-renderizados, se usan; si no, el muñeco de piezas
-	# de siempre. Los POLICÍAS siguen con el de piezas a propósito, para poder comparar los dos en
-	# la misma pantalla.
-	if MunecoScript.hay_sprites(PREFIJO_SPRITE, ALTO_SPRITE):
-		muneco.add_child(MunecoScript.construir_sprite(PREFIJO_SPRITE, ALTO_SPRITE))
+	# SPRITE 3D PRE-RENDERIZADO (2026-08-04): si hay sprites para el prefijo que le toca a ESTA
+	# persona, se usan; si no (render incompleto, o `hay_sprites` da false por lo que sea), cae al
+	# muñeco de piezas de siempre — el mismo "sin romper nada" que ya usan los policías cuando falta
+	# su render. Los POLICÍAS siguen con el de piezas a propósito, para poder comparar los dos en la
+	# misma pantalla.
+	var prefijo: String = _prefijo_de(persona)
+	if prefijo != &"" and MunecoScript.hay_sprites(prefijo, ALTO_SPRITE):
+		muneco.add_child(MunecoScript.construir_sprite(prefijo, ALTO_SPRITE))
 	else:
 		muneco.add_child(MunecoScript.construir(color, false, piel))
 	# BARRA DE PACIENCIA sobre la cabeza (story paciencia-008, rehecha con el feedback del usuario
@@ -135,6 +144,17 @@ func configurar(
 	_icono_bloqueo.visible = false
 	muneco.add_child(_icono_bloqueo)
 	_manager.registrar_muneco(muneco)
+
+
+## El PREFIJO de sprite de un ciudadano, repartido determinista por su NÚMERO DE TURNO (identidad
+## estable de la persona — mismo criterio que `MunecoScript.piel_de`: nunca cambia, tampoco al
+## recargar la partida, y nunca por azar; a diferencia de `_prefijo_oficial_de` en `NPCsFlujo`, que
+## reparte por NOMBRE porque los ciudadanos no lo tienen, solo un turno). `""` si no hay persona
+## (no debería pasar — `configurar` siempre recibe una — pero cae al muñeco de piezas sin reventar).
+func _prefijo_de(p_persona: RefCounted) -> String:
+	if p_persona == null:
+		return ""
+	return PREFIJOS_CIVIL[posmod(p_persona.numero_turno, PREFIJOS_CIVIL.size())]
 
 
 ## El muñeco no cuelga de este nodo, así que no se borra solo cuando el ciudadano desaparece: hay
