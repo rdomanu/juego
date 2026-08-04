@@ -2543,3 +2543,28 @@ Las 3 tareas en vuelo del traspaso están TERMINADAS, verificadas y commiteadas:
 PENDIENTE INMEDIATO: cola del traspaso — plano de la comisaría inicial NUEVA (con el usuario),
 impresora de documentos (GDD cerrado), Fase 2 plan visual (hero asset ventanilla). Menor: señal 🚫
 se ve algo grande → proponer A/B/C en imagen con celdas cuando toque.
+
+---
+
+# ✅ PAQUETE GRANDE 2026-08-04 (segunda tanda del día)
+
+Pedido del usuario ejecutado entero, con su spec literal en
+design/quick-specs/construccion-pintura-puertas-preview-2026-08-04.md:
+- `2fd16b5` tests: ventanas end-to-end (9) + "se entra por el hueco de la puerta" verificado
+  con trayectoria real (0 bugs — la navegación ya lo respetaba; ahora con regresión).
+- `ab3f936` CIUDADANOS: 7 modelos civiles serie CUTES (J-Toastie, CC BY) aprobados en hoja
+  ("me valen los diseños"); 1008 sprites; reparto determinista por nombre en npc_ciudadano.gd;
+  girl sustituido. PENDIENTE: variantes de color ropa/pelo (hoja al usuario).
+- `63a0a4e` CONSTRUCCIÓN: pintura (paredes blancas por defecto + pincel + paleta 30 en
+  paleta_pintura.gd + suelo por celda + MAYÚS=sala + persistencia) · puerta manual (muere el
+  hueco automático; al amurallar, el jugador coloca la puerta; Esc = sin puerta con señal 🚫) ·
+  preview fantasma estilo tycoon (sprite real translúcido vía AnclajeSprite, rojo si inválido).
+- `7bbb510` ESTANTERÍAS: estanteria (130 €) + estanteria_pequena (80 €) PROVISIONALES,
+  ARRIMADO A PARED medido de píxeles (0.00 px contra la línea de pared, 16/16 diag).
+  HALLAZGO: esquina con 2 sueltas deja ~1 celda de hueco (estructural) → si el usuario quiere
+  esquina perfecta, pieza en L propia (OBJ_022 completo, 2 celdas). DECISIÓN PENDIENTE.
+- Suite completa tras todo: **767/767 Exit 0** + arranque headless limpio (warning puesto_tie).
+
+DECISIONES PENDIENTES DEL USUARIO: precios definitivos estanterías · pieza esquina en L sí/no ·
+variantes de color de ciudadanos (hoja por hacer) · los colores de pared elegidos los pinta él
+en el juego (paleta completa disponible).
