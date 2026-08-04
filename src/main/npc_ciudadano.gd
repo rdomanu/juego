@@ -73,8 +73,19 @@ const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
 ## original (`generic_male`/`generic_female`); los otros 5 (`citizen1..3`, `retail_worker`,
 ## `crypto_bro`) no lo dicen en el nombre, así que el género de su prefijo se decidió a ojo viendo el
 ## render (pelo, silueta, ropa) — ver la nota completa en `render_sprites_civiles.gd`.
+## + 14 VARIANTES DE COLOR (2026-08-04, misma licencia — solo cambia ropa/pelo de la textura propia
+## del `.glb`, ver `tools/render_variantes_civiles_produccion.gd`): sufijo b/c pegado al prefijo del
+## modelo original. Van SEGUIDAS de su original en la lista (no da igual el orden entre modelos, pero
+## sí que cada trío a/b/c esté junto, para que el reparto por `numero_turno % 21` alterne modelo y
+## color a partes iguales).
 const PREFIJOS_CIVIL: Array[String] = [
-	"civil_h1", "civil_m1", "civil_h2", "civil_h3", "civil_m2", "civil_h4", "civil_h5",
+	"civil_h1", "civil_h1b", "civil_h1c",
+	"civil_m1", "civil_m1b", "civil_m1c",
+	"civil_h2", "civil_h2b", "civil_h2c",
+	"civil_h3", "civil_h3b", "civil_h3c",
+	"civil_m2", "civil_m2b", "civil_m2c",
+	"civil_h4", "civil_h4b", "civil_h4c",
+	"civil_h5", "civil_h5b", "civil_h5c",
 ]
 const ALTO_SPRITE: int = 44
 
