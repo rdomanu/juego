@@ -2069,6 +2069,34 @@ const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
 const COMODIDAD_ESTANTERIA := &"estanteria"
 const COMODIDAD_ESTANTERIA_PEQUENA := &"estanteria_pequena"
 
+## ── LA ESTANTERÍA DE ESQUINA (2026-08-04, informe del hueco en el rincón) ──────────────────────
+## Las dos sueltas (arriba) puestas por el jugador en dos celdas contiguas dejan ~1 celda de hueco
+## en el rincón — son dos piezas de 1 celda cada una, no una pieza pensada para el ángulo. Solución:
+## el CLUSTER ENTERO de OBJ_022 (los dos brazos juntos, sin despiece — `_render_estanterias.gd`,
+## `NOMBRES_OBJ022_COMPLETA`) como mueble propio, `superficie = 2` en su `.tres` (dato de diseño, no
+## medido: el modelo de `_celdas_de` NO soporta huellas en L — "Sin formas en L: la huella siempre
+## es un rectángulo" — así que reserva 2 celdas EN LÍNEA, y el dibujo de la L, que sí es angular,
+## sobresale visualmente hacia la celda diagonal que NO reserva. Limitación documentada y aceptada:
+## es la única huella posible sin ampliar el modelo a formas no rectangulares).
+##
+## DOS DESVÍOS del patrón de mueble de pared de una sola arista (ver el bloque de arriba), medidos
+## contra el PNG ya renderizado, no supuestos:
+##  1. ROTACIÓN FIJA — un mueble de una arista necesita una cara distinta por pared (H→norte,
+##     V→oeste); esta pieza YA muestra las DOS paredes en su misma pose (el rincón abierto mirando a
+##     cámara) — medido: 0° es la ÚNICA rotación de las 4 que enseña el hueco de la L (90°/270° solo
+##     enseñan una cara plana, un brazo tapa al otro; 180° enseña el rincón CERRADO, la parte de
+##     atrás). `rotacion_sprite_comodidad` lo detecta por `espalda_extra_0` (ver abajo) y devuelve
+##     siempre `datos["rotacion"]` (0), pase lo que pase con la R — la R solo decide hacia qué lado
+##     crece la SEGUNDA celda reservada (`_paso_de`), no qué PNG se carga.
+##  2. ARRIMADO A DOS PAREDES — `AnclajeSprite.semiejes_base` asume una base RECTANGULAR CONVEXA (ver
+##     su cabecera); una L es CÓNCAVA y esa medida se rompe (comprobado: 0°/180° son el MISMO objeto
+##     girado 180° y deberían medir igual, y dan 1,538 y 0,963 celdas — no es ruido, es la premisa
+##     rota). Por eso esta pieza usa `AnclajeSprite.desvio_arrimado_esquina` (empuja el centro de la
+##     base el medio celda COMPLETO en las dos direcciones, directo al vértice del rincón) en vez de
+##     `desvio_arrimado` (que resta el fondo medido de una sola arista).
+## `espalda_extra_0` es la MARCA de las dos desviaciones: solo la declara esta pieza.
+const COMODIDAD_ESTANTERIA_ESQUINA := &"estanteria_esquina"
+
 ## A qué pared se arrima un mueble de pared en cada estado de la R. El modelo solo tiene DOS
 ## (`HORIZONTAL`/`VERTICAL`), así que de las cuatro paredes se llegan a dos, y se eligen las dos
 ## TRASERAS de la vista isométrica — norte y oeste. No es capricho: son las que quedan al fondo del
@@ -2086,6 +2114,10 @@ static func _sprites_comodidad() -> Dictionary:
 		COMODIDAD_ESTANTERIA: {"rotacion": 0, "espalda_0": Vector2i(-1, 0)},
 		COMODIDAD_ESTANTERIA_PEQUENA: {
 			"sprite": "estanteria_suelta", "rotacion": 0, "espalda_0": Vector2i(0, -1),
+		},
+		COMODIDAD_ESTANTERIA_ESQUINA: {
+			"sprite": "estanteria_esquina", "rotacion": 0,
+			"espalda_0": ESPALDA_HORIZONTAL, "espalda_extra_0": ESPALDA_VERTICAL,
 		},
 	}
 
@@ -2105,10 +2137,15 @@ static func espalda_comodidad(id_catalogo: StringName, orientacion: int) -> Vect
 
 
 ## La rotación del PNG que le toca a una comodidad según cómo esté girada en el modelo. Un mueble de
-## pared pide la que le deje la espalda contra SU pared; el resto del catálogo no tiene "frente" que
-## enseñar, así que gire como gire usa siempre la misma (la de calibración).
+## pared (una sola arista) pide la que le deje la espalda contra SU pared; el resto del catálogo no
+## tiene "frente" que enseñar, así que gire como gire usa siempre la misma (la de calibración).
+##
+## Una pieza DE ESQUINA (`espalda_extra_0`) es la MISMA excepción por otro motivo: YA enseña sus DOS
+## paredes en una sola pose (medido: es la ÚNICA de las 4 rotaciones del render que abre el rincón a
+## cámara — ver el aviso largo junto a `COMODIDAD_ESTANTERIA_ESQUINA`), así que tampoco cambia de PNG
+## con la R — la R solo decide hacia qué celda crece la segunda reserva del modelo.
 static func rotacion_sprite_comodidad(datos: Dictionary, orientacion: int) -> int:
-	if not datos.has("espalda_0"):
+	if not datos.has("espalda_0") or datos.has("espalda_extra_0"):
 		return int(datos["rotacion"])
 	var deseada: Vector2i = ESPALDA_VERTICAL if orientacion == VERTICAL else ESPALDA_HORIZONTAL
 	return AnclajeSprite.rotacion_para_espalda(datos["espalda_0"], deseada)
@@ -2414,10 +2451,20 @@ func _crear_pieza(
 		not de_techo and sprites_comodidad.has(id_catalogo)
 		and _hay_sprite_comodidad(id_catalogo, orientacion)
 	):
+		# `celdas_visual`: para casi todo el catálogo es `celdas` (el sprite SÍ se estira/ancla a lo
+		# largo de las celdas reservadas — sofá, mostrador…). La ESTANTERÍA DE ESQUINA es la
+		# excepción (2026-08-04): reserva 2 celdas EN LÍNEA porque el modelo no soporta huellas en L
+		# (ver el aviso largo de `COMODIDAD_ESTANTERIA_ESQUINA`), pero su ARTE es un rincón que pisa
+		# la celda ANCLA, no un mueble que se reparte entre las dos — anclarlo con `celdas` real lo
+		# correría media celda de más hacia la reserva. Se ancla como si fuera de 1 celda; lo que
+		# RESERVA sigue siendo 2 (`_celdas_de`, sin tocar) — son dos cuentas distintas a propósito,
+		# mismo patrón que ya separa huella de colocación y huella de obstáculo en los puestos.
+		var celdas_visual: int = 1 if id_catalogo == COMODIDAD_ESTANTERIA_ESQUINA else celdas
 		var sprite_pieza: Node2D = _pieza_sprite_comodidad(
-			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas, orientacion
+			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas_visual,
+			orientacion
 		)
-		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
+		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas_visual)
 		raiz.add_child(sprite_pieza)
 	else:
 		var caja := PiezaIso.new()
@@ -2494,7 +2541,17 @@ func _pieza_sprite_comodidad(
 	var rotacion: int = rotacion_sprite_comodidad(datos, orientacion)
 	sprite.texture = load(_ruta_sprite_comodidad(id_catalogo, rotacion))
 	AnclajeSprite.aplicar(sprite, paso, celdas)
-	if datos.has("espalda_0") and sprite.texture != null:
+	if sprite.texture == null:
+		raiz.add_child(sprite)
+		return raiz
+	if datos.has("espalda_extra_0"):
+		# DE ESQUINA — toca dos paredes a la vez: al vértice, no a la mitad de una arista (ver el
+		# aviso largo de `COMODIDAD_ESTANTERIA_ESQUINA` y la cabecera de `desvio_arrimado_esquina`).
+		sprite.position = AnclajeSprite.desvio_arrimado_esquina(
+			AnclajeSprite.espalda_girada(datos["espalda_0"], rotacion),
+			AnclajeSprite.espalda_girada(datos["espalda_extra_0"], rotacion),
+		)
+	elif datos.has("espalda_0"):
 		sprite.position = AnclajeSprite.desvio_arrimado(
 			sprite.texture, AnclajeSprite.espalda_girada(datos["espalda_0"], rotacion)
 		)

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_e7tar"]
+
+[resource]
+script = ExtResource("1_e7tar")
+id = &"estanteria_esquina"
+nombre = "Estanteria de esquina"
+descripcion = "Las dos estanterias en L, montando el rincon: sin el hueco de las sueltas."
+familia = "ciudadano"
+coste_construccion_eur = 200
+aporte = 2.5
+superficie = 2

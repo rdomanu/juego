@@ -243,6 +243,28 @@ static func desvio_arrimado(textura: Texture2D, espalda: Vector2i) -> Vector2:
 	return Proyeccion.proyectar(Vector2(espalda) * recorrido)
 
 
+## El DESPLAZAMIENTO que arrima una pieza DE ESQUINA (toca DOS paredes a la vez — la estantería en L,
+## `Construccion._sprites_comodidad`, clave `espalda_extra_0`) al VÉRTICE que comparten esas dos
+## paredes — no al punto medio de una arista (eso es `desvio_arrimado`, para una sola pared).
+##
+## POR QUÉ NO REUTILIZA `semiejes_base` (medido 2026-08-04, pieza `estanteria_esquina`): esa medida
+## asume una base RECTANGULAR CONVEXA (ver su cabecera: "recorrer el CONTORNO INFERIOR... y ninguna
+## otra parte de la silueta puede pasarse de esas dos rectas hacia abajo"). Una pieza en L es
+## CÓNCAVA — el hueco de la esquina MUERDE la silueta —, así que esa premisa no se cumple: medido
+## contra el PNG real, 0° y 180° (el MISMO objeto, solo girado 180°, tendría que dar el mismo
+## semieje) dan 1,538 y 0,963 celdas respectivamente — prueba de que la medida no vale para esta
+## pieza, no un matiz. Así que el arrimado de esquina NO resta ningún fondo propio: empuja el CENTRO
+## de la base el MEDIO CELDA COMPLETO en las DOS direcciones a la vez, directo al vértice — que es
+## justo donde cae el propio rincón de la L (la pieza está construida alrededor de ese vértice, no
+## de un rectángulo con fondo). No depende de la textura (a propósito: no hay silueta que medir
+## aquí, solo la geometría de la celda), por eso no la recibe como parámetro.
+static func desvio_arrimado_esquina(espalda_a: Vector2i, espalda_b: Vector2i) -> Vector2:
+	if CICLO_ESPALDA.find(espalda_a) < 0 or CICLO_ESPALDA.find(espalda_b) < 0:
+		push_error("AnclajeSprite: esquina con espalda no válida (%s, %s)" % [espalda_a, espalda_b])
+		return Vector2.ZERO
+	return Proyeccion.proyectar((Vector2(espalda_a) + Vector2(espalda_b)) * (Proyeccion.TAM_CELDA * 0.5))
+
+
 ## Vacía las cachés de medidas. Solo para tests y herramientas que recargan texturas en caliente.
 static func limpiar_cache() -> void:
 	_cache_centro.clear()

@@ -28,6 +28,13 @@ extends Node2D
 ##      que queda entre las dos.
 ##  (C) TRAMO SEGUIDO — dos pequeñas en celdas contiguas de la misma pared, para ver cuánto separa la
 ##      cuadrícula a dos módulos consecutivos.
+##  (D) ESQUINA COMPLETA (2026-08-04, mueble propio de 2 celdas) — `estanteria_esquina` (OBJ_022
+##      ENTERO, los dos brazos en la misma pieza) plantada EN el rincón noroeste de una sala aparte,
+##      al lado de (B) en el mismo fotograma para que se vea morir el hueco. El juez aquí NO es
+##      "borde trasero contra una arista" (esa cuenta asume una base rectangular convexa — ver el
+##      aviso de `Construccion.COMODIDAD_ESTANTERIA_ESQUINA` sobre por qué `semiejes_base` no vale
+##      para una L): es `_test_arrimado_esquina`, que compara el CENTRO de la base contra el VÉRTICE
+##      que comparten las dos paredes — dos ejes, mismo margen de 3 px.
 ##
 ## Se borra tras usarlo — no es parte del pipeline final.
 
@@ -48,6 +55,7 @@ const TOLERANCIA_PX: float = 3.0
 
 const ESTANTERIA := &"estanteria"
 const ESTANTERIA_PEQUENA := &"estanteria_pequena"
+const ESTANTERIA_ESQUINA := &"estanteria_esquina"
 
 const ESPALDA_NORTE := Vector2i(0, -1)
 const ESPALDA_ESTE := Vector2i(1, 0)
@@ -62,6 +70,7 @@ func _ready() -> void:
 	_volcar_medidas()
 	await _caso_cuatro_paredes()
 	await _caso_esquina()
+	await _caso_esquina_completa()
 	var fallos: int = 0
 	for etiqueta: String in _veredictos:
 		if not _veredictos[etiqueta]:
@@ -147,6 +156,50 @@ func _test_arrimado(
 	])
 	print("[DIAG ARRIMADO %s]   DELTA=%s (|%.2f| px)  VEREDICTO: %s" % [
 		etiqueta, delta, delta.length(), "PASA" if pasa else "FALLA",
+	])
+	_veredictos[etiqueta] = pasa
+	return real
+
+
+## ── EL TEST NUMÉRICO DE LA ESQUINA (dos paredes a la vez) ─────────────────────────────────────
+## `_test_arrimado` compara el borde TRASERO (un semieje medido) contra la arista de UNA pared — no
+## sirve para una pieza que toca DOS a la vez (no hay "un" borde trasero en una L, hay dos, que se
+## juntan en el vértice — y `semiejes_base` está probado ROTO para esta silueta cóncava, ver el aviso
+## de `Construccion.COMODIDAD_ESTANTERIA_ESQUINA`). Así que aquí el juez es distinto y más simple: el
+## CENTRO de la base (medido, sin ajuste de fondo) tiene que caer sobre el VÉRTICE que comparten las
+## dos aristas — dos ejes, mismo margen de 3 px.
+func _test_arrimado_esquina(
+	sprite: Sprite2D, origen: Vector2, celda: Vector2i, espalda_a: Vector2i, espalda_b: Vector2i,
+	etiqueta: String
+) -> Vector2:
+	if sprite == null or sprite.texture == null:
+		push_error("[DIAG ARRIMADO %s] SIN sprite -- test no aplicable" % etiqueta)
+		_veredictos[etiqueta] = false
+		return Vector2.INF
+	# REAL: el centro de la base tal y como QUEDA dibujado -- sin correr ningún fondo, a propósito.
+	var real: Vector2 = (
+		sprite.global_position + sprite.offset + AnclajeSpriteScript.centro_base(sprite.texture)
+	)
+	# ESPERADO: el vértice de la celda que comparten las dos paredes (media celda en CADA dirección).
+	var vertice_cuadrado: Vector2 = (
+		ProyeccionScript.centro_cuadrado(celda)
+		+ Vector2(espalda_a) * (TAM_CELDA * 0.5) + Vector2(espalda_b) * (TAM_CELDA * 0.5)
+	)
+	var esperado: Vector2 = origen + ProyeccionScript.proyectar(vertice_cuadrado)
+	var delta: Vector2 = real - esperado
+	var pasa: bool = absf(delta.x) <= TOLERANCIA_PX and absf(delta.y) <= TOLERANCIA_PX
+	print("[DIAG ARRIMADO %s] celda=%s espaldas=%s+%s PNG='%s'" % [
+		etiqueta, celda, espalda_a, espalda_b, sprite.texture.resource_path.get_file(),
+	])
+	print("[DIAG ARRIMADO %s]   desvío aplicado=%s (esperado por cálculo=%s)" % [
+		etiqueta, sprite.position,
+		AnclajeSpriteScript.desvio_arrimado_esquina(espalda_a, espalda_b),
+	])
+	print("[DIAG ARRIMADO %s]   ESPERADO vértice=%s | REAL centro de base=%s" % [
+		etiqueta, esperado, real,
+	])
+	print("[DIAG ARRIMADO %s]   DELTA eje X=%.2f px | eje Y=%.2f px (|%.2f| px)  VEREDICTO: %s" % [
+		etiqueta, delta.x, delta.y, delta.length(), "PASA" if pasa else "FALLA",
 	])
 	_veredictos[etiqueta] = pasa
 	return real
@@ -241,6 +294,58 @@ func _caso_esquina() -> void:
 	_marcar_arista(mundo, tramo_a, ESPALDA_NORTE, Color(0.2, 0.9, 1.0))
 	_marcar_arista(mundo, tramo_b, ESPALDA_NORTE, Color(0.2, 0.9, 1.0))
 	await _capturar(sub, "estanterias_esquina")
+
+
+## (D) ESQUINA COMPLETA — `estanteria_esquina` (OBJ_022 entero) en su propia sala, AL LADO de una
+## réplica del montaje (B) (las dos sueltas) para que un solo fotograma enseñe el ANTES/DESPUÉS: el
+## hueco de (B) contra el rincón cerrado de (D). Ver la cabecera del fichero.
+func _caso_esquina_completa() -> void:
+	var piezas: Array = _montar(Vector2(8.0, 4.5), 1.3)
+	var sub: SubViewport = piezas[0]
+	var mundo: Node2D = piezas[1]
+	var construccion: Node = piezas[2]
+	var paredes: Node = piezas[3]
+	construccion.levantar_fachada()
+	# Sala IZQUIERDA — réplica de (B): las dos sueltas, con su hueco.
+	var sala_sueltas: StringName = construccion.construir_de_oficio_sala(
+		&"sala_espera_doc", Rect2i(2, 2, 5, 5)
+	)
+	construccion.fijar_paredes_de_sala(sala_sueltas, true)
+	var esq_norte := Vector2i(2, 2)
+	var esq_oeste := Vector2i(2, 3)
+	for par: Array in [[esq_norte, construccion.HORIZONTAL], [esq_oeste, construccion.VERTICAL]]:
+		if construccion.construir_de_oficio_elemento(
+			ESTANTERIA_PEQUENA, par[0], &"", par[1]
+		) == &"":
+			push_error("[DIAG ARRIMADO] estantería pequeña no colocada en %s" % par[0])
+	# Sala DERECHA — la pieza NUEVA, de 2 celdas, plantada EN el rincón.
+	var sala_esquina: StringName = construccion.construir_de_oficio_sala(
+		&"sala_espera_doc", Rect2i(9, 2, 5, 5)
+	)
+	construccion.fijar_paredes_de_sala(sala_esquina, true)
+	var esquina := Vector2i(9, 2)
+	if construccion.construir_de_oficio_elemento(
+		ESTANTERIA_ESQUINA, esquina, &"", construccion.HORIZONTAL
+	) == &"":
+		push_error("[DIAG ARRIMADO] estantería de esquina no colocada")
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+	var capa: Node2D = construccion._capa_elementos
+	var origen: Vector2 = capa.global_position
+	# EL JUEZ: la pieza nueva toca las DOS paredes a la vez -- test de dos ejes contra el VÉRTICE.
+	_test_arrimado_esquina(
+		_sprite_en_celda(capa, esquina), origen, esquina, ESPALDA_NORTE, ESPALDA_OESTE,
+		"D-esquina-completa"
+	)
+	# El HUECO que le queda a la pieza nueva contra su propio rincón (para compararlo con el de (B),
+	# ya impreso arriba, "B-esquina" en `_caso_esquina`): cero celdas de separación, es UNA pieza.
+	await _capturar_sin_liberar(sub, "estanteria_esquina_limpio")
+	for celda: Vector2i in [esq_norte, esq_oeste, esquina]:
+		_marcar_celda(mundo, celda, Color(1.0, 0.9, 0.1))
+	_marcar_arista(mundo, esq_norte, ESPALDA_NORTE, Color(0.2, 0.9, 1.0))
+	_marcar_arista(mundo, esq_oeste, ESPALDA_OESTE, Color(0.2, 0.9, 1.0))
+	_marcar_arista(mundo, esquina, ESPALDA_NORTE, Color(0.2, 0.9, 1.0))
+	_marcar_arista(mundo, esquina, ESPALDA_OESTE, Color(0.2, 0.9, 1.0))
+	await _capturar(sub, "estanteria_esquina")
 
 
 ## El hueco ENTRE dos módulos: la distancia (en píxeles del plano cuadrado, o sea de celda) que

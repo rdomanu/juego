@@ -210,6 +210,93 @@ func test_arrimar_no_saca_la_estanteria_de_su_celda() -> void:
 
 # ── AC-4 · El arrimado NO se ha colado en el resto del catalogo ───────────────────────────
 
+# ── AC-5 · ESTANTERIA DE ESQUINA (2026-08-04): mueble propio de 2 celdas, toca DOS paredes ──
+
+## El vertice que comparten las dos paredes de la celda ancla — norte+oeste, mismo criterio fijo
+## que `Construccion.COMODIDAD_ESTANTERIA_ESQUINA` (esta pieza NO cambia de pared con la R: ya
+## enseña las dos en una sola pose).
+func _vertice_norte_oeste(celda: Vector2i) -> Vector2:
+	return ProyeccionScript.centro_cuadrado(celda) + Vector2(-1.0, -1.0) * (TAM_CELDA * 0.5)
+
+
+func test_colocar_una_estanteria_de_esquina_cobra_y_crea_su_sprite() -> void:
+	var construccion: Node = _construccion()
+	var precio: int = Datos.obtener(&"Comodidad", &"estanteria_esquina").coste_construccion_eur
+	var saldo_antes: float = construccion._economia.saldo_eur
+
+	var id: StringName = construccion.construir_elemento(&"estanteria_esquina", CELDA)
+
+	assert_str(String(id)).is_not_equal("")
+	assert_float(construccion._economia.saldo_eur).is_equal_approx(
+		saldo_antes - float(precio), 0.001
+	)
+	var sprite: Sprite2D = _sprite_en(construccion, CELDA)
+	assert_object(sprite).override_failure_message(
+		"la estanteria de esquina salio con la caja gris en vez de su sprite"
+	).is_not_null()
+	assert_str(sprite.texture.resource_path).contains("comodidad_estanteria_esquina_")
+
+
+## EL JUEZ de la esquina (dos paredes a la vez): el CENTRO de la base — sin ajuste de fondo, una L
+## no tiene "un" borde trasero, ver el aviso largo de `Construccion.COMODIDAD_ESTANTERIA_ESQUINA` —
+## tiene que caer sobre el VERTICE que comparten las dos paredes, en los DOS ejes (0 ± 3 px).
+func test_la_estanteria_esquina_se_arrima_a_las_dos_paredes_en_los_dos_ejes() -> void:
+	var construccion: Node = _construccion()
+
+	construccion.construir_elemento(&"estanteria_esquina", CELDA)
+
+	var centro: Vector2 = _centro_base_cuadrado(construccion, CELDA)
+	var vertice: Vector2 = _vertice_norte_oeste(CELDA)
+	var delta: Vector2 = ProyeccionScript.proyectar(centro) - ProyeccionScript.proyectar(vertice)
+	assert_vector(delta).override_failure_message(
+		"la estanteria de esquina no llega al vertice norte+oeste de %s: delta=%s (eje X=%.2f eje Y=%.2f)"
+		% [CELDA, delta, delta.x, delta.y]
+	).is_equal_approx(Vector2.ZERO, Vector2(TOL_PX, TOL_PX))
+
+
+## Rotar con la R NO cambia el PNG (ya enseña las dos paredes en una sola pose — ver el aviso largo
+## de `COMODIDAD_ESTANTERIA_ESQUINA`): solo decide hacia que celda crece la SEGUNDA reserva del
+## modelo. La pieza sigue clavada en el MISMO vertice en los dos giros.
+func test_rotar_la_estanteria_esquina_no_cambia_su_pose_ni_su_vertice() -> void:
+	var horizontal: Node = _construccion()
+	horizontal.construir_elemento(&"estanteria_esquina", CELDA, horizontal.HORIZONTAL)
+	var vertical: Node = _construccion()
+	vertical.construir_elemento(&"estanteria_esquina", CELDA, vertical.VERTICAL)
+
+	var sprite_h: Sprite2D = _sprite_en(horizontal, CELDA)
+	var sprite_v: Sprite2D = _sprite_en(vertical, CELDA)
+	assert_str(sprite_h.texture.resource_path).is_equal(sprite_v.texture.resource_path)
+
+	var vertice: Vector2 = _vertice_norte_oeste(CELDA)
+	assert_vector(_centro_base_cuadrado(horizontal, CELDA)).is_equal_approx(
+		vertice, Vector2(TOL_PX, TOL_PX)
+	)
+	assert_vector(_centro_base_cuadrado(vertical, CELDA)).is_equal_approx(
+		vertice, Vector2(TOL_PX, TOL_PX)
+	)
+
+
+## LA HUELLA RESERVADA (gameplay, no dibujo): `superficie = 2` reserva 2 celdas EN LINEA en la
+## direccion de `orientacion` — el modelo de `_celdas_de` no soporta formas en L ("Sin formas en L:
+## la huella siempre es un rectangulo"), asi que esto es una decision de diseno documentada, no un
+## bug. Se comprueba que la SEGUNDA celda tambien queda ocupada (nadie puede colar otro mueble ahi).
+func test_la_estanteria_esquina_reserva_dos_celdas_en_linea() -> void:
+	var construccion: Node = _construccion()
+
+	construccion.construir_elemento(&"estanteria_esquina", CELDA, construccion.HORIZONTAL)
+
+	var segunda_celda: Vector2i = CELDA + Vector2i(1, 0)
+	assert_bool(construccion._celda_ocupada(segunda_celda)).override_failure_message(
+		"la segunda celda de la estanteria de esquina (%s) deberia estar reservada" % segunda_celda
+	).is_true()
+	# Y OTRO elemento no puede colarse en ninguna de las dos.
+	assert_str(String(
+		construccion.construir_elemento(&"papelera", segunda_celda)
+	)).override_failure_message(
+		"se coló una papelera en la segunda celda reservada de la esquina"
+	).is_equal("")
+
+
 func test_una_papelera_sigue_centrada_en_su_celda() -> void:
 	var construccion: Node = _construccion()
 

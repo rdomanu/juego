@@ -31,9 +31,18 @@ extends "res://tools/render_mobiliario.gd"
 ##
 ## Escritura: `assets/sprites/mobiliario/` (`SALIDA`, heredado del padre) — CERO cambios en el
 ## catálogo (.tres) ni en el código de juego, eso es otra tarea (ver mapa-integracion-mobiliario.md).
-
+##
+## ── OBJ_022 COMPLETO (2026-08-04, informe del hueco de esquina) — MUEBLE PROPIO DE 2 CELDAS ──────
+## Las dos sueltas colocadas por el jugador (arriba) dejan ~1 celda de hueco en la esquina —
+## estructural: son dos piezas de 1 celda cada una, no una pieza pensada para el rincón. Solución
+## aprobada por el usuario: renderizar el CLUSTER ENTERO de OBJ_022 (los DOS brazos juntos, sin
+## despiece — las 34 piezas de `_diag_obj022.gd`, `NOMBRES`) como una única pieza nueva de catálogo
+## (`estanteria_esquina`, ver `construccion.gd`), pensada para plantarse EN el rincón y tocar las
+## DOS paredes a la vez. Mismo pipeline de cámara/escala que el resto de esta pasada (`_recetas()`
+## del padre entra en el cálculo de encuadre para que el factor de escala sea el mismo).
 const ID_OBJ007 := "comodidad_estanteria"
 const ID_OBJ022_SUELTA := "comodidad_estanteria_suelta"
+const ID_OBJ022_ESQUINA := "comodidad_estanteria_esquina"
 
 ## OBJ_007 entero — 38 piezas (catalogo_objetos_manifest.json, cluster "OBJ_007").
 static var NOMBRES_OBJ007 := PackedStringArray([
@@ -54,6 +63,22 @@ static var NOMBRES_OBJ022_SUELTA := PackedStringArray([
 	"Object_922", "Object_924", "Object_926", "Object_928", "Object_929",
 ])
 
+## OBJ_022 COMPLETO — el cluster ENTERO (34 piezas: brazo Z + brazo X + los 2 nombres que cierran
+## el brazo Z, `Object_940`/`Object_941`), SIN despiece — ver `tools/_diag_obj022.gd::NOMBRES`
+## (misma lista, copiada de ahí; el diagnóstico se queda para volver a comprobar el AABB si hiciera
+## falta, esto es lo que se RENDERIZA).
+static var NOMBRES_OBJ022_COMPLETA := PackedStringArray([
+	"Object_881", "Object_883", "Object_884", "Object_885", "Object_886",
+	"Object_888", "Object_889", "Object_891", "Object_892", "Object_894", "Object_895",
+	"Object_897", "Object_899", "Object_901", "Object_903",
+	"Object_905", "Object_906", "Object_907", "Object_908",
+	"Object_910", "Object_911", "Object_913", "Object_914",
+	"Object_916", "Object_917", "Object_919", "Object_920",
+	"Object_922", "Object_924", "Object_926",
+	"Object_928", "Object_929",
+	"Object_940", "Object_941",
+])
+
 
 func _ejecutar(todas: Dictionary) -> void:
 	# Recetas del padre (para que el encuadre de cámara sea IDÉNTICO al de una pasada completa) +
@@ -61,6 +86,7 @@ func _ejecutar(todas: Dictionary) -> void:
 	var recetas: Array[Dictionary] = _recetas()
 	recetas.append({"id_salida": ID_OBJ007, "nombres": NOMBRES_OBJ007})
 	recetas.append({"id_salida": ID_OBJ022_SUELTA, "nombres": NOMBRES_OBJ022_SUELTA})
+	recetas.append({"id_salida": ID_OBJ022_ESQUINA, "nombres": NOMBRES_OBJ022_COMPLETA})
 
 	var anclas: Dictionary = {}
 	var radio_max := 0.0
@@ -113,8 +139,8 @@ func _ejecutar(todas: Dictionary) -> void:
 	var escala_final: float = ancho_objetivo / float(maxi(ancho_bruto, 1))
 	print("[ESTANTERIAS] calibración: mostrador bruto=%dpx -> factor=%.4f" % [ancho_bruto, escala_final])
 
-	# 2) Las dos recetas nuevas, 4 rotaciones cada una, guardadas a assets/sprites/mobiliario/.
-	for id_salida: String in [ID_OBJ007, ID_OBJ022_SUELTA]:
+	# 2) Las tres recetas nuevas, 4 rotaciones cada una, guardadas a assets/sprites/mobiliario/.
+	for id_salida: String in [ID_OBJ007, ID_OBJ022_SUELTA, ID_OBJ022_ESQUINA]:
 		var receta: Dictionary = _receta_por_id(recetas, id_salida)
 		_montar_receta(grupo, receta, todas, anclas[id_salida])
 		var escalados: Array[Dictionary] = []
