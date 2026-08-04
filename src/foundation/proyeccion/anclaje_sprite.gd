@@ -52,19 +52,74 @@ class_name AnclajeSprite
 ## corresponde al centro de ESA celda: el centro de la base más medio `delta_ultima_celda`. Con 1
 ## celda el delta es cero y el ancla es, sin más, el centro de la base.
 ##
+## ── LOS SEMIEJES: CUÁNTO MIDE LA BASE, NO SOLO DÓNDE ESTÁ (2026-08-04, muebles DE PARED) ──────
+## El centro de la base basta para CENTRAR un mueble en su celda. No basta para ARRIMARLO a la
+## pared (estanterías): para eso hay que saber además cuánto FONDO tiene, y eso son dos números
+## más — los semiejes del rectángulo de suelo que pisa, uno por eje del plano cuadrado.
+##
+## Salen de la misma silueta, sin medir nada a ojo. Los dos bordes INFERIORES del paralelogramo de
+## la base son, exactamente, el borde SUR y el borde ESTE del rectángulo de suelo (los otros dos
+## quedan ocultos tras el propio mueble), y en la proyección 2:1 cada uno de ellos es una recta con
+## invariante conocida:
+##   · borde SUR  (fila `v` constante):  `y − x/2` es constante a lo largo de él;
+##   · borde ESTE (columna `u` constante): `y + x/2`, ídem.
+## Y ninguna otra parte de la silueta puede pasarse de esas dos rectas hacia abajo (nada se dibuja
+## por debajo del suelo que pisa). Así que basta recorrer el CONTORNO INFERIOR (por columna, el
+## píxel opaco más bajo) y quedarse con el MÁXIMO de cada invariante: eso ES la recta del borde.
+## La distancia del centro a cada borde, deshecha la proyección, da el semieje.
+##
+## Es la misma idea que el centro: reconstruir del dibujo lo que el render sabía del modelo 3D.
+##
 ## ── COSTE ─────────────────────────────────────────────────────────────────────────────────────
-## Se escanea el PNG UNA vez por textura y se cachea por `resource_path` (`_cache_centro`). Un
-## mostrador de 100×74 son ~7.400 lecturas de píxel una sola vez en toda la partida, y los barridos
-## salen por la primera fila/columna que encuentran opaca. Nada de esto ocurre en `_process`.
+## Se escanea el PNG UNA vez por textura y se cachea por `resource_path` (`_cache_base`). Un
+## mostrador de 100×74 son ~7.400 lecturas de píxel una sola vez en toda la partida (el barrido de
+## cada columna sale por el primer píxel opaco que encuentra subiendo desde abajo). Nada de esto
+## ocurre en `_process`.
 
 ## Alfa por encima del cual un píxel cuenta como "mueble". 0,05 deja fuera el borde antialiaseado
 ## casi transparente del recorte y nada más (verificado: los PNG de mobiliario no traen sombra
 ## suave que se derrame por el lienzo — su silueta es el mueble).
 const UMBRAL_ALFA: float = 0.05
 
+## ── HACIA DÓNDE DA LA ESPALDA UN MUEBLE (y por qué NO hay una tabla global) ────────────────────
+## La rotación del render (0/90/180/270°) NO dice por sí sola hacia dónde mira un mueble: dice
+## cuánto se ha GIRADO respecto de cómo venía puesto en la escena 3D de origen, y cada cluster del
+## catálogo venía puesto como le dio la gana al autor del modelo. MEDIDO el 2026-08-04 sobre los
+## PNG ya renderizados (con `semiejes_base`, o sea sin suponer nada):
+##
+##   · `comodidad_estanteria` (OBJ_007) a 0°: base de 7,5 × 36,5 px → es LARGA en el eje Y y
+##     delgada en el X, luego su cara grande mira al este/oeste. En el PNG los estantes se ven en la
+##     cara ANCHA de la derecha, que en la proyección es la cara ESTE → a 0° mira al ESTE.
+##   · `comodidad_estanteria_suelta` (OBJ_022) a 0°: base de 28,5 × 6,5 px → larga en X, luego mira
+##     al norte/sur; los estantes se ven en la cara ancha de la IZQUIERDA, que es la cara SUR → a 0°
+##     mira al SUR. **Noventa grados de diferencia con la otra**, y no es un error de nadie: son dos
+##     clusters distintos del mismo catálogo 3D.
+##
+## Lo que SÍ es universal (y por eso vive aquí) es el CICLO: girar +90° en el render mueve la
+## espalda un paso de esta lista. Verificado con las dos estanterías a la vez, 8 PNG: la grande va
+## oeste → sur → este → norte y la pequeña norte → oeste → sur → este; la misma vuelta empezando en
+## sitios distintos.
+##
+## Así que un mueble de pared declara UN dato —hacia dónde da la espalda a 0°— y las otras tres
+## rotaciones salen de aquí. Y ese dato no se cree a ciegas: `eje_corto()` mide de los píxeles por
+## qué eje es delgado el mueble, que tiene que ser el eje de la espalda. Si alguien re-renderiza el
+## arte girado, la comprobación salta (test `anclaje_arrimado_test`).
+const CICLO_ESPALDA: Array[Vector2i] = [
+	Vector2i(0, -1),   # norte
+	Vector2i(-1, 0),   # oeste
+	Vector2i(0, 1),    # sur
+	Vector2i(1, 0),    # este
+]
+
 ## Centro de la base ya medido, por `resource_path` de la textura. Las texturas sin ruta en disco
 ## (generadas en memoria) no se cachean: no tienen clave estable.
 static var _cache_centro: Dictionary[String, Vector2] = {}
+
+## Semiejes de la base ya medidos, por `resource_path`. Caché APARTE de la del centro a propósito
+## (2026-08-04): el arrimado a pared se añadió sin tocar una línea del camino del centro, que estaba
+## en uso y verificado. Se paga una segunda pasada de píxeles por textura, y solo por las texturas
+## de los muebles DE PARED — que son los únicos que preguntan por los semiejes.
+static var _cache_semiejes: Dictionary[String, Vector2] = {}
 
 
 ## El píxel del PNG que debe caer sobre el nodo del sprite, sabiendo que ese nodo vive en el centro
@@ -105,9 +160,93 @@ static func centro_base(textura: Texture2D) -> Vector2:
 	return centro
 
 
-## Vacía la caché de medidas. Solo para tests y herramientas que recargan texturas en caliente.
+## Los SEMIEJES de la base: la MITAD de lo que mide, en cada eje, el rectángulo de suelo que pisa el
+## mueble — `x` a lo largo del eje X del plano cuadrado (este/oeste) e `y` a lo largo del eje Y
+## (norte/sur), en píxeles de ESE plano (no del PNG). Un mueble que llenara una celda entera daría
+## `(20, 20)` con `TAM_CELDA` = 40.
+##
+## Para qué existe: los muebles DE PARED (estanterías) no se centran en su celda, se arriman al
+## borde trasero — y cuánto hay que empujarlos depende de su FONDO, que es esto. Ver
+## `desvio_arrimado`. Cacheado.
+static func semiejes_base(textura: Texture2D) -> Vector2:
+	if textura == null:
+		push_error("AnclajeSprite: textura nula")
+		return Vector2.ZERO
+	var clave: String = textura.resource_path
+	if clave != "" and _cache_semiejes.has(clave):
+		return _cache_semiejes[clave]
+	var semiejes: Vector2 = _medir_semiejes_base(textura)
+	if clave != "":
+		_cache_semiejes[clave] = semiejes
+	return semiejes
+
+
+## Por qué EJE es DELGADO el mueble, medido de sus píxeles: `Vector2i(1,0)` si lo es en X (este/
+## oeste), `Vector2i(0,1)` si lo es en Y (norte/sur). Un mueble de pared da la espalda por su lado
+## delgado — es lo que lo hace "de pared" —, así que esto es el CONTRASTE con el que se comprueba
+## que la espalda declarada de un mueble no se ha quedado desfasada tras un re-render.
+static func eje_corto(textura: Texture2D) -> Vector2i:
+	var semiejes: Vector2 = semiejes_base(textura)
+	return Vector2i(1, 0) if semiejes.x <= semiejes.y else Vector2i(0, 1)
+
+
+## La espalda de un mueble tras girarlo `rotacion` grados en el render, sabiendo hacia dónde daba la
+## espalda a 0°. Es recorrer `CICLO_ESPALDA` — ver el comentario largo de esa constante.
+static func espalda_girada(espalda_a_cero: Vector2i, rotacion: int) -> Vector2i:
+	var desde: int = CICLO_ESPALDA.find(espalda_a_cero)
+	if desde < 0:
+		push_error("AnclajeSprite: '%s' no es una dirección de espalda" % espalda_a_cero)
+		return Vector2i.ZERO
+	return CICLO_ESPALDA[posmod(desde + int(roundf(rotacion / 90.0)), CICLO_ESPALDA.size())]
+
+
+## La inversa: QUÉ rotación hay que pedirle al arte para que un mueble dé la espalda a la pared que
+## se quiere. Es lo que traduce "esta estantería va contra la pared norte" a "carga el PNG de 270°",
+## sin que nadie tenga que apuntarse a mano qué rotación es cuál en cada mueble.
+static func rotacion_para_espalda(espalda_a_cero: Vector2i, deseada: Vector2i) -> int:
+	var desde: int = CICLO_ESPALDA.find(espalda_a_cero)
+	var hasta: int = CICLO_ESPALDA.find(deseada)
+	if desde < 0 or hasta < 0:
+		push_error("AnclajeSprite: espalda no válida (%s -> %s)" % [espalda_a_cero, deseada])
+		return 0
+	return posmod(hasta - desde, CICLO_ESPALDA.size()) * 90
+
+
+## El DESPLAZAMIENTO en pantalla que ARRIMA un mueble de pared al borde trasero de su celda, a
+## sumar a la posición del sprite DESPUÉS de anclarlo con `aplicar()`. `espalda` es hacia dónde da
+## la espalda ESTE PNG (`espalda_girada`).
+##
+## ── LA CUENTA (usuario 2026-08-04: *"que no quede hueco entre la pared y la estantería"*) ──────
+## `aplicar()` deja el centro de la base en el centro de la celda, así que entre el borde trasero
+## del mueble y la línea de la pared queda un hueco de:
+##
+##     recorrido = TAM_CELDA/2 − semieje_del_fondo
+##                 └ del centro de la celda a su borde   └ del centro del mueble a su espalda
+##
+## y arrimarlo es, exactamente, recorrer ese hueco en la dirección de la espalda. El semieje que se
+## usa es el del EJE por el que se arrima: el de Y si la espalda mira al norte o al sur, el de X si
+## mira al este o al oeste. Todo en el plano lógico cuadrado; el resultado se proyecta al final, una
+## sola vez.
+##
+## Ni un número mágico: `TAM_CELDA` es del modelo y el semieje sale de los píxeles del propio PNG,
+## así que si el arte cambia de fondo el arrimado se recalcula solo.
+##
+## `recorrido` se recorta a 0 por abajo: un mueble MÁS HONDO que su celda ya se sale por los dos
+## lados y empujarlo solo lo sacaría más. Espalda inválida → 0 con aviso (no se arrima nada).
+static func desvio_arrimado(textura: Texture2D, espalda: Vector2i) -> Vector2:
+	if CICLO_ESPALDA.find(espalda) < 0:
+		push_error("AnclajeSprite: '%s' no es una dirección de espalda" % espalda)
+		return Vector2.ZERO
+	var semiejes: Vector2 = semiejes_base(textura)
+	var semieje_fondo: float = semiejes.y if espalda.x == 0 else semiejes.x
+	var recorrido: float = maxf(Proyeccion.TAM_CELDA * 0.5 - semieje_fondo, 0.0)
+	return Proyeccion.proyectar(Vector2(espalda) * recorrido)
+
+
+## Vacía las cachés de medidas. Solo para tests y herramientas que recargan texturas en caliente.
 static func limpiar_cache() -> void:
 	_cache_centro.clear()
+	_cache_semiejes.clear()
 
 
 ## El barrido de píxeles de verdad. Tres extremos de la silueta opaca (`min_x`, `max_x`, `max_y`) y
@@ -161,3 +300,49 @@ static func _fila_opaca(img: Image, py: int, ancho: int) -> bool:
 		if img.get_pixel(px, py).a > UMBRAL_ALFA:
 			return true
 	return false
+
+
+## El barrido de los SEMIEJES: recorre el CONTORNO INFERIOR de la silueta (por columna, el píxel
+## opaco más bajo) quedándose con el máximo de las dos invariantes de recta — `y − x/2` para el
+## borde SUR de la base, `y + x/2` para el borde ESTE (ver la cabecera). Con esas dos rectas y el
+## centro ya medido salen los dos semiejes. Textura vacía → `Vector2.ZERO` (no se arrima nada).
+static func _medir_semiejes_base(textura: Texture2D) -> Vector2:
+	var img: Image = textura.get_image()
+	if img == null:
+		push_error("AnclajeSprite: textura '%s' sin imagen legible" % textura.resource_path)
+		return Vector2.ZERO
+	if img.is_compressed():
+		img.decompress()
+	var ancho: int = img.get_width()
+	var alto: int = img.get_height()
+	# La razón 1/2 ES la proyección 2:1, escrita con las constantes para que siga cuadrando si
+	# cambiaran.
+	var pendiente: float = Proyeccion.MEDIO_ALTO / Proyeccion.MEDIO_ANCHO
+	var borde_sur: float = -INF
+	var borde_este: float = -INF
+	for px: int in range(ancho):
+		var fondo: int = -1
+		for py: int in range(alto - 1, -1, -1):
+			if img.get_pixel(px, py).a > UMBRAL_ALFA:
+				fondo = py
+				break
+		if fondo < 0:
+			continue
+		# El punto de muestra: centro horizontal del píxel, borde INFERIOR de su fila (el píxel `n`
+		# cubre el intervalo continuo `[n, n+1)`) — misma convención que la Y del vértice sur.
+		var x_muestra: float = float(px) + 0.5
+		var y_muestra: float = float(fondo) + 1.0
+		borde_sur = maxf(borde_sur, y_muestra - x_muestra * pendiente)
+		borde_este = maxf(borde_este, y_muestra + x_muestra * pendiente)
+	if borde_sur == -INF:
+		push_warning("AnclajeSprite: textura '%s' totalmente transparente" % textura.resource_path)
+		return Vector2.ZERO
+	var centro: Vector2 = centro_base(textura)
+	# De la invariante a celdas: `y − x/2 = ALTO_ROMBO · v` y `y + x/2 = ALTO_ROMBO · u` (sale de
+	# sustituir la proyección). La diferencia entre la del borde y la del centro es el semieje en
+	# celdas; por `TAM_CELDA`, en píxeles del plano cuadrado.
+	var por_celda: float = Proyeccion.TAM_CELDA / float(Proyeccion.ALTO_ROMBO)
+	return Vector2(
+		(borde_este - (centro.y + centro.x * pendiente)) * por_celda,
+		(borde_sur - (centro.y - centro.x * pendiente)) * por_celda
+	)

@@ -99,14 +99,20 @@ const LARGO_JAMBA: float = 10.0
 ##         < rótulos de sala/puesto (z 1-2: información, no la tapa un muro)
 ##           < gente (`NPCsFlujo`, z 2)
 ##             < luces (`LucesObjetos`, z 3)
-## Mismo centinela que `Construccion.CELDA_NULA_PUERTA` (-1,-1), referenciado por VALOR: el proyecto
-## tipa estas inyecciones como `Node` genérico (mismo criterio que `luces_objetos.gd` /
-## `modo_construccion.gd`), así que no se tipa `_construccion` como `Construccion` para leer su
-## constante directamente.
-const CELDA_SIN_PUERTA := Vector2i(-1, -1)
-## Color de los MUROS LIBRES (2026-07-30 — Fase A del modelo Prison Architect: paredes primero,
-## zonas después). Gris de obra NEUTRO a propósito: a diferencia de `_color_de_pared`, un muro libre
-## no pertenece a ninguna sala, así que no toma el tono de ningún servicio.
+## ── EL COLOR DE UNA PARED LO DECIDE EL MODELO (PINTURA, 2026-08-04) ────────────────────────────
+## Hasta hoy había DOS colores fijos aquí (el tono por tipo de sala en `_color_de_pared` y el gris de
+## obra `COLOR_MURO_LIBRE`) y ninguno de los dos lo elegía el jugador. Decisión del usuario
+## (quick-spec §2): **toda pared construida nace BLANCA y se pinta con el pincel**. Así que el color
+## de cada tramo se le pregunta al MODELO, tramo a tramo (`Construccion.color_muro_de`) — ADR-0004,
+## el visual refleja el modelo.
+##
+## ⚠️ Con esto MUERE el duplicado documentado que había entre `_color_de_pared` (aquí) y
+## `Construccion._color_de_sala` (allí): ya no hay dos copias de la misma paleta que mantener a mano,
+## porque las paredes han dejado de tomar el color de la sala. `_color_de_sala` sigue vivo en
+## `construccion.gd` para el SUELO, que sí conserva el tinte de zona como fondo por defecto.
+##
+## Gris de obra RETIRADO como color por defecto: se conserva la constante solo como respaldo si
+## `_construccion` no expusiera la API de pintura (ningún caso real hoy — red de seguridad).
 const COLOR_MURO_LIBRE := Color(0.55, 0.55, 0.52)
 ## Color de la FACHADA del edificio (2026-07-30): los muros fijos que son la comisaría en sí. Tono
 ## de LADRILLO, distinto del gris de obra de un tabique que has levantado tú — de un vistazo se
@@ -191,12 +197,13 @@ func _firma_actual() -> String:
 	var partes: PackedStringArray = PackedStringArray()
 	for sala_id: StringName in _todas_las_salas():
 		var rect: Rect2i = _construccion.rect_de_sala(sala_id)
-		var puerta: Vector2i = _construccion.puerta_de_sala(sala_id)
+		# La PUERTA salió de la firma (2026-08-04): ya no es un dato de la sala, es un TIPO de muro —
+		# y los tipos de todos los muros entran abajo, así que abrirla ya dispara el repintado.
 		# El "P"/"-" final es si esa sala lleva paredes: las paredes son OPCIONALES por sala (decision
 		# del usuario 2026-07-30), asi que ponerlas o quitarlas tiene que disparar un redibujado.
-		partes.append("%s:%d,%d,%d,%d:%s:%d,%d:%s" % [
+		partes.append("%s:%d,%d,%d,%d:%s:%s" % [
 			sala_id, rect.position.x, rect.position.y, rect.size.x, rect.size.y,
-			_construccion.tipo_de_sala(sala_id), puerta.x, puerta.y,
+			_construccion.tipo_de_sala(sala_id),
 			"P" if _construccion.sala_con_paredes(sala_id) else "-",
 		])
 	# Los MUROS LIBRES (2026-07-30) entran en la firma: pintar o demoler uno tiene que disparar el
@@ -209,9 +216,15 @@ func _firma_actual() -> String:
 	# jamás se pintaría.
 	var muros: Array[String] = _construccion.muros()
 	muros.sort()
+	# PINTURA (2026-08-04): el COLOR de cada tramo entra también en la firma. Sin esto, pintar una
+	# pared no cambia ni el conjunto de claves ni los tipos, así que la firma quedaría idéntica y el
+	# repintado no llegaría nunca a ocurrir — el mismo agujero que ya se tapó con el tipo en la fase D.
 	var muros_con_tipo: PackedStringArray = PackedStringArray()
 	for clave: String in muros:
-		muros_con_tipo.append(clave + ":" + String(_construccion.tipo_muro_de_clave(clave)))
+		muros_con_tipo.append(
+			clave + ":" + String(_construccion.tipo_muro_de_clave(clave))
+			+ ":" + _color_de_tramo(clave, _construccion.es_muro_fijo(clave)).to_html(false)
+		)
 	partes.append("MUROS:" + ",".join(muros_con_tipo))
 	return "|".join(partes)
 
@@ -231,31 +244,28 @@ func _recalcular_tramos() -> void:
 	for sala_id: StringName in _todas_las_salas():
 		if _construccion.sala_con_paredes(sala_id):
 			salas.append(sala_id)
-	# 1) Las unidades de perímetro que son HUECO DE PUERTA (el acceso automático de cada sala), de
-	#    TODAS las salas — con prioridad absoluta sobre cualquier pared: una puerta nunca queda
-	#    tapiada, ni siquiera por la pared de la sala vecina si esa pared cae exactamente sobre el
-	#    mismo tramo compartido. Este hueco es una decisión de la SALA (`puerta_de_sala`), no un tipo
-	#    de muro: en el modelo esa arista sigue siendo un tabique corriente.
-	var huecos: Dictionary = {}
-	for sala_id: StringName in salas:
-		var clave: String = _clave_de_puerta(sala_id)
-		if clave != "":
-			huecos[clave] = true
+	# 1) (MURIÓ EL HUECO AUTOMÁTICO, 2026-08-04 · quick-spec §3.) Aquí se marcaba la unidad de
+	#    perímetro donde cada sala tenía su "puerta" elegida sola, y se pintaba como puerta AUNQUE en
+	#    el modelo esa arista fuera un tabique macizo: un vano por el que no se pasaba. Ya no existe.
+	#    Una sala amurallada se dibuja CERRADA hasta que el jugador abre su puerta con el pincel, y
+	#    entonces la pinta el paso 2 leyendo el tipo REAL del muro (ADR-0004: manda el modelo).
 	# 2) Cada sala aporta las unidades de SU perímetro (celda a celda). La PRIMERA sala que reclama
 	#    una unidad se la queda — así dos salas pegadas que comparten un tramo de pared lo pintan UNA
 	#    sola vez (se evita el doble trazo en vez de solaparlo).
 	#
 	#    ⚠️ Las unidades de HUECO también se reclaman aquí (antes se excluían y acababan pintadas por
 	#    el paso 4 con el gris de obra de un muro suelto — "la zona blanca" del informe del usuario).
-	var duenio: Dictionary = {}      # clave de unidad -> color de quien la reclamó primero
+	# `duenio` ya no guarda un color (2026-08-04): el color de cada tramo lo da el MODELO, no la sala
+	# que reclamó la arista. Sigue siendo el registro de "esta unidad ya la pinta el perímetro", que
+	# es lo que evita el doble trazo entre dos salas pegadas y lo que el paso 4 consulta.
+	var duenio: Dictionary = {}      # clave de unidad -> true (quién la reclamó primero)
 	var geometria: Dictionary = {}   # clave de unidad -> la unidad entera (geometría + clave_modelo)
 	for sala_id: StringName in salas:
-		var color: Color = _color_de_pared(sala_id)
 		for unidad: Dictionary in _unidades_de_perimetro(sala_id):
 			var clave: String = unidad["clave"]
 			if duenio.has(clave):
 				continue
-			duenio[clave] = color
+			duenio[clave] = true
 			geometria[clave] = unidad
 	for clave: String in geometria:
 		var unidad: Dictionary = geometria[clave]
@@ -264,20 +274,13 @@ func _recalcular_tramos() -> void:
 		# `tipo_muro_de_clave` devuelve "" si esa arista no tuviera muro (no debería pasar: solo se
 		# procesan salas cuyo perímetro está entero levantado), y "" cae en el caso macizo, que es
 		# exactamente lo que se pintaba antes: la red de seguridad no cambia nada de lo que ya había.
-		var es_hueco: bool = huecos.has(clave)
-		var tipo: StringName = (
-			_construccion.PUERTA if es_hueco
-			else _construccion.tipo_muro_de_clave(unidad["clave_modelo"])
-		)
-		# El hueco automático ya recibe sus jambas —apuntando hacia DENTRO de la sala— en el paso 3;
-		# las de `_agregar_arista` se le apagan para no pintarlas dos veces.
+		var tipo: StringName = _construccion.tipo_muro_de_clave(unidad["clave_modelo"])
 		_agregar_arista(
 			unidad["desde"], unidad["hasta"], _cara_de_arista(unidad["detras"]),
-			duenio[clave], tipo, not es_hueco
+			_color_de_tramo(unidad["clave_modelo"], false), tipo
 		)
-	# 3) Las jambas: un detalle sutil por cada puerta real (celda distinta de CELDA_SIN_PUERTA).
-	for sala_id: StringName in salas:
-		_jambas.append_array(_jambas_de_puerta(sala_id))
+	# 3) (Las jambas del hueco automático murieron con él: una puerta REAL ya recibe las suyas en
+	#    `_agregar_puerta`, el mismo camino para venga de donde venga el tramo.)
 	# 4) Los MUROS LIBRES (2026-07-30 — Fase A: paredes primero, zonas después): mismo grosor y
 	#    estilo que las paredes de sala, pero con su propio color neutro — no pertenecen a ninguna
 	#    sala. Si un muro libre cae justo en el mismo tramo físico que ya pintó una pared de sala
@@ -299,7 +302,7 @@ func _recalcular_tramos() -> void:
 		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
 		_agregar_arista(
 			geo["desde"], geo["hasta"], _cara_de_arista(geo["detras"], fija),
-			COLOR_FACHADA if fija else COLOR_MURO_LIBRE,
+			_color_de_tramo(clave_construccion, fija),
 			_construccion.tipo_muro_de_clave(clave_construccion)
 		)
 	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
@@ -349,7 +352,7 @@ func _crear_nodo(pieza: Dictionary) -> void:
 ## Traduce una clave de `Construccion.muros()` (convenio "v:col:row" / "h:col:row") a la clave
 ## EQUIVALENTE de este fichero, para poder comparar contra `duenio` (que usa "v:col:row" para
 ## verticales — mismo orden, coincide — pero "h:row:col" para horizontales, heredado de `_unidad_h`/
-## `_clave_de_puerta`). Solo se intercambian los dos números en el caso "h"; devuelve "" si la clave
+## el difunto `_clave_de_puerta`). Solo se intercambian los dos números en el caso "h"; devuelve "" si la clave
 ## no tiene el formato esperado (nunca debería pasar — `Construccion` es la única que las genera).
 func _clave_equivalente_en_paredes(clave_construccion: String) -> String:
 	var partes: PackedStringArray = clave_construccion.split(":")
@@ -395,7 +398,7 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 ## seguridad conservadora: ante la duda, pared.
 ##
 ## `con_jambas` solo lo apaga el hueco automático de una sala, que ya recibe las suyas —apuntando
-## hacia DENTRO— en `_jambas_de_puerta`.
+## hacia DENTRO— en `_agregar_puerta`.
 func _agregar_arista(
 	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color, tipo: StringName,
 	con_jambas: bool = true
@@ -415,8 +418,26 @@ func _agregar_arista(
 		# `Dictionary.merge` no pisa claves existentes por defecto, así que el valor de aquí
 		# sobrevive intacto (hoy `cara` ya solo trae "alto", así que el merge no aporta nada más —
 		# se conserva por simetría con los otros dos casos y para no callar la excepción).
+		#
+		# ── PINTURA (2026-08-04): EL CRISTAL NO SE PINTA ─────────────────────────────────────────
+		# Decisión del usuario (quick-spec §2): *"las ventanas conservan su cristal; si el tramo está
+		# pintado, se pinta la parte de muro/jambas, no el cristal"*. Así que una ventana pasa a
+		# dibujarse en TRES piezas: dos MUÑONES de pared en los extremos, con el color pintado del
+		# tramo (que por defecto es blanco), y el CRISTAL en el centro con `COLOR_VENTANA` intacto.
+		# El centro del tramo sigue siendo cristal a altura completa, que es la firma por la que se
+		# reconoce una ventana (y lo que comprueban los tests de ventanas: una ventana es maciza en su
+		# centro, no un hueco como la puerta).
+		var direccion: Vector2 = hasta - desde
+		var inicio_cristal: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
+		var fin_cristal: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
+		var jamba_izq: Dictionary = {"desde": desde, "hasta": inicio_cristal, "color": color}
+		jamba_izq.merge(cara)
+		_tramos.append(jamba_izq)
+		var jamba_der: Dictionary = {"desde": fin_cristal, "hasta": hasta, "color": color}
+		jamba_der.merge(cara)
+		_tramos.append(jamba_der)
 		var ventana: Dictionary = {
-			"desde": desde, "hasta": hasta,
+			"desde": inicio_cristal, "hasta": fin_cristal,
 			"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
 		}
 		ventana.merge(cara)
@@ -434,7 +455,7 @@ func _agregar_arista(
 ## cualquiera —un muro suelto, o el tramo de sala donde el jugador acaba de abrir un hueco— no se le
 ## puede pedir un "lado de dentro" fiable, y es un detalle decorativo, no una pista de navegación.
 func _agregar_puerta(
-	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = COLOR_MURO_LIBRE,
+	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = Color.WHITE,
 	con_jambas: bool = true
 ) -> void:
 	var direccion: Vector2 = hasta - desde
@@ -454,7 +475,7 @@ func _agregar_puerta(
 
 
 ## Las unidades (una por celda) del perímetro de una sala: 4 lados, sin duplicar las esquinas — el
-## mismo criterio de "en_borde" que usa `Construccion._puerta_automatica`.
+## mismo criterio de "en_borde" con el que se recorre cualquier perímetro de sala.
 func _unidades_de_perimetro(sala_id: StringName) -> Array[Dictionary]:
 	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
 	var unidades: Array[Dictionary] = []
@@ -467,97 +488,28 @@ func _unidades_de_perimetro(sala_id: StringName) -> Array[Dictionary]:
 	return unidades
 
 
-## Info de la puerta de una sala (`{}` si no tiene una puerta válida en su perímetro). Determinismo
-## en las ESQUINAS (una celda de esquina toca DOS lados a la vez, p. ej. `rect.position` toca el
-## lado IZQUIERDO y el de ARRIBA): se prioriza IZQUIERDA > DERECHA > ARRIBA > ABAJO. Documentado
-## aquí porque lo pide la tarea — al jugador le da igual (el hueco cae en la esquina de cualquier
-## forma), pero el código necesita una única respuesta estable.
-func _info_puerta(sala_id: StringName) -> Dictionary:
-	var rect: Rect2i = _construccion.rect_de_sala(sala_id)
-	var puerta: Vector2i = _construccion.puerta_de_sala(sala_id)
-	if puerta == CELDA_SIN_PUERTA:
-		return {}
-	if puerta.x == rect.position.x:
-		return {"lado": "izquierda", "rect": rect, "puerta": puerta}
-	if puerta.x == rect.end.x - 1:
-		return {"lado": "derecha", "rect": rect, "puerta": puerta}
-	if puerta.y == rect.position.y:
-		return {"lado": "arriba", "rect": rect, "puerta": puerta}
-	if puerta.y == rect.end.y - 1:
-		return {"lado": "abajo", "rect": rect, "puerta": puerta}
-	return {}   # la puerta no cae en el perímetro (dato corrupto) -> sin hueco ni jambas aquí
+## (2026-08-04 · quick-spec §3) Aquí vivían `_info_puerta`, `_clave_de_puerta` y `_jambas_de_puerta`:
+## el hueco automático de cada sala y su marco. Murieron con él. Una puerta REAL (un tramo de tipo
+## `PUERTA` en el modelo) se dibuja —muñones, hueco y jambas— en `_agregar_puerta`, el mismo camino
+## para el perímetro de una sala y para un muro suelto.
 
 
-## La unidad de perímetro que ocupa la puerta de la sala (`""` si no tiene puerta válida).
-func _clave_de_puerta(sala_id: StringName) -> String:
-	var info: Dictionary = _info_puerta(sala_id)
-	if info.is_empty():
-		return ""
-	var rect: Rect2i = info["rect"]
-	var puerta: Vector2i = info["puerta"]
-	match info["lado"]:
-		"izquierda":
-			return "v:%d:%d" % [rect.position.x, puerta.y]
-		"derecha":
-			return "v:%d:%d" % [rect.end.x, puerta.y]
-		"arriba":
-			return "h:%d:%d" % [rect.position.y, puerta.x]
-		_:
-			return "h:%d:%d" % [rect.end.y, puerta.x]   # "abajo"
-
-
-## Dos jambas cortas a los dos lados del hueco de la puerta (marco sobrio, nada de arte elaborado —
-## andamio declarado hasta que llegue el art bible), apuntando hacia DENTRO de la sala.
-func _jambas_de_puerta(sala_id: StringName) -> Array[Dictionary]:
-	var info: Dictionary = _info_puerta(sala_id)
-	if info.is_empty():
-		return []
-	var rect: Rect2i = info["rect"]
-	var puerta: Vector2i = info["puerta"]
-	var color: Color = _color_de_pared(sala_id)
-	# ISOMÉTRICO: los puntos salen de `_esquina` y las direcciones "hacia dentro" pasan por
-	# `_direccion` — en rombos, "hacia dentro" ya no es horizontal ni vertical en pantalla.
-	if info["lado"] == "izquierda":
-		var dentro: Vector2 = _direccion(Vector2(LARGO_JAMBA, 0.0))
-		return [
-			_jamba(_esquina(rect.position.x, puerta.y), dentro, color),
-			_jamba(_esquina(rect.position.x, puerta.y + 1), dentro, color),
-		]
-	if info["lado"] == "derecha":
-		var dentro: Vector2 = _direccion(Vector2(-LARGO_JAMBA, 0.0))
-		return [
-			_jamba(_esquina(rect.end.x, puerta.y), dentro, color),
-			_jamba(_esquina(rect.end.x, puerta.y + 1), dentro, color),
-		]
-	if info["lado"] == "arriba":
-		var dentro: Vector2 = _direccion(Vector2(0.0, LARGO_JAMBA))
-		return [
-			_jamba(_esquina(puerta.x, rect.position.y), dentro, color),
-			_jamba(_esquina(puerta.x + 1, rect.position.y), dentro, color),
-		]
-	var dentro_abajo: Vector2 = _direccion(Vector2(0.0, -LARGO_JAMBA))   # "abajo"
-	return [
-		_jamba(_esquina(puerta.x, rect.end.y), dentro_abajo, color),
-		_jamba(_esquina(puerta.x + 1, rect.end.y), dentro_abajo, color),
-	]
-
-
-## Mismo cálculo que el privado `Construccion._color_de_sala` (color base por servicio + tono por
-## tipo), DUPLICADO aquí a propósito: es privado (prefijo `_`) y esta tarea tiene prohibido tocar
-## `construccion.gd`. No es una paleta nueva — es la MISMA, solo oscurecida para que la pared
-## "pertenezca" a su sala. Si esa paleta cambia allí, hay que replicar el cambio aquí también.
-func _color_de_pared(sala_id: StringName) -> Color:
-	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _construccion.tipo_de_sala(sala_id))
-	if tipo_sala == null:
-		return Color(0.1, 0.1, 0.1)   # no debería pasar (Datos ya avisó) — gris de emergencia
-	var base := Color(0.30, 0.38, 0.55)
-	if tipo_sala.servicio == "ODAC":
-		base = Color(0.55, 0.40, 0.22)
-	elif tipo_sala.servicio == "Comun":
-		base = Color(0.35, 0.37, 0.40)
-	if tipo_sala.tipo == "espera":
-		base = base.lerp(Color(0.22, 0.24, 0.27), 0.45)
-	return base.darkened(0.4)
+## EL COLOR DE UN TRAMO (PINTURA, 2026-08-04). Sustituye al antiguo `_color_de_pared(sala_id)`, que
+## derivaba el color del TIPO DE SALA — hoy una pared no pertenece a ninguna sala a efectos de color:
+## nace blanca y la pinta el jugador.
+##
+##   · **Fachada** (`fija`): ladrillo, siempre. No se pinta (`Construccion.pintar_muro` la rechaza),
+##     así que aquí ni se pregunta — es el plano de la comisaría, no obra tuya.
+##   · **Cualquier otro tramo**: lo que diga el modelo, que devuelve BLANCO si nunca se pintó.
+##
+## `clave_modelo` es la clave con el convenio de `Construccion.clave_de_muro` (col:row en las dos
+## familias) — la misma que ya viaja en cada unidad de perímetro y la que devuelve `muros()`.
+func _color_de_tramo(clave_modelo: String, fija: bool) -> Color:
+	if fija:
+		return COLOR_FACHADA
+	if not _construccion.has_method("color_muro_de"):
+		return COLOR_MURO_LIBRE   # red de seguridad: modelo sin API de pintura (no pasa hoy)
+	return _construccion.color_muro_de(clave_modelo)
 
 
 ## Un tramo del eje X (grid-line en la fila `fila_gridline`, celda `celda_x`). En pantalla baja

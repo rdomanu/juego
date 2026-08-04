@@ -25,9 +25,8 @@ const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 const TAM_CELDA: int = 40
 ## Tipo de sala usado en todos los tests (coste base 0 € en su .tres).
 const TIPO_SALA := &"sala_documentacion"
-## La sala de pruebas: columnas 3..8, filas 3..7. Su puerta automática cae en (3,6) —la celda del
-## perímetro más cercana a la puerta del edificio (0,6)—, así que ninguna arista de las que se prueban
-## aquí coincide con ese hueco.
+## La sala de pruebas: columnas 3..8, filas 3..7. (Hasta 2026-08-04 su puerta automática caía en
+## (3,6); ese hueco ya no existe — la sala nace cerrada y la puerta la abre quien juega.)
 const RECT_SALA := Rect2i(3, 3, 6, 5)
 ## Las cuatro aristas de prueba, una por lado de la sala: [nombre, celda, lado].
 const ARISTAS: Array = [
@@ -200,21 +199,25 @@ func test_conversion_invalida_no_deja_rastro_en_el_modelo() -> void:
 	assert_str(_volcado(construccion)).is_equal(antes)
 
 
-# ── 4. El hueco automático de la sala se dibuja como PUERTA, no como un tramo gris ───────────
-# Era "la zona blanca" del informe: el perímetro se saltaba esa arista y la pasada de muros libres la
-# rellenaba con un tabique de su propio color (gris de obra), destacando sobre el tono de la sala. Por
-# eso era el único sitio donde poner una puerta se notaba.
-func test_el_hueco_automatico_de_la_sala_se_dibuja_como_puerta() -> void:
+# ── 4. MURIÓ EL HUECO AUTOMÁTICO: una sala amurallada se dibuja CERRADA ──────────────────────
+# Antes, toda sala nacía con una "puerta" elegida sola y el dibujo pintaba ahí un vano… por el que no
+# se pasaba (en el modelo era tabique macizo). Desde la quick-spec §3 la puerta la elige el jugador,
+# así que amurallar no deja ningún hueco: NINGUNA unidad del perímetro puede verse como puerta, y el
+# modelo no declara puerta ninguna.
+func test_amurallar_no_deja_ningun_hueco_dibujado() -> void:
 	# Arrange / Act
 	var mundo: Array = _sala_con_paredes()
 	var construccion: Node = mundo[0]
 	var paredes: Node2D = mundo[1]
-	var puerta: Vector2i = construccion.puerta_de_sala(mundo[2])
 
-	# Assert — la puerta automática cae en el borde OESTE de la sala (celda más cercana al acceso del
-	# edificio) y se dibuja con su hueco, aunque en el modelo esa arista siga siendo un tabique.
-	assert_vector(puerta).is_equal(Vector2i(RECT_SALA.position.x, 6))
-	assert_bool(_dibujada_como_puerta(paredes, puerta, &"izquierda")).is_true()
+	# Assert — el modelo no tiene puerta, y el dibujo tampoco: los cuatro lados macizos, incluida la
+	# celda donde caía el viejo hueco automático (el borde oeste, el más cercano al acceso (0,6)).
+	assert_vector(construccion.puerta_de_sala(mundo[2])).is_equal(construccion.CELDA_NULA_PUERTA)
+	assert_bool(_dibujada_como_muro(paredes, Vector2i(RECT_SALA.position.x, 6), &"izquierda")).is_true()
+	for arista: Array in ARISTAS:
+		assert_bool(_dibujada_como_puerta(paredes, arista[1], arista[2])) \
+			.override_failure_message("el lado %s no puede tener hueco sin que nadie lo abra" % arista[0]) \
+			.is_false()
 
 
 # ── 5. Una VENTANA no se confunde con una puerta: es pared con cristal, no un hueco ──────────

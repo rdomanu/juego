@@ -17,6 +17,16 @@ const COLOR_VALIDO := Color(0.4, 1.0, 0.4, 0.4)
 const COLOR_INVALIDO := Color(1.0, 0.35, 0.35, 0.4)
 const COLOR_DEMOLER := Color(1.0, 0.6, 0.2, 0.4)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
+## ── FANTASMA CON SPRITE REAL (quick-spec 2026-08-04 §4) ────────────────────────────────────────
+## Alfa del fantasma cuando lleva el SPRITE de verdad del mueble en vez de la caja gris genérica:
+## más alto que el de la caja (`COLOR_VALIDO`/`COLOR_INVALIDO`, alfa 0.4) porque un sprite con
+## detalle fino (líneas de un monitor, patas de una silla) se pierde antes que un polígono liso al
+## mismo alfa — a 0.4 el ordenador de sobremesa se leía como una mancha, no como "esto es lo que vas
+## a comprar". Verde-blanco (no verde puro) para no confundirlo con el tinte plano de la caja: sigue
+## siendo un mueble, no un rectángulo de validación.
+const ALFA_FANTASMA_SPRITE: float = 0.55
+const TINTE_FANTASMA_VALIDO := Color(0.78, 1.0, 0.82, ALFA_FANTASMA_SPRITE)
+const TINTE_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, ALFA_FANTASMA_SPRITE)
 ## Hueco reservado para la barra de info de Main (abajo del todo): esta barra se apoya ENCIMA.
 const HUECO_BARRA_INFO := 84.0
 ## Grosor del resalte de ARISTA del pincel de muro (2026-07-30): más fino que la caja de una celda
@@ -27,6 +37,33 @@ const GROSOR_PREVIEW_MURO := 10.0
 ## normal en el mismo frame y un clic rechazado se ve exactamente igual que uno que no ha ocurrido —
 ## que es justo lo que hizo pensar al usuario que la puerta "no se dejaba poner".
 const DURACION_DESTELLO: float = 0.4
+## Lo que se lee arriba cuando una sala acaba de quedarse amurallada (ver `pedir_puerta_de_sala`).
+const TEXTO_PEDIR_PUERTA := "Coloca la puerta de la sala: clic en el tramo de pared que quieras (Esc = sin puerta)"
+
+## ── EL PINCEL DE PINTURA (2026-08-04 · quick-spec §2) ──────────────────────────────────────────
+## Dos herramientas hermanas —una para PAREDES y otra para SUELOS— que comparten una sola paleta de
+## 30 muestras (`PaletaPintura`). Son dos botones y no uno con submodo porque el gesto es distinto:
+## el de pared apunta a una ARISTA (como el pincel de muro o el de puertas) y el de suelo a una
+## CELDA (como colocar un mueble), y el fantasma tiene que dibujar una cosa u otra. Con un solo botón
+## en dos submodos habría que enseñar en algún sitio cuál de los dos está activo — dos botones ya lo
+## dicen ellos solos, que es el patrón que sigue el resto de esta barra.
+##
+## **MAYÚS = LA SALA ENTERA.** Clic normal pinta el tramo/celda señalado; con MAYÚS pulsada pinta
+## todas las paredes (o todo el suelo) de la sala. Si el tramo NO pertenece a ninguna sala —un muro
+## suelto en mitad del edificio, el suelo de un pasillo— MAYÚS pinta solo lo señalado: no hay sala
+## que extender, y adivinar un "recinto" sería pintar cosas que el jugador no ha visto.
+const HERRAMIENTA_PINTAR_PARED := &"pintar_pared"
+const HERRAMIENTA_PINTAR_SUELO := &"pintar_suelo"
+## Lado (en píxeles) de cada muestra de color de la rejilla de la paleta.
+const LADO_MUESTRA := Vector2(26.0, 20.0)
+
+## La paleta (30 colores data-driven). Preload por el mismo convenio que `TramoParedScript` en
+## `paredes_salas.gd`: un `const …Script` en vez de depender del registro global del `class_name`.
+const PaletaPinturaScript := preload("res://src/core/construccion/paleta_pintura.gd")
+## Solo para leer su API PÚBLICA de sprite del mostrador (`RUTA_SPRITES_MOBILIARIO`,
+## `ID_SPRITE_MOSTRADOR_2`, `ROT_MOSTRADOR`, `hay_sprite_mostrador`) — ver la cabecera del fantasma
+## de sprite real más abajo. Este fichero solo LEE `mesa_atencion.gd` (orden de la tarea).
+const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 
 var _construccion: Node = null
 var _tam_celda: int = 40
@@ -84,7 +121,29 @@ var _lbl_estado: Label
 var _boton_modo: Button
 var _botones_herramienta: Dictionary = {}
 var _preview_caja: PreviewIso
+## El fantasma con el SPRITE REAL del mueble (quick-spec 2026-08-04 §4), hermano de `_preview_caja`:
+## solo uno de los dos está visible a la vez — la caja para las comodidades sin arte (12 de 16) y
+## este `Sprite2D` para las que sí tienen render (comodidades con sprite, el sofá y los puestos).
+## UN solo nodo cacheado (nunca se crea uno nuevo por frame): se reutiliza cambiando `texture` +
+## `offset`/`centered` (vía `AnclajeSprite.aplicar`) solo cuando la guarda de celda/herramienta/
+## rotación de `_process` deja pasar — ver `_mostrar_fantasma_sprite`.
+var _preview_sprite: Sprite2D
 var _preview_texto: Label
+## Rejilla de muestras de color del pincel (5 por fila = una familia de la paleta por fila). Solo
+## visible con un pincel de pintura en la mano — es el SUBMENÚ del pincel, no una barra permanente.
+var _rejilla_paleta: GridContainer
+## Los 30 botones-muestra, en el orden de `PaletaPintura.COLORES` (para resaltar el seleccionado).
+var _muestras: Array[Button] = []
+## Índice del color elegido dentro de `PaletaPintura.COLORES`. Arranca en 0 = blanco puro, que es
+## además el color por defecto de toda pared: pintar sin elegir nada NO cambia nada de sitio.
+var _indice_color: int = 0
+## El color elegido, ya resuelto (cacheado: el fantasma lo pide cada vez que se repinta y no tiene
+## sentido reconstruir la paleta entera para leer una entrada).
+var _color_pincel: Color = Color.WHITE
+## Texturas del fantasma de sprite, por ruta de PNG (regla de rendimiento de la tarea: "no
+## recargues texturas cada frame"). Se rellena la primera vez que hace falta cada una; después,
+## puro lookup — ni siquiera `ResourceLoader.exists` se repite dos veces con la misma ruta.
+var _cache_texturas_fantasma: Dictionary[String, Texture2D] = {}
 
 
 ## El fantasma de construcción, dibujado a mano.
@@ -207,7 +266,12 @@ func _unhandled_input(evento: InputEvent) -> void:
 			_descartar_trazo_muro()
 	elif boton.button_index == MOUSE_BUTTON_LEFT:
 		if boton.pressed:
-			_al_pulsar(punto_mundo)
+			# MAYÚS se lee DEL EVENTO (`shift_pressed`), no solo del teclado en vivo: es el estado del
+			# modificador en el instante del clic —el mismo criterio de "usa el dato del evento" que ya
+			# rige para la posición— y además hace el gesto reproducible desde un test/diagnóstico con
+			# eventos sintéticos. El poll en vivo se conserva como respaldo por si el backend no
+			# rellenara el modificador.
+			_al_pulsar(punto_mundo, boton.shift_pressed or Input.is_key_pressed(KEY_SHIFT))
 		else:
 			if _hay_trazo_de_muro(true):
 				_aplicar_linea_muro()   # se construye AL SOLTAR, no mientras arrastras
@@ -215,8 +279,14 @@ func _unhandled_input(evento: InputEvent) -> void:
 			_al_soltar()
 
 
-func _al_pulsar(punto_mundo: Vector2) -> void:
+func _al_pulsar(punto_mundo: Vector2, con_mayus: bool = false) -> void:
 	if _herramienta == &"":
+		return
+	if _herramienta == HERRAMIENTA_PINTAR_PARED:
+		_pintar_pared_en(punto_mundo, con_mayus)
+		return
+	if _herramienta == HERRAMIENTA_PINTAR_SUELO:
+		_pintar_suelo_en(punto_mundo, con_mayus)
 		return
 	if _herramienta == &"muro":
 		_arrastrando_muro = true
@@ -245,6 +315,9 @@ func _al_pulsar(punto_mundo: Vector2) -> void:
 			)
 		else:
 			_lbl_estado.text = "Zona creada con %d celdas" % _construccion.area_de_sala(creada)
+			# Una zona se marca DENTRO de muros que ya existen: si ese recinto no tiene ninguna puerta,
+			# hace falta el mismo gesto que al amurallar a mano.
+			_pedir_puerta_si_hace_falta(creada)
 		return
 	if _herramienta == &"demoler":
 		_demoler_en(celda, punto_mundo)
@@ -259,10 +332,13 @@ func _al_soltar() -> void:
 	if not _arrastrando:
 		return
 	_arrastrando = false
-	_construccion.construir_sala(
+	var creada: StringName = _construccion.construir_sala(
 		_herramienta, _rect_entre(_celda_inicio, _construccion.celda_bajo_cursor()),
 		1 if _nueva_sala_con_paredes else -1
 	)
+	# Si nació cerrada (la casilla "Con paredes", o un tipo que se cierra solo como la de descanso),
+	# el paso siguiente es elegir dónde va la puerta — ya no viene ninguna puesta.
+	_pedir_puerta_si_hace_falta(creada)
 
 
 ## Demoler con la cascada del GDD: un elemento directo; un MURO libre directo (prioridad entre
@@ -344,6 +420,96 @@ func _destellar_arista(celda: Vector2i, lado: StringName, color: Color, texto: S
 	_destello_restante = DURACION_DESTELLO
 
 
+# ── EL PINCEL DE PINTURA (2026-08-04) ────────────────────────────────────────────────────────
+
+## Pinta la PARED señalada por el punto DEL EVENTO. Con `con_mayus`, la sala entera.
+##
+## La sala se deduce de la celda clicada (`sala_en`), no de la arista: una arista separa DOS celdas y
+## preguntar por las dos daría dos salas candidatas. Con la celda donde de verdad has pinchado, el
+## resultado es el que espera cualquiera — pintas desde dentro de la habitación que quieres pintar.
+## Si esa celda no es de ninguna sala (un muro suelto, un pasillo), MAYÚS pinta SOLO ese tramo.
+func _pintar_pared_en(punto_mundo: Vector2, con_mayus: bool) -> void:
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	var sala_id: StringName = _construccion.sala_en(celda)
+	if con_mayus and sala_id != &"":
+		var pintados: int = _construccion.pintar_sala_muros(sala_id, _color_pincel)
+		var texto: String = (
+			"Sala pintada: %d tramos" % pintados if pintados > 0
+			else "Esa sala no tiene paredes que pintar"
+		)
+		_lbl_estado.text = texto
+		_destellar_arista(celda, lado, COLOR_VALIDO if pintados > 0 else COLOR_INVALIDO, texto)
+		return
+	if _construccion.pintar_muro_en(celda, lado, _color_pincel):
+		_lbl_estado.text = "Pared pintada"
+		_destellar_arista(celda, lado, COLOR_VALIDO, "Pared pintada")
+		return
+	# El "no" se explica, igual que en el pincel de puertas: sin pared no hay nada que pintar, y la
+	# fachada es ladrillo (no es obra tuya).
+	var motivo: String = (
+		"La fachada no se pinta"
+		if _construccion.es_muro_fijo(_construccion.clave_de_muro(celda, lado))
+		else "Ahí no hay pared que pintar"
+	)
+	_lbl_estado.text = motivo
+	_destellar_arista(celda, lado, COLOR_INVALIDO, motivo)
+
+
+## Pinta el SUELO de la celda señalada. Con `con_mayus`, todo el suelo de su sala (y si la celda no
+## es de ninguna sala, solo esa celda — mismo criterio que la pared).
+func _pintar_suelo_en(punto_mundo: Vector2, con_mayus: bool) -> void:
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	var sala_id: StringName = _construccion.sala_en(celda)
+	if con_mayus and sala_id != &"":
+		var pintadas: int = _construccion.pintar_sala_suelo(sala_id, _color_pincel)
+		_lbl_estado.text = "Suelo de la sala pintado: %d celdas" % pintadas
+		_destellar_celda(celda, COLOR_VALIDO, _lbl_estado.text)
+		return
+	if _construccion.pintar_suelo(celda, _color_pincel):
+		_lbl_estado.text = "Suelo pintado"
+		_destellar_celda(celda, COLOR_VALIDO, "Suelo pintado")
+		return
+	_lbl_estado.text = "Fuera del edificio"
+	_destellar_celda(celda, COLOR_INVALIDO, "Fuera del edificio")
+
+
+## Igual que `_destellar_arista` pero sobre la CELDA entera (el pincel de suelo pinta celdas).
+func _destellar_celda(celda: Vector2i, color: Color, texto: String) -> void:
+	_preview_caja.visible = true
+	_preview_texto.visible = true
+	_colocar_caja(celda, Vector2i.ONE, color)
+	_preview_texto.text = texto
+	_destello_restante = DURACION_DESTELLO
+
+
+## Elige el color del pincel (una muestra de la rejilla) y resalta la muestra elegida.
+func _elegir_color(indice: int) -> void:
+	_indice_color = clampi(indice, 0, PaletaPinturaScript.COLORES.size() - 1)
+	_color_pincel = PaletaPinturaScript.desde_hex(
+		String(PaletaPinturaScript.COLORES[_indice_color]["hex"])
+	)
+	_refrescar_muestras()
+	# Que el fantasma se repinte ya con el color nuevo, sin esperar a que el ratón cambie de celda.
+	_celda_anterior = Vector2i(-999, -999)
+
+
+## Marca visualmente cuál de las 30 muestras está elegida: borde blanco grueso en la elegida, borde
+## oscuro fino en el resto (el color de la muestra no se toca — es el dato que hay que leer).
+func _refrescar_muestras() -> void:
+	for i: int in _muestras.size():
+		var elegido: bool = i == _indice_color
+		var estilo := StyleBoxFlat.new()
+		estilo.bg_color = PaletaPinturaScript.desde_hex(
+			String(PaletaPinturaScript.COLORES[i]["hex"])
+		)
+		estilo.set_border_width_all(3 if elegido else 1)
+		estilo.border_color = Color.WHITE if elegido else Color(0.0, 0.0, 0.0, 0.6)
+		var muestra: Button = _muestras[i]
+		for estado: String in ["normal", "hover", "pressed", "focus"]:
+			muestra.add_theme_stylebox_override(estado, estilo)
+
+
 ## ¿Hay un trazo de muro VIVO que le corresponda a este botón? Un trazo solo cuenta si además la
 ## herramienta en la mano sigue siendo el pincel de muro — ver la guarda del movimiento.
 func _hay_trazo_de_muro(construyendo: bool) -> bool:
@@ -397,6 +563,30 @@ func activar_con_herramienta(id: StringName, es_sala: bool) -> void:
 	_fijar_herramienta(id, es_sala)
 
 
+## ── EL PASO QUE SIGUE A AMURALLAR: ELIGE DÓNDE VA LA PUERTA (2026-08-04 · quick-spec §3) ───────
+## Murió el hueco automático: una sala recién amurallada es un RECINTO CERRADO. Así que en cuanto se
+## cierra una sala, el modo se pone SOLO la herramienta de puerta en la mano y lo dice arriba; el
+## jugador hace clic en el tramo que quiera (vale cualquier pared real que no sea fachada, con su
+## destello verde/rojo de siempre).
+##
+## No es un modo bloqueado ni un diálogo: si pulsa Esc o coge otra herramienta, la sala se queda sin
+## puerta y no pasa nada — los NPC que no puedan entrar esperarán quietos con su señal 🚫 (mecánica
+## de accesos, 2026-08-03), que es un aviso mucho más honesto que una puerta puesta a su espalda.
+func pedir_puerta_de_sala() -> void:
+	activar_con_herramienta(&"puerta", false)
+	_lbl_estado.text = TEXTO_PEDIR_PUERTA
+
+
+## Lo anterior, pero solo si esa sala se ha quedado CERRADA Y SIN PUERTA. Se pregunta al modelo
+## (`sala_amurallada_sin_puerta`), nunca se adivina desde la UI: una sala puede quedar amurallada por
+## caminos muy distintos (la casilla "Con paredes", el tipo que se cierra solo, marcar una zona
+## dentro de muros que ya estaban) y todos merecen el mismo paso siguiente.
+func _pedir_puerta_si_hace_falta(sala_id: StringName) -> void:
+	if sala_id == &"" or not _construccion.sala_amurallada_sin_puerta(sala_id):
+		return
+	pedir_puerta_de_sala()
+
+
 func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 	# Cambiar de herramienta TIRA el trazo de muro a medias (2026-08-03). Los botones de la barra son
 	# `Control`: se comen el clic, así que este nodo nunca ve el "soltar" y el trazo se quedaba vivo
@@ -404,6 +594,12 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 	_descartar_trazo_muro()
 	_herramienta = id
 	_es_sala = es_sala
+	# La paleta es el SUBMENÚ del pincel: aparece con él y se va con él (no ocupa la barra el resto
+	# del tiempo). Guarda de null porque `_fijar_herramienta` puede correr antes de que la UI exista.
+	if _rejilla_paleta != null:
+		_rejilla_paleta.visible = _activo and (
+			id == HERRAMIENTA_PINTAR_PARED or id == HERRAMIENTA_PINTAR_SUELO
+		)
 	for boton_id: StringName in _botones_herramienta:
 		(_botones_herramienta[boton_id] as Button).modulate = (
 			COLOR_BOTON_ACTIVO if boton_id == id else Color.WHITE
@@ -414,6 +610,7 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 func _process(delta: float) -> void:
 	if not _activo or _herramienta == &"":
 		_preview_caja.visible = false
+		_preview_sprite.visible = false
 		_preview_texto.visible = false
 		_celda_anterior = Vector2i(-999, -999)
 		_lado_anterior = &"-"
@@ -443,6 +640,7 @@ func _process(delta: float) -> void:
 	if (
 		_herramienta == &"muro" or _herramienta == &"demoler"
 		or _herramienta == &"puerta" or _herramienta == &"ventana"
+		or _herramienta == HERRAMIENTA_PINTAR_PARED
 	):
 		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
 	if (
@@ -456,12 +654,20 @@ func _process(delta: float) -> void:
 	_lado_anterior = lado
 	_preview_caja.visible = true
 	_preview_texto.visible = true
+	# Por defecto, apagado: solo `_refrescar_preview_elemento` lo enciende cuando la herramienta en
+	# mano tiene sprite real (quick-spec §4) — así cualquier otra herramienta (muro, puerta, pincel,
+	# sala) hereda el apagado sin tener que tocar sus propias funciones una por una.
+	_preview_sprite.visible = false
 	if _herramienta == &"demoler":
 		_refrescar_preview_demoler(celda, lado)
 	elif _herramienta == &"muro":
 		_refrescar_preview_muro(celda, lado)
 	elif _herramienta == &"puerta" or _herramienta == &"ventana":
 		_refrescar_preview_puerta_ventana(celda, lado)
+	elif _herramienta == HERRAMIENTA_PINTAR_PARED:
+		_refrescar_preview_pintar_pared(celda, lado)
+	elif _herramienta == HERRAMIENTA_PINTAR_SUELO:
+		_refrescar_preview_pintar_suelo(celda)
 	elif _es_sala and _arrastrando:
 		_refrescar_preview_sala(_rect_entre(_celda_inicio, celda))
 	else:
@@ -518,6 +724,47 @@ func _refrescar_preview_puerta_ventana(celda: Vector2i, lado: StringName) -> voi
 	elif ya_es:
 		motivo = "Ya hay " + nombre.to_lower() + " ahí"
 	_preview_texto.text = nombre + " · " + motivo
+
+
+## Fantasma del pincel de PARED: resalta la arista con EL COLOR QUE VAS A APLICAR (no el verde/rojo
+## genérico) cuando se puede pintar — así ves el color sobre la pared antes de soltar el clic — y en
+## rojo cuando no. Avisa también de si MAYÚS va a pintar la sala entera.
+func _refrescar_preview_pintar_pared(celda: Vector2i, lado: StringName) -> void:
+	var clave: String = _construccion.clave_de_muro(celda, lado)
+	var hay_pared: bool = _construccion.tipo_de_muro(celda, lado) != &""
+	var es_fachada: bool = _construccion.es_muro_fijo(clave)
+	var valido: bool = hay_pared and not es_fachada
+	_colocar_caja_arista(celda, lado, _color_pincel if valido else COLOR_INVALIDO)
+	var motivo: String = "Clic pinta el tramo · MAYÚS pinta la sala"
+	if not hay_pared:
+		motivo = "Ahí no hay pared que pintar"
+	elif es_fachada:
+		motivo = "La fachada no se pinta"
+	elif _construccion.sala_en(celda) == &"":
+		motivo = "Clic pinta el tramo (muro suelto: MAYÚS no amplía)"
+	_preview_texto.text = "🖌 Pared · " + motivo
+
+
+## Fantasma del pincel de SUELO: la celda entera con el color elegido. Con MAYÚS pulsada dibuja la
+## huella de la SALA COMPLETA (su caja envolvente), que es lo que va a pintar ese clic — el jugador
+## ve el alcance del gesto antes de hacerlo.
+func _refrescar_preview_pintar_suelo(celda: Vector2i) -> void:
+	var sala_id: StringName = _construccion.sala_en(celda)
+	var mayus: bool = Input.is_key_pressed(KEY_SHIFT)
+	if mayus and sala_id != &"":
+		var rect: Rect2i = _construccion.rect_de_sala(sala_id)
+		_colocar_caja(rect.position, rect.size, _color_pincel)
+		_preview_texto.text = "🖌 Suelo · toda la sala (%d celdas)" % _construccion.area_de_sala(sala_id)
+		return
+	var dentro: bool = _celda_en_edificio(celda)
+	_colocar_caja(celda, Vector2i.ONE, _color_pincel if dentro else COLOR_INVALIDO)
+	if not dentro:
+		_preview_texto.text = "🖌 Suelo · fuera del edificio"
+		return
+	_preview_texto.text = (
+		"🖌 Suelo · clic pinta la celda · MAYÚS pinta la sala" if sala_id != &""
+		else "🖌 Suelo · clic pinta la celda (sin sala: MAYÚS no amplía)"
+	)
 
 
 ## Construye o demuele (según `_construyendo_arrastre_muro`) la arista más cercana al punto DEL
@@ -734,11 +981,123 @@ func _refrescar_preview_elemento(celda: Vector2i) -> void:
 		Vector2i(1, superficie) if _orientacion == _construccion.VERTICAL
 		else Vector2i(superficie, 1)
 	)
-	_colocar_caja(celda, huella, COLOR_VALIDO if valido and con_caja else COLOR_INVALIDO)
+	var puede: bool = valido and con_caja
+	# SPRITE REAL en vez de caja gris (quick-spec 2026-08-04 §4): si el catálogo tiene arte para esta
+	# herramienta, el fantasma es el mueble de verdad, semitransparente y teñido de válido/inválido.
+	# Si no (las comodidades que se quedan sin renderizar), la caja de siempre — cero cambio para ellas.
+	var sprite_datos: Dictionary = _sprite_de_herramienta(_herramienta, _orientacion, superficie)
+	if sprite_datos["textura"] != null:
+		_mostrar_fantasma_sprite(celda, sprite_datos, puede)
+	else:
+		_colocar_caja(celda, huella, COLOR_VALIDO if puede else COLOR_INVALIDO)
 	var pista: String = "  ·  R para girar" if superficie > 1 else ""
 	_preview_texto.text = "%.0f € · %s%s" % [
-		coste, "Válido" if valido and con_caja else ("Sin caja" if valido else "No válido"), pista,
+		coste, "Válido" if puede else ("Sin caja" if valido else "No válido"), pista,
 	]
+
+
+## ── FANTASMA CON SPRITE REAL (quick-spec 2026-08-04 §4) ────────────────────────────────────────
+## Comodidades de 1 celda con render propio: el MISMO conjunto que `Construccion._sprites_comodidad()`
+## (privado — la tarea prohíbe tocar `construccion.gd`). Duplicado A PROPÓSITO, mismo patrón que ya
+## usa `_superficie_de_herramienta` para espejar `Construccion._superficie_de`: si mañana se añade
+## una comodidad con sprite nuevo, hace falta tocar las DOS listas (aquí y en `construccion.gd`) —
+## el mismo coste que ya paga hoy cualquier comodidad nueva sin sprite (nada) o con sprite (un alta
+## en cada sitio). Todas a rotación 0: ninguna comodidad de 1 celda tiene "frente".
+const COMODIDADES_CON_SPRITE: Array[StringName] = [
+	&"equipo_informatico", &"papelera", &"dispensador_agua", &"radio",
+]
+
+
+## Los datos para pintar el fantasma como sprite (`{"textura", "paso", "celdas"}`) o vacío
+## (`textura == null`) si `herramienta` no tiene arte propio — entonces manda la caja de siempre.
+## `celdas` es la MISMA superficie que ya calcula `_superficie_de_herramienta` (pasada por el
+## llamante): ni un dato nuevo, la fuente de verdad sigue siendo el catálogo.
+func _sprite_de_herramienta(herramienta: StringName, orientacion: int, celdas: int) -> Dictionary:
+	var vacio: Dictionary = {"textura": null, "paso": Vector2i.ZERO, "celdas": 1}
+	if _construccion == null:
+		return vacio
+	# El sofá de 3 plazas: DOS rotaciones según H/V (mismo criterio que
+	# `Construccion._rotacion_asiento_sofa3`, privada — espejado aquí igual que el resto de esta
+	# sección).
+	if herramienta == _construccion.COMODIDAD_SOFA_DESCANSO:
+		var rot: int = (
+			_construccion.ROT_ASIENTO_SOFA3_HORIZONTAL if orientacion == _construccion.HORIZONTAL
+			else _construccion.ROT_ASIENTO_SOFA3_VERTICAL
+		)
+		var ruta: String = "%s%s_%d.png" % [
+			_construccion.RUTA_SPRITES_MOBILIARIO, _construccion.ASIENTO_SOFA3, rot,
+		]
+		if ResourceLoader.exists(ruta):
+			return {
+				"textura": _textura_cacheada(ruta), "paso": _paso_de_orientacion(orientacion),
+				"celdas": celdas,
+			}
+		return vacio
+	if COMODIDADES_CON_SPRITE.has(herramienta):
+		var ruta2: String = "%scomodidad_%s_0.png" % [_construccion.RUTA_SPRITES_MOBILIARIO, String(herramienta)]
+		if ResourceLoader.exists(ruta2):
+			return {"textura": _textura_cacheada(ruta2), "paso": Vector2i(1, 0), "celdas": celdas}
+		return vacio
+	# PUESTOS (ventanilla): el mostrador de 2 celdas, en su ÚNICA rotación (0°) — el mostrador de
+	# verdad NUNCA gira con la herramienta, ni siquiera con R (ver la cabecera de `MesaAtencion.
+	# construir`: siempre `Vector2i(1, 0)`, `ID_SPRITE_MOSTRADOR_2`). El fantasma copia ese
+	# comportamiento en vez de inventarse uno propio, porque es justo lo que va a construirse.
+	#
+	# DECISIÓN (documentada, quick-spec §4 lo autoriza expresamente: "mostrador + contorno de huella
+	# vale"): el fantasma cubre el MOSTRADOR (2 celdas, lo único que `Construccion` reserva de
+	# verdad en su modelo) y NO monta la ventanilla completa (funcionario+mostrador+ciudadano, las 6
+	# celdas de `NPCsFlujo._asegurar_visual_puesto`) — esa composición vive en `npcs_flujo.gd`
+	# (prohibido tocar en esta tarea) y solo se construye para un puesto YA DADO DE ALTA en el
+	# modelo, no para uno que todavía es una herramienta en la mano. Montarla en el fantasma exigiría
+	# duplicar sillas/arrimes/anclas de otro fichero entero para una vista previa — el mostrador solo
+	# ya cumple la promesa del spec ("como quedaría el objeto real") sin ese acoplamiento.
+	if Datos.obtener_silencioso(&"TipoPuesto", herramienta) != null:
+		var ruta3: String = "%s%s_%d.png" % [
+			MesaAtencionScript.RUTA_SPRITES_MOBILIARIO, MesaAtencionScript.ID_SPRITE_MOSTRADOR_2,
+			MesaAtencionScript.ROT_MOSTRADOR,
+		]
+		if ResourceLoader.exists(ruta3):
+			return {"textura": _textura_cacheada(ruta3), "paso": Vector2i(1, 0), "celdas": celdas}
+		return vacio
+	return vacio
+
+
+## Espeja `Construccion._paso_de` (privada): hacia dónde crece el cuerpo de la pieza según su
+## orientación (H → este, V → sur). Mismo duplicado a propósito que el resto de esta sección.
+func _paso_de_orientacion(orientacion: int) -> Vector2i:
+	return Vector2i(0, 1) if orientacion == _construccion.VERTICAL else Vector2i(1, 0)
+
+
+## Carga perezosa y cacheada (regla de rendimiento de la tarea: nada de recargar texturas cada
+## frame). La guarda de `_process` ya limita cuándo se llega hasta aquí (solo al cambiar de
+## celda/herramienta/rotación) — esta caché evita además repetir la carga de disco entre dos
+## herramientas distintas que compartan textura, o si la guarda deja pasar más de una vez seguida.
+func _textura_cacheada(ruta: String) -> Texture2D:
+	if not _cache_texturas_fantasma.has(ruta):
+		_cache_texturas_fantasma[ruta] = load(ruta)
+	return _cache_texturas_fantasma[ruta]
+
+
+## Coloca el fantasma de SPRITE REAL exactamente donde `AnclajeSprite` anclaría el objeto de verdad
+## (misma cuenta, cero anclas a mano — orden de la tarea): `raiz` de un mueble real vive en
+## `centro_en_pantalla(celda_ancla)` y su sprite se desplaza `delta_ultima_celda(paso, celdas)` desde
+## ahí (ver `Construccion._crear_pieza`/`MesaAtencion.construir`); aquí no hay nodo "raíz" aparte —
+## se suman los dos directamente en la POSICIÓN de este único `Sprite2D`, y `AnclajeSprite.aplicar`
+## pone el `offset`/`centered` que le tocan. Tinte verde-blanco válido / rojo inválido, igual criterio
+## que la caja genérica, aplicado como `modulate` en vez de relleno de polígono.
+func _mostrar_fantasma_sprite(celda: Vector2i, datos: Dictionary, puede: bool) -> void:
+	_preview_caja.visible = false
+	_preview_sprite.visible = true
+	_preview_sprite.texture = datos["textura"]
+	AnclajeSprite.aplicar(_preview_sprite, datos["paso"], datos["celdas"])
+	_preview_sprite.position = (
+		_construccion.centro_en_pantalla(celda)
+		+ Proyeccion.delta_ultima_celda(datos["paso"], datos["celdas"])
+	)
+	_preview_sprite.modulate = TINTE_FANTASMA_VALIDO if puede else TINTE_FANTASMA_INVALIDO
+	_preview_texto.position = (
+		_construccion.esquina_en_pantalla(celda.x, celda.y) + Vector2(-60.0, -26.0)
+	)
 
 
 ## Superficie (celdas hacia +X desde el ancla) de la herramienta en mano — para que el fantasma se
@@ -797,6 +1156,11 @@ func _crear_ui() -> void:
 	_preview_caja = PreviewIso.new()
 	_preview_caja.visible = false
 	capa.add_child(_preview_caja)
+	# El fantasma de SPRITE REAL (quick-spec §4), hermano de la caja de arriba — mismo criterio de
+	# capa (por encima del atenuador, por debajo del texto que se añade a continuación).
+	_preview_sprite = Sprite2D.new()
+	_preview_sprite.visible = false
+	capa.add_child(_preview_sprite)
 	_preview_texto = Label.new()
 	_preview_texto.visible = false
 	_preview_texto.add_theme_font_size_override("font_size", 13)
@@ -852,6 +1216,10 @@ func _crear_ui() -> void:
 	# gratis, ver `Construccion.fijar_tipo_de_muro`).
 	_anadir_herramienta("🚪 Puerta", &"puerta", false)
 	_anadir_herramienta("🪟 Ventana", &"ventana", false)
+	# PINCEL DE PINTURA (2026-08-04): gratis, como abrir un hueco — pintar no es obra, es acabado.
+	# Dos botones (pared / suelo) porque el gesto es distinto: arista contra celda (ver la cabecera).
+	_anadir_herramienta("🖌 Pintar pared", HERRAMIENTA_PINTAR_PARED, false)
+	_anadir_herramienta("🖌 Pintar suelo", HERRAMIENTA_PINTAR_SUELO, false)
 	# FASE C (2026-07-30): marcar ZONAS dentro de lo que has cerrado con muros. Un boton por tipo de
 	# sala del catalogo, con el prefijo "zona:" en el id para distinguirlo del pincel que DIBUJA la
 	# sala como rectangulo (que sigue existiendo: son dos formas validas de construir).
@@ -866,6 +1234,28 @@ func _crear_ui() -> void:
 	casilla.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
 	_fila_herramientas.add_child(casilla)
 	_anadir_herramienta("❌ Demoler", &"demoler", false)
+
+	# ── SUBMENÚ DEL PINCEL: la rejilla de 30 muestras ─────────────────────────────────────────
+	# Va en una fila PROPIA debajo de las herramientas (no mezclada entre los botones): es el menú
+	# contextual del pincel y solo aparece cuando llevas uno en la mano. 5 columnas = una FAMILIA de
+	# la paleta por fila (neutros, azules, verdes, tierras, amarillos, rojos), que es como está
+	# ordenada `PaletaPintura.COLORES` — la agrupación se lee sola, sin rótulos que ocupen sitio.
+	_rejilla_paleta = GridContainer.new()
+	_rejilla_paleta.columns = 5
+	_rejilla_paleta.add_theme_constant_override("h_separation", 3)
+	_rejilla_paleta.add_theme_constant_override("v_separation", 3)
+	_rejilla_paleta.visible = false
+	caja.add_child(_rejilla_paleta)
+	for i: int in PaletaPinturaScript.COLORES.size():
+		var muestra := Button.new()
+		muestra.custom_minimum_size = LADO_MUESTRA
+		muestra.focus_mode = Control.FOCUS_NONE
+		muestra.tooltip_text = String(PaletaPinturaScript.COLORES[i]["nombre"])
+		var indice: int = i   # captura por valor: sin esto los 30 botones comparten la última i
+		muestra.pressed.connect(func() -> void: _elegir_color(indice))
+		_rejilla_paleta.add_child(muestra)
+		_muestras.append(muestra)
+	_elegir_color(0)   # blanco puro: el color de partida, el mismo que trae toda pared nueva
 
 	_dialogo_cascada = ConfirmationDialog.new()
 	_dialogo_cascada.title = "Demolición en cascada"
@@ -885,6 +1275,8 @@ func _anadir_herramienta(texto: String, id: StringName, es_sala: bool) -> void:
 func _actualizar_visibilidad() -> void:
 	_fila_herramientas.visible = _activo
 	_atenuador.visible = _activo
+	if _rejilla_paleta != null and not _activo:
+		_rejilla_paleta.visible = false   # fuera del modo construcción no hay pincel ni paleta
 	_boton_modo.modulate = COLOR_BOTON_ACTIVO if _activo else Color.WHITE
 	_lbl_estado.text = (
 		"Elige herramienta · clic coloca · arrastra dibuja salas · clic dcho/Esc cancela"

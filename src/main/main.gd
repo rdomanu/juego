@@ -819,9 +819,16 @@ func _al_elegir_del_menu_sala(id: int) -> void:
 		ID_SALA_PAREDES:
 			var con: bool = not _construccion.sala_con_paredes(_sala_del_menu)
 			_construccion.fijar_paredes_de_sala(_sala_del_menu, con)
-			_avisar_accion(
-				"Paredes puestas" if con else "Paredes quitadas", COLOR_TENUE_HUD
-			)
+			# AMURALLAR YA NO REGALA UNA PUERTA (2026-08-04 · quick-spec §3): la sala queda cerrada y
+			# el paso siguiente es que el jugador elija el tramo. Se entra en construcción con el
+			# pincel de puerta ya en la mano; si se arrepiente, Esc y la sala se queda sin ella.
+			if con and _construccion.sala_amurallada_sin_puerta(_sala_del_menu):
+				_modo_construccion.pedir_puerta_de_sala()
+				_avisar_accion("Paredes puestas · ahora elige dónde va la puerta", COLOR_TENUE_HUD)
+			else:
+				_avisar_accion(
+					"Paredes puestas" if con else "Paredes quitadas", COLOR_TENUE_HUD
+				)
 		ID_SALA_AMPLIAR:
 			# Ampliar NO es una acción aparte: es dibujar con el pincel de ESE tipo de sala pegado a
 			# la que ya existe. Construcción fusiona y cobra solo las celdas nuevas (enmienda 007).
@@ -1008,10 +1015,21 @@ func _montar_comisaria_inicial() -> void:
 	# con muros que NO se pueden derribar, y se abre una puerta de acceso en el lado de la calle.
 	# A partir de aquí, entrar y salir de la comisaría es cruzar ESA puerta, no atravesar el muro.
 	_construccion.levantar_fachada()
-	_construccion.construir_de_oficio_sala(&"sala_documentacion", Rect2i(1, 1, 6, 4))
-	_construccion.construir_de_oficio_sala(&"sala_espera_doc", Rect2i(1, 6, 6, 4))
-	_construccion.construir_de_oficio_sala(&"sala_odac", Rect2i(9, 1, 4, 3))
-	_construccion.construir_de_oficio_sala(&"sala_espera_odac", Rect2i(9, 5, 3, 3))
+	var doc: StringName = _construccion.construir_de_oficio_sala(&"sala_documentacion", Rect2i(1, 1, 6, 4))
+	var espera_doc: StringName = _construccion.construir_de_oficio_sala(&"sala_espera_doc", Rect2i(1, 6, 6, 4))
+	var odac: StringName = _construccion.construir_de_oficio_sala(&"sala_odac", Rect2i(9, 1, 4, 3))
+	var espera_odac: StringName = _construccion.construir_de_oficio_sala(&"sala_espera_odac", Rect2i(9, 5, 3, 3))
+	# LAS PUERTAS DEL PLANO, EXPLÍCITAS (2026-08-04 · quick-spec §3). Desde que murió el hueco
+	# automático, una sala amurallada nace CERRADA: si el plano de la DGP entrega alguna sala con
+	# paredes, su puerta la pone aquí el propio plano — la comisaría se entrega jugable, nunca con una
+	# habitación tapiada. Cada puerta va en el lado que da a la circulación (el que mira hacia la
+	# entrada del edificio, (0,6)): exactamente donde caía el viejo hueco automático.
+	# Las salas que se entregan en planta DIÁFANA (hoy las cuatro: solo la de descanso se cierra sola)
+	# no tienen pared donde abrir nada, y `_abrir_puerta_de_oficio` las deja en paz sin ruido.
+	_abrir_puerta_de_oficio(doc, Vector2i(1, 4), &"izquierda")
+	_abrir_puerta_de_oficio(espera_doc, Vector2i(1, 6), &"izquierda")
+	_abrir_puerta_de_oficio(odac, Vector2i(9, 3), &"izquierda")
+	_abrir_puerta_de_oficio(espera_odac, Vector2i(9, 6), &"izquierda")
 	_construccion.construir_de_oficio_elemento(&"puesto_doc_general", Vector2i(2, 2), &"doc_1")
 	_construccion.construir_de_oficio_elemento(&"puesto_doc_general", Vector2i(4, 2), &"doc_2")
 	# Ventanilla TIE inicial (feedback flujo-008, ratificada): (6,2) libre dentro de sala_documentacion.
@@ -1022,6 +1040,20 @@ func _montar_comisaria_inicial() -> void:
 		_construccion.construir_de_oficio_elemento(_construccion.ASIENTO_BASICO, Vector2i(x, 8))
 	for x: int in range(9, 12):
 		_construccion.construir_de_oficio_elemento(_construccion.ASIENTO_BASICO, Vector2i(x, 6))
+
+
+## Abre la puerta de una sala del montaje de oficio. Solo actúa si esa sala se entrega AMURALLADA:
+## sin pared no hay hueco que abrir (y una sala en planta diáfana no necesita ninguno — se entra por
+## donde no hay pared). Si hubiera pared y aun así fallara, es un BUG del plano inicial → aviso
+## ruidoso, misma política que el resto del montaje de oficio.
+func _abrir_puerta_de_oficio(sala_id: StringName, celda: Vector2i, lado: StringName) -> void:
+	if sala_id == &"" or not _construccion.sala_con_paredes(sala_id):
+		return
+	if not _construccion.fijar_tipo_de_muro(celda, lado, _construccion.PUERTA):
+		push_warning(
+			"Main: la puerta de oficio de la sala '%s' (%s, lado %s) NO se pudo abrir"
+			% [sala_id, celda, lado]
+		)
 
 
 ## La plantilla inicial (personal-007, decisión ratificada): 3 agentes de atributos medios asignados

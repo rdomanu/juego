@@ -317,14 +317,11 @@ func _distancia_a_segmento(punto: Vector2, a: Vector2, b: Vector2) -> float:
 	return punto.distance_to(Geometry2D.get_closest_point_to_segment(punto, a, b))
 
 
-## La clave de MODELO del hueco automático de la sala (el que `ParedesSalas` deja sin pintar). Se
-## pide a `ParedesSalas` y se traduce a la convención de `Construccion` (la traducción es la misma
-## en los dos sentidos: solo intercambia los dos números en las aristas "h").
-func _clave_puerta_auto(paredes: Node, sala: StringName) -> String:
-	var clave_paredes: String = paredes._clave_de_puerta(sala)
-	if clave_paredes == "":
-		return ""
-	return paredes._clave_equivalente_en_paredes(clave_paredes)
+## MURIÓ EL HUECO AUTOMÁTICO (2026-08-04 · quick-spec §3): una sala amurallada ya no reserva ninguna
+## arista para "su" puerta, así que no hay clave que excluir de la auditoría. Se conserva la función
+## —devolviendo ""— para no tocar el resto del diagnóstico, que la usa como filtro.
+func _clave_puerta_auto(_paredes: Node, _sala: StringName) -> String:
+	return ""
 
 
 # ── Montaje y captura ─────────────────────────────────────────────────────────────────────────

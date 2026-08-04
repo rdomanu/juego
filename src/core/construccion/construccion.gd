@@ -33,12 +33,14 @@ class_name Construccion extends Node
 ## Ruta del config de tuning (generado por tools/build_config_construccion.gd; fallback a defaults).
 const RUTA_CONFIG := "res://datos/config/construccion.tres"
 const ConfigConstruccionScript := preload("res://src/core/construccion/config_construccion.gd")
+## La paleta de pintura (30 colores data-driven) — de aquí sale el BLANCO por defecto de las paredes.
+const PaletaPinturaScript := preload("res://src/core/construccion/paleta_pintura.gd")
 
 ## Id especial del asiento básico (no vive en el catálogo — MVP; Comodidades #15 lo formalizará).
 const ASIENTO_BASICO := &"asiento_basico"
 
 ## La puerta del edificio, por donde entra todo el mundo (misma celda que usan Flujo y Personal).
-## Las puertas de las salas se abren en el punto de su perímetro más cercano a ella.
+## Las puertas de las SALAS ya no salen de aquí: las coloca el jugador (quick-spec §3, 2026-08-04).
 const CELDA_PUERTA_EDIFICIO := Vector2i(0, 6)
 ## Centinela de "esta sala no tiene puerta" (ninguna celda del edificio es negativa).
 const CELDA_NULA_PUERTA := Vector2i(-1, -1)
@@ -84,6 +86,17 @@ var _muros: Dictionary[String, StringName] = {}
 ## salgan los npc"*). Viven en `_muros` como cualquier otro tabique —así el recinto, el paso y el
 ## dibujo los tratan igual sin ningún caso especial— y esta lista solo marca cuáles son intocables.
 var _muros_fijos: Dictionary[String, bool] = {}
+## ── PINTURA (2026-08-04) ────────────────────────────────────────────────────────────────────
+## Color de cada TRAMO DE PARED pintado, por su clave de arista (el mismo convenio col:row de
+## `clave_de_muro`, así que es la misma llave que ya usan `_muros` y `_muros_fijos` — cero
+## traducciones). Lo que NO está aquí se dibuja BLANCO (`COLOR_PARED_POR_DEFECTO`): desde hoy el
+## color por tipo de sala MUERE en las paredes (decisión del usuario, quick-spec §2).
+var _color_muros: Dictionary[String, Color] = {}
+## Color de cada CELDA DE SUELO pintada. Lo que no está aquí cae al tinte de su sala
+## (`_color_de_sala`), que sigue siendo quien da el color de fondo de una zona sin pintar.
+## Pertenece a la CELDA, no a la sala: demoler la sala no borra la pintura del suelo, igual que
+## derribar un tabique no repinta la habitación.
+var _color_suelos: Dictionary[Vector2i, Color] = {}
 
 ## Contador para generar ids únicos (se serializa en la story 005 para no pisar ids al cargar).
 var _contador_ids: int = 0
@@ -193,13 +206,12 @@ func _validar_elemento_con(
 			return false   # la huella no cabe entera: se sale de la sala (CO4)
 		if not de_techo and _celda_ocupada(c, ignorar):
 			return false   # pisa algo que ya está en el suelo (CO4)
-		# La puerta no se tapia... salvo que la sala tenga OTRO sitio por donde abrirla. Asi el jugador
-		# nunca se queda con una sala sin salida, pero tampoco se le prohibe amueblar por una celda que
-		# se puede recolocar. (Y el montaje inicial de la DGP, que pone asientos antes de que nadie
-		# piense en puertas, deja de ser invalido por accidente.)
-		if es_celda_de_puerta(c) and _perimetro_libre_alternativo(
-			sala_id, _celdas_de(id_catalogo, celda, orientacion, nivel)
-		).is_empty():
+		# UNA PUERTA NO SE TAPIA CON UN MUEBLE (2026-08-04). Antes la puerta era automatica y podia
+		# APARTARSE sola a otra celda libre; desde que la pone el jugador (quick-spec §3) es un tramo
+		# de pared REAL, y un tramo no se mueve: si dejaramos poner una mesa delante, el hueco por el
+		# que se entra quedaria bloqueado sin que nada avisara. Asi que la regla es simple y honesta:
+		# en una celda con puerta no se coloca nada.
+		if es_celda_de_puerta(c):
 			return false
 	var tipo_sala: Resource = Datos.obtener(&"TipoSala", _salas[sala_id]["tipo"])
 	if id_catalogo == ASIENTO_BASICO:
@@ -639,7 +651,6 @@ func _crear_sala(
 	_salas[sala_id] = {
 		"celdas": _celdas_del_rect(rect),
 		"tipo": tipo_sala_id, "rect": rect, "coste_pagado": coste_pagado,
-		"puerta": _puerta_automatica(rect),
 	}
 	# Las paredes son OPCIONALES por sala. El tipo pone el valor de partida (la de descanso nace
 	# cerrada por intimidad; el resto, en planta diafana) y `con_paredes` permite forzarlo desde la UI.
@@ -826,39 +837,25 @@ func _crear_sala_con_celdas(
 	var tipo: Resource = Datos.obtener_silencioso(&"TipoSala", tipo_sala_id)
 	_salas[sala_id] = {
 		"celdas": mapa, "tipo": tipo_sala_id, "rect": caja, "coste_pagado": coste_pagado,
-		"puerta": _puerta_automatica(caja),
 	}
 	_refrescar_visual()
 	return sala_id
 
 
-## Dónde se abre la puerta de una sala recién creada (paredes y puertas, 2026-07-30).
+## ── MUERE LA PUERTA AUTOMÁTICA (2026-08-04 · quick-spec §3) ─────────────────────────────────────
+## Hasta hoy, toda sala nacía con un `"puerta"` en su diccionario: una celda del perímetro elegida
+## sola (la más cercana al acceso del edificio) que el DIBUJO pintaba como hueco. Ese hueco era una
+## mentira útil que dejó de serlo: en el MODELO la arista seguía siendo tabique macizo, así que se
+## veía un vano por el que en realidad no se pasaba, y el jugador nunca decidía dónde entrar.
 ##
-## Se elige AUTOMÁTICAMENTE, no la coloca el jugador: `construir_sala` es "dibujas un rectángulo y
-## pagas", y meter un paso obligatorio de "ahora pon la puerta" rompería ese gesto. Además hace
-## imposible por construcción una sala sin salida — no hay que validarlo después.
+## Ahora **una sala amurallada es un recinto cerrado** y la puerta la elige el jugador con el pincel
+## (`fijar_tipo_de_muro(&"puerta")`), que es lo único que abre paso de verdad (`deja_pasar`). Una
+## sala sin puerta ya no rompe nada: los NPC sin camino esperan quietos con su señal 🚫 (mecánica de
+## accesos, 2026-08-03).
 ##
-## Se pone en la celda del PERÍMETRO más cercana a la puerta del edificio, que es por donde entra
-## todo el mundo: así la puerta cae de forma natural del lado por el que se circula.
-##
-## Se guarda la celda INTERIOR que toca el hueco (no la arista): con el rect de la sala se deduce
-## solo en qué lado está, y así el dato es un Vector2i que ya sabe serializar el resto del save.
-func _puerta_automatica(rect: Rect2i) -> Vector2i:
-	var mejor: Vector2i = rect.position
-	var mejor_dist: float = -1.0
-	for x: int in range(rect.position.x, rect.end.x):
-		for y: int in range(rect.position.y, rect.end.y):
-			var en_borde: bool = (
-				x == rect.position.x or x == rect.end.x - 1
-				or y == rect.position.y or y == rect.end.y - 1
-			)
-			if not en_borde:
-				continue
-			var d: float = Vector2(Vector2i(x, y) - CELDA_PUERTA_EDIFICIO).length()
-			if mejor_dist < 0.0 or d < mejor_dist:
-				mejor_dist = d
-				mejor = Vector2i(x, y)
-	return mejor
+## Consecuencia: `puerta_de_sala` deja de ser un dato GUARDADO y pasa a DERIVARSE de los muros
+## reales (ver abajo). Una fuente de verdad menos que pueda mentir — el mismo remedio que ya se
+## aplicó al flag `paredes` de las salas.
 
 
 # ── MUROS LIBRES (2026-07-30) ────────────────────────────────────────────────────────────────
@@ -1010,9 +1007,120 @@ func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
 	if _muros_fijos.has(clave):
 		return false   # la fachada del edificio no se derriba: es el plano, no obra tuya
 	_muros.erase(clave)
+	# La pintura se va con la pared: si mañana levantas otro tabique en esa misma arista, nace BLANCO
+	# como cualquier pared nueva — no hereda el color del que derribaste.
+	_color_muros.erase(clave)
 	_abonar(coste_muro * pct_reembolso)
 	_refrescar_visual()
 	return true
+
+
+# ── PINTURA DE PAREDES Y SUELOS (2026-08-04 · quick-spec §2) ─────────────────────────────────
+## El jugador pinta con un PINCEL: un clic pinta el tramo (o la celda) que señala; con MAYÚS, la
+## SALA ENTERA. Aquí vive solo el MODELO — quién decide el color y cuándo se pulsa MAYÚS es cosa de
+## la UI (`ModoConstruccion`), y quién lo dibuja, de la capa visual (ADR-0004).
+##
+## Dos reglas de diseño que no se negocian:
+##   · **La FACHADA no se pinta.** Los muros fijos son el plano de la comisaría, de ladrillo, y no
+##     son obra del jugador — igual que no se demuelen ni se les abren huecos (`_muros_fijos`).
+##   · **El cristal de una VENTANA no se pinta.** Pintar un tramo que es ventana pinta su muro y sus
+##     jambas; el cristal conserva su color propio. Eso se resuelve en el DIBUJO (`paredes_salas`),
+##     no aquí: el modelo guarda el color del tramo pase lo que pase con su tipo, así que convertir
+##     una ventana en tabique (y al revés) no pierde la pintura.
+
+## El color de una pared construida y no pintada: BLANCO (el primero de la paleta). Muere el color
+## por tipo de sala EN LAS PAREDES — el suelo lo conserva como fondo de zona.
+const COLOR_PARED_POR_DEFECTO: Color = Color(1.0, 1.0, 1.0, 1.0)
+
+
+## Pinta UN TRAMO de pared, dado por su clave de arista. Devuelve si se pintó: `false` si ahí no hay
+## pared que pintar o si es fachada del edificio.
+func pintar_muro(clave: String, color: Color) -> bool:
+	if not _muros.has(clave):
+		return false   # no hay pared: primero se levanta (para eso está el pincel de muro)
+	if _muros_fijos.has(clave):
+		return false   # la fachada es ladrillo y no se pinta
+	_color_muros[clave] = color
+	_refrescar_visual()
+	return true
+
+
+## Pinta el tramo de pared del LADO de una celda (azúcar para la UI, que piensa en celda + lado
+## igual que el pincel de muro y el de puertas).
+func pintar_muro_en(celda: Vector2i, lado: StringName, color: Color) -> bool:
+	return pintar_muro(clave_de_muro(celda, lado), color)
+
+
+## El color de un tramo de pared: el pintado, o BLANCO si nunca se pintó. Lo lee el dibujo.
+func color_muro_de(clave: String) -> Color:
+	return _color_muros.get(clave, COLOR_PARED_POR_DEFECTO)
+
+
+## ¿Ese tramo tiene color propio? (para distinguir "blanco pintado a mano" de "blanco por defecto" —
+## lo usan los tests y el volcado del diagnóstico).
+func muro_pintado(clave: String) -> bool:
+	return _color_muros.has(clave)
+
+
+## Pinta TODAS las paredes de una sala (el gesto de MAYÚS + clic). Recorre el perímetro real de la
+## sala —que con formas no rectangulares no es un rectángulo (fase C)— y pinta los tramos que
+## existan y no sean fachada. Devuelve cuántos se pintaron.
+func pintar_sala_muros(sala_id: StringName, color: Color) -> int:
+	if not _salas.has(sala_id):
+		return 0
+	var pintados: int = 0
+	for arista: Array in _aristas_del_perimetro(sala_id):
+		var clave: String = clave_de_muro(arista[0], arista[1])
+		if not _muros.has(clave) or _muros_fijos.has(clave):
+			continue
+		_color_muros[clave] = color
+		pintados += 1
+	if pintados > 0:
+		_refrescar_visual()
+	return pintados
+
+
+## Pinta UNA CELDA de suelo. Devuelve si se pintó: `false` si la celda cae fuera del edificio (en la
+## calle no se pinta nada). NO exige que haya sala: el suelo del pasillo también es suelo.
+func pintar_suelo(celda: Vector2i, color: Color) -> bool:
+	if not _celda_en_edificio(celda):
+		return false
+	_color_suelos[celda] = color
+	_refrescar_visual()
+	return true
+
+
+## El color del suelo de una celda: el pintado, o —si nunca se pintó— el TINTE DE SU SALA, que es el
+## fondo de zona de siempre. Una celda sin pintar y sin sala devuelve el blanco por defecto (no se
+## dibuja: el suelo desnudo lo pinta la rejilla de Main).
+func color_suelo_de(celda: Vector2i) -> Color:
+	if _color_suelos.has(celda):
+		return _color_suelos[celda]
+	var sala_id: StringName = sala_en(celda)
+	if sala_id == &"":
+		return COLOR_PARED_POR_DEFECTO
+	var tipo_sala: Resource = Datos.obtener_silencioso(&"TipoSala", _salas[sala_id]["tipo"])
+	if tipo_sala == null:
+		return COLOR_PARED_POR_DEFECTO
+	return _color_de_sala(tipo_sala)
+
+
+## ¿Esa celda tiene suelo pintado a mano? (lo mismo que `muro_pintado`, para el suelo).
+func suelo_pintado(celda: Vector2i) -> bool:
+	return _color_suelos.has(celda)
+
+
+## Pinta TODO el suelo de una sala (MAYÚS + clic con el pincel de suelo). Devuelve cuántas celdas.
+func pintar_sala_suelo(sala_id: StringName, color: Color) -> int:
+	if not _salas.has(sala_id):
+		return 0
+	var pintadas: int = 0
+	for celda: Vector2i in _salas[sala_id].get("celdas", {}):
+		_color_suelos[celda] = color
+		pintadas += 1
+	if pintadas > 0:
+		_refrescar_visual()
+	return pintadas
 
 
 ## Una arista es válida si separa dos celdas de las que AL MENOS UNA está dentro del edificio: así se
@@ -1100,62 +1208,42 @@ func coste_de_cerrar_sala(sala_id: StringName) -> Array:
 	return [tramos, float(tramos) * coste_muro]
 
 
-## La celda interior donde esa sala tiene su puerta (`CELDA_NULA_PUERTA` si la sala no existe).
+## La celda INTERIOR que toca la puerta de esa sala (`CELDA_NULA_PUERTA` si no tiene ninguna).
+##
+## DERIVADO de los muros reales desde 2026-08-04 (ya no hay campo guardado — ver "muere la puerta
+## automática"): es la primera celda del perímetro cuya arista hacia fuera es de tipo `PUERTA`. Si la
+## sala tiene varias puertas devuelve una —la primera en el orden estable del perímetro—; quien
+## necesite todas usa `puertas_de_sala`.
 func puerta_de_sala(sala_id: StringName) -> Vector2i:
-	if not _salas.has(sala_id):
-		return CELDA_NULA_PUERTA
-	return _salas[sala_id].get("puerta", CELDA_NULA_PUERTA)
+	var todas: Array[Vector2i] = puertas_de_sala(sala_id)
+	return todas[0] if not todas.is_empty() else CELDA_NULA_PUERTA
 
 
-## ¿Esta celda es la puerta de su sala? Lo consulta la validación de colocación: **una puerta no se
-## puede tapiar** con un mueble, o el jugador se dejaría una sala sin salida sin darse cuenta.
+## Todas las celdas del perímetro de la sala que tienen una puerta abierta hacia fuera. Orden
+## estable: el de `_aristas_del_perimetro` (celdas en orden de alta, lados en orden de `VECINOS_4`).
+func puertas_de_sala(sala_id: StringName) -> Array[Vector2i]:
+	var salida: Array[Vector2i] = []
+	for arista: Array in _aristas_del_perimetro(sala_id):
+		if tipo_de_muro(arista[0], arista[1]) == PUERTA and not (arista[0] in salida):
+			salida.append(arista[0])
+	return salida
+
+
+## ¿Esta sala está amurallada y SIN NINGUNA PUERTA? Es el disparador del paso "ahora elige dónde va
+## la puerta" del modo construcción (quick-spec §3): amurallar deja un recinto cerrado, y la UI tiene
+## que pedir el gesto que falta. Una sala sin paredes no cuenta — no hay pared donde abrir nada.
+func sala_amurallada_sin_puerta(sala_id: StringName) -> bool:
+	return sala_con_paredes(sala_id) and puertas_de_sala(sala_id).is_empty()
+
+
+## ¿Esta celda tiene una puerta en alguno de sus lados? Lo consulta la validación de colocación:
+## **una puerta no se puede tapiar** con un mueble, o el jugador se dejaría la sala sin entrada sin
+## que nada se lo dijera (la puerta ya no puede apartarse sola: es un tramo de pared del jugador).
 func es_celda_de_puerta(celda: Vector2i) -> bool:
-	var sala_id: StringName = sala_en(celda)
-	if sala_id == &"":
-		return false
-	return puerta_de_sala(sala_id) == celda
-
-
-## Celdas del perímetro de la sala que podrían albergar la puerta y NO están ocupadas (ni por lo que
-## se va a colocar ahora, que llega en `reservadas`). Vacío = no hay dónde recolocarla.
-func _perimetro_libre_alternativo(sala_id: StringName, reservadas: Array) -> Array:
-	var libres: Array[Vector2i] = []
-	if not _salas.has(sala_id):
-		return libres
-	var rect: Rect2i = _salas[sala_id]["rect"]
-	for x: int in range(rect.position.x, rect.end.x):
-		for y: int in range(rect.position.y, rect.end.y):
-			var celda := Vector2i(x, y)
-			var en_borde: bool = (
-				x == rect.position.x or x == rect.end.x - 1
-				or y == rect.position.y or y == rect.end.y - 1
-			)
-			if not en_borde or celda in reservadas or _celda_ocupada(celda, &""):
-				continue
-			libres.append(celda)
-	return libres
-
-
-## Si lo que se acaba de colocar cae sobre la puerta, la puerta SE APARTA a otra celda libre del
-## perímetro (la más cercana a la entrada del edificio, mismo criterio que al crear la sala). La
-## validación ya garantizó que existe al menos una, así que esto no puede dejar la sala sin salida.
-func _reubicar_puerta_si_estorba(sala_id: StringName, celdas: Array) -> void:
-	if sala_id == &"" or not _salas.has(sala_id):
-		return
-	var puerta: Vector2i = _salas[sala_id].get("puerta", CELDA_NULA_PUERTA)
-	if not (puerta in celdas):
-		return
-	var libres: Array = _perimetro_libre_alternativo(sala_id, celdas)
-	if libres.is_empty():
-		return
-	var mejor: Vector2i = libres[0]
-	var mejor_dist: float = Vector2(mejor - CELDA_PUERTA_EDIFICIO).length()
-	for celda: Vector2i in libres:
-		var d: float = Vector2(celda - CELDA_PUERTA_EDIFICIO).length()
-		if d < mejor_dist:
-			mejor_dist = d
-			mejor = celda
-	_salas[sala_id]["puerta"] = mejor
+	for paso: Array in VECINOS_4:
+		if tipo_de_muro(celda, paso[0]) == PUERTA:
+			return true
+	return false
 
 
 ## Da de alta un elemento YA validado y pagado (guarda `coste_pagado` — lo necesita el reembolso F4).
@@ -1164,8 +1252,6 @@ func _crear_elemento(
 	id_catalogo: StringName, celda: Vector2i, coste_pagado: float, id_forzado: StringName = &"",
 	orientacion: int = HORIZONTAL, nivel: int = HUELLA_COMPLETA
 ) -> StringName:
-	# Si el mueble cae sobre la puerta, la puerta se aparta (la validacion ya comprobo que hay sitio).
-	_reubicar_puerta_si_estorba(sala_en(celda), _celdas_de(id_catalogo, celda, orientacion, nivel))
 	var elemento_id: StringName = id_forzado if id_forzado != &"" else _nuevo_id(id_catalogo)
 	_elementos[elemento_id] = {
 		"catalogo": id_catalogo, "celda": celda, "sala": sala_en(celda), "coste_pagado": coste_pagado,
@@ -1743,15 +1829,12 @@ func save() -> Dictionary:
 			"id": String(sala_id), "tipo": String(sala["tipo"]),
 			"rect": [rect.position.x, rect.position.y, rect.size.x, rect.size.y],
 			"coste_pagado": sala["coste_pagado"],
-			# La puerta se guarda (2026-07-30): al cargar NO se recalcula, porque si el jugador amplia la
-			# sala mas adelante la puerta automatica saldria en otro sitio y se le moveria sola de un dia
-			# para otro. Donde esta la puerta de tu comisaria es parte de tu comisaria.
+			# La PUERTA ya no se guarda (2026-08-04): es un tramo de pared del jugador y viaja en la lista
+			# de muros con su tipo, como cualquier otro. Un save viejo puede traer el campo `puerta` del
+			# hueco automatico: se ignora al cargar — ese hueco ya no existe.
 			# Las celdas REALES de la sala (fase B): con formas no rectangulares no se pueden deducir del
 			# rect, que es solo la caja envolvente. Se guardan como pares [x,y], igual que el resto.
 			"celdas": _celdas_a_json(sala.get("celdas", {})),
-			"puerta": [
-				sala.get("puerta", CELDA_NULA_PUERTA).x, sala.get("puerta", CELDA_NULA_PUERTA).y,
-			],
 		})
 	var elementos: Array = []
 	for elemento_id: StringName in _elementos:
@@ -1772,9 +1855,19 @@ func save() -> Dictionary:
 		# Desde la fase D cada arista guarda TAMBIEN que es (tabique / puerta / ventana), asi que se
 		# serializa como par [clave, tipo]. Antes bastaba la clave suelta.
 		muros_json.append([clave, String(_muros[clave])])
+	# PINTURA (2026-08-04): los colores se guardan como HEX de 6 digitos, no como Color — el save es
+	# JSON puro (ADR-0002) y un Color no viaja por JSON. Solo se guarda lo PINTADO A MANO: un tramo
+	# blanco por defecto no ocupa una linea del save (y al cargar vuelve a salir blanco solo).
+	var colores_muros: Array = []
+	for clave: String in _color_muros:
+		colores_muros.append([clave, PaletaPinturaScript.a_hex(_color_muros[clave])])
+	var colores_suelos: Array = []
+	for celda: Vector2i in _color_suelos:
+		colores_suelos.append([celda.x, celda.y, PaletaPinturaScript.a_hex(_color_suelos[celda])])
 	return {
 		"salas": salas, "elementos": elementos, "contador_ids": _contador_ids,
 		"muros": muros_json,
+		"colores_muros": colores_muros, "colores_suelos": colores_suelos,
 	}
 
 
@@ -1791,6 +1884,8 @@ func load_state(d: Dictionary) -> void:
 	_salas.clear()
 	_elementos.clear()
 	_muros.clear()
+	_color_muros.clear()
+	_color_suelos.clear()
 	for entrada: Variant in d.get("muros", []):
 		# Se admiten los DOS formatos: la clave suelta (saves de la fase A, todos tabiques) y el par
 		# [clave, tipo] de la fase D. Asi una partida guardada esta manana sigue cargando.
@@ -1807,6 +1902,26 @@ func load_state(d: Dictionary) -> void:
 			push_warning("Construccion: muro corrupto en el save -> descartado")
 			continue
 		_muros[clave] = tipo
+	# PINTURA (2026-08-04). Va DESPUES de los muros a proposito: un color solo se restaura si ese
+	# tramo existe de verdad en el save (si no, seria pintura de una pared derribada esperando a
+	# reaparecer — la familia de bug de las "puertas fantasma"). Formato: [clave, hex].
+	for entrada: Variant in d.get("colores_muros", []):
+		if not (entrada is Array) or (entrada as Array).size() != 2:
+			push_warning("Construccion: color de muro corrupto en el save -> descartado")
+			continue
+		var clave_color: String = String(entrada[0])
+		if not _muros.has(clave_color):
+			continue   # esa pared ya no esta: su pintura no se queda guardada
+		_color_muros[clave_color] = PaletaPinturaScript.desde_hex(String(entrada[1]))
+	# El suelo pintado, celda a celda: [x, y, hex]. Se descarta lo que caiga fuera del edificio.
+	for entrada: Variant in d.get("colores_suelos", []):
+		if not (entrada is Array) or (entrada as Array).size() != 3:
+			push_warning("Construccion: color de suelo corrupto en el save -> descartado")
+			continue
+		var celda_color := Vector2i(int(entrada[0]), int(entrada[1]))
+		if not _celda_en_edificio(celda_color):
+			continue
+		_color_suelos[celda_color] = PaletaPinturaScript.desde_hex(String(entrada[2]))
 	for datos: Variant in d.get("salas", []):
 		if not (datos is Dictionary):
 			push_warning("Construccion: sala corrupta en el save -> descartada")
@@ -1820,17 +1935,12 @@ func load_state(d: Dictionary) -> void:
 		var rect := Rect2i(
 			int(rect_datos[0]), int(rect_datos[1]), int(rect_datos[2]), int(rect_datos[3])
 		)
-		# Puerta: si el save es viejo (o viene corrupta) se recalcula, para que una partida guardada
-		# ANTES de que existieran las puertas siga cargando y salga con una puerta razonable.
-		var puerta_datos: Variant = datos.get("puerta", [])
-		var puerta: Vector2i = _puerta_automatica(rect)
-		if puerta_datos is Array and puerta_datos.size() == 2:
-			var guardada := Vector2i(int(puerta_datos[0]), int(puerta_datos[1]))
-			if rect.has_point(guardada):
-				puerta = guardada
+		# El campo `puerta` de los saves viejos (el hueco automatico) se IGNORA a proposito: desde
+		# 2026-08-04 la puerta de una sala es un tramo de pared de tipo PUERTA y llega en la lista de
+		# muros. Las puertas que el jugador abrio de verdad sobreviven; el hueco que nunca dejo pasar,
+		# no — que es justo lo que se queria quitar.
 		_salas[StringName(String(datos.get("id", "")))] = {
 			"tipo": tipo_sala, "rect": rect, "coste_pagado": float(datos.get("coste_pagado", 0.0)),
-			"puerta": puerta,
 			# Si el save es viejo (o viene corrupto) se rellenan desde el rect: una sala guardada ANTES de
 			# la fase B era rectangular por definicion, asi que sus celdas son justo las de su rect.
 			"celdas": _celdas_desde_json(datos.get("celdas", []), rect),
@@ -1887,6 +1997,10 @@ var _capa_elementos: Node2D = null
 var _tam_celda: int = 40
 ## `tipo_sala_id -> source_id` del TileSet generado por código (un tile plano por tipo de sala).
 var _fuentes_tileset: Dictionary = {}
+## `hex del color -> source_id` de los tiles de SUELO PINTADO (2026-08-04). Se crean bajo demanda —
+## solo los colores que el jugador use de verdad— y se cachean: repintar la misma sala 20 veces no
+## genera 20 texturas. Se vacía en cada `montar_visual` (el TileSet se rehace ahí).
+var _fuentes_color: Dictionary[String, int] = {}
 ## Alto en píxeles de las cajas placeholder (isométrico, 2026-07-30). Un mostrador se lee como
 ## mueble alto —a la altura del pecho de un muñeco de 22 px— y un asiento como algo bajo.
 const ALTO_MOSTRADOR: float = 16.0
@@ -1929,13 +2043,75 @@ const COMODIDAD_RADIO := &"radio"
 ## `comodidad_sofa_descanso` (OBJ_011, un sofá de 1 plaza: quedó renderizado pero SIN USAR, a la
 ## espera de que el usuario le busque un destino de 1 celda de verdad).
 const COMODIDAD_SOFA_DESCANSO := &"sofa_descanso"
+
+## ── LAS ESTANTERÍAS: MUEBLES **DE PARED** (2026-08-04) ──────────────────────────────────────────
+## Orden del usuario (quick-spec construccion-pintura-puertas-preview-2026-08-04 §1): *"se anclan al
+## EXTREMO de su celda según su orientación, de modo que NO quede hueco entre la pared y la
+## estantería — quedaría mal y poco realista"*. Es el primer mueble del juego que NO se centra en su
+## celda, así que la capa visual estrena un concepto: `de_pared`.
+##
+## POR QUÉ EL FLAG VIVE AQUÍ Y NO EN EL `.tres`: "arrimarse a la pared" no cambia NADA del modelo
+## —la estantería sigue ocupando su celda entera, sigue costando lo mismo y sigue estorbando igual
+## al que pasa—; solo cambia dónde se PINTA su sprite dentro de esa celda. Es exactamente el tipo de
+## dato que ya vive en este diccionario (el otro es la rotación del PNG). Meterlo en `comodidad.gd`
+## metería una decisión de dibujo en el esquema de datos que comparten Paciencia, Flujo y Economía.
+##
+## `sprite`: el PREFIJO del PNG cuando no coincide con el id de catálogo. La estantería pequeña se
+## cataloga como `estanteria_pequena` (nombre de jugador) pero su arte salió del render como
+## `comodidad_estanteria_suelta_*` (OBJ_022, el brazo suelto de la esquina) — se declara el puente
+## aquí en vez de renombrar unos PNG ya aprobados.
+##
+## `espalda_0`: hacia dónde da la ESPALDA el mueble en su PNG de 0°. Es el ÚNICO dato del arte que
+## hay que declarar, y no se elige a ojo: sale de medir la base de los PNG (ver el comentario largo
+## de `AnclajeSprite.CICLO_ESPALDA`, con los números). Las dos estanterías salieron del catálogo 3D
+## giradas 90° la una respecto de la otra, así que no hay una tabla común: la grande da la espalda
+## al OESTE a 0° y la pequeña al NORTE. Lo verifica un test contra el eje delgado medido.
+const COMODIDAD_ESTANTERIA := &"estanteria"
+const COMODIDAD_ESTANTERIA_PEQUENA := &"estanteria_pequena"
+
+## A qué pared se arrima un mueble de pared en cada estado de la R. El modelo solo tiene DOS
+## (`HORIZONTAL`/`VERTICAL`), así que de las cuatro paredes se llegan a dos, y se eligen las dos
+## TRASERAS de la vista isométrica — norte y oeste. No es capricho: son las que quedan al fondo del
+## dibujo, así que el mueble se ve DE FRENTE (con sus libros) y la pared no se le pone delante. Las
+## otras dos existen en el arte y en la cuenta, pero enseñarían el panel trasero. Cuál de los cuatro
+## PNG hace falta para cada una lo deduce `AnclajeSprite.rotacion_para_espalda`.
+const ESPALDA_HORIZONTAL := Vector2i(0, -1)   # pared NORTE
+const ESPALDA_VERTICAL := Vector2i(-1, 0)     # pared OESTE
 static func _sprites_comodidad() -> Dictionary:
 	return {
 		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0},
 		COMODIDAD_PAPELERA: {"rotacion": 0},
 		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0},
 		COMODIDAD_RADIO: {"rotacion": 0},
+		COMODIDAD_ESTANTERIA: {"rotacion": 0, "espalda_0": Vector2i(-1, 0)},
+		COMODIDAD_ESTANTERIA_PEQUENA: {
+			"sprite": "estanteria_suelta", "rotacion": 0, "espalda_0": Vector2i(0, -1),
+		},
 	}
+
+
+## ¿Es esta comodidad un mueble DE PARED (se arrima al borde trasero de su celda)? Lo es justo la
+## que declara `espalda_0`: sin saber por dónde da la espalda no hay arrimado que valga, así que el
+## dato ES la marca. Las que no lo declaran se siguen centrando en su celda, como toda la vida.
+static func es_comodidad_de_pared(id_catalogo: StringName) -> bool:
+	return _sprites_comodidad().get(id_catalogo, {}).has("espalda_0")
+
+
+## Hacia qué pared da la espalda esta comodidad estando girada así. `Vector2i.ZERO` = no es de pared.
+static func espalda_comodidad(id_catalogo: StringName, orientacion: int) -> Vector2i:
+	if not es_comodidad_de_pared(id_catalogo):
+		return Vector2i.ZERO
+	return ESPALDA_VERTICAL if orientacion == VERTICAL else ESPALDA_HORIZONTAL
+
+
+## La rotación del PNG que le toca a una comodidad según cómo esté girada en el modelo. Un mueble de
+## pared pide la que le deje la espalda contra SU pared; el resto del catálogo no tiene "frente" que
+## enseñar, así que gire como gire usa siempre la misma (la de calibración).
+static func rotacion_sprite_comodidad(datos: Dictionary, orientacion: int) -> int:
+	if not datos.has("espalda_0"):
+		return int(datos["rotacion"])
+	var deseada: Vector2i = ESPALDA_VERTICAL if orientacion == VERTICAL else ESPALDA_HORIZONTAL
+	return AnclajeSprite.rotacion_para_espalda(datos["espalda_0"], deseada)
 
 
 ## ── EL SOFÁ DE 3 PLAZAS, MULTI-CELDA (2026-08-01) ───────────────────────────────────────────────
@@ -1986,6 +2162,7 @@ func montar_visual(
 	_origen = desplazamiento
 	var tileset := TileSet.new()
 	tileset.tile_size = Vector2i(tam_celda, tam_celda)
+	_fuentes_color.clear()   # el TileSet se rehace aquí: los tiles de suelo pintado también
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
 		var fuente := TileSetAtlasSource.new()
 		fuente.texture = _textura_de_celda(_color_de_sala(tipo_sala))
@@ -2118,6 +2295,12 @@ func _refrescar_visual() -> void:
 		# cualquier pared (0) y por debajo de la gente (2). Mismo criterio que `Z_ROTULOS_PUESTO`.
 		etiqueta.z_index = Z_ETIQUETA_SALA
 		_capa_elementos.add_child(etiqueta)
+	# SUELO PINTADO (2026-08-04): segunda pasada, DESPUÉS del tinte de zona, para que la pintura del
+	# jugador mande sobre el color de sala (que pasa a ser solo el fondo por defecto). Va aparte y no
+	# dentro del bucle de salas porque una celda pintada NO tiene por qué pertenecer a ninguna sala:
+	# el suelo de un pasillo también se pinta, y así se dibuja igual.
+	for celda: Vector2i in _color_suelos:
+		_capa_salas.set_cell(celda, _fuente_de_color(_color_suelos[celda]), Vector2i.ZERO)
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
 		var es_asiento: bool = elemento["catalogo"] == ASIENTO_BASICO
@@ -2162,6 +2345,22 @@ func _color_de_sala(tipo_sala: Resource) -> Color:
 	if tipo_sala.tipo == "espera":
 		base = base.lerp(Color(0.22, 0.24, 0.27), 0.45)
 	return base
+
+
+## El `source_id` del tile de un COLOR de suelo pintado, creándolo la primera vez que hace falta.
+## Devuelve -1 sin capa montada (headless): `_refrescar_visual` ya ha salido antes de llegar aquí.
+func _fuente_de_color(color: Color) -> int:
+	if _capa_salas == null or _capa_salas.tile_set == null:
+		return -1
+	var hex: String = PaletaPinturaScript.a_hex(color)
+	if _fuentes_color.has(hex):
+		return _fuentes_color[hex]
+	var fuente := TileSetAtlasSource.new()
+	fuente.texture = _textura_de_celda(color)
+	fuente.texture_region_size = Vector2i(_tam_celda, _tam_celda)
+	fuente.create_tile(Vector2i.ZERO)
+	_fuentes_color[hex] = _capa_salas.tile_set.add_source(fuente)
+	return _fuentes_color[hex]
 
 
 ## Tile plano con borde de rejilla (patrón del suelo de Main).
@@ -2211,9 +2410,12 @@ func _crear_pieza(
 		var sprite_pieza: Node2D = _pieza_sprite_asiento_sofa3(orientacion, celdas)
 		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
 		raiz.add_child(sprite_pieza)
-	elif not de_techo and sprites_comodidad.has(id_catalogo) and _hay_sprite_comodidad(id_catalogo):
+	elif (
+		not de_techo and sprites_comodidad.has(id_catalogo)
+		and _hay_sprite_comodidad(id_catalogo, orientacion)
+	):
 		var sprite_pieza: Node2D = _pieza_sprite_comodidad(
-			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas
+			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas, orientacion
 		)
 		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
 		raiz.add_child(sprite_pieza)
@@ -2246,14 +2448,23 @@ func _crear_pieza(
 	return raiz
 
 
-## ¿Hay un sprite renderizado para esta comodidad? Solo las que están en `_sprites_comodidad()` lo
-## comprueban siquiera — cualquier otro id cae siempre a la caja gris.
-func _hay_sprite_comodidad(id_catalogo: StringName) -> bool:
-	return ResourceLoader.exists(_ruta_sprite_comodidad(id_catalogo, _sprites_comodidad()[id_catalogo]["rotacion"]))
+## ¿Hay un sprite renderizado para esta comodidad, en la rotación que le toca a esta `orientacion`?
+## Solo las que están en `_sprites_comodidad()` lo comprueban siquiera — cualquier otro id cae
+## siempre a la caja gris. (`orientacion` solo importa a las que declaran `rotacion_vertical`; el
+## default deja la llamada de siempre funcionando igual.)
+func _hay_sprite_comodidad(id_catalogo: StringName, orientacion: int = HORIZONTAL) -> bool:
+	var datos: Dictionary = _sprites_comodidad()[id_catalogo]
+	return ResourceLoader.exists(
+		_ruta_sprite_comodidad(id_catalogo, rotacion_sprite_comodidad(datos, orientacion))
+	)
 
 
+## La ruta del PNG. El nombre del fichero sale del PREFIJO declarado en `_sprites_comodidad()`
+## (`sprite`), que por defecto es el propio id de catálogo — ver el bloque de las estanterías.
 func _ruta_sprite_comodidad(id_catalogo: StringName, rotacion: int) -> String:
-	return "%scomodidad_%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, String(id_catalogo), rotacion]
+	var datos: Dictionary = _sprites_comodidad().get(id_catalogo, {})
+	var prefijo: String = String(datos.get("sprite", String(id_catalogo)))
+	return "%scomodidad_%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, prefijo, rotacion]
 
 
 ## La comodidad de sprite: un `Sprite2D` anclado por el mismo punto que la `PiezaIso` que sustituye
@@ -2262,15 +2473,31 @@ func _ruta_sprite_comodidad(id_catalogo: StringName, rotacion: int) -> String:
 ## para este id (solo `rotacion`: el ancla la mide `AnclajeSprite`). `paso`/`celdas` son los mismos
 ## con los que el llamante calcula `Proyeccion.delta_ultima_celda` para posicionar el nodo — el
 ## auto-anclaje los necesita para saber cuánto hay del centro de la huella al de la última celda.
+##
+## ARRIMADO A PARED (2026-08-04): las comodidades marcadas `de_pared` (las estanterías) no se quedan
+## centradas — tras anclarlas, el sprite se corre hasta que el borde TRASERO de su base cae sobre la
+## línea de la celda por la que da la espalda. Ese corrimiento lo calcula `AnclajeSprite` midiendo
+## el fondo del propio PNG (ni un número a mano), y sigue a la rotación: girar el mueble con la R
+## cambia qué pared es la de atrás y el arrimado se recalcula solo.
+##
+## Se aplica al `Sprite2D` y NO al nodo `Caja` a propósito: la `Caja` marca la celda LÓGICA del
+## mueble, que es lo que ordena la profundidad (y-sort) y lo que leen los tests de huella. Lo que se
+## mueve es el dibujo dentro de su celda, que es justo lo que pidió el usuario.
 func _pieza_sprite_comodidad(
-	id_catalogo: StringName, datos: Dictionary, paso: Vector2i, celdas: int
+	id_catalogo: StringName, datos: Dictionary, paso: Vector2i, celdas: int,
+	orientacion: int = HORIZONTAL
 ) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Caja"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.texture = load(_ruta_sprite_comodidad(id_catalogo, datos["rotacion"]))
+	var rotacion: int = rotacion_sprite_comodidad(datos, orientacion)
+	sprite.texture = load(_ruta_sprite_comodidad(id_catalogo, rotacion))
 	AnclajeSprite.aplicar(sprite, paso, celdas)
+	if datos.has("espalda_0") and sprite.texture != null:
+		sprite.position = AnclajeSprite.desvio_arrimado(
+			sprite.texture, AnclajeSprite.espalda_girada(datos["espalda_0"], rotacion)
+		)
 	raiz.add_child(sprite)
 	return raiz
 
