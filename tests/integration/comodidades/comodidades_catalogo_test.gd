@@ -51,12 +51,22 @@ func _sala_oficina(construccion: Node) -> StringName:
 # Cuenta las DOS familias de este epic, no el total del catálogo: Bienestar #13 (bien-005) añadió
 # después una tercera familia ("descanso": sillas, sofá, nevera…). Contar el total hacía que este
 # test se rompiera cada vez que OTRO epic añade objetos, que no es lo que quiere vigilar.
+#
+# 2026-08-04: sube de 8 a 10. Las estanterías (`estanteria`, `estanteria_pequena`, quick-spec
+# `construccion-pintura-puertas-preview` §1) entran en la familia "ciudadano" — son confort de la
+# sala de espera —, así que el filtro las recoge. Se listan por id a propósito: si mañana entra otro
+# objeto, este test dice CUÁL falta o sobra en vez de solo "el número no cuadra".
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
 	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
 		return c.familia == "ciudadano" or c.familia == "funcionario"
 	)
-	assert_int(de_este_epic.size()).is_equal(8)
+	var ids: Array = de_este_epic.map(func(c: Resource) -> String: return String(c.id))
+	ids.sort()
+	assert_array(ids).contains(["estanteria", "estanteria_pequena"])
+	assert_int(de_este_epic.size()).override_failure_message(
+		"las familias ciudadano+funcionario traen %s" % [ids]
+	).is_equal(10)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")
