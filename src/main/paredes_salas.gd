@@ -230,6 +230,37 @@ func actualizar() -> void:
 	_reconstruir_nodos()
 
 
+## PICKING POR QUAD (2026-08-06 · quick-spec §3f, "pintura por cara"): dado un punto en el mismo
+## espacio que `Construccion.esquina_en_pantalla` (el "mundo" que ya usa el resto del picking de
+## este proyecto), el TRAMO VISIBLE que lo contiene, o `{}` si ninguno. Es un point-in-polygon sobre
+## el MISMO quad que dibuja `TramoPared` (`desde`/`hasta`/`alto`, ver `TramoPared._draw`) — así "a
+## qué apunto" coincide exactamente con "qué se ve", cosa que el picking de SUELO
+## (`Construccion.celda_de_punto`) no puede prometer: el suelo no sabe que las paredes suben hasta
+## `ALTO_PARED` px en pantalla, así que un clic sobre la CARA VISIBLE de una pared alta cae, para el
+## suelo, en la celda de DETRÁS — y la pintura por cara solo pinta la cara correcta si el clic
+## acierta la cara que de verdad se ve (bug reportado por el usuario, 2026-08-06).
+##
+## Si varios tramos se solapan en pantalla gana el que esté MÁS CERCA DE CÁMARA: se recorre
+## `_tramos` EN REVERSA porque ya sale ordenado de fondo a frente (paso 6 de `_recalcular_tramos`),
+## así el primero que acierta es el de más adelante.
+func tramo_bajo_punto(punto: Vector2) -> Dictionary:
+	for i: int in range(_tramos.size() - 1, -1, -1):
+		var tramo: Dictionary = _tramos[i]
+		var alto: float = float(tramo.get("alto", 0.0))
+		if alto <= 0.0 or not tramo.has("clave_modelo"):
+			continue   # sin altura no hay cara que pinchar (jambas); sin clave no hay a qué volver
+		var clave_modelo: String = String(tramo["clave_modelo"])
+		if clave_modelo == "":
+			continue
+		var desde: Vector2 = tramo["desde"]
+		var hasta: Vector2 = tramo["hasta"]
+		var subir := Vector2(0.0, -alto)
+		var quad := PackedVector2Array([desde, hasta, hasta + subir, desde + subir])
+		if Geometry2D.is_point_in_polygon(punto, quad):
+			return {"clave_modelo": clave_modelo}
+	return {}
+
+
 ## Las salas construidas, en los TRES tipos válidos (mismo patrón que usa Main para "todas las
 ## salas": no existe un getter único en Construcción, así que se combinan los tres — const-006).
 func _todas_las_salas() -> Array[StringName]:
@@ -331,7 +362,7 @@ func _recalcular_tramos() -> void:
 		# el COLOR ya no distingue fachada (2026-08-05): sale del modelo igual que cualquier tramo.
 		_agregar_arista(
 			unidad["desde"], unidad["hasta"], _cara_de_arista(unidad["detras"]),
-			_color_de_tramo(unidad["clave_modelo"]), tipo, true,
+			_color_de_tramo(unidad["clave_modelo"]), tipo, unidad["clave_modelo"], true,
 			_construccion.es_muro_fijo(unidad["clave_modelo"])
 		)
 	# 3) (Las jambas del hueco automático murieron con él: una puerta REAL ya recibe las suyas en
@@ -358,7 +389,7 @@ func _recalcular_tramos() -> void:
 		_agregar_arista(
 			geo["desde"], geo["hasta"], _cara_de_arista(geo["detras"], fija),
 			_color_de_tramo(clave_construccion),
-			_construccion.tipo_muro_de_clave(clave_construccion), true, fija
+			_construccion.tipo_muro_de_clave(clave_construccion), clave_construccion, true, fija
 		)
 	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
 	#    los muebles. Se rellena aquí, de una vez, para TODOS los caminos de arriba (perímetro de
@@ -458,16 +489,19 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 ## `fija` (2026-08-05) marca la FACHADA de ladrillo: es lo único que decide aquí, y decide una sola
 ## cosa — que ese tramo NO lleva rodapié (el rodapié es carpintería de interior; la fachada es el
 ## plano del edificio, no una habitación).
+## `clave_modelo` (2026-08-06 · quick-spec §3f) viaja hasta cada pieza dibujada para que
+## `tramo_bajo_punto` pueda volver del PUNTO DE PANTALLA a la arista real del modelo — el picking
+## por quad que necesita la pintura por cara (ver la cabecera de esa función).
 func _agregar_arista(
 	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color, tipo: StringName,
-	con_jambas: bool = true, fija: bool = false
+	clave_modelo: String, con_jambas: bool = true, fija: bool = false
 ) -> void:
 	# El rodapié viaja DENTRO del diccionario de cada pieza de muro, así que lo dibuja el mismo
 	# `TramoPared` que el paño: mismo punto de orden, mismos tres modos de altura, y en una PUERTA
 	# solo aparece en los muñones — nunca cruzando el hueco, sin ninguna regla extra.
 	var rodapie: Color = Color.TRANSPARENT if fija else COLOR_RODAPIE
 	if tipo == _construccion.PUERTA:
-		_agregar_puerta(desde, hasta, cara, color, con_jambas, rodapie)
+		_agregar_puerta(desde, hasta, cara, clave_modelo, color, con_jambas, rodapie)
 		return
 	if tipo == _construccion.VENTANA:
 		# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
@@ -498,23 +532,27 @@ func _agregar_arista(
 		# leería como un poyete que no existe.
 		var jamba_izq: Dictionary = {
 			"desde": desde, "hasta": inicio_cristal, "color": color, "rodapie": rodapie,
+			"clave_modelo": clave_modelo,
 		}
 		jamba_izq.merge(cara)
 		_tramos.append(jamba_izq)
 		var jamba_der: Dictionary = {
 			"desde": fin_cristal, "hasta": hasta, "color": color, "rodapie": rodapie,
+			"clave_modelo": clave_modelo,
 		}
 		jamba_der.merge(cara)
 		_tramos.append(jamba_der)
 		var ventana: Dictionary = {
 			"desde": inicio_cristal, "hasta": fin_cristal,
 			"color": COLOR_VENTANA, "grosor": GROSOR_VENTANA, "alto": ALTO_PARED,
+			"clave_modelo": clave_modelo,
 		}
 		ventana.merge(cara)
 		_tramos.append(ventana)
 		return
 	var macizo: Dictionary = {
 		"desde": desde, "hasta": hasta, "color": color, "rodapie": rodapie,
+		"clave_modelo": clave_modelo,
 	}
 	macizo.merge(cara)
 	_tramos.append(macizo)
@@ -527,7 +565,7 @@ func _agregar_arista(
 ## cualquiera —un muro suelto, o el tramo de sala donde el jugador acaba de abrir un hueco— no se le
 ## puede pedir un "lado de dentro" fiable, y es un detalle decorativo, no una pista de navegación.
 func _agregar_puerta(
-	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = Color.WHITE,
+	desde: Vector2, hasta: Vector2, cara: Dictionary, clave_modelo: String, color: Color = Color.WHITE,
 	con_jambas: bool = true, rodapie: Color = Color.TRANSPARENT
 ) -> void:
 	var direccion: Vector2 = hasta - desde
@@ -537,11 +575,13 @@ func _agregar_puerta(
 	# la puerta exactamente igual que la pared (que es lo que pasa en un pasillo de verdad).
 	var izq: Dictionary = {
 		"desde": desde, "hasta": inicio_hueco, "color": color, "rodapie": rodapie,
+		"clave_modelo": clave_modelo,
 	}
 	izq.merge(cara)
 	_tramos.append(izq)
 	var der: Dictionary = {
 		"desde": fin_hueco, "hasta": hasta, "color": color, "rodapie": rodapie,
+		"clave_modelo": clave_modelo,
 	}
 	der.merge(cara)
 	_tramos.append(der)

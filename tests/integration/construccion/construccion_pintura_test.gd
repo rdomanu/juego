@@ -136,6 +136,10 @@ func test_pintar_donde_no_hay_pared_se_rechaza() -> void:
 
 
 # ── 4. MAYÚS: la SALA ENTERA (paredes), fachada del perímetro incluida (2026-08-05) ────────
+# ── PINTURA POR CARA (2026-08-06 · quick-spec §3f): `pintar_sala_muros` ya no tiñe el TRAMO
+#    entero, solo la CARA que da al interior de la sala — se comprueba con `color_cara_de(celda,
+#    lado)`, donde `celda` es la propia celda de la sala (la que usa `_aristas_del_perimetro`). El
+#    tramo de fachada del perímetro se comprueba igual: es una cara como cualquier otra.
 func test_pintar_sala_muros_tine_todo_el_perimetro_incluida_la_fachada() -> void:
 	# Arrange — la sala pegada a la fachada IZQUIERDA: así su perímetro incluye un tramo fijo.
 	var construccion: Node = _construccion()
@@ -149,23 +153,37 @@ func test_pintar_sala_muros_tine_todo_el_perimetro_incluida_la_fachada() -> void
 	# Act
 	var pintados: int = construccion.pintar_sala_muros(sala, terracota)
 
-	# Assert — se pintó algo, un tramo INTERIOR quedó terracota...
+	# Assert — se pintó algo, la CARA INTERIOR de un tramo quedó terracota...
 	assert_int(pintados).is_greater(0)
-	assert_bool(_igual(construccion.color_muro_de(
-		construccion.clave_de_muro(Vector2i(2, 2), &"abajo")
-	), terracota)).is_true()
-	# ...y el tramo de FACHADA del propio perímetro TAMBIÉN (2026-08-05: pintar la sala entera ya no
-	# deja fuera su lado de fachada — la fachada se pinta como cualquier tramo).
+	assert_bool(_igual(
+		construccion.color_cara_de(Vector2i(2, 2), &"abajo"), terracota
+	)).is_true()
+	# ...y esa misma arista, mirada desde SU OTRO lado (la celda de fuera de la sala), sigue con el
+	# color por defecto: MAYÚS pinta el interior, no las dos caras (pedido literal del usuario).
+	assert_bool(_igual(
+		construccion.color_cara_de(Vector2i(2, 3), &"arriba"), construccion.COLOR_PARED_POR_DEFECTO
+	)).override_failure_message("pintar la sala NO puede tenir la cara de fuera de su propio tramo") \
+		.is_true()
+	# ...y la cara INTERIOR del tramo de FACHADA del propio perímetro TAMBIÉN (2026-08-05: pintar la
+	# sala entera ya no deja fuera su lado de fachada — la fachada se pinta como cualquier tramo,
+	# por su cara de dentro).
 	var clave_fachada: String = construccion.clave_de_muro(Vector2i(0, 1), &"izquierda")
 	assert_bool(construccion.es_muro_fijo(clave_fachada)) \
 		.override_failure_message("el fixture necesita que ese tramo del perimetro SEA fachada") \
 		.is_true()
-	assert_bool(_igual(construccion.color_muro_de(clave_fachada), terracota)) \
-		.override_failure_message("pintar la sala entera SI pinta su lado de fachada") \
+	assert_bool(_igual(
+		construccion.color_cara_de(Vector2i(0, 1), &"izquierda"), terracota
+	)).override_failure_message("pintar la sala entera SI pinta la cara interior de su lado de fachada") \
 		.is_true()
 
 
 # ── 4b. MAYÚS sobre un tramo de FACHADA: pinta EL EDIFICIO ENTERO (2026-08-05) ─────────────
+# ── PINTURA POR CARA (2026-08-06 · quick-spec §3f): `pintar_edificio_muros` tiñe las DOS caras de
+#    un TABIQUE (no pertenece a ninguna sala en concreto) pero SOLO la cara INTERIOR de la FACHADA
+#    — la calle se queda con el color por defecto. `color_muro_de` (que lee la cara "b", la SUR/ESTE
+#    de la propia clave) ya no vale como comprobación universal para la fachada: en la fachada
+#    NORTE/OESTE "b" ES la interior (coincide), pero en la SUR/ESTE "b" es la calle (no coincide) —
+#    de ahí que la fachada se compruebe aparte, con `color_cara_de` sobre su celda de DENTRO.
 func test_pintar_edificio_muros_pinta_fachada_y_tabiques() -> void:
 	# Arrange — una sala con paredes (tabiques interiores) + la fachada levantada, para que el
 	# edificio tenga las DOS familias de tramos que `pintar_edificio_muros` debe alcanzar.
@@ -178,16 +196,33 @@ func test_pintar_edificio_muros_pinta_fachada_y_tabiques() -> void:
 	var pintados: int = construccion.pintar_edificio_muros(azul)
 
 	# Assert — pinta MÁS que el perímetro de una sola sala (fachada + tabiques de otras salas
-	# incluidos) y CADA tramo del edificio queda con el color nuevo.
+	# incluidos) y cada TABIQUE (no fachada) del edificio queda con el color nuevo por sus DOS caras.
 	assert_int(pintados) \
 		.override_failure_message("pintar el edificio tiene que alcanzar mas tramos que una sola sala") \
 		.is_greater(tramos_de_la_sala)
 	for clave: String in construccion.muros():
+		if construccion.es_muro_fijo(clave):
+			continue   # la fachada se comprueba aparte, más abajo: solo se tiñe por dentro
 		assert_bool(_igual(construccion.color_muro_de(clave), azul)).is_true()
-	# Y la fachada, en concreto, también quedó pintada (es la pieza que antes se quedaba fuera).
-	var clave_fachada: String = construccion.clave_de_muro(Vector2i(5, 0), &"arriba")
-	assert_bool(construccion.es_muro_fijo(clave_fachada)).is_true()
-	assert_bool(construccion.muro_pintado(clave_fachada)).is_true()
+	# La fachada NORTE (su celda de dentro es la "b" de su clave) queda pintada por su cara interior…
+	var clave_fachada_norte: String = construccion.clave_de_muro(Vector2i(5, 0), &"arriba")
+	assert_bool(construccion.es_muro_fijo(clave_fachada_norte)).is_true()
+	assert_bool(construccion.muro_pintado(clave_fachada_norte)).is_true()
+	assert_bool(_igual(construccion.color_cara_de(Vector2i(5, 0), &"arriba"), azul)) \
+		.override_failure_message("la cara interior de la fachada norte tiene que quedar pintada") \
+		.is_true()
+	# …y la fachada SUR (su celda de dentro es la "a" de su clave — el caso donde `color_muro_de`,
+	# que lee "b", NO basta) también queda pintada por dentro, con la calle SIN pintar.
+	var fila_sur: int = construccion.edificio_filas
+	var celda_sur_interior := Vector2i(5, fila_sur - 1)
+	var celda_sur_exterior := Vector2i(5, fila_sur)
+	assert_bool(_igual(construccion.color_cara_de(celda_sur_interior, &"abajo"), azul)) \
+		.override_failure_message("la cara interior de la fachada sur tiene que quedar pintada") \
+		.is_true()
+	assert_bool(_igual(
+		construccion.color_cara_de(celda_sur_exterior, &"arriba"), construccion.COLOR_PARED_POR_DEFECTO
+	)).override_failure_message("la calle (cara exterior de la fachada) NO se pinta") \
+		.is_true()
 
 
 # ── 5. Suelo: por celda, con fallback al tinte de sala, y la sala entera con MAYÚS ────────
@@ -596,3 +631,131 @@ func test_hex_ida_y_vuelta_devuelve_el_mismo_color() -> void:
 			.is_true()
 	# Y un hex corrupto NO revienta la carga: cae al blanco por defecto (ADR-0002).
 	assert_bool(_igual(PaletaPinturaScript.desde_hex("no-es-un-color"), Color.WHITE)).is_true()
+
+
+# ── 10. PINTURA POR CARA (2026-08-06 · quick-spec §3f) ────────────────────────────────────
+# Pedido literal del usuario: *"si le doy a mayús solo pinta el interior o seleccionado, no las 2
+# caras, por fuera y por dentro"*. Los cuatro casos que demuestran el contrato nuevo, uno por uno.
+
+## 10a. El clic individual (`pintar_muro_en`) pinta SOLO la cara del lado señalado — la cara del
+## OTRO lado de la MISMA arista (la de la celda vecina) no se toca.
+func test_pintar_muro_en_cara_no_contamina_la_cara_opuesta() -> void:
+	# Arrange — dos salas ADYACENTES que comparten un tabique: A al norte, B al sur.
+	var construccion: Node = _construccion()
+	var sala_a: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(3, 1, 4, 2)
+	)
+	var sala_b: StringName = construccion.construir_de_oficio_sala(
+		&"sala_odac", Rect2i(3, 3, 4, 2)
+	)
+	construccion.fijar_paredes_de_sala(sala_a, true)
+	construccion.fijar_paredes_de_sala(sala_b, true)
+	var celda_a := Vector2i(4, 2)   # última fila de A, pegada al tabique compartido
+	var celda_b := Vector2i(4, 3)   # primera fila de B, al OTRO lado de esa MISMA arista
+	var terracota: Color = PaletaPinturaScript.color_de(TERRACOTA)
+
+	# Act — se pinta SOLO la cara de la sala A (mirando "abajo", hacia el tabique compartido).
+	assert_bool(construccion.pintar_muro_en(celda_a, &"abajo", terracota)).is_true()
+
+	# Assert — la cara de A queda terracota; la cara de B (la MISMA arista, mirada desde el otro
+	# lado) sigue con el color por defecto.
+	assert_bool(_igual(construccion.color_cara_de(celda_a, &"abajo"), terracota)).is_true()
+	assert_bool(_igual(
+		construccion.color_cara_de(celda_b, &"arriba"), construccion.COLOR_PARED_POR_DEFECTO
+	)).override_failure_message("pintar una cara NO puede tenir la cara opuesta de la misma arista") \
+		.is_true()
+
+
+## 10b. `pintar_sala_muros` (MAYÚS) tiñe SOLO las caras interiores de la sala — ni la cara de la
+## sala vecina con la que comparte tabique, ni (por extensión, mismo mecanismo) la del pasillo.
+func test_pintar_sala_muros_no_tine_cara_de_sala_vecina() -> void:
+	# Arrange — mismas dos salas adyacentes que en 10a.
+	var construccion: Node = _construccion()
+	var sala_a: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(3, 1, 4, 2)
+	)
+	var sala_b: StringName = construccion.construir_de_oficio_sala(
+		&"sala_odac", Rect2i(3, 3, 4, 2)
+	)
+	construccion.fijar_paredes_de_sala(sala_a, true)
+	construccion.fijar_paredes_de_sala(sala_b, true)
+	var celda_a := Vector2i(4, 2)
+	var celda_b := Vector2i(4, 3)
+	var azul: Color = PaletaPinturaScript.color_de(&"azul_institucional")
+
+	# Act
+	var pintados: int = construccion.pintar_sala_muros(sala_a, azul)
+
+	# Assert — la cara interior del tabique compartido (la de A) queda azul...
+	assert_int(pintados).is_greater(0)
+	assert_bool(_igual(construccion.color_cara_de(celda_a, &"abajo"), azul)) \
+		.override_failure_message("pintar la sala tiene que tenir la cara INTERIOR del tabique compartido") \
+		.is_true()
+	# ...pero la cara de la sala VECINA (el otro lado del MISMO tabique) sigue sin pintar: MAYÚS
+	# pinta el interior de ESTA sala, nunca el de la de al lado.
+	assert_bool(_igual(
+		construccion.color_cara_de(celda_b, &"arriba"), construccion.COLOR_PARED_POR_DEFECTO
+	)).override_failure_message("pintar la sala A NO puede tenir la cara de la sala B, aunque compartan tabique") \
+		.is_true()
+
+
+## 10c. MIGRACIÓN: un save VIEJO (de antes de que la pintura viviera por cara) traía un color por
+## TRAMO, sin sufijo ":a"/":b". Cargarlo copia ese color a las DOS caras — retrocompatible, sin
+## perder ni un tramo pintado por el jugador.
+func test_load_state_save_viejo_sin_cara_migra_color_a_las_dos_caras() -> void:
+	# Arrange — un dict de save "a mano", con el formato de ANTES de las caras: [clave, hex], SIN
+	# sufijo — el que guardaba cualquier partida de antes de esta fecha.
+	var construccion: Node = _construccion()
+	var clave := "h:4:3"
+	var rojo: Color = Color.RED
+	var estado: Dictionary = {
+		"salas": [], "elementos": [], "contador_ids": 0,
+		"muros": [[clave, "muro"]],
+		"colores_muros": [[clave, PaletaPinturaScript.a_hex(rojo)]],
+		"colores_suelos": [],
+	}
+
+	# Act — round-trip por JSON real, como el camino exacto del SaveManager.
+	construccion.load_state(_por_json(estado))
+
+	# Assert — las DOS caras de esa arista cargan el mismo color viejo, se mire desde donde se
+	# mire: justo lo que esa pared enseñaba antes de que existiera el concepto de cara.
+	assert_bool(_igual(construccion.color_cara_de(Vector2i(4, 3), &"arriba"), rojo)) \
+		.override_failure_message("la cara 'b' (h:4:3) tiene que migrar al color del save viejo") \
+		.is_true()
+	assert_bool(_igual(construccion.color_cara_de(Vector2i(4, 2), &"abajo"), rojo)) \
+		.override_failure_message("la cara 'a' (h:4:3) tambien tiene que migrar -- las DOS, no solo una") \
+		.is_true()
+	assert_bool(construccion.muro_pintado(clave)).is_true()
+
+
+## 10d. PICKING POR QUAD: un punto a media altura de una pared de 65 px (`ALTO_PARED`) acierta el
+## tramo real — no solo un punto a ras de suelo, que es donde picaba el picking de suelo de siempre
+## (la celda de DETRÁS de la pared, el bug reportado por el usuario). Un punto lejos de cualquier
+## pared no acierta nada.
+func test_paredes_salas_tramo_bajo_punto_acierta_cara_visible_de_pared_alta() -> void:
+	# Arrange — una sala cerrada, dibujada por el código real, con el hook de layout cableado.
+	var construccion: Node = _construccion()
+	_sala_cerrada(construccion)
+	var paredes: Node2D = auto_free(ParedesSalasScript.new())
+	add_child(paredes)
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+	construccion.fijar_hook_layout(Callable(paredes, "actualizar"))
+	var celda := Vector2i(4, RECT_SALA.position.y)
+	var clave_arista: String = construccion.clave_de_muro(celda, &"arriba")
+
+	# Act — un punto a MEDIA ALTURA del tramo (no a ras de suelo).
+	var desde: Vector2 = construccion.esquina_en_pantalla(celda.x, celda.y)
+	var hasta: Vector2 = construccion.esquina_en_pantalla(celda.x + 1, celda.y)
+	var punto_a_media_altura: Vector2 = (
+		desde.lerp(hasta, 0.5) + Vector2(0.0, -ParedesSalasScript.ALTO_PARED * 0.5)
+	)
+	var tramo: Dictionary = paredes.tramo_bajo_punto(punto_a_media_altura)
+
+	# Assert — acierta la clave de ESA arista, la misma que devuelve `clave_de_muro`.
+	assert_bool(tramo.has("clave_modelo")) \
+		.override_failure_message("un punto a media altura de una pared de 65px tiene que acertar un tramo") \
+		.is_true()
+	assert_str(String(tramo["clave_modelo"])).is_equal(clave_arista)
+	# Un punto lejos de cualquier pared no acierta nada.
+	assert_bool(paredes.tramo_bajo_punto(Vector2(-5000.0, -5000.0)).is_empty()).is_true()

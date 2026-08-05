@@ -81,6 +81,11 @@ const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
 
 var _construccion: Node = null
 var _tam_celda: int = 40
+## `ParedesSalas` (2026-08-06 · quick-spec §3f): SOLO para el picking por quad de
+## `_celda_lado_de_muro_en` — este fichero sigue sin leer geometría de dibujo por su cuenta, le
+## pregunta a quien ya la calculó (ADR-0004). Opcional (`null` en las herramientas de diagnóstico que
+## no lo inyectan): sin él, el picking cae al de suelo de siempre (`_lado_mas_cercano`).
+var _paredes_salas: Node = null
 
 # ── Estado de la interacción ─────────────────────────────────────────────────────────────────
 var _activo: bool = false
@@ -401,10 +406,13 @@ var _sala_a_demoler: StringName = &""
 var _rejilla: RejillaConstruccion
 
 
-## Inyección de dependencias (la llama Main ANTES de add_child).
-func configurar(construccion: Node, tam_celda: int) -> void:
+## Inyección de dependencias (la llama Main ANTES de add_child). `paredes_salas` es OPCIONAL
+## (2026-08-06 · quick-spec §3f): las herramientas de diagnóstico que instancian este nodo suelto
+## siguen llamando con dos argumentos, y sin ella el picking de pared cae al de suelo de siempre.
+func configurar(construccion: Node, tam_celda: int, paredes_salas: Node = null) -> void:
 	_construccion = construccion
 	_tam_celda = tam_celda
+	_paredes_salas = paredes_salas
 
 
 func _ready() -> void:
@@ -594,9 +602,9 @@ func _demoler_en(celda: Vector2i, punto_mundo: Vector2) -> void:
 	if elemento_id != &"":
 		_construccion.demoler_elemento(elemento_id)
 		return
-	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
-	if _construccion.hay_muro(celda, lado):
-		_construccion.demoler_muro(celda, lado)
+	var par: Array = _celda_lado_de_muro_en(punto_mundo)
+	if _construccion.hay_muro(par[0], par[1]):
+		_construccion.demoler_muro(par[0], par[1])
 		return
 	var sala_id: StringName = _construccion.sala_en(celda)
 	if sala_id == &"":
@@ -636,8 +644,9 @@ func _demoler_en(celda: Vector2i, punto_mundo: Vector2) -> void:
 ## solo se escribía en la barra de estado de abajo —lejos del cursor, donde nadie mira mientras
 ## construye— y un clic aceptado se veía igual que uno rechazado.
 func _convertir_arista_en(punto_mundo: Vector2, tipo: StringName) -> void:
-	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
-	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	var par: Array = _celda_lado_de_muro_en(punto_mundo)
+	var celda: Vector2i = par[0]
+	var lado: StringName = par[1]
 	var nombre: String = "Puerta" if tipo == &"puerta" else "Ventana"
 	if _construccion.fijar_tipo_de_muro(celda, lado, tipo):
 		_lbl_estado.text = nombre + " abierta"
@@ -675,8 +684,9 @@ func _destellar_arista(celda: Vector2i, lado: StringName, color: Color, texto: S
 ## Si esa celda no es de ninguna sala, hay dos casos: el tramo es FACHADA → MAYÚS pinta TODO el
 ## edificio; si no (un muro suelto en mitad de la nada), MAYÚS pinta SOLO ese tramo, igual que antes.
 func _pintar_pared_en(punto_mundo: Vector2, con_mayus: bool) -> void:
-	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
-	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
+	var par: Array = _celda_lado_de_muro_en(punto_mundo)
+	var celda: Vector2i = par[0]
+	var lado: StringName = par[1]
 	var sala_id: StringName = _construccion.sala_en(celda)
 	var clave: String = _construccion.clave_de_muro(celda, lado)
 	if con_mayus and sala_id != &"":
@@ -928,12 +938,20 @@ func _process(delta: float) -> void:
 	# poll (`get_global_mouse_position`) vale para un FANTASMA (no muta el modelo) — el gotcha de
 	# "usa el punto del evento" es para las ACCIONES (pintar/demoler de verdad), no para dibujar.
 	var lado: StringName = &"-"
-	if (
-		_herramienta == &"muro" or _herramienta == &"demoler"
-		or _herramienta == &"puerta" or _herramienta == &"ventana"
+	if _herramienta == &"muro":
+		# El pincel de MURO traza tabiques NUEVOS: ahí no hay quad que pinchar todavía, así que se
+		# queda con el picking de suelo de siempre.
+		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
+	elif (
+		_herramienta == &"demoler" or _herramienta == &"puerta" or _herramienta == &"ventana"
 		or _herramienta == HERRAMIENTA_PINTAR_PARED
 	):
-		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
+		# Estos cuatro apuntan a un muro YA CONSTRUIDO: el picking por quad (2026-08-06) acierta la
+		# CARA VISIBLE de verdad, no la celda de suelo que quedaría detrás de una pared alta — mismo
+		# criterio que usa la acción real (`_celda_lado_de_muro_en`), así el fantasma no miente.
+		var par: Array = _celda_lado_de_muro_en(get_global_mouse_position())
+		celda = par[0]
+		lado = par[1]
 	# MAYÚS entra en la guarda (2026-08-05, tarea 2): sin esto, pulsar/soltar MAYÚS sobre la MISMA
 	# celda no dispararía ningún redibujado — la guarda solo miraba celda/herramienta/arrastre/lado.
 	var mayus: bool = Input.is_key_pressed(KEY_SHIFT)
@@ -1267,6 +1285,29 @@ func _lado_mas_cercano(punto_mundo: Vector2, celda: Vector2i) -> StringName:
 	if minimo == dist_arriba:
 		return &"arriba"
 	return &"abajo"
+
+
+## EL PAR (celda, lado) DE UNA PARED YA EXISTENTE bajo un punto (2026-08-06 · quick-spec §3f).
+## Prueba PRIMERO el picking por QUAD (`ParedesSalas.tramo_bajo_punto`, point-in-polygon sobre el
+## MISMO quad que se dibuja): así un clic sobre la CARA VISIBLE de una pared de 65 px acierta esa
+## pared y no la celda de suelo de detrás, que es donde caía antes el picking por planta
+## (`_lado_mas_cercano` sobre `celda_de_punto`) — bug reportado por el usuario, la pintura por cara
+## solo tiene sentido si el clic acierta la cara que de verdad se ve. Si el quad no acierta nada
+## (no hay pared ahí, o `_paredes_salas` no está inyectado — herramientas de diagnóstico) cae al
+## picking de suelo de SIEMPRE, que sigue siendo válido para "aquí no hay pared todavía".
+##
+## Lo usan los pinceles que apuntan a un muro YA CONSTRUIDO (pintar pared, puerta/ventana, demoler);
+## el pincel de MURO (que traza tabiques NUEVOS donde no hay nada que pinchar todavía) sigue usando
+## el picking de suelo directamente, sin pasar por aquí.
+func _celda_lado_de_muro_en(punto_mundo: Vector2) -> Array:
+	if _paredes_salas != null and _paredes_salas.has_method("tramo_bajo_punto"):
+		var tramo: Dictionary = _paredes_salas.tramo_bajo_punto(punto_mundo)
+		if not tramo.is_empty():
+			var par: Array = _construccion.celda_y_lado_de_clave(String(tramo["clave_modelo"]))
+			if par[1] != &"":
+				return par
+	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
+	return [celda, _lado_mas_cercano(punto_mundo, celda)]
 
 
 ## Duplicado A PROPÓSITO de `Construccion._arista_dentro_del_edificio` (privado — la tarea prohíbe

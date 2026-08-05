@@ -78,6 +78,20 @@ Pedido literal ("algo tipo sims para la construccion"):
   (juntas + variación, lo de hoy) o `liso` (color plano, como el suelo crema inicial). El acabado
   se guarda POR CELDA junto al color y sobrevive al save/load.
 
+## 3f. Pintura por CARA de muro (usuario, 2026-08-06)
+
+Pedido literal: "debería poder verse una vista previa del color elegido, si he elegido un azul se
+debería poner la seleccion de una pared en azul y si doy a mayus se debería ver la vista previa en
+azul de toda la habitación. ten en cuenta que si se le da a mayus solo pinta el interior o
+seleccionado, no las 2 caras, por fuera y por dentro".
+- El preview (selector y fantasma MAYÚS) usa SIEMPRE el color elegido del pincel (ya era así; las
+  fotos magenta eran solo de la sonda).
+- **El color de un muro vive POR CARA, no por tramo**: pintar con MAYÚS una sala tiñe SOLO las
+  caras que dan al interior de esa sala; la cara del otro lado (pasillo/otra sala) conserva su
+  color. El clic individual pinta la cara del lado de la celda desde la que se apunta.
+- El dibujo enseña el color de la cara geométricamente visible a cámara (modelo Sims); los saves
+  viejos (color por tramo) migran copiando el color a ambas caras.
+
 ## 4. Preview de objetos estilo tycoon (fantasma transparente)
 
 - Al colocar un objeto, ANTES de comprarlo/colocarlo se ve su sprite real semitransparente en la

@@ -208,7 +208,7 @@ func _ready() -> void:
 	# Modo construcción (story const-007): andamio de ratón sobre la API de Construcción.
 	_modo_construccion = ModoConstruccionScript.new()
 	_modo_construccion.name = "ModoConstruccion"
-	_modo_construccion.configurar(_construccion, TAM_CELDA)
+	_modo_construccion.configurar(_construccion, TAM_CELDA, _paredes_salas)
 	add_child(_modo_construccion)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).

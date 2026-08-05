@@ -942,6 +942,76 @@ func clave_de_muro(celda: Vector2i, lado: StringName) -> String:
 			return ""
 
 
+## ── PINTURA POR CARA (2026-08-06 · quick-spec §3f) ──────────────────────────────────────────
+## Una arista separa DOS celdas, y desde hoy cada una tiene SU PROPIO color: pedido del usuario
+## (*"si le doy a mayús solo pinta el interior... no las 2 caras, por fuera y por dentro"*).
+## Convenio fijo, documentado solo aquí: **"b" es la cara de la celda de MAYOR coordenada** — la
+## celda `(x,y)` que la propia clave YA codifica literalmente (ver la tabla de arriba): la SUR en
+## una arista horizontal, la ESTE en una vertical. **"a" es la de MENOR coordenada** (norte/oeste).
+## Con esto una arista tiene siempre dos caras nombrables sin ambigüedad y sin mirar qué sala hay a
+## cada lado — las claves de `_color_muros` pasan a ser "clave_de_arista:a"/"...:b".
+const SUFIJO_CARA_A := ":a"
+const SUFIJO_CARA_B := ":b"
+
+
+## La CARA de un muro que mira hacia `celda`, en el lado `lado` — la clave que usa `_color_muros`.
+## Es `clave_de_muro(celda, lado)` con el sufijo que le corresponde a ESA celda (ver la cabecera de
+## `SUFIJO_CARA_A`/`_B`): `&"arriba"` y `&"izquierda"` dejan a `celda` del lado de MAYOR coordenada
+## (la propia `celda` es la "b" — `clave_de_muro` la usa tal cual, sin sumar nada); `&"abajo"` y
+## `&"derecha"` la dejan del lado de MENOR coordenada ("a" — `clave_de_muro` suma 1 para nombrar la
+## arista, así que `celda` queda al otro lado). "" si `lado` no es uno de los cuatro válidos (mismo
+## criterio de error que `clave_de_muro`).
+func clave_de_cara(celda: Vector2i, lado: StringName) -> String:
+	var clave_arista: String = clave_de_muro(celda, lado)
+	if clave_arista == "":
+		return ""
+	var es_b: bool = lado == &"arriba" or lado == &"izquierda"
+	return clave_arista + (SUFIJO_CARA_B if es_b else SUFIJO_CARA_A)
+
+
+## Reconstruye un par (celda, lado) VÁLIDO para una clave de arista — el inverso de `clave_de_muro`,
+## para volver de una clave suelta (o de un tramo ya dibujado, ver `ParedesSalas.tramo_bajo_punto`)
+## a la pareja que exige el resto de la API de muros (`pintar_muro_en`, `demoler_muro`,
+## `fijar_tipo_de_muro`, `hay_muro`...). No es la ÚNICA pareja válida —cada arista se nombra desde
+## sus dos celdas— pero es estable: la celda literal de la clave (la cara "b") con el lado que "mira
+## hacia atrás" (arriba/izquierda), que es justo como la construyen `_unidad_h`/`_unidad_v` de
+## `ParedesSalas` al generar su `clave_modelo`. Devuelve `[Vector2i.ZERO, &""]` si la clave no tiene
+## el formato esperado.
+func celda_y_lado_de_clave(clave: String) -> Array:
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return [Vector2i.ZERO, &""]
+	var x: int = int(partes[1])
+	var y: int = int(partes[2])
+	if partes[0] == "h":
+		return [Vector2i(x, y), &"arriba"]
+	if partes[0] == "v":
+		return [Vector2i(x, y), &"izquierda"]
+	return [Vector2i.ZERO, &""]
+
+
+## La celda LITERAL de una clave de arista ("T:x:y" → `Vector2i(x,y)`, sin más — ver la cabecera de
+## `SUFIJO_CARA_A`/`_B`): es la celda del lado "b" de esa arista. "" o formato inesperado →
+## `Vector2i.ZERO` (no debería darse: solo se llama con claves que ya vienen de `_muros`).
+func _celda_b_de_arista(clave: String) -> Vector2i:
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return Vector2i.ZERO
+	return Vector2i(int(partes[1]), int(partes[2]))
+
+
+## La CARA INTERIOR de un tramo de FACHADA: la "a" o la "b", la que caiga en una celda DENTRO del
+## edificio (`_celda_en_edificio`) — para la fachada norte/oeste es la "b" (su celda literal ya es
+## la primera fila/columna de dentro), para la sur/este es la "a" (la literal es la primera fuera,
+## la calle). La usa `pintar_edificio_muros` para no teñir nunca la calle. Se asume —invariante del
+## propio perímetro del edificio— que EXACTAMENTE una de las dos cae dentro; si ninguna lo hiciera
+## (una clave que no fuera de verdad fachada) se devuelve la "a" como respaldo conservador.
+func _cara_interior_de_fachada(clave: String) -> String:
+	if _celda_en_edificio(_celda_b_de_arista(clave)):
+		return clave + SUFIJO_CARA_B
+	return clave + SUFIJO_CARA_A
+
+
 ## ¿Hay muro en esa arista?
 func hay_muro(celda: Vector2i, lado: StringName) -> bool:
 	return _muros.has(clave_de_muro(celda, lado))
@@ -1017,8 +1087,10 @@ func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
 		return false   # la fachada del edificio no se derriba: es el plano, no obra tuya
 	_muros.erase(clave)
 	# La pintura se va con la pared: si mañana levantas otro tabique en esa misma arista, nace BLANCO
-	# como cualquier pared nueva — no hereda el color del que derribaste.
-	_color_muros.erase(clave)
+	# como cualquier pared nueva — no hereda el color del que derribaste. Se borran LAS DOS CARAS
+	# (2026-08-06): una pared demolida no deja ninguna cara pintada colgando en el diccionario.
+	_color_muros.erase(clave + SUFIJO_CARA_A)
+	_color_muros.erase(clave + SUFIJO_CARA_B)
 	_abonar(coste_muro * pct_reembolso)
 	_refrescar_visual()
 	return true
@@ -1060,38 +1132,83 @@ const ACABADO_BALDOSA := &"baldosa"
 const ACABADO_LISO := &"liso"
 
 
-## Pinta UN TRAMO de pared, dado por su clave de arista. Devuelve si se pintó: `false` si ahí no hay
-## pared que pintar. La FACHADA se pinta igual que cualquier otro tramo (2026-08-05): pintarla no es
-## demolerla ni abrirle un hueco, así que `_muros_fijos` no entra aquí.
+## Pinta AMBAS CARAS de un tramo, dado por su clave de arista — el camino "sin celda de referencia"
+## (lo usan los tests y cualquier llamador que no sepa desde qué celda se mira la pared). Devuelve
+## si se pintó: `false` si ahí no hay pared que pintar. La FACHADA se pinta igual que cualquier otro
+## tramo (2026-08-05): pintarla no es demolerla ni abrirle un hueco, así que `_muros_fijos` no entra
+## aquí.
+##
+## ⚠️ PINTURA POR CARA (2026-08-06 · quick-spec §3f): desde hoy cada CARA de un muro guarda su
+## propio color — `pintar_muro_en` pinta solo la del lado que se señala. Esta función (la de clave
+## suelta, sin celda) pinta las DOS a la vez: es el comportamiento explícito de "no tengo una celda
+## de referencia, tiño el tramo entero", el mismo que tenían todas las paredes antes de esta fecha.
 func pintar_muro(clave: String, color: Color) -> bool:
 	if not _muros.has(clave):
 		return false   # no hay pared: primero se levanta (para eso está el pincel de muro)
-	_color_muros[clave] = color
+	_color_muros[clave + SUFIJO_CARA_A] = color
+	_color_muros[clave + SUFIJO_CARA_B] = color
 	_refrescar_visual()
 	return true
 
 
-## Pinta el tramo de pared del LADO de una celda (azúcar para la UI, que piensa en celda + lado
-## igual que el pincel de muro y el de puertas).
+## Pinta SOLO la CARA del lado de `celda` (azúcar para la UI, que piensa en celda + lado igual que
+## el pincel de muro y el de puertas). La cara del OTRO lado —la que da a la celda vecina— no se
+## toca: es el pedido del usuario (*"si le doy a mayús solo pinta el interior... no las 2 caras, por
+## fuera y por dentro"*) llevado también al clic suelto (2026-08-06).
 func pintar_muro_en(celda: Vector2i, lado: StringName, color: Color) -> bool:
-	return pintar_muro(clave_de_muro(celda, lado), color)
+	var clave: String = clave_de_muro(celda, lado)
+	if clave == "" or not _muros.has(clave):
+		return false   # no hay pared: primero se levanta (para eso está el pincel de muro)
+	_color_muros[clave_de_cara(celda, lado)] = color
+	_refrescar_visual()
+	return true
 
 
-## El color de un tramo de pared: el pintado, o BLANCO si nunca se pintó. Lo lee el dibujo.
+## El color de la CARA del lado de `celda`: el pintado, o el color por defecto si esa cara nunca se
+## pintó. Es la lectura PRECISA (por cara) — la que necesita el dibujo (`ParedesSalas`) para saber
+## de qué lado mira, y la que necesita la UI para leer solo lo que el jugador señala.
+func color_cara_de(celda: Vector2i, lado: StringName) -> Color:
+	var cara: String = clave_de_cara(celda, lado)
+	if cara == "":
+		return COLOR_PARED_POR_DEFECTO
+	return _color_muros.get(cara, COLOR_PARED_POR_DEFECTO)
+
+
+## El color de la CARA VISIBLE de un tramo, dado solo por su clave de arista (sin celda de
+## referencia): la cara "b" — la de la celda SUR en una arista horizontal, la de la celda ESTE en
+## una vertical (ver la cabecera de `SUFIJO_CARA_A`/`_B`). Es EXACTAMENTE el criterio con el que la
+## cámara isométrica de este juego mira cualquier tramo (sur-este), así que es lo que usa el dibujo
+## genérico (`ParedesSalas._color_de_tramo`) para cualquier arista, perímetro de sala o muro suelto
+## por igual — la fachada norte/oeste cae en su cara INTERIOR sin ningún caso especial (la celda
+## sur/este de esas dos aristas YA ES la primera fila/columna de dentro del edificio).
+func color_cara_visible_de(clave: String) -> Color:
+	return _color_muros.get(clave + SUFIJO_CARA_B, COLOR_PARED_POR_DEFECTO)
+
+
+## El color de un tramo de pared, dado por su CLAVE de arista (compat, 2026-08-04 → 2026-08-06):
+## como una clave sola no dice desde qué celda se mira, se resuelve con la CARA VISIBLE
+## (`color_cara_visible_de` — ver ahí el criterio). Lo sigue usando el dibujo genérico y los tests
+## que no operan celda a celda.
 func color_muro_de(clave: String) -> Color:
-	return _color_muros.get(clave, COLOR_PARED_POR_DEFECTO)
+	return color_cara_visible_de(clave)
 
 
-## ¿Ese tramo tiene color propio? (para distinguir "blanco pintado a mano" de "blanco por defecto" —
-## lo usan los tests y el volcado del diagnóstico).
+## ¿La CARA VISIBLE de ese tramo tiene color propio? (mismo criterio que `color_muro_de` — lee SOLO
+## la cara "b"; para preguntar por una cara concreta, combina `clave_de_cara(celda,lado)` con
+## `_color_muros.has(...)`). Lo usan los tests y el volcado del diagnóstico para distinguir "blanco
+## pintado a mano" de "blanco por defecto".
 func muro_pintado(clave: String) -> bool:
-	return _color_muros.has(clave)
+	return _color_muros.has(clave + SUFIJO_CARA_B)
 
 
-## Pinta TODAS las paredes de una sala (el gesto de MAYÚS + clic). Recorre el perímetro real de la
-## sala —que con formas no rectangulares no es un rectángulo (fase C)— y pinta los tramos que
-## existan, fachada incluida (2026-08-05: pintar ya no es obra, ver la cabecera de esta sección).
-## Devuelve cuántos se pintaron.
+## Pinta las caras INTERIORES de todas las paredes de una sala (el gesto de MAYÚS + clic). Recorre
+## el perímetro real de la sala —que con formas no rectangulares no es un rectángulo (fase C)— y de
+## cada tramo que exista pinta SOLO la cara que da a ESTA sala: `clave_de_cara(arista[0], arista[1])`,
+## donde `arista[0]` es SIEMPRE la celda de la sala (invariante de `_aristas_del_perimetro`). La cara
+## del otro lado (el pasillo, la calle, la sala vecina) no se toca — pedido explícito del usuario
+## (quick-spec §3f): *"si le doy a mayús solo pinta el interior... no las 2 caras"*. Fachada incluida
+## (2026-08-05: pintar ya no es obra) — su cara interior es una cara como cualquier otra a estos
+## efectos. Devuelve cuántos tramos se pintaron.
 func pintar_sala_muros(sala_id: StringName, color: Color) -> int:
 	if not _salas.has(sala_id):
 		return 0
@@ -1100,7 +1217,7 @@ func pintar_sala_muros(sala_id: StringName, color: Color) -> int:
 		var clave: String = clave_de_muro(arista[0], arista[1])
 		if not _muros.has(clave):
 			continue
-		_color_muros[clave] = color
+		_color_muros[clave_de_cara(arista[0], arista[1])] = color
 		pintados += 1
 	if pintados > 0:
 		_refrescar_visual()
@@ -1124,12 +1241,19 @@ func claves_muros_de_sala(sala_id: StringName) -> Array[String]:
 
 ## Pinta TODOS los tramos de pared del EDIFICIO, fachada incluida (2026-08-05: MAYÚS+clic sobre un
 ## tramo de fachada — orden del usuario: *"MAYÚS también debe poder pintar TODAS las paredes de la
-## comisaría"*). Es a TODO el edificio lo que `pintar_sala_muros` es a UNA sala: mismo patrón,
-## ámbito máximo. Devuelve cuántos tramos se pintaron.
+## comisaría"*). Es a TODO el edificio lo que `pintar_sala_muros` es a UNA sala, con la MISMA regla
+## de caras (quick-spec §3f, 2026-08-06): un TABIQUE (nada que separe de la calle) se pinta por sus
+## DOS caras —no pertenece a una sola sala, así que no hay "interior" que privilegiar—; la FACHADA
+## solo se pinta por su cara INTERIOR (`_cara_interior_de_fachada`) — la calle se queda con el color
+## por defecto. Devuelve cuántos tramos se pintaron.
 func pintar_edificio_muros(color: Color) -> int:
 	var pintados: int = 0
 	for clave: String in _muros:
-		_color_muros[clave] = color
+		if es_muro_fijo(clave):
+			_color_muros[_cara_interior_de_fachada(clave)] = color
+		else:
+			_color_muros[clave + SUFIJO_CARA_A] = color
+			_color_muros[clave + SUFIJO_CARA_B] = color
 		pintados += 1
 	if pintados > 0:
 		_refrescar_visual()
@@ -2018,17 +2142,32 @@ func load_state(d: Dictionary) -> void:
 			push_warning("Construccion: muro corrupto en el save -> descartado")
 			continue
 		_muros[clave] = tipo
-	# PINTURA (2026-08-04). Va DESPUES de los muros a proposito: un color solo se restaura si ese
-	# tramo existe de verdad en el save (si no, seria pintura de una pared derribada esperando a
-	# reaparecer — la familia de bug de las "puertas fantasma"). Formato: [clave, hex].
+	# PINTURA (2026-08-04 → CARAS 2026-08-06). Va DESPUES de los muros a proposito: un color solo se
+	# restaura si ese tramo existe de verdad en el save (si no, seria pintura de una pared derribada
+	# esperando a reaparecer — la familia de bug de las "puertas fantasma"). Formato NUEVO (por cara):
+	# [clave_arista + ":a"/":b", hex] — 4 trozos al partir por ":". Formato VIEJO (por tramo, saves de
+	# ANTES de esta fecha): [clave_arista, hex] — 3 trozos, SIN sufijo de cara; se MIGRA copiando el
+	# mismo color a las DOS caras (es justo lo que esa pared enseñaba entonces: un solo color, se
+	# mirara por donde se mirase).
 	for entrada: Variant in d.get("colores_muros", []):
 		if not (entrada is Array) or (entrada as Array).size() != 2:
 			push_warning("Construccion: color de muro corrupto en el save -> descartado")
 			continue
-		var clave_color: String = String(entrada[0])
-		if not _muros.has(clave_color):
-			continue   # esa pared ya no esta: su pintura no se queda guardada
-		_color_muros[clave_color] = PaletaPinturaScript.desde_hex(String(entrada[1]))
+		var clave_guardada: String = String(entrada[0])
+		var partes_clave: PackedStringArray = clave_guardada.split(":")
+		var color_guardado: Color = PaletaPinturaScript.desde_hex(String(entrada[1]))
+		if partes_clave.size() == 4:
+			var clave_arista: String = "%s:%s:%s" % [partes_clave[0], partes_clave[1], partes_clave[2]]
+			if not _muros.has(clave_arista):
+				continue   # esa pared ya no esta: su pintura no se queda guardada
+			_color_muros[clave_guardada] = color_guardado
+		elif partes_clave.size() == 3:
+			if not _muros.has(clave_guardada):
+				continue   # esa pared ya no esta: su pintura no se queda guardada
+			_color_muros[clave_guardada + SUFIJO_CARA_A] = color_guardado
+			_color_muros[clave_guardada + SUFIJO_CARA_B] = color_guardado
+		else:
+			push_warning("Construccion: color de muro corrupto en el save -> descartado")
 	# El suelo pintado, celda a celda: [x, y, hex] o [x, y, hex, acabado] (2026-08-05, tarea 4). Se
 	# descarta lo que caiga fuera del edificio. Un array de 3 (save de ANTES del acabado, o de un
 	# test viejo) es tan válido como uno de 4 — RETROCOMPATIBLE: esa celda se lee como

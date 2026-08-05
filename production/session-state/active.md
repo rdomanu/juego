@@ -2634,3 +2634,25 @@ en el juego (paleta completa disponible).
 - DECISIONES PENDIENTES DEL USUARIO: altura de pared (4 fotos) · tinte de salas (¿claro u
   oscuro?) · hoja props v3 · puerta A/B · ventana · lote REVISAR de proporciones (hoja con
   muñeco por hacer tras decidir altura).
+
+---
+
+# ✅ CONTINUACIÓN 2026-08-06 — pared 65px (medida de la referencia) + UX Sims + pintura por CARA
+
+- Commit `dab56de` (aprobado por el usuario con captura): paleta clara + fachada pintable +
+  MAYÚS edificio + pared 65px (proporción MEDIDA de captura_demo_props: 120/81 = 1,48× muñeco)
+  + selector tramo completo + preview MAYÚS + velo de zonas + acabado suelo baldosa/liso +
+  plan-escalado.md. Suite 779/779.
+- PINTURA POR CARA (quick-spec 3f, pedido literal) + PICKING POR QUAD (bug real confirmado:
+  con pared de 65px el picking de suelo seleccionaba la arista 2-3 filas al norte): modelo
+  clave_de_cara :a/:b (b = celda de mayor coordenada = cara que dibuja ParedesSalas), sala
+  pinta caras interiores, edificio pinta fachada solo interior, migración de saves viejos a
+  ambas caras, tramo_bajo_punto point-in-quad con fallback a suelo (muro nuevo intacto).
+  Captura ux_caras_pintadas.png ENSEÑADA y aprobada la mecánica. Suite completa 783/783 Exit 0.
+- Gotcha de sondas _diag con ModoConstruccion: su _process pisa el estado forzado con el ratón
+  real fuera del tablero → set_process(false) en la sonda (documentado en _diag_ux_pintura.gd).
+- INVENTARIO DE OBJETOS QUE FALTAN entregado al usuario (agente Explore): 🔴 impresora de
+  documentos (bloquea GDD estrella, sin sprite ni .tres) · 🟠 impresora DNI (tres existe 2.200€,
+  falta arte) / mesa de trabajo / mueble soporte / puerta+ventana arte / fuente 1,60 re-render ·
+  🟡 lámparas, prensa, revistero, nevera, máquina café (cajas de código) · 🔵 taquilla+archivador
+  (arte sin objeto) y duplicado dispensador vs fuente_agua.
