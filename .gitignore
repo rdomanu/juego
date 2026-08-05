@@ -164,3 +164,6 @@ production/qa/capturas/
 capturas/**/*.zip
 capturas/NPC/Oficina/
 capturas/NPC/Policias/
+
+# Summer Engine local-only state (SummerGit, caches, locks)
+.summer/local/
