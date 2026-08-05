@@ -18,10 +18,11 @@ const TAM_CELDA: int = 40
 ## Dimensiones del suelo visible, en celdas (24×13 ≈ ventana por defecto 1152×648 con margen).
 const COLUMNAS: int = 24
 const FILAS: int = 13
-## Paleta placeholder (suelo de comisaría sobrio). El borde de rejilla que llevaba cada tile murió
+## Paleta clara (demo del usuario con Summer, 2026-08-05): suelo base CREMA en vez del gris
+## sobrio placeholder. El borde de rejilla que llevaba cada tile murió
 ## el 2026-08-05: la cuadrícula solo se ve en modo construcción (ver `_crear_suelo`).
 const COLOR_FONDO := Color(0.13, 0.14, 0.16)
-const COLOR_SUELO := Color(0.22, 0.24, 0.27)
+const COLOR_SUELO := Color(0.87, 0.84, 0.78)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 ## ── ZOOM DE CÁMARA (2026-08-04, petición del usuario: "como en los Sims") ────────────────────────
 ## Límites en torno al 1.0× con el que se jugaba hasta hoy (sin `Camera2D` la vista era fija: Godot

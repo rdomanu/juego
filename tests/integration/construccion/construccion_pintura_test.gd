@@ -66,15 +66,16 @@ func _igual(a: Color, b: Color) -> bool:
 	return a.is_equal_approx(b)
 
 
-# ── 1. Una pared nace BLANCA; pintar un tramo cambia SOLO ese tramo ───────────────────────
-func test_pared_nace_blanca_y_pintar_un_tramo_solo_cambia_ese_tramo() -> void:
+# ── 1. Una pared nace con el color POR DEFECTO (azul suave de la paleta clara, 2026-08-05);
+#      pintar un tramo cambia SOLO ese tramo ───────────────────────────────────────────────
+func test_pared_nace_con_color_por_defecto_y_pintar_un_tramo_solo_cambia_ese_tramo() -> void:
 	# Arrange
 	var construccion: Node = _construccion()
 	_sala_cerrada(construccion)
 	var clave: String = _clave_norte(construccion, 4)
 	var vecina: String = _clave_norte(construccion, 5)
-	assert_bool(_igual(construccion.color_muro_de(clave), Color.WHITE)) \
-		.override_failure_message("una pared recien construida tiene que nacer BLANCA") \
+	assert_bool(_igual(construccion.color_muro_de(clave), construccion.COLOR_PARED_POR_DEFECTO)) \
+		.override_failure_message("una pared recien construida tiene que nacer con el color por defecto") \
 		.is_true()
 	assert_bool(construccion.muro_pintado(clave)).is_false()
 
@@ -86,22 +87,22 @@ func test_pared_nace_blanca_y_pintar_un_tramo_solo_cambia_ese_tramo() -> void:
 	assert_bool(pintado).is_true()
 	assert_bool(_igual(construccion.color_muro_de(clave), verde)).is_true()
 	assert_bool(construccion.muro_pintado(clave)).is_true()
-	assert_bool(_igual(construccion.color_muro_de(vecina), Color.WHITE)) \
+	assert_bool(_igual(construccion.color_muro_de(vecina), construccion.COLOR_PARED_POR_DEFECTO)) \
 		.override_failure_message("pintar un tramo NO puede teñir a su vecino") \
 		.is_true()
 
 
-# ── 2. Fallback: un tramo que nunca se pintó responde BLANCO, aunque no exista ────────────
-func test_color_de_un_tramo_sin_pintar_es_blanco() -> void:
+# ── 2. Fallback: un tramo que nunca se pintó responde el color por defecto, aunque no exista ─
+func test_color_de_un_tramo_sin_pintar_es_el_color_por_defecto() -> void:
 	var construccion: Node = _construccion()
 	_sala_cerrada(construccion)
-	assert_bool(_igual(construccion.color_muro_de("v:99:99"), Color.WHITE)) \
-		.override_failure_message("el fallback de color de pared es BLANCO, nunca basura") \
+	assert_bool(_igual(construccion.color_muro_de("v:99:99"), construccion.COLOR_PARED_POR_DEFECTO)) \
+		.override_failure_message("el fallback de color de pared es el POR DEFECTO, nunca basura") \
 		.is_true()
 
 
-# ── 3. La FACHADA no se pinta (ni por tramo ni de rebote al pintar la sala) ───────────────
-func test_la_fachada_no_se_puede_pintar() -> void:
+# ── 3. La FACHADA SÍ se pinta (2026-08-05, orden del usuario) — pero sigue sin poderse demoler ──
+func test_la_fachada_si_se_pinta() -> void:
 	# Arrange — la fachada de arriba del edificio, que `levantar_fachada` marca como fija.
 	var construccion: Node = _construccion()
 	construccion.levantar_fachada()
@@ -113,9 +114,17 @@ func test_la_fachada_no_se_puede_pintar() -> void:
 	# Act
 	var pintado: bool = construccion.pintar_muro(clave_fachada, Color.RED)
 
-	# Assert — se rechaza y el color no se guarda (el dibujo la seguirá pintando de ladrillo).
-	assert_bool(pintado).is_false()
-	assert_bool(construccion.muro_pintado(clave_fachada)).is_false()
+	# Assert — se acepta, el color se guarda y el tramo queda marcado como pintado: la fachada es
+	# obra pintable como cualquier tabique.
+	assert_bool(pintado).is_true()
+	assert_bool(_igual(construccion.color_muro_de(clave_fachada), Color.RED)).is_true()
+	assert_bool(construccion.muro_pintado(clave_fachada)).is_true()
+
+	# Pero sigue siendo el PLANO del edificio, no obra tuya: pintarla no la vuelve demolible (misma
+	# API que ya cubre `construccion_fachada_rotacion_test.gd` para la fachada sin pintar).
+	assert_bool(construccion.demoler_muro(Vector2i(5, 0), &"arriba")) \
+		.override_failure_message("pintar la fachada NO la convierte en demolible") \
+		.is_false()
 
 
 # ── 3b. Pintar donde NO hay pared se rechaza (no se guarda pintura "en el aire") ──────────
@@ -126,10 +135,9 @@ func test_pintar_donde_no_hay_pared_se_rechaza() -> void:
 	assert_bool(construccion.muro_pintado(clave)).is_false()
 
 
-# ── 4. MAYÚS: la SALA ENTERA (paredes) por el camino real de la UI ────────────────────────
-func test_pintar_sala_muros_tine_todo_el_perimetro_y_respeta_la_fachada() -> void:
-	# Arrange — la sala pegada a la fachada IZQUIERDA: así su perímetro incluye tramos fijos y se
-	# comprueba a la vez que el gesto de sala no los pinta.
+# ── 4. MAYÚS: la SALA ENTERA (paredes), fachada del perímetro incluida (2026-08-05) ────────
+func test_pintar_sala_muros_tine_todo_el_perimetro_incluida_la_fachada() -> void:
+	# Arrange — la sala pegada a la fachada IZQUIERDA: así su perímetro incluye un tramo fijo.
 	var construccion: Node = _construccion()
 	construccion.levantar_fachada()
 	var sala: StringName = construccion.construir_de_oficio_sala(
@@ -141,18 +149,45 @@ func test_pintar_sala_muros_tine_todo_el_perimetro_y_respeta_la_fachada() -> voi
 	# Act
 	var pintados: int = construccion.pintar_sala_muros(sala, terracota)
 
-	# Assert — se pintó algo, un tramo INTERIOR quedó terracota y ningún muro fijo se tocó.
+	# Assert — se pintó algo, un tramo INTERIOR quedó terracota...
 	assert_int(pintados).is_greater(0)
 	assert_bool(_igual(construccion.color_muro_de(
 		construccion.clave_de_muro(Vector2i(2, 2), &"abajo")
 	), terracota)).is_true()
-	var fijos_pintados: int = 0
+	# ...y el tramo de FACHADA del propio perímetro TAMBIÉN (2026-08-05: pintar la sala entera ya no
+	# deja fuera su lado de fachada — la fachada se pinta como cualquier tramo).
+	var clave_fachada: String = construccion.clave_de_muro(Vector2i(0, 1), &"izquierda")
+	assert_bool(construccion.es_muro_fijo(clave_fachada)) \
+		.override_failure_message("el fixture necesita que ese tramo del perimetro SEA fachada") \
+		.is_true()
+	assert_bool(_igual(construccion.color_muro_de(clave_fachada), terracota)) \
+		.override_failure_message("pintar la sala entera SI pinta su lado de fachada") \
+		.is_true()
+
+
+# ── 4b. MAYÚS sobre un tramo de FACHADA: pinta EL EDIFICIO ENTERO (2026-08-05) ─────────────
+func test_pintar_edificio_muros_pinta_fachada_y_tabiques() -> void:
+	# Arrange — una sala con paredes (tabiques interiores) + la fachada levantada, para que el
+	# edificio tenga las DOS familias de tramos que `pintar_edificio_muros` debe alcanzar.
+	var construccion: Node = _construccion()
+	var sala: StringName = _sala_cerrada(construccion)
+	var tramos_de_la_sala: int = construccion.pintar_sala_muros(sala, Color.WHITE)
+	var azul: Color = PaletaPinturaScript.color_de(&"azul_institucional")
+
+	# Act
+	var pintados: int = construccion.pintar_edificio_muros(azul)
+
+	# Assert — pinta MÁS que el perímetro de una sola sala (fachada + tabiques de otras salas
+	# incluidos) y CADA tramo del edificio queda con el color nuevo.
+	assert_int(pintados) \
+		.override_failure_message("pintar el edificio tiene que alcanzar mas tramos que una sola sala") \
+		.is_greater(tramos_de_la_sala)
 	for clave: String in construccion.muros():
-		if construccion.es_muro_fijo(clave) and construccion.muro_pintado(clave):
-			fijos_pintados += 1
-	assert_int(fijos_pintados) \
-		.override_failure_message("pintar la sala entera NO puede pintar la fachada") \
-		.is_equal(0)
+		assert_bool(_igual(construccion.color_muro_de(clave), azul)).is_true()
+	# Y la fachada, en concreto, también quedó pintada (es la pieza que antes se quedaba fuera).
+	var clave_fachada: String = construccion.clave_de_muro(Vector2i(5, 0), &"arriba")
+	assert_bool(construccion.es_muro_fijo(clave_fachada)).is_true()
+	assert_bool(construccion.muro_pintado(clave_fachada)).is_true()
 
 
 # ── 5. Suelo: por celda, con fallback al tinte de sala, y la sala entera con MAYÚS ────────
@@ -192,6 +227,113 @@ func test_pintar_suelo_fuera_del_edificio_se_rechaza() -> void:
 	var construccion: Node = _construccion()
 	assert_bool(construccion.pintar_suelo(Vector2i(-1, 4), Color.RED)).is_false()
 	assert_bool(construccion.suelo_pintado(Vector2i(-1, 4))).is_false()
+
+
+# ── 5c. MAYÚS sobre una celda SIN sala: pinta TODAS las baldosas del edificio (2026-08-05) ─
+func test_pintar_edificio_suelos_pinta_todas_las_celdas_del_edificio() -> void:
+	# Arrange — dos salas separadas por un pasillo, para que "todo el edificio" cruce varias salas
+	# Y celdas sin ninguna sala (el pasillo).
+	var construccion: Node = _construccion()
+	construccion.levantar_fachada()
+	var sala_a: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(1, 1, 4, 3)
+	)
+	var sala_b: StringName = construccion.construir_de_oficio_sala(
+		&"sala_odac", Rect2i(6, 1, 4, 3)
+	)
+	var celda_pasillo := Vector2i(1, 7)
+	var celda_fuera := Vector2i(-1, 7)
+	var celeste: Color = PaletaPinturaScript.color_de(&"celeste_apagado")
+
+	# Act
+	var pintadas: int = construccion.pintar_edificio_suelos(celeste)
+
+	# Assert — el contador coincide con TODA la rejilla del edificio…
+	assert_int(pintadas).is_equal(construccion.edificio_columnas * construccion.edificio_filas)
+	# …celdas de las dos salas quedan pintadas…
+	for c: Vector2i in construccion.celdas_de_sala(sala_a):
+		assert_bool(_igual(construccion.color_suelo_de(c), celeste)).is_true()
+	for c: Vector2i in construccion.celdas_de_sala(sala_b):
+		assert_bool(_igual(construccion.color_suelo_de(c), celeste)).is_true()
+	# …y el pasillo (celda SIN sala) también.
+	assert_bool(_igual(construccion.color_suelo_de(celda_pasillo), celeste)) \
+		.override_failure_message("el pasillo (sin sala) tambien es del edificio: tiene que pintarse") \
+		.is_true()
+	# Pero una celda FUERA del edificio se queda sin pintar: la calle no es del edificio.
+	assert_bool(construccion.suelo_pintado(celda_fuera)) \
+		.override_failure_message("una celda fuera del edificio NO puede quedar pintada") \
+		.is_false()
+
+
+# ── 5d. ACABADO DEL SUELO (2026-08-05 · quick-spec §3d, tarea 4): pintar LISO se guarda y
+#      sobrevive a un save/load real por JSON, junto a su color ──────────────────────────
+func test_pintar_suelo_liso_sobrevive_a_save_load_json() -> void:
+	# Arrange — una celda pintada de LISO (no el acabado por defecto, que es baldosa).
+	var a: Node = _construccion()
+	var sala: StringName = _sala_cerrada(a)
+	var celda: Vector2i = a.celdas_de_sala(sala)[0]
+	var terracota: Color = PaletaPinturaScript.color_de(TERRACOTA)
+	assert_bool(a.pintar_suelo(celda, terracota, a.ACABADO_LISO)).is_true()
+	assert_bool(a.acabado_suelo_de(celda) == a.ACABADO_LISO) \
+		.override_failure_message("pintar_suelo con acabado LISO tiene que guardarlo en el modelo") \
+		.is_true()
+
+	# Act — round-trip por JSON real (el camino exacto del SaveManager).
+	var b: Node = _construccion()
+	b.load_state(_por_json(a.save()))
+
+	# Assert — color Y acabado sobreviven juntos.
+	assert_bool(_igual(b.color_suelo_de(celda), terracota)).is_true()
+	assert_bool(b.acabado_suelo_de(celda) == a.ACABADO_LISO) \
+		.override_failure_message("el acabado LISO tiene que sobrevivir al save/load, igual que el color") \
+		.is_true()
+
+
+# ── 5e. Un save VIEJO (sin el 4º campo de acabado) carga esa celda como BALDOSA ───────────
+# Retrocompatibilidad (ADR-0002): un save de antes de esta fecha solo trae [x, y, hex] — nunca
+# hubo otra cosa que baldosa antes de que existiera el concepto de acabado.
+func test_save_viejo_sin_campo_acabado_carga_como_baldosa() -> void:
+	# Arrange — un dict de save "a mano", con el formato de ANTES (3 elementos, sin acabado).
+	var construccion: Node = _construccion()
+	var celda := Vector2i(4, 4)
+	var estado: Dictionary = {
+		"salas": [], "elementos": [], "contador_ids": 0, "muros": [], "colores_muros": [],
+		"colores_suelos": [[celda.x, celda.y, PaletaPinturaScript.a_hex(Color.RED)]],
+	}
+
+	# Act
+	construccion.load_state(_por_json(estado))
+
+	# Assert — el color carga bien y el acabado cae al valor de siempre: baldosa.
+	assert_bool(construccion.suelo_pintado(celda)).is_true()
+	assert_bool(construccion.acabado_suelo_de(celda) == construccion.ACABADO_BALDOSA) \
+		.override_failure_message("un save sin campo de acabado tiene que cargar esa celda como BALDOSA") \
+		.is_true()
+
+
+# ── 5f. `pintar_edificio_suelos` respeta el acabado que se le pasa (MAYÚS de suelo con LISO) ──
+func test_pintar_edificio_suelos_respeta_el_acabado() -> void:
+	# Arrange
+	var construccion: Node = _construccion()
+	construccion.levantar_fachada()
+	var celeste: Color = PaletaPinturaScript.color_de(&"celeste_apagado")
+
+	# Act
+	var pintadas: int = construccion.pintar_edificio_suelos(celeste, construccion.ACABADO_LISO)
+
+	# Assert — TODO el edificio queda con el acabado pedido, no solo con el color.
+	assert_int(pintadas).is_equal(construccion.edificio_columnas * construccion.edificio_filas)
+	assert_bool(construccion.acabado_suelo_de(Vector2i(0, 0)) == construccion.ACABADO_LISO) \
+		.override_failure_message("pintar_edificio_suelos tiene que respetar el acabado pasado") \
+		.is_true()
+	assert_bool(construccion.acabado_suelo_de(Vector2i(10, 5)) == construccion.ACABADO_LISO).is_true()
+	# Y sin pasar acabado, el comportamiento de SIEMPRE (retrocompatible): baldosa por defecto.
+	var b: Node = _construccion()
+	b.levantar_fachada()
+	b.pintar_edificio_suelos(celeste)
+	assert_bool(b.acabado_suelo_de(Vector2i(0, 0)) == b.ACABADO_BALDOSA) \
+		.override_failure_message("sin acabado explicito, pintar_edificio_suelos sigue pintando baldosa") \
+		.is_true()
 
 
 # ── 6. PERSISTENCIA: paredes y suelos pintados sobreviven al round-trip por JSON ──────────
@@ -254,21 +396,21 @@ func test_el_tramo_pintado_se_dibuja_con_su_color() -> void:
 	# Act — se pinta por el modelo; el hook debe disparar el repintado solo.
 	construccion.pintar_muro_en(celda, &"arriba", verde)
 
-	# Assert — hay al menos un tramo DIBUJADO con ese color exacto, y sigue habiendo blancos
-	# (las paredes sin pintar) — o sea: se pintó ese tramo, no la sala entera.
+	# Assert — hay al menos un tramo DIBUJADO con ese color exacto, y sigue habiendo tramos con
+	# el color por defecto (las paredes sin pintar) — o sea: se pintó ese tramo, no la sala entera.
 	var con_color: int = 0
-	var blancos: int = 0
+	var sin_pintar: int = 0
 	for tramo: Dictionary in paredes._tramos:
 		var color: Color = tramo["color"]
 		if color.is_equal_approx(verde):
 			con_color += 1
-		elif color.is_equal_approx(Color.WHITE):
-			blancos += 1
+		elif color.is_equal_approx(construccion.COLOR_PARED_POR_DEFECTO):
+			sin_pintar += 1
 	assert_int(con_color) \
 		.override_failure_message("el tramo pintado tiene que DIBUJARSE con su color") \
 		.is_greater(0)
-	assert_int(blancos) \
-		.override_failure_message("los tramos sin pintar siguen siendo BLANCOS") \
+	assert_int(sin_pintar) \
+		.override_failure_message("los tramos sin pintar siguen con el color por defecto") \
 		.is_greater(0)
 
 
@@ -357,25 +499,32 @@ func test_los_muros_interiores_llevan_rodapie_y_la_fachada_no() -> void:
 	add_child(paredes)
 	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
 
-	# Act — se clasifica lo dibujado: piezas con rodapié y piezas de fachada con rodapié.
+	# Act — se cuentan las piezas dibujadas CON rodapié (los muros interiores de la sala).
 	var con_rodapie: int = 0
-	var fachada_con_rodapie: int = 0
 	for tramo: Dictionary in paredes._tramos:
 		var rodapie: Color = tramo.get("rodapie", Color.TRANSPARENT)
 		if rodapie.a <= 0.0:
 			continue
 		con_rodapie += 1
 		assert_bool(_igual(rodapie, ParedesSalasScript.COLOR_RODAPIE)).is_true()
-		if _igual(tramo["color"], ParedesSalasScript.COLOR_FACHADA):
-			fachada_con_rodapie += 1
 
-	# Assert — los muros de la sala lo llevan; el ladrillo de la fachada, nunca.
+	# Assert 1 — los muros de la sala lo llevan.
 	assert_int(con_rodapie) \
 		.override_failure_message("los tramos de muro interior tienen que llevar rodapie") \
 		.is_greater(0)
-	assert_int(fachada_con_rodapie) \
-		.override_failure_message("la fachada de ladrillo NO lleva rodapie") \
-		.is_equal(0)
+
+	# Assert 2 — un tramo de FACHADA, identificado por el MODELO (`es_muro_fijo`) y no por su color
+	# —desde 2026-08-05 la fachada se pinta como cualquier tramo, así que el color ya no la delata—,
+	# sigue sin llevar rodapié: es estructura del edificio, no carpintería de interior.
+	var clave_fachada: String = construccion.clave_de_muro(Vector2i(5, 0), &"arriba")
+	assert_bool(construccion.es_muro_fijo(clave_fachada)) \
+		.override_failure_message("el fixture necesita que ese tramo SEA fachada") \
+		.is_true()
+	var desde: Vector2 = construccion.esquina_en_pantalla(5, 0)
+	var hasta: Vector2 = construccion.esquina_en_pantalla(6, 0)
+	assert_bool(_igual(
+		_rodapie_dibujado_en(paredes, desde.lerp(hasta, 0.5)), Color.TRANSPARENT
+	)).override_failure_message("la fachada (fija) NO lleva rodapie").is_true()
 
 
 func test_el_rodapie_no_cruza_el_hueco_de_una_puerta() -> void:

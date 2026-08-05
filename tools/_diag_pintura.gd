@@ -231,15 +231,15 @@ func _punto_junto_al_lado(origen: Vector2, celda: Vector2i, lado: StringName) ->
 
 # ── Lectura de lo dibujado ────────────────────────────────────────────────────────────────────
 
-## Cuántos tramos dibujados NO son blancos (o sea: cuántos están pintados). La fachada se descuenta:
-## siempre va de ladrillo.
+## Cuántos tramos dibujados NO son blancos (o sea: cuántos están pintados). La fachada YA NO se
+## descuenta aparte (2026-08-05: se pinta como cualquier tramo — murió `COLOR_FACHADA`); el color por
+## defecto sin pintar tampoco es blanco desde la paleta clara (`Construccion.COLOR_PARED_POR_DEFECTO`,
+## azul suave), pero esta comprobación se deja tal cual: es diagnóstico desechable, no pipeline.
 func _paredes_no_blancas(paredes: Node) -> int:
 	var total: int = 0
 	for tramo: Dictionary in paredes._tramos:
 		var color: Color = tramo["color"]
 		if color.is_equal_approx(Color.WHITE):
-			continue
-		if color.is_equal_approx(ParedesSalasScript.COLOR_FACHADA):
 			continue
 		if color.is_equal_approx(ParedesSalasScript.COLOR_VENTANA):
 			continue

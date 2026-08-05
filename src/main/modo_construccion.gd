@@ -48,10 +48,15 @@ const TEXTO_PEDIR_PUERTA := "Coloca la puerta de la sala: clic en el tramo de pa
 ## en dos submodos habría que enseñar en algún sitio cuál de los dos está activo — dos botones ya lo
 ## dicen ellos solos, que es el patrón que sigue el resto de esta barra.
 ##
-## **MAYÚS = LA SALA ENTERA.** Clic normal pinta el tramo/celda señalado; con MAYÚS pulsada pinta
-## todas las paredes (o todo el suelo) de la sala. Si el tramo NO pertenece a ninguna sala —un muro
-## suelto en mitad del edificio, el suelo de un pasillo— MAYÚS pinta solo lo señalado: no hay sala
-## que extender, y adivinar un "recinto" sería pintar cosas que el jugador no ha visto.
+## **MAYÚS = LA SALA ENTERA — o EL EDIFICIO ENTERO sobre la fachada/el pasillo (2026-08-05).** Clic
+## normal pinta el tramo/celda señalado; con MAYÚS pulsada pinta todas las paredes (o todo el suelo)
+## de la sala. Si el tramo NO pertenece a ninguna sala —un muro suelto en mitad del edificio, el
+## suelo de un pasillo—, MAYÚS ya no se limita a lo señalado: sobre un tramo de FACHADA pinta TODAS
+## las paredes de la comisaría (`pintar_edificio_muros`) y sobre una celda de suelo sin sala pinta
+## TODAS sus baldosas (`pintar_edificio_suelos`) — orden del usuario: *"MAYÚS también debe poder
+## pintar TODAS las paredes de la comisaría"*. Un muro suelto que NO es fachada (uno levantado por
+## el jugador en mitad de la nada) sigue sin ampliarse: no hay "edificio" que adivinar ahí, solo un
+## tabique aislado.
 const HERRAMIENTA_PINTAR_PARED := &"pintar_pared"
 const HERRAMIENTA_PINTAR_SUELO := &"pintar_suelo"
 ## Lado (en píxeles) de cada muestra de color de la rejilla de la paleta.
@@ -95,6 +100,10 @@ var _arrastre_anterior: bool = false
 ## Lado resaltado por el pincel de muro en el último frame (para que la guarda del preview también
 ## redibuje al cambiar de LADO dentro de la misma celda, no solo al cambiar de celda).
 var _lado_anterior: StringName = &"-"
+## Estado de MAYÚS en el último frame (2026-08-05, tarea 2): entra en la misma guarda que
+## celda/herramienta/arrastre/lado — sin esto, pulsar o soltar MAYÚS sin mover el ratón no
+## refrescaría el fantasma de MAYÚS (la guarda de `_process` no vería ningún cambio).
+var _mayus_anterior: bool = false
 
 # ── Pincel de MURO (2026-07-30 — modelo Prison Architect): arrastrar pinta/demuele una fila entera
 ## de tabiques seguidos, celda a celda, sin tener que hacer clic uno a uno.
@@ -130,6 +139,12 @@ var _lbl_estado: Label
 var _boton_modo: Button
 var _botones_herramienta: Dictionary = {}
 var _preview_caja: PreviewIso
+## El fantasma de MAYÚS del pincel de pintura (quick-spec §3d, tarea 2): todos los tramos/celdas que
+## se van a teñir de un vistazo, antes de soltar el clic. Ver `PreviewMayusPintura`.
+var _preview_mayus: PreviewMayusPintura
+## El velo de zonas del modo construcción (quick-spec §3d, tarea 3): una sala, un color. Ver
+## `VeloZonas`. Vive y muere con el modo, igual que `_rejilla`.
+var _velo_zonas: VeloZonas
 ## El fantasma con el SPRITE REAL del mueble (quick-spec 2026-08-04 §4), hermano de `_preview_caja`:
 ## solo uno de los dos está visible a la vez — la caja para las comodidades sin arte (12 de 16) y
 ## este `Sprite2D` para las que sí tienen render (comodidades con sprite, el sofá y los puestos).
@@ -149,6 +164,13 @@ var _indice_color: int = 0
 ## El color elegido, ya resuelto (cacheado: el fantasma lo pide cada vez que se repinta y no tiene
 ## sentido reconstruir la paleta entera para leer una entrada).
 var _color_pincel: Color = Color.WHITE
+## Acabado elegido para el pincel de SUELO (2026-08-05 · quick-spec §3d, tarea 4): `&"baldosa"`
+## (junta + variación, lo de siempre) o `&"liso"` (color plano, como el suelo crema del arranque). Al
+## pincel de PARED no le importa — un muro no tiene acabado.
+var _acabado_pincel: StringName = &"baldosa"
+## El conmutador de acabado, hermano de `_rejilla_paleta`: aparece SOLO con el pincel de suelo en la
+## mano (ni con el de pared ni con el resto de herramientas).
+var _boton_acabado: Button
 ## Texturas del fantasma de sprite, por ruta de PNG (regla de rendimiento de la tarea: "no
 ## recargues texturas cada frame"). Se rellena la primera vez que hace falta cada una; después,
 ## puro lookup — ni siquiera `ResourceLoader.exists` se repite dos veces con la misma ruta.
@@ -172,6 +194,12 @@ class PreviewIso extends Node2D:
 	var grosor: float = 0.0
 	var color: Color = Color.WHITE
 
+	## Alto del QUAD que sube desde la línea (2026-08-05 · quick-spec §3d, tarea 1): 0 = línea plana
+	## a ras de suelo (comportamiento de siempre); > 0 = el TRAMO ENTERO, de suelo a remate — el
+	## selector "tipo Sims" que pidió el usuario. Mismo criterio de altura que `TramoPared._draw`
+	## (sube restando de Y en pantalla): el selector ocupa la MISMA silueta que la pared de verdad.
+	var linea_alto: float = 0.0
+
 	func _draw() -> void:
 		if poligono.size() >= 3:
 			# Relleno translúcido + borde casi opaco: se distingue sobre cualquier color de sala
@@ -180,24 +208,43 @@ class PreviewIso extends Node2D:
 			var cerrado: PackedVector2Array = poligono.duplicate()
 			cerrado.append(poligono[0])
 			draw_polyline(cerrado, Color(color.r, color.g, color.b, 0.95), 3.0, true)
-		if grosor > 0.0:
+		if grosor <= 0.0:
+			return
+		if linea_alto <= 0.0:
 			draw_line(
 				linea_desde, linea_hasta, Color(color.r, color.g, color.b, 0.85), grosor, true
 			)
+			return
+		# EL TRAMO ENTERO (tarea 1): un quad que sube igual que `TramoPared`, de esquina a esquina y
+		# de suelo a remate — antes esto era solo la línea de arriba, que junto a una pared de 65 px
+		# de alto se leía como "un trozo pequeño y difícil de posicionar" (informe del usuario).
+		var subir := Vector2(0.0, -linea_alto)
+		var quad := PackedVector2Array([
+			linea_desde, linea_hasta, linea_hasta + subir, linea_desde + subir,
+		])
+		draw_colored_polygon(quad, Color(color.r, color.g, color.b, 0.40))
+		var contorno: PackedVector2Array = quad.duplicate()
+		contorno.append(quad[0])
+		draw_polyline(contorno, Color(color.r, color.g, color.b, 0.95), 3.0, true)
 
 	## Pinta una huella cerrada (una sala, un elemento). Borra cualquier línea anterior.
 	func pintar_poligono(vertices: PackedVector2Array, nuevo_color: Color) -> void:
 		poligono = vertices
 		grosor = 0.0
+		linea_alto = 0.0
 		color = nuevo_color
 		queue_redraw()
 
-	## Pinta un tramo de arista (el pincel de muro). Borra cualquier huella anterior.
-	func pintar_linea(desde: Vector2, hasta: Vector2, ancho: float, nuevo_color: Color) -> void:
+	## Pinta un tramo de arista (pincel de muro/puerta/ventana/pintura). `alto > 0` dibuja el TRAMO
+	## ENTERO que sube (tarea 1); `alto == 0` (por defecto) la línea plana de siempre.
+	func pintar_linea(
+		desde: Vector2, hasta: Vector2, ancho: float, nuevo_color: Color, alto: float = 0.0
+	) -> void:
 		poligono = PackedVector2Array()
 		linea_desde = desde
 		linea_hasta = hasta
 		grosor = ancho
+		linea_alto = alto
 		color = nuevo_color
 		queue_redraw()
 
@@ -242,6 +289,112 @@ class RejillaConstruccion extends Node2D:
 		if _puntos.is_empty():
 			return
 		draw_multiline(_puntos, _color, _grosor, true)
+
+
+## ── EL FANTASMA DE MAYÚS DEL PINCEL DE PINTURA (2026-08-05 · quick-spec §3d, tarea 2) ────────────
+## Con el pincel de pintura en la mano y MAYÚS pulsada, ANTES de soltar el clic, el jugador tiene que
+## ver TODO lo que se va a teñir — no solo el tramo/celda que señala el cursor: *"al hacer mayus para
+## las paredes debería poder verse una vista previa para ver como queda antes de pintar"* (usuario).
+##
+## Guarda una lista YA CALCULADA de polígonos (tramos de pared o celdas de suelo, ya proyectados a
+## pantalla) y los pinta todos en un único `_draw()`. La recalcula `_process` — con la misma guarda
+## de celda/arista/MAYÚS que ya usa el resto del preview (`_mayus_anterior`) — así que nunca se
+## reconstruye por frame: solo al cambiar el objetivo apuntado o al pulsar/soltar MAYÚS.
+class PreviewMayusPintura extends Node2D:
+	const ALFA_RELLENO: float = 0.35
+	const ALFA_BORDE: float = 0.9
+	var _poligonos: Array[PackedVector2Array] = []
+	var _color: Color = Color.WHITE
+
+	## Sustituye la lista de polígonos a pintar (tramos o celdas) por otra, ya proyectada a pantalla.
+	func fijar(poligonos: Array[PackedVector2Array], nuevo_color: Color) -> void:
+		_poligonos = poligonos
+		_color = nuevo_color
+		queue_redraw()
+
+	## Apaga el fantasma: MAYÚS suelta, cambio de herramienta, o nada que abarcar (muro suelto que no
+	## es fachada bajo el pincel de pared, por ejemplo).
+	func limpiar() -> void:
+		if _poligonos.is_empty():
+			return
+		_poligonos = []
+		queue_redraw()
+
+	func _draw() -> void:
+		var relleno := Color(_color.r, _color.g, _color.b, ALFA_RELLENO)
+		var borde := Color(_color.r, _color.g, _color.b, ALFA_BORDE)
+		for poligono: PackedVector2Array in _poligonos:
+			draw_colored_polygon(poligono, relleno)
+			var cerrado: PackedVector2Array = poligono.duplicate()
+			cerrado.append(poligono[0])
+			draw_polyline(cerrado, borde, 2.0, true)
+
+
+## ── EL VELO DE ZONAS EN MODO CONSTRUCCIÓN (2026-08-05 · quick-spec §3d, tarea 3) ──────────────────
+## Con el modo activo, cada sala se cubre con una capa TRASLÚCIDA del color de su tipo (el mismo tono
+## que usa el suelo como fondo — `Construccion.color_de_zona`) para que su extensión EXACTA se lea de
+## un vistazo: *"las distintas zonas... deben marcarse de alguna manera para distinguirlas... que se
+## pueda ver el tamaño de cada sala"* (usuario, 2026-08-05). En juego normal (modo apagado) no existe:
+## vive y muere con el modo, igual que `RejillaConstruccion` (mismo criterio de capa — ver `z_index`
+## y visibilidad en `_actualizar_visibilidad`).
+##
+## Rendimiento: los polígonos se recalculan SOLO cuando la FIRMA del layout cambia (mismo patrón DIFF
+## que `ParedesSalas._firma_actual`) — `refrescar()` comprueba la firma primero y sale sin tocar nada
+## si es idéntica a la última vez. `_process` la llama una vez por frame mientras el modo está activo
+## (comprobar una firma corta —un puñado de salas— es barato), pero el trabajo real —reconstruir los
+## polígonos— solo ocurre cuando algo cambió de verdad.
+class VeloZonas extends Node2D:
+	const ALFA_VELO: float = 0.22
+	var _poligonos: Array[PackedVector2Array] = []
+	var _colores: Array[Color] = []
+	var _firma: String = ""
+
+	func refrescar(construccion: Node) -> void:
+		var firma: String = _firma_de(construccion)
+		if firma == _firma:
+			return
+		_firma = firma
+		_reconstruir(construccion)
+
+	## Las salas construidas, en los tres tipos válidos (mismo patrón que `ParedesSalas._todas_las_salas`:
+	## no existe un getter único en Construcción, así que se combinan los tres).
+	func _salas_construidas(construccion: Node) -> Array:
+		return (
+			construccion.salas_de_tipo("espera") + construccion.salas_de_tipo("oficina")
+			+ construccion.salas_de_tipo("descanso")
+		)
+
+	func _firma_de(construccion: Node) -> String:
+		var partes: PackedStringArray = PackedStringArray()
+		for sala_id: StringName in _salas_construidas(construccion):
+			var rect: Rect2i = construccion.rect_de_sala(sala_id)
+			partes.append("%s:%d,%d,%d,%d:%d" % [
+				sala_id, rect.position.x, rect.position.y, rect.size.x, rect.size.y,
+				construccion.area_de_sala(sala_id),
+			])
+		return ",".join(partes)
+
+	func _reconstruir(construccion: Node) -> void:
+		_poligonos = []
+		_colores = []
+		for sala_id: StringName in _salas_construidas(construccion):
+			var color: Color = construccion.color_de_zona(sala_id)
+			for celda: Vector2i in construccion.celdas_de_sala(sala_id):
+				_poligonos.append(PackedVector2Array([
+					construccion.esquina_en_pantalla(celda.x, celda.y),
+					construccion.esquina_en_pantalla(celda.x + 1, celda.y),
+					construccion.esquina_en_pantalla(celda.x + 1, celda.y + 1),
+					construccion.esquina_en_pantalla(celda.x, celda.y + 1),
+				]))
+				_colores.append(color)
+		queue_redraw()
+
+	func _draw() -> void:
+		for i: int in _poligonos.size():
+			var c: Color = _colores[i]
+			draw_colored_polygon(_poligonos[i], Color(c.r, c.g, c.b, ALFA_VELO))
+
+
 var _dialogo_cascada: ConfirmationDialog
 var _sala_a_demoler: StringName = &""
 ## La cuadrícula del modo (2026-08-05): se enciende y se apaga con el modo, nada más.
@@ -256,8 +409,23 @@ func configurar(construccion: Node, tam_celda: int) -> void:
 
 func _ready() -> void:
 	_crear_ui()
+	_crear_velo_zonas()
 	_crear_rejilla()
 	_actualizar_visibilidad()
+
+
+## Monta el velo de zonas (ver `VeloZonas`): AÑADIDO ANTES que `_rejilla` en el árbol a propósito
+## —mismo z_index (−1), y a igualdad de z manda el orden de la escena— para que la cuadrícula quede
+## por ENCIMA del tinte y sus líneas se sigan leyendo con claridad sobre cualquier color de zona.
+func _crear_velo_zonas() -> void:
+	if _construccion == null:
+		return   # sin modelo inyectado (tests/herramientas sueltas) no hay salas que tintar
+	_velo_zonas = VeloZonas.new()
+	_velo_zonas.name = "VeloZonas"
+	_velo_zonas.z_index = -1
+	_velo_zonas.visible = false
+	add_child(_velo_zonas)
+	_velo_zonas.refrescar(_construccion)
 
 
 ## Monta la cuadrícula del modo construcción sobre el suelo (ver `RejillaConstruccion`).
@@ -490,6 +658,7 @@ func _convertir_arista_en(punto_mundo: Vector2, tipo: StringName) -> void:
 func _destellar_arista(celda: Vector2i, lado: StringName, color: Color, texto: String) -> void:
 	_preview_caja.visible = true
 	_preview_texto.visible = true
+	_preview_mayus.limpiar()   # el clic ya ocurrió: no compite con el fantasma de "lo que se pintaría"
 	_colocar_caja_arista(celda, lado, color)
 	_preview_texto.text = texto
 	_destello_restante = DURACION_DESTELLO
@@ -497,16 +666,19 @@ func _destellar_arista(celda: Vector2i, lado: StringName, color: Color, texto: S
 
 # ── EL PINCEL DE PINTURA (2026-08-04) ────────────────────────────────────────────────────────
 
-## Pinta la PARED señalada por el punto DEL EVENTO. Con `con_mayus`, la sala entera.
+## Pinta la PARED señalada por el punto DEL EVENTO. Con `con_mayus`, la sala entera — o, si el tramo
+## es de FACHADA, el edificio entero (2026-08-05).
 ##
 ## La sala se deduce de la celda clicada (`sala_en`), no de la arista: una arista separa DOS celdas y
 ## preguntar por las dos daría dos salas candidatas. Con la celda donde de verdad has pinchado, el
 ## resultado es el que espera cualquiera — pintas desde dentro de la habitación que quieres pintar.
-## Si esa celda no es de ninguna sala (un muro suelto, un pasillo), MAYÚS pinta SOLO ese tramo.
+## Si esa celda no es de ninguna sala, hay dos casos: el tramo es FACHADA → MAYÚS pinta TODO el
+## edificio; si no (un muro suelto en mitad de la nada), MAYÚS pinta SOLO ese tramo, igual que antes.
 func _pintar_pared_en(punto_mundo: Vector2, con_mayus: bool) -> void:
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	var lado: StringName = _lado_mas_cercano(punto_mundo, celda)
 	var sala_id: StringName = _construccion.sala_en(celda)
+	var clave: String = _construccion.clave_de_muro(celda, lado)
 	if con_mayus and sala_id != &"":
 		var pintados: int = _construccion.pintar_sala_muros(sala_id, _color_pincel)
 		var texto: String = (
@@ -516,32 +688,41 @@ func _pintar_pared_en(punto_mundo: Vector2, con_mayus: bool) -> void:
 		_lbl_estado.text = texto
 		_destellar_arista(celda, lado, COLOR_VALIDO if pintados > 0 else COLOR_INVALIDO, texto)
 		return
+	if con_mayus and sala_id == &"" and _construccion.es_muro_fijo(clave):
+		var pintados: int = _construccion.pintar_edificio_muros(_color_pincel)
+		var texto: String = "Edificio pintado: %d tramos" % pintados
+		_lbl_estado.text = texto
+		_destellar_arista(celda, lado, COLOR_VALIDO, texto)
+		return
 	if _construccion.pintar_muro_en(celda, lado, _color_pincel):
 		_lbl_estado.text = "Pared pintada"
 		_destellar_arista(celda, lado, COLOR_VALIDO, "Pared pintada")
 		return
-	# El "no" se explica, igual que en el pincel de puertas: sin pared no hay nada que pintar, y la
-	# fachada es ladrillo (no es obra tuya).
-	var motivo: String = (
-		"La fachada no se pinta"
-		if _construccion.es_muro_fijo(_construccion.clave_de_muro(celda, lado))
-		else "Ahí no hay pared que pintar"
-	)
+	# El "no" se explica, igual que en el pincel de puertas: sin pared no hay nada que pintar.
+	var motivo := "Ahí no hay pared que pintar"
 	_lbl_estado.text = motivo
 	_destellar_arista(celda, lado, COLOR_INVALIDO, motivo)
 
 
-## Pinta el SUELO de la celda señalada. Con `con_mayus`, todo el suelo de su sala (y si la celda no
-## es de ninguna sala, solo esa celda — mismo criterio que la pared).
+## Pinta el SUELO de la celda señalada. Con `con_mayus`, todo el suelo de su sala; si la celda no es
+## de ninguna sala pero SÍ cae dentro del edificio (un pasillo), pinta TODAS las baldosas del
+## edificio (2026-08-05); fuera del edificio no hay nada que extender.
+## Pinta el suelo con el color Y EL ACABADO elegidos en el pincel (`_acabado_pincel` — tarea 4:
+## &"baldosa"/&"liso", conmutador en el HUD).
 func _pintar_suelo_en(punto_mundo: Vector2, con_mayus: bool) -> void:
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	var sala_id: StringName = _construccion.sala_en(celda)
 	if con_mayus and sala_id != &"":
-		var pintadas: int = _construccion.pintar_sala_suelo(sala_id, _color_pincel)
+		var pintadas: int = _construccion.pintar_sala_suelo(sala_id, _color_pincel, _acabado_pincel)
 		_lbl_estado.text = "Suelo de la sala pintado: %d celdas" % pintadas
 		_destellar_celda(celda, COLOR_VALIDO, _lbl_estado.text)
 		return
-	if _construccion.pintar_suelo(celda, _color_pincel):
+	if con_mayus and sala_id == &"" and _celda_en_edificio(celda):
+		var pintadas: int = _construccion.pintar_edificio_suelos(_color_pincel, _acabado_pincel)
+		_lbl_estado.text = "Edificio pintado: %d celdas" % pintadas
+		_destellar_celda(celda, COLOR_VALIDO, _lbl_estado.text)
+		return
+	if _construccion.pintar_suelo(celda, _color_pincel, _acabado_pincel):
 		_lbl_estado.text = "Suelo pintado"
 		_destellar_celda(celda, COLOR_VALIDO, "Suelo pintado")
 		return
@@ -553,6 +734,7 @@ func _pintar_suelo_en(punto_mundo: Vector2, con_mayus: bool) -> void:
 func _destellar_celda(celda: Vector2i, color: Color, texto: String) -> void:
 	_preview_caja.visible = true
 	_preview_texto.visible = true
+	_preview_mayus.limpiar()   # el clic ya ocurrió: no compite con el fantasma de "lo que se pintaría"
 	_colocar_caja(celda, Vector2i.ONE, color)
 	_preview_texto.text = texto
 	_destello_restante = DURACION_DESTELLO
@@ -583,6 +765,28 @@ func _refrescar_muestras() -> void:
 		var muestra: Button = _muestras[i]
 		for estado: String in ["normal", "hover", "pressed", "focus"]:
 			muestra.add_theme_stylebox_override(estado, estilo)
+
+
+## Alterna el ACABADO del pincel de suelo entre baldosa y liso (2026-08-05 · quick-spec §3d, tarea
+## 4). Mismo patrón que `_elegir_color`: fuerza el redibujado del fantasma sin esperar a que el
+## ratón cambie de celda.
+func _alternar_acabado() -> void:
+	_acabado_pincel = (
+		_construccion.ACABADO_LISO if _acabado_pincel == _construccion.ACABADO_BALDOSA
+		else _construccion.ACABADO_BALDOSA
+	)
+	_refrescar_boton_acabado()
+	_celda_anterior = Vector2i(-999, -999)
+
+
+## El texto del conmutador de acabado, con el estado actual y la acción del clic.
+func _refrescar_boton_acabado() -> void:
+	if _boton_acabado == null:
+		return
+	_boton_acabado.text = (
+		"🧱 Acabado: Baldosa (clic → Liso)" if _acabado_pincel == &"baldosa"
+		else "◻ Acabado: Liso (clic → Baldosa)"
+	)
 
 
 ## ¿Hay un trazo de muro VIVO que le corresponda a este botón? Un trazo solo cuenta si además la
@@ -675,6 +879,10 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 		_rejilla_paleta.visible = _activo and (
 			id == HERRAMIENTA_PINTAR_PARED or id == HERRAMIENTA_PINTAR_SUELO
 		)
+	# El conmutador de ACABADO (tarea 4) es aún más específico que la paleta: solo el pincel de
+	# SUELO tiene acabado — un muro no lo tiene.
+	if _boton_acabado != null:
+		_boton_acabado.visible = _activo and id == HERRAMIENTA_PINTAR_SUELO
 	for boton_id: StringName in _botones_herramienta:
 		(_botones_herramienta[boton_id] as Button).modulate = (
 			COLOR_BOTON_ACTIVO if boton_id == id else Color.WHITE
@@ -683,12 +891,20 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 
 # ── Preview fantasma (dibujo en _process con guarda de celda — ADR-0001) ─────────────────────
 func _process(delta: float) -> void:
+	# EL VELO DE ZONAS (tarea 3): se refresca mientras el modo está activo, tenga o no herramienta en
+	# la mano — es una lectura del layout, no del pincel. `refrescar()` comprueba su propia firma
+	# antes de hacer ningún trabajo real (ver `VeloZonas`): con el layout quieto, esto es un puñado
+	# de comparaciones de texto por frame, no una reconstrucción.
+	if _activo and _velo_zonas != null:
+		_velo_zonas.refrescar(_construccion)
 	if not _activo or _herramienta == &"":
 		_preview_caja.visible = false
 		_preview_sprite.visible = false
 		_preview_texto.visible = false
+		_preview_mayus.limpiar()
 		_celda_anterior = Vector2i(-999, -999)
 		_lado_anterior = &"-"
+		_mayus_anterior = false
 		_destello_restante = 0.0
 		return
 	# RED DE SEGURIDAD DEL TRAZO DE MURO (2026-08-03): si el botón ya no está físicamente pulsado y
@@ -718,15 +934,20 @@ func _process(delta: float) -> void:
 		or _herramienta == HERRAMIENTA_PINTAR_PARED
 	):
 		lado = _lado_mas_cercano(get_global_mouse_position(), celda)
+	# MAYÚS entra en la guarda (2026-08-05, tarea 2): sin esto, pulsar/soltar MAYÚS sobre la MISMA
+	# celda no dispararía ningún redibujado — la guarda solo miraba celda/herramienta/arrastre/lado.
+	var mayus: bool = Input.is_key_pressed(KEY_SHIFT)
 	if (
 		celda == _celda_anterior and _herramienta == _herramienta_anterior
 		and _arrastrando == _arrastre_anterior and lado == _lado_anterior
+		and mayus == _mayus_anterior
 	):
 		return
 	_celda_anterior = celda
 	_herramienta_anterior = _herramienta
 	_arrastre_anterior = _arrastrando
 	_lado_anterior = lado
+	_mayus_anterior = mayus
 	_preview_caja.visible = true
 	_preview_texto.visible = true
 	# Por defecto, apagado: solo `_refrescar_preview_elemento` lo enciende cuando la herramienta en
@@ -735,18 +956,23 @@ func _process(delta: float) -> void:
 	_preview_sprite.visible = false
 	if _herramienta == &"demoler":
 		_refrescar_preview_demoler(celda, lado)
+		_preview_mayus.limpiar()
 	elif _herramienta == &"muro":
 		_refrescar_preview_muro(celda, lado)
+		_preview_mayus.limpiar()
 	elif _herramienta == &"puerta" or _herramienta == &"ventana":
 		_refrescar_preview_puerta_ventana(celda, lado)
+		_preview_mayus.limpiar()
 	elif _herramienta == HERRAMIENTA_PINTAR_PARED:
-		_refrescar_preview_pintar_pared(celda, lado)
+		_refrescar_preview_pintar_pared(celda, lado, mayus)
 	elif _herramienta == HERRAMIENTA_PINTAR_SUELO:
-		_refrescar_preview_pintar_suelo(celda)
+		_refrescar_preview_pintar_suelo(celda, mayus)
 	elif _es_sala and _arrastrando:
 		_refrescar_preview_sala(_rect_entre(_celda_inicio, celda))
+		_preview_mayus.limpiar()
 	else:
 		_refrescar_preview_elemento(celda)
+		_preview_mayus.limpiar()
 
 
 func _refrescar_preview_demoler(celda: Vector2i, lado: StringName) -> void:
@@ -803,43 +1029,132 @@ func _refrescar_preview_puerta_ventana(celda: Vector2i, lado: StringName) -> voi
 
 ## Fantasma del pincel de PARED: resalta la arista con EL COLOR QUE VAS A APLICAR (no el verde/rojo
 ## genérico) cuando se puede pintar — así ves el color sobre la pared antes de soltar el clic — y en
-## rojo cuando no. Avisa también de si MAYÚS va a pintar la sala entera.
-func _refrescar_preview_pintar_pared(celda: Vector2i, lado: StringName) -> void:
+## rojo cuando no. Avisa también de qué va a hacer MAYÚS: la sala entera, o —sobre la fachada— el
+## edificio entero (2026-08-05).
+##
+## PREVIEW DEL MAYÚS (2026-08-05 · quick-spec §3d, tarea 2): con MAYÚS pulsada, además del tramo
+## señalado, se enciende `_preview_mayus` con CADA tramo que se va a teñir — la sala entera, o el
+## edificio si el tramo es de fachada — para que el jugador vea el alcance del gesto ANTES de
+## soltar el clic: *"al hacer mayus para las paredes debería poder verse una vista previa"*.
+func _refrescar_preview_pintar_pared(celda: Vector2i, lado: StringName, mayus: bool) -> void:
 	var clave: String = _construccion.clave_de_muro(celda, lado)
 	var hay_pared: bool = _construccion.tipo_de_muro(celda, lado) != &""
 	var es_fachada: bool = _construccion.es_muro_fijo(clave)
-	var valido: bool = hay_pared and not es_fachada
-	_colocar_caja_arista(celda, lado, _color_pincel if valido else COLOR_INVALIDO)
+	var sala_id: StringName = _construccion.sala_en(celda)
+	_colocar_caja_arista(celda, lado, _color_pincel if hay_pared else COLOR_INVALIDO)
 	var motivo: String = "Clic pinta el tramo · MAYÚS pinta la sala"
 	if not hay_pared:
 		motivo = "Ahí no hay pared que pintar"
 	elif es_fachada:
-		motivo = "La fachada no se pinta"
-	elif _construccion.sala_en(celda) == &"":
+		motivo = "Clic pinta el tramo · MAYÚS pinta TODO el edificio"
+	elif sala_id == &"":
 		motivo = "Clic pinta el tramo (muro suelto: MAYÚS no amplía)"
 	_preview_texto.text = "🖌 Pared · " + motivo
+	if not (mayus and hay_pared):
+		_preview_mayus.limpiar()
+		return
+	if sala_id != &"":
+		_mostrar_fantasma_muros(_construccion.claves_muros_de_sala(sala_id))
+	elif es_fachada:
+		_mostrar_fantasma_muros(_construccion.muros())
+	else:
+		_preview_mayus.limpiar()   # muro suelto que no es fachada: MAYÚS no amplía nada (ver el motivo)
 
 
-## Fantasma del pincel de SUELO: la celda entera con el color elegido. Con MAYÚS pulsada dibuja la
-## huella de la SALA COMPLETA (su caja envolvente), que es lo que va a pintar ese clic — el jugador
-## ve el alcance del gesto antes de hacerlo.
-func _refrescar_preview_pintar_suelo(celda: Vector2i) -> void:
+## Rellena `_preview_mayus` con el QUAD de cada tramo de la lista de claves, todos a la altura
+## `ParedesSalas.ALTO_PARED` — la misma que usa el selector de la tarea 1: el fantasma de MAYÚS es
+## "muchos selectores a la vez", no una figura de dibujo distinta.
+func _mostrar_fantasma_muros(claves: Array[String]) -> void:
+	var quads: Array[PackedVector2Array] = []
+	for clave: String in claves:
+		var quad: PackedVector2Array = _quad_de_clave_muro(clave, ParedesSalas.ALTO_PARED)
+		if not quad.is_empty():
+			quads.append(quad)
+	_preview_mayus.fijar(quads, _color_pincel)
+
+
+## El QUAD de pantalla de un tramo de pared dado por su CLAVE de arista (convenio
+## `Construccion.clave_de_muro`: "v:col:row" / "h:col:row"), a la altura `alto` — mismo criterio que
+## `TramoPared._draw` (sube restando de Y). Duplicado A PROPÓSITO de
+## `ParedesSalas._geometria_de_muro_libre` (privado): esta función es puramente informativa (un
+## fantasma, no dibuja pared de verdad), mismo patrón que ya usa el resto de este fichero para
+## espejar cálculos privados de otros sistemas.
+func _quad_de_clave_muro(clave: String, alto: float) -> PackedVector2Array:
+	var partes: PackedStringArray = clave.split(":")
+	if partes.size() != 3:
+		return PackedVector2Array()
+	var x: int = int(partes[1])
+	var y: int = int(partes[2])
+	var desde: Vector2
+	var hasta: Vector2
+	if partes[0] == "v":
+		desde = _construccion.esquina_en_pantalla(x, y)
+		hasta = _construccion.esquina_en_pantalla(x, y + 1)
+	elif partes[0] == "h":
+		desde = _construccion.esquina_en_pantalla(x, y)
+		hasta = _construccion.esquina_en_pantalla(x + 1, y)
+	else:
+		return PackedVector2Array()
+	var subir := Vector2(0.0, -alto)
+	return PackedVector2Array([desde, hasta, hasta + subir, desde + subir])
+
+
+## Fantasma del pincel de SUELO: la celda entera con el color elegido. Con MAYÚS pulsada enciende
+## `_preview_mayus` con TODAS las celdas reales de la sala (`celdas_de_sala` — respeta formas no
+## rectangulares, fase C) si la celda pertenece a una; si no pertenece a ninguna pero sigue dentro
+## del edificio (un pasillo), con TODAS las celdas del edificio (2026-08-05) — es lo que va a pintar
+## ese clic, y el jugador ve el alcance del gesto antes de hacerlo.
+func _refrescar_preview_pintar_suelo(celda: Vector2i, mayus: bool) -> void:
 	var sala_id: StringName = _construccion.sala_en(celda)
-	var mayus: bool = Input.is_key_pressed(KEY_SHIFT)
 	if mayus and sala_id != &"":
-		var rect: Rect2i = _construccion.rect_de_sala(sala_id)
-		_colocar_caja(rect.position, rect.size, _color_pincel)
-		_preview_texto.text = "🖌 Suelo · toda la sala (%d celdas)" % _construccion.area_de_sala(sala_id)
+		_colocar_caja(celda, Vector2i.ONE, _color_pincel)   # el tramo señalado, referencia rápida
+		_mostrar_fantasma_suelo(_construccion.celdas_de_sala(sala_id))
+		_preview_texto.text = "🖌 Suelo (%s) · toda la sala (%d celdas)" % [
+			_nombre_acabado(_acabado_pincel), _construccion.area_de_sala(sala_id),
+		]
 		return
 	var dentro: bool = _celda_en_edificio(celda)
+	if mayus and sala_id == &"" and dentro:
+		var celdas_edificio: Array[Vector2i] = []
+		for x: int in _construccion.edificio_columnas:
+			for y: int in _construccion.edificio_filas:
+				celdas_edificio.append(Vector2i(x, y))
+		_colocar_caja(celda, Vector2i.ONE, _color_pincel)
+		_mostrar_fantasma_suelo(celdas_edificio)
+		_preview_texto.text = "🖌 Suelo (%s) · TODO el edificio (%d celdas)" % [
+			_nombre_acabado(_acabado_pincel),
+			_construccion.edificio_columnas * _construccion.edificio_filas,
+		]
+		return
+	_preview_mayus.limpiar()
 	_colocar_caja(celda, Vector2i.ONE, _color_pincel if dentro else COLOR_INVALIDO)
 	if not dentro:
 		_preview_texto.text = "🖌 Suelo · fuera del edificio"
 		return
 	_preview_texto.text = (
-		"🖌 Suelo · clic pinta la celda · MAYÚS pinta la sala" if sala_id != &""
-		else "🖌 Suelo · clic pinta la celda (sin sala: MAYÚS no amplía)"
+		"🖌 Suelo (%s) · clic pinta la celda · MAYÚS pinta la sala" % _nombre_acabado(_acabado_pincel)
+		if sala_id != &"" else
+		"🖌 Suelo (%s) · clic pinta la celda · MAYÚS pinta TODO el edificio" % _nombre_acabado(_acabado_pincel)
 	)
+
+
+## Rellena `_preview_mayus` con el QUAD de cada celda de suelo de la lista (mismo criterio que
+## `_colocar_caja`: el rombo que forman sus cuatro esquinas de rejilla proyectadas).
+func _mostrar_fantasma_suelo(celdas: Array[Vector2i]) -> void:
+	var quads: Array[PackedVector2Array] = []
+	for celda: Vector2i in celdas:
+		quads.append(PackedVector2Array([
+			_construccion.esquina_en_pantalla(celda.x, celda.y),
+			_construccion.esquina_en_pantalla(celda.x + 1, celda.y),
+			_construccion.esquina_en_pantalla(celda.x + 1, celda.y + 1),
+			_construccion.esquina_en_pantalla(celda.x, celda.y + 1),
+		]))
+	_preview_mayus.fijar(quads, _color_pincel)
+
+
+## El nombre legible del acabado (tarea 4), para el texto de ayuda del HUD.
+func _nombre_acabado(acabado: StringName) -> String:
+	return "Baldosa" if acabado == _construccion.ACABADO_BALDOSA else "Liso"
 
 
 ## Construye o demuele (según `_construyendo_arrastre_muro`) la arista más cercana al punto DEL
@@ -987,13 +1302,21 @@ func _punto_mundo_del_evento(pos_pantalla: Vector2) -> Vector2:
 	return get_canvas_transform().affine_inverse() * pos_pantalla
 
 
-## Coloca la caja del preview cubriendo SOLO la arista `lado` de `celda` (grosor `GROSOR_PREVIEW_MURO`,
-## centrado en la línea de rejilla) — reutiliza el mismo Panel/StyleBox que `_colocar_caja`, solo con
-## otra geometría, así que no hace falta ningún nodo nuevo.
+## Coloca el selector del preview cubriendo el TRAMO DE PARED ENTERO (2026-08-05 · quick-spec §3d,
+## tarea 1): la arista de `celda` en el lado `lado`, de esquina a esquina y de suelo a remate — el
+## mismo quad que dibujaría `TramoPared` ahí, solo que translúcido. Lo comparten el pincel de muro,
+## el de puerta/ventana y el de pintura de pared (los tres apuntan al mismo concepto de "arista"):
+## unificado en esta única función, como pide la tarea.
+##
+## Antes esto dibujaba una LÍNEA fina a ras de suelo (`GROSOR_PREVIEW_MURO` de grosor): al lado de
+## una pared real —que sube `ParedesSalas.ALTO_PARED` px en pantalla— esa línea se leía como "un
+## trozo pequeño, difícil de posicionar" (informe literal del usuario). La altura de referencia es
+## SIEMPRE la trasera completa (`ALTO_PARED`, no la frontal recortada): el selector es una promesa de
+## "aquí va a haber pared", no una réplica exacta del modo de vista auto/todas/bajitas en curso.
 func _colocar_caja_arista(celda: Vector2i, lado: StringName, color: Color) -> void:
 	# ISOMÉTRICO: la arista deja de ser un lado horizontal o vertical de un cuadrado y pasa a ser
-	# uno de los cuatro lados en diagonal del rombo. Se resalta como una LÍNEA gruesa de vértice a
-	# vértice, que es exactamente el tramo de muro que se va a construir.
+	# uno de los cuatro lados en diagonal del rombo. Se resalta como el TRAMO completo, de vértice a
+	# vértice, que es exactamente el tramo de muro que se va a construir/pintar/convertir.
 	var desde: Vector2
 	var hasta: Vector2
 	match lado:
@@ -1009,8 +1332,10 @@ func _colocar_caja_arista(celda: Vector2i, lado: StringName, color: Color) -> vo
 		_:   # "abajo"
 			desde = _construccion.esquina_en_pantalla(celda.x, celda.y + 1)
 			hasta = _construccion.esquina_en_pantalla(celda.x + 1, celda.y + 1)
-	_preview_caja.pintar_linea(desde, hasta, GROSOR_PREVIEW_MURO, color)
-	_preview_texto.position = (desde + hasta) / 2.0 + Vector2(-60.0, -30.0)
+	_preview_caja.pintar_linea(desde, hasta, GROSOR_PREVIEW_MURO, color, ParedesSalas.ALTO_PARED)
+	_preview_texto.position = (
+		(desde + hasta) / 2.0 + Vector2(-60.0, -ParedesSalas.ALTO_PARED - 14.0)
+	)
 
 
 func _refrescar_preview_sala(rect: Rect2i) -> void:
@@ -1225,6 +1550,11 @@ func _crear_ui() -> void:
 	_atenuador.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	capa.add_child(_atenuador)
 
+	# El fantasma de MAYÚS del pincel de pintura (tarea 2), ANTES que `_preview_caja` en el árbol
+	# para quedar POR DEBAJO de él (el resaltado del tramo/celda señalado se sigue leyendo encima
+	# del relleno de "todo lo que se va a pintar").
+	_preview_mayus = PreviewMayusPintura.new()
+	capa.add_child(_preview_mayus)
 	# Preview fantasma POR ENCIMA del atenuador (feedback del usuario: no se veía dónde iba a caer).
 	# Sin cámara, las coordenadas de mundo y de pantalla coinciden → puede vivir en la CanvasLayer.
 	# Borde grueso + relleno translúcido: se distingue sobre cualquier color de sala.
@@ -1332,6 +1662,16 @@ func _crear_ui() -> void:
 		_muestras.append(muestra)
 	_elegir_color(0)   # blanco puro: el color de partida, el mismo que trae toda pared nueva
 
+	# ── EL CONMUTADOR DE ACABADO DEL PINCEL DE SUELO (2026-08-05 · quick-spec §3d, tarea 4) ────────
+	# Botón simple, junto a la paleta (mismo sitio que el submenú del pincel): alterna entre baldosa
+	# y liso, y solo se ve con el pincel de SUELO en la mano (`_fijar_herramienta`).
+	_boton_acabado = Button.new()
+	_boton_acabado.focus_mode = Control.FOCUS_NONE
+	_boton_acabado.visible = false
+	_boton_acabado.pressed.connect(_alternar_acabado)
+	caja.add_child(_boton_acabado)
+	_refrescar_boton_acabado()
+
 	_dialogo_cascada = ConfirmationDialog.new()
 	_dialogo_cascada.title = "Demolición en cascada"
 	_dialogo_cascada.confirmed.connect(func() -> void: _construccion.demoler_sala(_sala_a_demoler))
@@ -1354,8 +1694,14 @@ func _actualizar_visibilidad() -> void:
 	# donde se enciende: `_alternar_modo` y `activar_con_herramienta` ya pasan por aquí.
 	if _rejilla != null:
 		_rejilla.visible = _activo
+	# EL VELO DE ZONAS VIVE Y MUERE CON EL MODO (2026-08-05, tarea 3): mismo criterio que la
+	# cuadrícula. En juego normal (modo apagado) no hay velo — orden del usuario.
+	if _velo_zonas != null:
+		_velo_zonas.visible = _activo
 	if _rejilla_paleta != null and not _activo:
 		_rejilla_paleta.visible = false   # fuera del modo construcción no hay pincel ni paleta
+	if _boton_acabado != null and not _activo:
+		_boton_acabado.visible = false   # ídem el conmutador de acabado del pincel de suelo
 	_boton_modo.modulate = COLOR_BOTON_ACTIVO if _activo else Color.WHITE
 	_lbl_estado.text = (
 		"Elige herramienta · clic coloca · arrastra dibuja salas · clic dcho/Esc cancela"

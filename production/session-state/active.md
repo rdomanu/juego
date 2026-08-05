@@ -2608,3 +2608,29 @@ en el juego (paleta completa disponible).
   (puerta A/B, ventana, props, paleta) se tomaron — preguntar qué hizo con Summer.
 - Agente de hoja de paleta DETENIDO sin obra (no estorba). Hoja v3 de props enseñada, sin
   veredicto aún.
+
+---
+
+# 🎨 SESIÓN 2026-08-05 (3ª parte) — paleta clara vía Summer MCP + fachada pintable + plan de escalado
+
+- AUDITORÍA del terreno tras la sesión Summer del usuario: NO había obra de Summer en código
+  (solo docs del cierre, commiteados en `0014d8e`). Suite completa verificada: 774/774.
+- CONEXIÓN MCP SUMMER OPERATIVA: paleta clara aplicada VÍA SUMMER (summer_replace_text, flujo
+  summer_start_game_task): COLOR_PARED_POR_DEFECTO azul suave (0.72,0.78,0.88) ·
+  COLOR_SUELO_POR_DEFECTO crema nuevo (0.87,0.84,0.78) · COLOR_SUELO de main.gd crema.
+  Gotcha: main.gd es CRLF → summer_replace_text multilinea falla ahí; usar old_text de UNA línea.
+- PAQUETE (agente Sonnet, 5 reanudaciones con receta numerada — patrón: se para cada ~20 tools):
+  fachada PINTABLE (sigue sin demolerse, con test) · pintar_edificio_muros/suelos + gesto MAYÚS
+  ampliado (fachada→todo el edificio; suelo sin sala→todas las baldosas; MAYÚS sala intacto) ·
+  tests reescritos sin debilitar (nace color por defecto, no blanco) · tools/_diag_alturas_pared.
+- PLAN DE ESCALADO: design/art/plan-escalado.md (ancla 44px=1,70m, PX_POR_METRO≈25,88, tabla
+  completa con mediciones reales — script del art-director ejecutado por el coordinador, borrado
+  tras uso). REVISAR gordos: estanterías (~3,1m la grande), dispensador viejo (~2,7m), sillas/
+  sofás inflados (ojo: el alto útil incluye base isométrica, % exagerados en huella 2 celdas).
+  Impresora DNI especificada (1,50m, ancha, azul, 1 celda, del usuario).
+- SUITE COMPLETA FINAL: **776/776 Exit 0**. SIN COMMITEAR a propósito: espera el veredicto visual
+  del usuario (ley 3). 4 fotos alturas_pared_{34,48,65,70}.png en scratchpad ENSEÑADAS (34=1,30m
+  actual · 48=1,85m · 65=2,50m · 70=2,70m oficina). ALTO_PARED sigue en 34.0 hasta que elija.
+- DECISIONES PENDIENTES DEL USUARIO: altura de pared (4 fotos) · tinte de salas (¿claro u
+  oscuro?) · hoja props v3 · puerta A/B · ventana · lote REVISAR de proporciones (hoja con
+  muñeco por hacer tras decidir altura).

@@ -89,7 +89,8 @@ var _muros_fijos: Dictionary[String, bool] = {}
 ## ── PINTURA (2026-08-04) ────────────────────────────────────────────────────────────────────
 ## Color de cada TRAMO DE PARED pintado, por su clave de arista (el mismo convenio col:row de
 ## `clave_de_muro`, así que es la misma llave que ya usan `_muros` y `_muros_fijos` — cero
-## traducciones). Lo que NO está aquí se dibuja BLANCO (`COLOR_PARED_POR_DEFECTO`): desde hoy el
+## traducciones). Lo que NO está aquí se dibuja con `COLOR_PARED_POR_DEFECTO` (azul suave de la
+## paleta clara): desde hoy el
 ## color por tipo de sala MUERE en las paredes (decisión del usuario, quick-spec §2).
 var _color_muros: Dictionary[String, Color] = {}
 ## Color de cada CELDA DE SUELO pintada. Lo que no está aquí cae al tinte de su sala
@@ -97,6 +98,14 @@ var _color_muros: Dictionary[String, Color] = {}
 ## Pertenece a la CELDA, no a la sala: demoler la sala no borra la pintura del suelo, igual que
 ## derribar un tabique no repinta la habitación.
 var _color_suelos: Dictionary[Vector2i, Color] = {}
+## ACABADO de cada CELDA DE SUELO pintada (2026-08-05 · quick-spec §3d, tarea 4): `&"baldosa"`
+## (juntas + variación de tono, lo de siempre) o `&"liso"` (color plano, como el suelo crema del
+## arranque). Vive PAREJA a `_color_suelos` (misma clave, se escriben siempre juntos en
+## `pintar_suelo`/`pintar_sala_suelo`/`pintar_edificio_suelos`) — lo que no está aquí nunca se pinta,
+## así que no hay desincronización posible. Petición del usuario: *"los colores del suelo siempre son
+## baldosas cuando se pinta, se debería poner esa textura que hay ahora como suelo baldosa o liso
+## como está al inicio la sala de la comisaria"*.
+var _acabado_suelos: Dictionary[Vector2i, StringName] = {}
 
 ## Contador para generar ids únicos (se serializa en la story 005 para no pisar ids al cargar).
 var _contador_ids: int = 0
@@ -1017,29 +1026,46 @@ func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
 
 # ── PINTURA DE PAREDES Y SUELOS (2026-08-04 · quick-spec §2) ─────────────────────────────────
 ## El jugador pinta con un PINCEL: un clic pinta el tramo (o la celda) que señala; con MAYÚS, la
-## SALA ENTERA. Aquí vive solo el MODELO — quién decide el color y cuándo se pulsa MAYÚS es cosa de
-## la UI (`ModoConstruccion`), y quién lo dibuja, de la capa visual (ADR-0004).
+## SALA ENTERA (`pintar_sala_muros`/`pintar_sala_suelo`) o, sobre fachada/pasillo, EL EDIFICIO
+## ENTERO (`pintar_edificio_muros`/`pintar_edificio_suelos`, 2026-08-05). Aquí vive solo el
+## MODELO — quién decide el color y cuándo se pulsa MAYÚS es cosa de la UI (`ModoConstruccion`), y
+## quién lo dibuja, de la capa visual (ADR-0004).
 ##
-## Dos reglas de diseño que no se negocian:
-##   · **La FACHADA no se pinta.** Los muros fijos son el plano de la comisaría, de ladrillo, y no
-##     son obra del jugador — igual que no se demuelen ni se les abren huecos (`_muros_fijos`).
+## Una regla de diseño que no se negocia:
 ##   · **El cristal de una VENTANA no se pinta.** Pintar un tramo que es ventana pinta su muro y sus
 ##     jambas; el cristal conserva su color propio. Eso se resuelve en el DIBUJO (`paredes_salas`),
 ##     no aquí: el modelo guarda el color del tramo pase lo que pase con su tipo, así que convertir
 ##     una ventana en tabique (y al revés) no pierde la pintura.
+##
+## **La FACHADA SÍ se pinta** (2026-08-05, orden del usuario: *"las paredes del edificio también se
+## deben poder pintar"*). Hasta hoy `_muros_fijos` bloqueaba tanto la pintura como la demolición del
+## plano del edificio; desde hoy solo bloquea lo segundo — pintar no es obra, es decoración.
+## `_muros_fijos` SIGUE existiendo para lo que de verdad no se toca: no se demuele (`demoler_muro`)
+## ni se le abren huecos nuevos (`fijar_tipo_de_muro`).
 
-## El color de una pared construida y no pintada: BLANCO (el primero de la paleta). Muere el color
-## por tipo de sala EN LAS PAREDES — el suelo lo conserva como fondo de zona.
-const COLOR_PARED_POR_DEFECTO: Color = Color(1.0, 1.0, 1.0, 1.0)
+## El color de una pared construida y no pintada: AZUL SUAVE de la paleta clara (demo del usuario
+## con Summer, 2026-08-05; hasta hoy era blanco). El blanco sigue siendo el primero de la paleta
+## del pincel: el jugador puede volver a él repintando. Muere el color por tipo de sala EN LAS
+## PAREDES — el suelo lo conserva como fondo de zona.
+const COLOR_PARED_POR_DEFECTO: Color = Color(0.72, 0.78, 0.88, 1.0)
+## El color del suelo sin pintar y sin sala: CREMA de la paleta clara. Hasta hoy compartía el
+## blanco de la pared; se separa en constante propia para que pared y suelo diverjan sin pisarse.
+const COLOR_SUELO_POR_DEFECTO: Color = Color(0.87, 0.84, 0.78, 1.0)
+
+## ── ACABADO DEL SUELO (2026-08-05 · quick-spec §3d, tarea 4) ────────────────────────────────────
+## `&"baldosa"` = lo de siempre (junta + variación de tono, `_pintar_baldosa`). `&"liso"` = color
+## PLANO, sin junta ni variación — como el suelo crema del arranque de la comisaría. Se elige junto
+## al color, por celda, con el pincel de suelo (`ModoConstruccion`).
+const ACABADO_BALDOSA := &"baldosa"
+const ACABADO_LISO := &"liso"
 
 
 ## Pinta UN TRAMO de pared, dado por su clave de arista. Devuelve si se pintó: `false` si ahí no hay
-## pared que pintar o si es fachada del edificio.
+## pared que pintar. La FACHADA se pinta igual que cualquier otro tramo (2026-08-05): pintarla no es
+## demolerla ni abrirle un hueco, así que `_muros_fijos` no entra aquí.
 func pintar_muro(clave: String, color: Color) -> bool:
 	if not _muros.has(clave):
 		return false   # no hay pared: primero se levanta (para eso está el pincel de muro)
-	if _muros_fijos.has(clave):
-		return false   # la fachada es ladrillo y no se pinta
 	_color_muros[clave] = color
 	_refrescar_visual()
 	return true
@@ -1064,14 +1090,15 @@ func muro_pintado(clave: String) -> bool:
 
 ## Pinta TODAS las paredes de una sala (el gesto de MAYÚS + clic). Recorre el perímetro real de la
 ## sala —que con formas no rectangulares no es un rectángulo (fase C)— y pinta los tramos que
-## existan y no sean fachada. Devuelve cuántos se pintaron.
+## existan, fachada incluida (2026-08-05: pintar ya no es obra, ver la cabecera de esta sección).
+## Devuelve cuántos se pintaron.
 func pintar_sala_muros(sala_id: StringName, color: Color) -> int:
 	if not _salas.has(sala_id):
 		return 0
 	var pintados: int = 0
 	for arista: Array in _aristas_del_perimetro(sala_id):
 		var clave: String = clave_de_muro(arista[0], arista[1])
-		if not _muros.has(clave) or _muros_fijos.has(clave):
+		if not _muros.has(clave):
 			continue
 		_color_muros[clave] = color
 		pintados += 1
@@ -1080,28 +1107,82 @@ func pintar_sala_muros(sala_id: StringName, color: Color) -> int:
 	return pintados
 
 
-## Pinta UNA CELDA de suelo. Devuelve si se pintó: `false` si la celda cae fuera del edificio (en la
+## Los TRAMOS de pared que existen de verdad en el perímetro de una sala, como claves de arista (el
+## mismo formato que `muros()`/`clave_de_muro`) — la lista EXACTA que pintaría `pintar_sala_muros`.
+## La usa el fantasma de MAYÚS del pincel de pintura (quick-spec §3d, tarea 2): antes de soltar el
+## clic, el jugador ve CADA tramo que se va a teñir, no solo el que señala el cursor.
+func claves_muros_de_sala(sala_id: StringName) -> Array[String]:
+	var claves: Array[String] = []
+	if not _salas.has(sala_id):
+		return claves
+	for arista: Array in _aristas_del_perimetro(sala_id):
+		var clave: String = clave_de_muro(arista[0], arista[1])
+		if _muros.has(clave):
+			claves.append(clave)
+	return claves
+
+
+## Pinta TODOS los tramos de pared del EDIFICIO, fachada incluida (2026-08-05: MAYÚS+clic sobre un
+## tramo de fachada — orden del usuario: *"MAYÚS también debe poder pintar TODAS las paredes de la
+## comisaría"*). Es a TODO el edificio lo que `pintar_sala_muros` es a UNA sala: mismo patrón,
+## ámbito máximo. Devuelve cuántos tramos se pintaron.
+func pintar_edificio_muros(color: Color) -> int:
+	var pintados: int = 0
+	for clave: String in _muros:
+		_color_muros[clave] = color
+		pintados += 1
+	if pintados > 0:
+		_refrescar_visual()
+	return pintados
+
+
+## Pinta UNA CELDA de suelo, con su ACABADO (`ACABADO_BALDOSA` por defecto — retrocompatible: el
+## código y los tests de antes de esta fecha que no pasan `acabado` siguen pintando baldosa, que es
+## lo que pintaban siempre). Devuelve si se pintó: `false` si la celda cae fuera del edificio (en la
 ## calle no se pinta nada). NO exige que haya sala: el suelo del pasillo también es suelo.
-func pintar_suelo(celda: Vector2i, color: Color) -> bool:
+func pintar_suelo(celda: Vector2i, color: Color, acabado: StringName = ACABADO_BALDOSA) -> bool:
 	if not _celda_en_edificio(celda):
 		return false
 	_color_suelos[celda] = color
+	_acabado_suelos[celda] = _acabado_valido(acabado)
 	_refrescar_visual()
 	return true
 
 
+## Normaliza un acabado a uno de los dos válidos; cualquier otro valor cae a `ACABADO_BALDOSA` con
+## aviso — red de seguridad para un dato que puede venir de fuera (UI o un save corrupto).
+func _acabado_valido(acabado: StringName) -> StringName:
+	if acabado == ACABADO_BALDOSA or acabado == ACABADO_LISO:
+		return acabado
+	push_warning("Construccion: acabado de suelo desconocido ('%s') -> baldosa" % acabado)
+	return ACABADO_BALDOSA
+
+
 ## El color del suelo de una celda: el pintado, o —si nunca se pintó— el TINTE DE SU SALA, que es el
-## fondo de zona de siempre. Una celda sin pintar y sin sala devuelve el blanco por defecto (no se
+## fondo de zona de siempre. Una celda sin pintar y sin sala devuelve el crema por defecto (no se
 ## dibuja: el suelo desnudo lo pinta la rejilla de Main).
 func color_suelo_de(celda: Vector2i) -> Color:
 	if _color_suelos.has(celda):
 		return _color_suelos[celda]
 	var sala_id: StringName = sala_en(celda)
 	if sala_id == &"":
-		return COLOR_PARED_POR_DEFECTO
+		return COLOR_SUELO_POR_DEFECTO
 	var tipo_sala: Resource = Datos.obtener_silencioso(&"TipoSala", _salas[sala_id]["tipo"])
 	if tipo_sala == null:
-		return COLOR_PARED_POR_DEFECTO
+		return COLOR_SUELO_POR_DEFECTO
+	return _color_de_sala(tipo_sala)
+
+
+## El color de ZONA de una sala YA CONSTRUIDA: el mismo tono que usa el suelo como fondo por defecto
+## (`_color_de_sala`, privado — este es el wrapper público). Lo consume el VELO DE ZONAS del modo
+## construcción (quick-spec §3d, tarea 3): *"que haya una capa semitransparente donde se pueda ver
+## el tamaño de cada sala"* — la UI necesita leer el mismo tinte sin duplicar la paleta.
+func color_de_zona(sala_id: StringName) -> Color:
+	if not _salas.has(sala_id):
+		return COLOR_SUELO_POR_DEFECTO
+	var tipo_sala: Resource = Datos.obtener_silencioso(&"TipoSala", _salas[sala_id]["tipo"])
+	if tipo_sala == null:
+		return COLOR_SUELO_POR_DEFECTO
 	return _color_de_sala(tipo_sala)
 
 
@@ -1110,14 +1191,42 @@ func suelo_pintado(celda: Vector2i) -> bool:
 	return _color_suelos.has(celda)
 
 
-## Pinta TODO el suelo de una sala (MAYÚS + clic con el pincel de suelo). Devuelve cuántas celdas.
-func pintar_sala_suelo(sala_id: StringName, color: Color) -> int:
+## El ACABADO del suelo de una celda: el pintado, o `ACABADO_BALDOSA` si nunca se eligió uno
+## (retrocompatible: un save de antes de esta fecha, o una celda pintada antes de esta fecha, se lee
+## como baldosa — lo de siempre, sin sorpresas). Lo consulta el dibujo (`_refrescar_visual`).
+func acabado_suelo_de(celda: Vector2i) -> StringName:
+	return _acabado_suelos.get(celda, ACABADO_BALDOSA)
+
+
+## Pinta TODO el suelo de una sala (MAYÚS + clic con el pincel de suelo), con su ACABADO. Devuelve
+## cuántas celdas.
+func pintar_sala_suelo(sala_id: StringName, color: Color, acabado: StringName = ACABADO_BALDOSA) -> int:
 	if not _salas.has(sala_id):
 		return 0
+	var acabado_valido: StringName = _acabado_valido(acabado)
 	var pintadas: int = 0
 	for celda: Vector2i in _salas[sala_id].get("celdas", {}):
 		_color_suelos[celda] = color
+		_acabado_suelos[celda] = acabado_valido
 		pintadas += 1
+	if pintadas > 0:
+		_refrescar_visual()
+	return pintadas
+
+
+## Pinta TODAS las celdas de suelo del EDIFICIO (2026-08-05: MAYÚS+clic de suelo sobre una celda SIN
+## sala — orden del usuario: *"todas las baldosas del edificio"*), con su ACABADO. Mismo criterio que
+## `pintar_suelo` (`_celda_en_edificio`): los límites del bucle SON esa definición (`0 <= x <
+## edificio_columnas`, `0 <= y < edificio_filas`), así que en la calle no se pinta nada por
+## construcción. Devuelve cuántas celdas se pintaron.
+func pintar_edificio_suelos(color: Color, acabado: StringName = ACABADO_BALDOSA) -> int:
+	var acabado_valido: StringName = _acabado_valido(acabado)
+	var pintadas: int = 0
+	for x: int in edificio_columnas:
+		for y: int in edificio_filas:
+			_color_suelos[Vector2i(x, y)] = color
+			_acabado_suelos[Vector2i(x, y)] = acabado_valido
+			pintadas += 1
 	if pintadas > 0:
 		_refrescar_visual()
 	return pintadas
@@ -1861,9 +1970,15 @@ func save() -> Dictionary:
 	var colores_muros: Array = []
 	for clave: String in _color_muros:
 		colores_muros.append([clave, PaletaPinturaScript.a_hex(_color_muros[clave])])
+	# ACABADO (2026-08-05 · quick-spec §3d, tarea 4): 4º campo por celda, `"baldosa"`/`"liso"`. Un
+	# save de ANTES de esta fecha (o cargado por un test viejo) solo trae los 3 primeros — se lee
+	# como baldosa al cargar (ver `load_state`), que es lo que esa celda pintaba de verdad entonces.
 	var colores_suelos: Array = []
 	for celda: Vector2i in _color_suelos:
-		colores_suelos.append([celda.x, celda.y, PaletaPinturaScript.a_hex(_color_suelos[celda])])
+		colores_suelos.append([
+			celda.x, celda.y, PaletaPinturaScript.a_hex(_color_suelos[celda]),
+			String(_acabado_suelos.get(celda, ACABADO_BALDOSA)),
+		])
 	return {
 		"salas": salas, "elementos": elementos, "contador_ids": _contador_ids,
 		"muros": muros_json,
@@ -1886,6 +2001,7 @@ func load_state(d: Dictionary) -> void:
 	_muros.clear()
 	_color_muros.clear()
 	_color_suelos.clear()
+	_acabado_suelos.clear()
 	for entrada: Variant in d.get("muros", []):
 		# Se admiten los DOS formatos: la clave suelta (saves de la fase A, todos tabiques) y el par
 		# [clave, tipo] de la fase D. Asi una partida guardada esta manana sigue cargando.
@@ -1913,15 +2029,23 @@ func load_state(d: Dictionary) -> void:
 		if not _muros.has(clave_color):
 			continue   # esa pared ya no esta: su pintura no se queda guardada
 		_color_muros[clave_color] = PaletaPinturaScript.desde_hex(String(entrada[1]))
-	# El suelo pintado, celda a celda: [x, y, hex]. Se descarta lo que caiga fuera del edificio.
+	# El suelo pintado, celda a celda: [x, y, hex] o [x, y, hex, acabado] (2026-08-05, tarea 4). Se
+	# descarta lo que caiga fuera del edificio. Un array de 3 (save de ANTES del acabado, o de un
+	# test viejo) es tan válido como uno de 4 — RETROCOMPATIBLE: esa celda se lee como
+	# `ACABADO_BALDOSA`, que es lo que pintaba de verdad antes de que existiera el concepto (nunca
+	# había otra cosa que baldosa).
 	for entrada: Variant in d.get("colores_suelos", []):
-		if not (entrada is Array) or (entrada as Array).size() != 3:
+		if not (entrada is Array) or (entrada as Array).size() < 3:
 			push_warning("Construccion: color de suelo corrupto en el save -> descartado")
 			continue
 		var celda_color := Vector2i(int(entrada[0]), int(entrada[1]))
 		if not _celda_en_edificio(celda_color):
 			continue
 		_color_suelos[celda_color] = PaletaPinturaScript.desde_hex(String(entrada[2]))
+		var acabado: StringName = ACABADO_BALDOSA
+		if (entrada as Array).size() >= 4:
+			acabado = _acabado_valido(StringName(String(entrada[3])))
+		_acabado_suelos[celda_color] = acabado
 	for datos: Variant in d.get("salas", []):
 		if not (datos is Dictionary):
 			push_warning("Construccion: sala corrupta en el save -> descartada")
@@ -2002,6 +2126,10 @@ var _fuentes_tileset: Dictionary = {}
 ## demanda —solo los colores que el jugador use de verdad— y se cachean: repintar la misma sala 20
 ## veces no genera 20 texturas. Se vacía en cada `montar_visual` (el TileSet se rehace ahí).
 var _fuentes_color: Dictionary[String, int] = {}
+## `hex del color -> source_id` del atlas de suelo LISO (2026-08-05 · quick-spec §3d, tarea 4) — el
+## mismo patrón que `_fuentes_color` pero con una textura de color PLANO, sin junta ni variación de
+## tono. Se vacía en cada `montar_visual`, igual que su hermana.
+var _fuentes_color_liso: Dictionary[String, int] = {}
 ## ── SUELOS CON ASPECTO DE BALDOSA (2026-08-05) ──────────────────────────────────────────────
 ## El suelo no es un color plano por celda: cada celda se dibuja con una BALDOSA con una junta
 ## finísima en sus bordes y una variación de tono sutil por celda (determinista: hasheada de sus
@@ -2242,6 +2370,7 @@ func montar_visual(
 	var tileset := TileSet.new()
 	tileset.tile_size = Vector2i(tam_celda, tam_celda)
 	_fuentes_color.clear()   # el TileSet se rehace aquí: los tiles de suelo pintado también
+	_fuentes_color_liso.clear()   # y los del acabado liso (2026-08-05, tarea 4), igual que los de baldosa
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
 		var fuente := TileSetAtlasSource.new()
 		fuente.texture = _textura_de_celda(_color_de_sala(tipo_sala))
@@ -2388,7 +2517,13 @@ func _refrescar_visual() -> void:
 	# dentro del bucle de salas porque una celda pintada NO tiene por qué pertenecer a ninguna sala:
 	# el suelo de un pasillo también se pinta, y así se dibuja igual.
 	for celda: Vector2i in _color_suelos:
-		_capa_salas.set_cell(celda, _fuente_de_color(_color_suelos[celda]), _atlas_coord_de_celda(celda))
+		# ACABADO (2026-08-05, tarea 4): &"liso" usa el atlas de color plano, &"baldosa" el de
+		# siempre (junta + variación). La elección es POR CELDA, igual que el color.
+		var fuente_id: int = (
+			_fuente_de_color_liso(_color_suelos[celda]) if acabado_suelo_de(celda) == ACABADO_LISO
+			else _fuente_de_color(_color_suelos[celda])
+		)
+		_capa_salas.set_cell(celda, fuente_id, _atlas_coord_de_celda(celda))
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
 		var es_asiento: bool = elemento["catalogo"] == ASIENTO_BASICO
@@ -2449,6 +2584,41 @@ func _fuente_de_color(color: Color) -> int:
 	_crear_tiles_de_atlas(fuente)
 	_fuentes_color[hex] = _capa_salas.tile_set.add_source(fuente)
 	return _fuentes_color[hex]
+
+
+## El `source_id` del tile de ACABADO LISO (2026-08-05 · quick-spec §3d, tarea 4) de un color,
+## creándolo la primera vez que hace falta. Mismo patrón que `_fuente_de_color` (baldosa), pero con
+## una textura sin junta ni variación de tono: un color PLANO, como el suelo crema del arranque —
+## petición del usuario: *"esa textura que hay ahora como suelo baldosa o liso como está al inicio
+## la sala de la comisaria"*.
+func _fuente_de_color_liso(color: Color) -> int:
+	if _capa_salas == null or _capa_salas.tile_set == null:
+		return -1
+	var hex: String = PaletaPinturaScript.a_hex(color)
+	if _fuentes_color_liso.has(hex):
+		return _fuentes_color_liso[hex]
+	var fuente := TileSetAtlasSource.new()
+	fuente.texture = _textura_lisa_de_celda(color)
+	fuente.texture_region_size = Vector2i(_tam_celda, _tam_celda)
+	_crear_tiles_de_atlas(fuente)
+	_fuentes_color_liso[hex] = _capa_salas.tile_set.add_source(fuente)
+	return _fuentes_color_liso[hex]
+
+
+## El atlas LISO de un color: las mismas `VARIACIONES_BALDOSA` posiciones que el atlas de baldosa
+## (para compartir `_crear_tiles_de_atlas`/`_atlas_coord_de_celda` sin ningún caso especial), pero
+## con la MISMA imagen de color plano repetida en las seis — sin junta, sin degradado y sin
+## variación de tono: el acabado &"liso" no cambia de una celda a otra, a propósito (es justo lo que
+## lo distingue de la baldosa).
+func _textura_lisa_de_celda(color: Color) -> ImageTexture:
+	var atlas := Image.create(
+		_tam_celda * VARIACIONES_BALDOSA, _tam_celda, false, Image.FORMAT_RGBA8
+	)
+	var plano := Image.create(_tam_celda, _tam_celda, false, Image.FORMAT_RGBA8)
+	plano.fill(color)
+	for variacion: int in VARIACIONES_BALDOSA:
+		atlas.blit_rect(plano, Rect2i(0, 0, _tam_celda, _tam_celda), Vector2i(variacion * _tam_celda, 0))
+	return ImageTexture.create_from_image(atlas)
 
 
 ## Genera el ATLAS de baldosas para un color: una TIRA de `VARIACIONES_BALDOSA` baldosas de

@@ -59,6 +59,25 @@ Feedback literal comparando ambas demos ("me gusta bastante más el diseño que 
   de sobremesa con su soporte propio (precedente de la radio con mesita horneada) o colocación
   con sentido, no todos sobre el mismo mueble.
 
+## 3d. UX de pintura y zonas "tipo Sims" (usuario, 2026-08-05, tras ver pared 65px + fachada pintable)
+
+Pedido literal ("algo tipo sims para la construccion"):
+- **Zonas marcadas**: "las distintas zonas que hay como documentacion odac y demás deben marcarse
+  de alguna manera para distinguirlas, a lo mejor en el modo construccion que haya una capa
+  semitransparente donde se pueda ver el tamaño de cada sala".
+- **Preview del MAYÚS de pintura**: "al hacer mayus para las paredes debería poder verse una
+  vista previa para ver como queda antes de pintar".
+- **Selector de pared a tramo completo**: "el selector para pintar la pared debería ocupar la
+  pared de una cuadricula, solo se ve un trozo pequeño que es dificil de posicionar".
+- Nota de diseño abierta (propuesta, sin decidir): si el velo de zonas en construcción funciona,
+  el TINTE permanente del suelo por tipo de sala podría morir (suelo claro uniforme en juego
+  normal, como la demo de referencia) — decisión del usuario pendiente.
+- **Acabado del suelo al pintar** (usuario, mismo día): "los colores del suelo siempre son
+  baldosas cuando se pinta, se debería poner esa textura que hay ahora como suelo baldosa o liso
+  como está al inicio la sala de la comisaria" ⇒ el pincel de suelo elige ACABADO: `baldosa`
+  (juntas + variación, lo de hoy) o `liso` (color plano, como el suelo crema inicial). El acabado
+  se guarda POR CELDA junto al color y sobrevive al save/load.
+
 ## 4. Preview de objetos estilo tycoon (fantasma transparente)
 
 - Al colocar un objeto, ANTES de comprarlo/colocarlo se ve su sprite real semitransparente en la

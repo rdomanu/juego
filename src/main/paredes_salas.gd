@@ -74,7 +74,11 @@ const GROSOR_PARED: float = 4.0
 ## Alto de la cara de una pared TRASERA (norte/oeste — "fondo"), en píxeles. 34 px: más alto que un
 ## muñeco (22 px) para que se lea como pared y no como bordillo, y menos que el alto del rombo (40)
 ## para que no ahogue el dibujo.
-const ALTO_PARED: float = 34.0
+## 65 px = 2,51 m reales (44 px = 1,70 m). La proporción está MEDIDA de la referencia elegida por
+## el usuario (2026-08-05, `demo/captura_demo_props.png`, "esa misma proporción de pared"): pared
+## 120 px / muñeco 81 px = 1,48× la altura del personaje → 1,48 × 44 px ≈ 65 px. Coincide además
+## con el techo estándar de vivienda (2,50 m). Antes 34.0 (~1,31 m, más bajo que el muñeco).
+const ALTO_PARED: float = 65.0
 ## Alto de una pared FRONTAL (sur/este — "frente", da a cámara), en píxeles. MEDIA altura de
 ## `ALTO_PARED` (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera del fichero): lo bastante
 ## alta para tapar la base de un mueble arrimado a ella (el bug del sofá — con la antigua altura de
@@ -115,10 +119,13 @@ const LARGO_JAMBA: float = 10.0
 ## Gris de obra RETIRADO como color por defecto: se conserva la constante solo como respaldo si
 ## `_construccion` no expusiera la API de pintura (ningún caso real hoy — red de seguridad).
 const COLOR_MURO_LIBRE := Color(0.55, 0.55, 0.52)
-## Color de la FACHADA del edificio (2026-07-30): los muros fijos que son la comisaría en sí. Tono
-## de LADRILLO, distinto del gris de obra de un tabique que has levantado tú — de un vistazo se
-## distingue lo que es estructura (y no se puede tocar) de lo que has construido.
-const COLOR_FACHADA := Color(0.62, 0.44, 0.36)
+## ── MUERE EL LADRILLO FIJO DE LA FACHADA (2026-08-05) ───────────────────────────────────────────
+## Hasta hoy la fachada tenía un color de LADRILLO hardcodeado aquí (`COLOR_FACHADA`), distinto del
+## resto de tramos, porque `Construccion.pintar_muro` la rechazaba: no había pintura que preguntar.
+## Orden del usuario: *"las paredes del edificio también se deben poder pintar"* — la fachada ya
+## acepta pintura como cualquier tabique (`_muros_fijos` solo sigue bloqueando demolición y huecos),
+## así que su color sale del MODELO igual que el de cualquier tramo (`color_muro_de`), sin caso
+## especial aquí. La constante muere con él: no queda ni un tramo que se pinte solo por ser fachada.
 ## Grosor de la línea de VENTANA (FASE D, 2026-07-30): más fina que `GROSOR_PARED` — se lee como
 ## cristal, no como pared maciza.
 const GROSOR_VENTANA: float = 2.0
@@ -268,7 +275,7 @@ func _firma_actual() -> String:
 	for clave: String in muros:
 		muros_con_tipo.append(
 			clave + ":" + String(_construccion.tipo_muro_de_clave(clave))
-			+ ":" + _color_de_tramo(clave, _construccion.es_muro_fijo(clave)).to_html(false)
+			+ ":" + _color_de_tramo(clave).to_html(false)
 		)
 	partes.append("MUROS:" + ",".join(muros_con_tipo))
 	return "|".join(partes)
@@ -320,12 +327,11 @@ func _recalcular_tramos() -> void:
 		# procesan salas cuyo perímetro está entero levantado), y "" cae en el caso macizo, que es
 		# exactamente lo que se pintaba antes: la red de seguridad no cambia nada de lo que ya había.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(unidad["clave_modelo"])
-		# `es_muro_fijo` se pregunta SOLO para el rodapié (la fachada de ladrillo no lleva). El
-		# color se sigue pidiendo con `false`, exactamente como hasta hoy: cambiarlo aquí teñiría
-		# de ladrillo los tramos de perímetro que caen sobre la fachada, y eso es otra decisión.
+		# `es_muro_fijo` se pregunta SOLO para el rodapié (la fachada no lleva, ver `_agregar_arista`);
+		# el COLOR ya no distingue fachada (2026-08-05): sale del modelo igual que cualquier tramo.
 		_agregar_arista(
 			unidad["desde"], unidad["hasta"], _cara_de_arista(unidad["detras"]),
-			_color_de_tramo(unidad["clave_modelo"], false), tipo, true,
+			_color_de_tramo(unidad["clave_modelo"]), tipo, true,
 			_construccion.es_muro_fijo(unidad["clave_modelo"])
 		)
 	# 3) (Las jambas del hueco automático murieron con él: una puerta REAL ya recibe las suyas en
@@ -351,7 +357,7 @@ func _recalcular_tramos() -> void:
 		var fija: bool = _construccion.es_muro_fijo(clave_construccion)
 		_agregar_arista(
 			geo["desde"], geo["hasta"], _cara_de_arista(geo["detras"], fija),
-			_color_de_tramo(clave_construccion, fija),
+			_color_de_tramo(clave_construccion),
 			_construccion.tipo_muro_de_clave(clave_construccion), true, fija
 		)
 	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
@@ -568,17 +574,16 @@ func _unidades_de_perimetro(sala_id: StringName) -> Array[Dictionary]:
 
 ## EL COLOR DE UN TRAMO (PINTURA, 2026-08-04). Sustituye al antiguo `_color_de_pared(sala_id)`, que
 ## derivaba el color del TIPO DE SALA — hoy una pared no pertenece a ninguna sala a efectos de color:
-## nace blanca y la pinta el jugador.
+## nace del color por defecto del modelo y la pinta el jugador.
 ##
-##   · **Fachada** (`fija`): ladrillo, siempre. No se pinta (`Construccion.pintar_muro` la rechaza),
-##     así que aquí ni se pregunta — es el plano de la comisaría, no obra tuya.
-##   · **Cualquier otro tramo**: lo que diga el modelo, que devuelve BLANCO si nunca se pintó.
+## La FACHADA (2026-08-05) dejó de ser un caso especial de color: ya se pinta como cualquier tramo
+## (`Construccion.pintar_muro` ya no la rechaza), así que aquí ya no se pregunta por `fija` — el
+## parámetro se conserva solo porque `_agregar_arista` lo necesita aparte, para el RODAPIÉ (la
+## fachada nunca lo lleva, ver esa función), no para el color.
 ##
 ## `clave_modelo` es la clave con el convenio de `Construccion.clave_de_muro` (col:row en las dos
 ## familias) — la misma que ya viaja en cada unidad de perímetro y la que devuelve `muros()`.
-func _color_de_tramo(clave_modelo: String, fija: bool) -> Color:
-	if fija:
-		return COLOR_FACHADA
+func _color_de_tramo(clave_modelo: String) -> Color:
 	if not _construccion.has_method("color_muro_de"):
 		return COLOR_MURO_LIBRE   # red de seguridad: modelo sin API de pintura (no pasa hoy)
 	return _construccion.color_muro_de(clave_modelo)
