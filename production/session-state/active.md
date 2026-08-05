@@ -2592,3 +2592,19 @@ en el juego (paleta completa disponible).
   hoja puertas/ventanas → integrar arte en tramos tras decisión.
 - EN VUELO al cerrar: nada de agentes (todos cerrados). Tools de la sesión sin commitear:
   _render/_hoja/_diag props, _demo_props_pipeline (se commitean ahora), morralla vieja intacta.
+
+---
+
+# 🎨 CIERRE 2026-08-05 (2ª parte) — el usuario aplica cambios visuales CON SUMMER
+
+- Commiteado antes de soltar el terreno: `643cbf7` = suelo limpio + rodapié en pared + rejilla
+  solo al construir (123/123 dirigidos + arranque limpio; suite COMPLETA no re-corrida — pasarla
+  en la próxima sesión) + renders props v3 preservados en capturas/fuentes/props_poly/renders_v3/.
+- El usuario decidió aplicar "todos los cambios" visuales pendientes ÉL MISMO con Summer Engine
+  (paleta clara estilo su demo: suelo crema ~(0.87,0.84,0.78), paredes azul suave ~(0.72,0.78,0.88)
+  o blancas; y lo que él decida). PRÓXIMA SESIÓN: auditar TODO el diff de Summer contra `643cbf7`
+  (git diff, archivo a archivo), pasar suite completa, revertir churn de project.godot/Main.tscn
+  si aparece, y commitear por hitos lo que valga. NO asumir que las decisiones pendientes
+  (puerta A/B, ventana, props, paleta) se tomaron — preguntar qué hizo con Summer.
+- Agente de hoja de paleta DETENIDO sin obra (no estorba). Hoja v3 de props enseñada, sin
+  veredicto aún.
