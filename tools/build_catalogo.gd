@@ -50,7 +50,8 @@ const IDS_DENUNCIAS: Array[StringName] = [
 ## (Bienestar #13, familia "descanso" — petición del usuario 2026-07-29) + 3 de iluminación
 ## (familia "iluminacion", se colocan en CUALQUIER sala — petición del usuario 2026-07-29:
 ## "no veo tampoco la instalacion de luces para la noche").
-const TOTAL_ESPERADO := 50
+## +1 (51): la IMPRESORA DE DOCUMENTOS (GDD impresora-documentos-tramite.md, 2026-08-01).
+const TOTAL_ESPERADO := 51
 
 ## Acumula fallos de guardado para terminar con exit code ≠0.
 var _fallos: int = 0
@@ -154,12 +155,17 @@ func _generar_salas() -> void:
 	_guardar(_sala(
 		&"sala_espera_odac", "Sala de Espera — ODAC", "espera", "ODAC",
 		[], 10, 200), "salas")
+	# REQUISITOS MÍNIMOS DE SALA (GDD impresora-documentos-tramite.md, decisión P1 del usuario
+	# 2026-08-01): "Documentación: 1 puesto (DNI o TIE) + 1 impresora de documentos · ODAC: 1 puesto +
+	# 1 impresora". Así deja de existir el caso "sala sin impresora".
 	_guardar(_sala(
 		&"sala_documentacion", "Oficina de Documentación", "oficina", "Documentacion",
-		[&"puesto_doc_general", &"puesto_tie"], 0, 0), "salas")
+		[&"puesto_doc_general", &"puesto_tie"], 0, 0, false,
+		[&"impresora_documentos"], 1), "salas")
 	_guardar(_sala(
 		&"sala_odac", "Oficina de ODAC", "oficina", "ODAC",
-		[&"puesto_odac"], 0, 0), "salas")
+		[&"puesto_odac"], 0, 0, false,
+		[&"impresora_documentos"], 1), "salas")
 	# Bienestar #13: el cuarto donde se toman el cafe. Comun a los dos servicios (la comisaria tiene
 	# UNA sala de descanso, no una por departamento). Sin ella se descansa igual, pero mas despacio.
 	_guardar(_sala(
@@ -263,7 +269,8 @@ func _puesto(
 func _sala(
 		id: StringName, nombre: String, tipo: String, servicio: String,
 		puestos: Array, aforo: int, coste_eur: int,
-		paredes: bool = false) -> Resource:
+		paredes: bool = false,
+		comodidades_obligatorias: Array = [], puestos_minimos: int = 0) -> Resource:
 	var r: Resource = TipoSalaScript.new()
 	r.id = id
 	r.nombre = nombre
@@ -279,6 +286,13 @@ func _sala(
 	# Solo la sala de DESCANSO nace con paredes (decision del usuario 2026-07-30): su razon de ser es
 	# la intimidad. El resto nacen en planta diafana — ahi se quiere DELIMITAR la zona, no aislarla.
 	r.paredes_por_defecto = paredes
+	# Requisitos mínimos de sala (GDD de la impresora, decisión P1): mecánica GENERAL — lo que la sala
+	# exige vive aquí, en el catálogo, no en el código que lo comprueba.
+	var obligatorias: Array[StringName] = []
+	for c: StringName in comodidades_obligatorias:
+		obligatorias.append(c)
+	r.comodidades_obligatorias = obligatorias
+	r.puestos_minimos = puestos_minimos
 	return r
 
 
@@ -371,6 +385,19 @@ func _generar_comodidades() -> void:
 		&"impresora_dni", "Impresora de DNI moderna", "El documento sale en la mitad de tiempo.",
 		"funcionario", 2200, 3, 6.0
 	), "comodidades")
+	# LA IMPRESORA DE DOCUMENTOS (GDD impresora-documentos-tramite.md, numeros APROBADOS por el usuario
+	# 2026-08-01). Objeto NUEVO y distinto de `impresora_dni` (decision P3: aquella se queda como
+	# comodidad de confort). Es OBLIGATORIA en Documentacion y en ODAC, asi que su precio no puede ser
+	# un lujo que castigue ampliar: 600 EUR. Su aporte es modesto (2,0) a proposito -- lo que se compra
+	# aqui es la FUNCION (el papel del tramite), no el confort.
+	# Es la PRIMERA comodidad con mantenimiento POR USO (ajuste del usuario: "pagar por uso, no tarifa
+	# plana"): 0 de tarifa plana + 2 EUR por cada TURNO en que su sala atiende.
+	_guardar(_comodidad(
+		&"impresora_documentos", "Impresora de documentos",
+		"Obligatoria: de aqui sale la denuncia y el resguardo del TIE.",
+		"funcionario", 600, 0, 2.0, false, 0.0, 3.0, 0.0,
+		false, Color(1.0, 0.9, 0.7), 90.0, 0, 1, 0.0, 2
+	), "comodidades")
 	# Familia "descanso" (Bienestar #13, peticion del usuario 2026-07-29): lo que se pone en la sala
 	# de descanso. Cuanto mejor montada, MENOS dura la pausa: el cafe cunde y vuelven antes a la
 	# ventanilla. Los que tienen `plazas` son ademas sitio donde sentarse (aforo del descanso).
@@ -420,7 +447,7 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"fluorescente", "Fluorescente", "El tubo de toda oficina. Barato y de sobra para ver.",
 		"iluminacion", 60, 1, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(0.90, 0.96, 1.0), 100.0, 0, 1, 60.0   # TUBO: 5 casillas de ancho x 3 de alto
+		true, Color(0.90, 0.96, 1.0), 100.0, 0, 1, 60.0, 0, true   # TUBO: 5 casillas de ancho x 3 de alto
 	), "comodidades")
 	_guardar(_comodidad(
 		&"lampara_pie", "Lampara de pie", "Luz calida, un rincon mas acogedor para pasar la noche.",
@@ -430,7 +457,7 @@ func _generar_comodidades() -> void:
 	_guardar(_comodidad(
 		&"foco_led", "Foco LED", "El mas caro de instalar, pero no gasta nada dia a dia.",
 		"iluminacion", 180, 0, 0.0, false, 0.0, 3.0, 0.0,
-		true, Color(0.88, 0.94, 1.0), 100.0    # LED - 5x5 CASILLAS (radio 2,5 celdas): el que de verdad ilumina una sala
+		true, Color(0.88, 0.94, 1.0), 100.0, 0, 1, 0.0, 0, true    # LED - 5x5 CASILLAS (radio 2,5 celdas): el que de verdad ilumina una sala
 	), "comodidades")
 
 
@@ -440,7 +467,8 @@ func _comodidad(
 	usable: bool = false, ingreso_uso: float = 0.0, minutos_uso: float = 3.0,
 	recupera: float = 0.0,
 	emite_luz: bool = false, color_luz: Color = Color(1.0, 0.9, 0.7), radio_luz: float = 90.0,
-	plazas: int = 0, superficie: int = 1, radio_luz_y: float = 0.0
+	plazas: int = 0, superficie: int = 1, radio_luz_y: float = 0.0,
+	mantenimiento_turno: int = 0, en_techo: bool = false
 ) -> Resource:
 	var r: Resource = ComodidadScript.new()
 	r.id = id
@@ -449,6 +477,9 @@ func _comodidad(
 	r.familia = familia
 	r.coste_construccion_eur = coste
 	r.coste_mantenimiento_dia_eur = mantenimiento
+	# Mantenimiento POR USO (GDD de la impresora): euros por TURNO en que su sala atiende. 0 = no cobra
+	# por uso, que es todo el catalogo salvo la impresora de documentos.
+	r.coste_mantenimiento_turno_eur = mantenimiento_turno
 	r.aporte = aporte
 	r.usable = usable
 	r.ingreso_por_uso_eur = ingreso_uso
@@ -460,6 +491,9 @@ func _comodidad(
 	r.plazas = plazas
 	r.radio_luz_y = radio_luz_y
 	r.superficie = superficie
+	# Pieza DE TECHO (peticion del usuario 2026-07-30): no ocupa suelo, se cuelga encima de lo que haya.
+	# Solo las luminarias fijas (fluorescente, foco LED); la lampara DE PIE se apoya en el suelo.
+	r.en_techo = en_techo
 	return r
 
 

@@ -9,3 +9,5 @@ nombre = "Oficina de ODAC"
 tipo = "oficina"
 servicio = "ODAC"
 puestos_admitidos = Array[StringName]([&"puesto_odac"])
+comodidades_obligatorias = Array[StringName]([&"impresora_documentos"])
+puestos_minimos = 1

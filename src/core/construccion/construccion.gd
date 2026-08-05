@@ -123,9 +123,45 @@ var _puede_demoler: Callable = Callable()
 ## Puestos cuya demolición ESPERA al fin de su atención (compromiso de servicio — Flujo reintenta
 ## vía `reintentar_demoliciones_pendientes` al completar cada atención).
 var _demoliciones_pendientes: Array[StringName] = []
+## Hook de SALA RECIEN CREADA (GDD impresora-documentos-tramite.md, decision P1 del usuario:
+## *"construir una sala nueva exige un minimo de objetos... la validacion es de Construccion, en el
+## momento de construir"*). Main lo cablea a `ImpresoraDocumentos.completar_requisitos`, que coloca
+## los objetos OBLIGATORIOS del tipo de sala en cuanto la sala existe. Sin cablear -> no-op (tests).
+##
+## Vive aqui y NO como una llamada directa a la impresora a proposito: Construccion no debe conocer
+## a ningun sistema por su nombre (regla de capas) -- solo avisa de que ha pasado algo.
+var _hook_sala_creada: Callable = Callable()
 ## Hook de cambio de layout (story flujo-008): Main lo cablea para re-bakear la navegación de los
 ## NPCs y re-sincronizar los puestos de Flujo. Sin cablear → no-op (tests).
 var _hook_layout: Callable = Callable()
+
+## CONTADOR GLOBAL de versión del layout (bug 2026-08-05: *"aunque haya una puerta, la gente
+## atraviesa la pared en algunas ocasiones"*). `static`, así que vive en la CLASE y no en cada
+## instancia — cualquier NPC en cualquier parte del árbol puede leerlo por `Construccion.
+## version_layout` sin necesitar una referencia al nodo (que no siempre tiene: `NPCCiudadano`, por
+## ejemplo, solo conoce a `NPCsFlujo`, nunca a `Construccion` directamente).
+##
+## SE INCREMENTA en cada `_refrescar_visual()` (toda mutación real del modelo: muros, puertas,
+## salas, elementos — la MISMA lista de disparos que ya usa el hook de rebake de navegación). Un NPC
+## que ya tenía una ruta calculada ANTES de que se levantara un muro nuevo en medio de esa ruta no se
+## enteraba de nada: `NavigationAgent2D` no repatea solo porque el `NavigationRegion2D` se re-bakee
+## por debajo — sigue entregando puntos de la ruta VIEJA, así que el NPC atravesaba el muro en línea
+## recta (reproducido y cazado con `tests/integration/flujo/flujo_muro_tras_ruta_test.gd`). Comparar
+## este entero cada frame es una lectura O(1); la reconsulta cara (`hay_camino`, BFS de toda la
+## rejilla) solo se dispara cuando de verdad cambió algo, igual que el recheque de bloqueo ya hacía.
+static var version_layout: int = 0
+
+
+## Cablea el hook de "sala recien creada" (requisitos minimos de sala). Se dispara UNA vez por sala
+## construida, nunca por frame.
+func fijar_hook_sala_creada(hook: Callable) -> void:
+	_hook_sala_creada = hook
+
+
+## Avisa de que una sala acaba de nacer, para que quien corresponda le coloque sus obligatorios.
+func _avisar_sala_creada(sala_id: StringName) -> void:
+	if sala_id != &"" and _hook_sala_creada.is_valid():
+		_hook_sala_creada.call(sala_id)
 
 
 ## Cablea el hook de cambio de layout (se dispara en cada mutación del modelo, nunca por frame).
@@ -828,7 +864,9 @@ func designar_zona(origen: Vector2i, tipo_sala_id: StringName) -> StringName:
 	)
 	if not _pagar(coste):
 		return &""
-	return _crear_sala_con_celdas(tipo_sala_id, celdas, coste)
+	var sala_nueva: StringName = _crear_sala_con_celdas(tipo_sala_id, celdas, coste)
+	_avisar_sala_creada(sala_nueva)   # requisitos minimos de sala (GDD de la impresora, decision P1)
+	return sala_nueva
 
 
 ## Da de alta una sala con una FORMA CUALQUIERA (fase C). El `rect` que se guarda es su caja
@@ -1555,7 +1593,9 @@ func construir_sala(tipo_sala_id: StringName, rect: Rect2i, con_paredes: int = 0
 	var coste: float = coste_sala(tipo_sala_id, rect)
 	if not _pagar(coste):
 		return &""
-	return _crear_sala(tipo_sala_id, rect, coste, &"", con_paredes)
+	var sala_nueva: StringName = _crear_sala(tipo_sala_id, rect, coste, &"", con_paredes)
+	_avisar_sala_creada(sala_nueva)   # requisitos minimos de sala (GDD de la impresora, decision P1)
+	return sala_nueva
 
 
 ## ¿El rectángulo AMPLÍA una sala existente del mismo tipo? Exige que la UNIÓN siga siendo un
@@ -1640,7 +1680,9 @@ func construir_de_oficio_sala(
 	if not validar_sala(tipo_sala_id, rect):
 		push_warning("Construccion: montaje de oficio INVALIDO (sala '%s' en %s)" % [tipo_sala_id, rect])
 		return &""
-	return _crear_sala(tipo_sala_id, rect, 0.0, id_forzado)
+	var sala_nueva: StringName = _crear_sala(tipo_sala_id, rect, 0.0, id_forzado)
+	_avisar_sala_creada(sala_nueva)   # requisitos minimos de sala (aqui de oficio: coste 0)
+	return sala_nueva
 
 
 ## Construye un elemento del montaje inicial (coste 0; `id_forzado` para los ids compat doc_1...).
@@ -1876,7 +1918,11 @@ func puestos_de_servicio(servicio: String) -> Array[StringName]:
 		var catalogo: StringName = _elementos[elemento_id]["catalogo"]
 		if catalogo == ASIENTO_BASICO:
 			continue
-		var tipo: Resource = Datos.obtener(&"TipoPuesto", catalogo)
+		# SILENCIOSO: aquí se PREGUNTA "¿esto es un puesto?" recorriendo TODO lo colocado, así que un
+		# `null` por una comodidad (una tele, una impresora) es la respuesta esperada, no un dato roto
+		# — y con `obtener` cada re-sincronización de Flujo escupía un aviso por cada mueble de la
+		# comisaría. Se notó al meter la impresora de documentos en el trazado inicial (2026-08-06).
+		var tipo: Resource = Datos.obtener_silencioso(&"TipoPuesto", catalogo)
 		if tipo != null and tipo.servicio == servicio:
 			resultado.append(elemento_id)
 	return resultado
@@ -1986,6 +2032,33 @@ func contenido_de_sala(sala_id: StringName) -> Array[StringName]:
 	for elemento_id: StringName in _elementos:
 		if _elementos[elemento_id]["sala"] == sala_id:
 			resultado.append(elemento_id)
+	return resultado
+
+
+## Todos los elementos colocados de un id de CATÁLOGO, en orden estable de construcción (vacío si no
+## hay ninguno). Lo consulta quien necesita "¿dónde están las impresoras / las neveras / los X?" sin
+## conocer el modelo por dentro — p. ej. `ImpresoraDocumentos` para elegir la más cercana.
+func elementos_de_catalogo(id_catalogo: StringName) -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for elemento_id: StringName in _elementos:
+		if _elementos[elemento_id]["catalogo"] == id_catalogo:
+			resultado.append(elemento_id)
+	return resultado
+
+
+## La sala en la que vive un elemento colocado (`&""` si el elemento no existe). Getter público del
+## dato que ya usaban por dentro `equipamiento_de_puesto` y compañía.
+func sala_de_elemento(elemento_id: StringName) -> StringName:
+	if not _elementos.has(elemento_id):
+		return &""
+	return _elementos[elemento_id]["sala"]
+
+
+## Los ids de TODAS las salas construidas, en orden estable de construcción.
+func salas_construidas() -> Array[StringName]:
+	var resultado: Array[StringName] = []
+	for sala_id: StringName in _salas:
+		resultado.append(sala_id)
 	return resultado
 
 
@@ -2428,6 +2501,11 @@ static func _sprites_comodidad() -> Dictionary:
 			"sprite": "estanteria_esquina", "rotacion": 0,
 			"espalda_0": ESPALDA_HORIZONTAL, "espalda_extra_0": ESPALDA_VERTICAL,
 		},
+		# Fotocopiadora de la mecánica de documentos (2026-08-06): primera pieza del reparto
+		# "Summer diseña, nosotros integramos" — generación IA vía Summer Engine, reescalada al
+		# factor de presencia (39 px = 1,20 m × 1,25; plan-escalado.md §1) y con rotaciones por
+		# espejo desde la vista buena (las 4 "vistas" de la IA eran el mismo ángulo).
+		&"impresora_documentos": {"rotacion": 0},
 	}
 
 
@@ -2616,6 +2694,10 @@ func punto_cuadrado_de(punto_pantalla: Vector2) -> Vector2:
 ## Redibuja TODO el visual desde el modelo (se llama en cada cambio de layout, nunca por frame —
 ## el layout cambia por acciones puntuales del jugador, no en el tick).
 func _refrescar_visual() -> void:
+	# Un NPC ya en marcha necesita SABER que el layout cambió para repatear su ruta (ver el
+	# comentario de `version_layout`) — se cuenta aquí, antes que nada, para que quien lea el
+	# contador este mismo frame (el propio hook de abajo incluido) ya vea el valor nuevo.
+	version_layout += 1
 	# Hook de cambio de layout (story flujo-008): Main re-bakea la navegación y re-sincroniza los
 	# puestos de Flujo SOLO aquí (nunca por frame). Se avisa aunque no haya capa visual montada.
 	if _hook_layout.is_valid():
@@ -2690,7 +2772,13 @@ func _refrescar_visual() -> void:
 			elemento["celda"]
 		)
 		if not es_asiento:
-			var tipo_puesto: Resource = Datos.obtener(&"TipoPuesto", elemento["catalogo"])
+			# SILENCIOSO a propósito: aquí llega TODO lo que no es un puesto ni un asiento, o sea
+			# todas las COMODIDADES — y para ellas "no es un TipoPuesto" es la respuesta normal, no un
+			# dato roto (el `if` de abajo ya cae al id de catálogo como etiqueta). Con `obtener` cada
+			# refresco del visual escupía un aviso por cada mueble colocado; se notó al meter la
+			# impresora de documentos en el trazado inicial (2026-08-06), que es la primera comodidad
+			# que existe desde el arranque.
+			var tipo_puesto: Resource = Datos.obtener_silencioso(&"TipoPuesto", elemento["catalogo"])
 			var texto: Label = instancia.get_node("Etiqueta")
 			texto.text = tipo_puesto.nombre if tipo_puesto != null else String(elemento["catalogo"])
 		_capa_elementos.add_child(instancia)

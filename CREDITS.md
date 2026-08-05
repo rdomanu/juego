@@ -31,6 +31,7 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | ["Water Cooler"](https://poly.pizza/m/zWi9p5FSxD) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Fuente de agua (`fuente_agua_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["Locker"](https://poly.pizza/m/aGmZ4jQD2y) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Taquilla (`taquilla_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["File Cabinet"](https://poly.pizza/m/9732ObD3OY) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Archivador (`archivador_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
+| Fotocopiadora de oficina (generación IA propia vía Summer Engine, encargo del proyecto) | — | Generación propia (términos de Summer Engine; sin atribución CC exigible) | Impresora de documentos (`comodidad_impresora_documentos_*.png`, reescalada a 39 px = 1,20 m × factor de presencia 1,25) | **En uso** (2026-08-06) |
 
 ### Texto de atribución a incluir en los créditos del juego
 

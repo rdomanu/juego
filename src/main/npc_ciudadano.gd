@@ -32,6 +32,11 @@ var _bloqueado: bool = false
 var _destino_deseado: Vector2 = Vector2.ZERO
 ## Frames transcurridos desde el último intento de reencontrar camino, mientras está bloqueado.
 var _frames_bloqueo: int = 0
+## Último valor visto de `Construccion.version_layout` (bug 2026-08-05: ruta cacheada que atravesaba
+## un muro levantado a mitad de camino — ver el `elif` de `_physics_process`). `-1` para que la
+## primera comparación tras nacer SIEMPRE se considere "layout visto" al día (el primer destino real
+## ya lo pone la rama de arriba, por cambio de estado; este contador solo importa DESPUÉS).
+var _version_layout_visto: int = -1
 ## Cuántos physics frames se esperan entre reintentos de camino mientras está BLOQUEADO (~3 s a
 ## 60 fps). Ni cada frame —el BFS de `NPCsFlujo.hay_camino` barre la rejilla entera, gasto inútil
 ## si el jugador no ha tocado la obra— ni tan espaciado que se note tardar en desbloquearse tras
@@ -39,6 +44,19 @@ var _frames_bloqueo: int = 0
 const FRAMES_RECHEQUEO_BLOQUEO: int = 180
 ## La señal de prohibido sobre la cabeza (nace oculta; ver `configurar` y `_actualizar_destino`).
 var _icono_bloqueo: Node2D = null
+## ── LOS INDICADORES FLOTANTES NO COMPITEN CON LAS PAREDES (2026-08-06) ─────────────────────────
+## z RELATIVO al muñeco de todo lo que flota sobre su cabeza (barra de paciencia + señal de
+## prohibido). Desde el cambio estructural de esa fecha, el CUERPO del muñeco vive en la bolsa de
+## y-sort compartida (z 0) y una pared frontal puede taparle las piernas — que es lo que se buscaba.
+## Lo que NO puede pasar es que esa misma pared se coma un dato que el jugador necesita para decidir
+## (cuánta paciencia le queda a esa cola, o que alguien se ha quedado sin camino), así que estos dos
+## nodos suben a un z propio, por encima de toda la escalera de capas del juego.
+##
+## Copia deliberada de `NPCsFlujo.Z_ROTULO_FLOTANTE` (mismo valor, misma razón): `npcs_flujo.gd` YA
+## hace `preload` de este fichero, así que leer su constante desde aquí cerraría un ciclo. La
+## documentación viva del reparto de capas está allí; aquí solo se aplica.
+const Z_ROTULO_FLOTANTE: int = 6
+
 ## Tamaño de la barra de paciencia (px). Ancha para leerse a distancia de cámara sin acercarse.
 const ANCHO_BARRA := 16.0
 const ALTO_BARRA := 3.0
@@ -141,18 +159,21 @@ func configurar(
 	_animo_fondo.position = Vector2(-ANCHO_BARRA * 0.5, -28)
 	_animo_fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo_fondo.visible = false
+	_animo_fondo.z_index = Z_ROTULO_FLOTANTE   # ninguna pared tapa un dato (ver esa constante)
 	muneco.add_child(_animo_fondo)
 	_animo = ColorRect.new()
 	_animo.size = Vector2(ANCHO_BARRA, ALTO_BARRA)
 	_animo.position = Vector2(-ANCHO_BARRA * 0.5, -28)
 	_animo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_animo.visible = false
+	_animo.z_index = Z_ROTULO_FLOTANTE   # ninguna pared tapa un dato (ver esa constante)
 	muneco.add_child(_animo)
 	# SEÑAL DE PROHIBIDO (story bug 2026-08-03): por encima de la barra de paciencia, bien despegada
 	# de la cabeza para que no se confunda con ella. Nace oculta — la conmuta `_actualizar_destino`.
 	_icono_bloqueo = IconoProhibidoScript.new()
 	_icono_bloqueo.position = Vector2(0.0, -46.0)
 	_icono_bloqueo.visible = false
+	_icono_bloqueo.z_index = Z_ROTULO_FLOTANTE   # ninguna pared tapa un dato (ver esa constante)
 	muneco.add_child(_icono_bloqueo)
 	_manager.registrar_muneco(muneco)
 
@@ -206,7 +227,24 @@ func _physics_process(_delta: float) -> void:
 	if persona.estado != _estado_visto or comodidad != _comodidad_vista:
 		_estado_visto = persona.estado
 		_comodidad_vista = comodidad
+		_version_layout_visto = Construccion.version_layout   # este destino YA es del layout actual
 		_actualizar_destino(_manager.destino_de(self))
+	elif Construccion.version_layout != _version_layout_visto:
+		# 🐛 BUG cazado por el usuario el 2026-08-05 (*"aunque haya una puerta, la gente atraviesa la
+		# pared en algunas ocasiones"*): un NPC que YA iba de camino cuando el jugador levanta un muro
+		# NUEVO a mitad de esa ruta no se enteraba — el estado lógico no cambia con la obra, así que la
+		# rama de arriba nunca se disparaba. `NavigationAgent2D` NO repatea solo porque el
+		# `NavigationRegion2D` se re-bakee por debajo (confirmado en el motor,
+		# `tests/integration/flujo/flujo_muro_tras_ruta_test.gd`): seguía entregando puntos de la
+		# corridor VIEJA, así que el cuerpo atravesaba el muro nuevo en línea recta.
+		#
+		# `Construccion.version_layout` (contador `static`, sube en cada `_refrescar_visual()` — toda
+		# mutación real del layout) es la señal barata de "algo cambió"; leerla es una comparación de
+		# enteros, cero coste. Solo cuando sube de verdad se paga la reconsulta cara
+		# (`_actualizar_destino` → `hay_camino` → BFS de la rejilla), exactamente el mismo patrón de
+		# "barato cada frame, caro solo si hace falta" que ya usa el recheque de bloqueo de abajo.
+		_version_layout_visto = Construccion.version_layout
+		_actualizar_destino(_destino_deseado)
 	_refrescar_animo()
 	# El paseo escala con el reloj (2×/3× caminan más rápido); en Pausa (mult 0) se congela.
 	var mult: float = Tiempo.multiplicador_velocidad

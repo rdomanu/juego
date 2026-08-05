@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_dfj2a"]
+
+[resource]
+script = ExtResource("1_dfj2a")
+id = &"impresora_documentos"
+nombre = "Impresora de documentos"
+descripcion = "Obligatoria: de aqui sale la denuncia y el resguardo del TIE."
+familia = "funcionario"
+coste_construccion_eur = 600
+coste_mantenimiento_turno_eur = 2
+aporte = 2.0

@@ -9,3 +9,5 @@ nombre = "Oficina de Documentación"
 tipo = "oficina"
 servicio = "Documentacion"
 puestos_admitidos = Array[StringName]([&"puesto_doc_general", &"puesto_tie"])
+comodidades_obligatorias = Array[StringName]([&"impresora_documentos"])
+puestos_minimos = 1

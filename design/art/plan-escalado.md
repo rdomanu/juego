@@ -72,6 +72,27 @@ de consulta para cualquier objeto nuevo.
 | 2,50 m | 65 px |
 | 2,70 m | 70 px |
 
+### El FACTOR DE PRESENCIA (decisión del usuario, 2026-08-06)
+
+Los personajes del juego son **cabezones a propósito** (estilo gracioso): aunque "miden" 1,70 m,
+ocupan mucho más volumen visual que una persona real. Junto a ellos, un objeto a escala métrica
+exacta se lee **enano** (feedback literal del usuario con la fotocopiadora: *"en realidad es
+bastante grande y la veo enana"*). La solución del género (Two Point Campus y compañía) es
+exagerar los objetos. El usuario eligió el factor con hoja A/B/C delante (31/39/45 px):
+
+```
+FACTOR_PRESENCIA = 1,25          (opción B — +25%)
+px_en_pantalla = metros × 25,882 × 1,25
+```
+
+- **Aplica a**: mobiliario y objetos interactivos (todo lo que compite visualmente con un muñeco).
+- **NO aplica a**: personajes (son el ancla), arquitectura (paredes/puertas/ventanas — la pared ya
+  se fijó por proporción visual directa contra la referencia, y una puerta debe "tragar" al muñeco).
+- La columna de METROS de la tabla del §3 sigue siendo la real; el px objetivo de producción es
+  el de presencia. Los sprites ya integrados se irán revisando al factor cuando se rehagan (lote
+  REVISAR) — no hay re-render masivo preventivo.
+- Primera pieza con el factor: la fotocopiadora de Summer (1,20 m ⇒ 31 px métricos ⇒ **39 px**).
+
 ---
 
 ## 2. Medidas de arquitectura

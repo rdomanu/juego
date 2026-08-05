@@ -38,6 +38,19 @@ class_name Comodidad extends Resource
 ## Lo que cuesta tenerlo encendido cada jornada. **0 = no consume** (papelera, revistero): se paga una
 ## vez y ya. Los aparatos (radio, tele, vending, equipos) sí sangran cada día.
 @export var coste_mantenimiento_dia_eur: int = 0
+## Mantenimiento POR USO: euros por cada TURNO del día en que la sala del objeto estuvo atendiendo
+## (GDD `impresora-documentos-tramite.md`, ajuste del usuario 2026-08-01: *"pagar por uso, no tarifa
+## plana"*). `coste_dia = este valor × nº de turnos operativos de su sala` — una ODAC 24 h paga los 3
+## turnos, una Documentación de mañana paga 1, y una sala cerrada **no paga nada**.
+##
+## Es un knob GENERAL del catálogo, no un caso especial de la impresora: cualquier objeto puede
+## cobrarse así el día que interese. **0 = no cobra por uso** (todo el catálogo salvo la impresora de
+## documentos). Convive con `coste_mantenimiento_dia_eur`: un objeto podría tener tarifa plana Y
+## consumo por turno, y pagaría las dos — hoy ninguno lo hace.
+##
+## ⚠️ Quién lo cobra: la tarifa plana la suma `Construccion.mantenimiento_dia()`; ESTE lo suma
+## `ImpresoraDocumentos.coste_mantenimiento_uso()`, que es quien lleva la cuenta de los turnos.
+@export var coste_mantenimiento_turno_eur: int = 0
 ## Cuánto aporta a su familia (confort o rendimiento). Se SUMA con el resto de objetos de la sala.
 @export var aporte: float = 1.0
 ## Celdas que ocupa en la rejilla. Construcción LEE este campo al colocar: la celda de clic es el

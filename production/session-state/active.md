@@ -2656,3 +2656,41 @@ en el juego (paleta completa disponible).
   falta arte) / mesa de trabajo / mueble soporte / puerta+ventana arte / fuente 1,60 re-render ·
   🟡 lámparas, prensa, revistero, nevera, máquina café (cajas de código) · 🔵 taquilla+archivador
   (arte sin objeto) y duplicado dispensador vs fuente_agua.
+
+---
+
+# 🏁 CIERRE DE SESIÓN 2026-08-06 — LOTE GORDO: impresora completa + 2 bugs de raíz + reparto Summer
+
+- **⭐ MECÁNICA DE LA IMPRESORA DE DOCUMENTOS implementada ENTERA** (Opus, GDD cerrado):
+  src/core/impresora/ (módulo + config), viaje del papel solapado con la atención (decisión 1:
+  Reglas>AC del GDD), mantenimiento 2€/turno de uso como knob general de Comodidad,
+  comodidades_obligatorias/puestos_minimos en TipoSala, colocación derivada detrás del puesto
+  (Doc (6,1) tras el TIE · ODAC (9,1)), salas nuevas del jugador la COMPRAN (600€), 38 tests
+  nuevos. Decisiones 1-9 del agente en su informe (transcript). PENDIENTES de enganche: muñeco
+  visual del viaje (npcs_flujo, API fase_de/impresora_de/restante_de lista), ficha ventanilla
+  ("🖨 a por el documento", texto_ventanilla() listo), demolición de impresora desde la UI
+  (impresora_demolida() sin llamar), datos/config/impresora.tres (cae a defaults).
+- **BUG NAVEGACIÓN arreglado de raíz** (atravesaban paredes): rutas cacheadas sin invalidar —
+  Construccion.version_layout (static, ++ en _refrescar_visual) + chequeo O(1) por frame en
+  npc_ciudadano → re-pathfinding al cambiar el edificio. Regresión 5 casos (4 lados + muro
+  tras ruta) en tests/integration/flujo/flujo_muro_tras_ruta_test.gd.
+- **BUG CAPAS arreglado de raíz** (estructural, Opus): los muñecos ANDANTES entran en la bolsa
+  y-sort (muere el z2 "gente siempre encima" de la era pared-17px); rótulos/barras/🚫/☕ a
+  Z_ROTULO_FLOTANTE 6 (info siempre visible). Escalera de capas nueva documentada en
+  npcs_flujo.gd. Silla: NO era bug (respaldo 35px > murete 32.5px; el usuario lo dio por BUENO).
+  Tests: construccion_orden_{silla,muneco}_pared_test.gd.
+- **REPARTO NUEVO (memoria persistente reparto-summer-arte)**: TODO el arte lo genera SUMMER
+  (login CLI hecho: cloud SIN app abierta, verificado con summer_search_assets), Claude dirige/
+  audita/integra, el usuario aprueba y autoriza cada gasto. FACTOR DE PRESENCIA 1,25 elegido
+  con hoja A/B/C (plan-escalado.md §1): objetos = metros × 25,88 × 1,25; personajes y
+  arquitectura sin factor.
+- **1ª PIEZA DEL REPARTO**: fotocopiadora de Summer (duelo ganado a nuestra composición "deja
+  bastante que desear" según el usuario) → comodidad_impresora_documentos_*.png a 39px,
+  rotaciones por ESPEJO desde la vista 0° (las 4 "vistas" de la IA eran el mismo ángulo — 
+  LECCIÓN: para rotaciones reales pedir a Summer el modelo 3D y rotarlo con nuestro pipeline).
+  Cableada en _sprites_comodidad(). Originales en capturas/fuentes/impresora_summer/. CREDITS
+  al día (generación propia vía Summer).
+- **SUITE COMPLETA DEL LOTE: 834/834 Exit 0** + arranque limpio. Todo commiteado (ver git log).
+- Gotchas de sesión: summer_replace_text multilinea FALLA en archivos CRLF (main.gd) → old_text
+  de una línea · sondas con ModoConstruccion → set_process(false) · los PNG de "4 direcciones"
+  de la IA de Summer NO son rotaciones reales.

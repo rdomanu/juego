@@ -58,6 +58,11 @@ func _sala_oficina(construccion: Node) -> StringName:
 # hueco de esquina, mismo día) las acompaña: mismo motivo, misma familia. Se listan por id a
 # propósito: si mañana entra otro objeto, este test dice CUÁL falta o sobra en vez de solo "el
 # número no cuadra".
+#
+# 2026-08-06: sube de 11 a 12. `impresora_documentos` (GDD impresora-documentos-tramite.md) entra en
+# la familia "funcionario": es un objeto NUEVO y distinto de `impresora_dni` (decisión P3 del
+# usuario — aquella se queda como comodidad de confort no funcional). Es además la PRIMERA comodidad
+# con mantenimiento POR USO, y por eso se comprueba aquí su ficha entera.
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
 	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
@@ -66,9 +71,10 @@ func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var ids: Array = de_este_epic.map(func(c: Resource) -> String: return String(c.id))
 	ids.sort()
 	assert_array(ids).contains(["estanteria", "estanteria_esquina", "estanteria_pequena"])
+	assert_array(ids).contains(["impresora_documentos"])
 	assert_int(de_este_epic.size()).override_failure_message(
 		"las familias ciudadano+funcionario traen %s" % [ids]
-	).is_equal(11)
+	).is_equal(12)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")
@@ -80,6 +86,18 @@ func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	assert_int(Datos.obtener(&"Comodidad", &"papelera").coste_mantenimiento_dia_eur).is_equal(0)
 	# El equipamiento es de la otra familia.
 	assert_str(Datos.obtener(&"Comodidad", &"impresora_dni").familia).is_equal("funcionario")
+
+	# LA IMPRESORA DE DOCUMENTOS, con los números APROBADOS por el usuario (2026-08-01): 600 EUR
+	# porque es OBLIGATORIA por sala y no puede castigar ampliar; aporte modesto (2,0) porque su valor
+	# real es FUNCIONAL (el papel del trámite), no el confort; y mantenimiento POR USO (2 EUR/turno en
+	# que su sala atiende) en vez de tarifa plana — la primera del catálogo que se cobra así.
+	var impresora_doc: Resource = Datos.obtener(&"Comodidad", &"impresora_documentos")
+	assert_str(impresora_doc.familia).is_equal("funcionario")
+	assert_int(impresora_doc.coste_construccion_eur).is_equal(600)
+	assert_float(impresora_doc.aporte).is_equal(2.0)
+	assert_int(impresora_doc.coste_mantenimiento_dia_eur).is_equal(0)
+	assert_int(impresora_doc.coste_mantenimiento_turno_eur).is_equal(2)
+	assert_int(impresora_doc.superficie).is_equal(1)
 
 
 func test_un_objeto_inexistente_no_rompe_ni_ensucia_la_consola() -> void:

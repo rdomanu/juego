@@ -144,6 +144,10 @@ var _turnos: Dictionary[StringName, int] = {}
 var _puestos_flujo: Dictionary[StringName, Dictionary] = {}
 ## Personal inyectado (gate FL4: `puesto_dotado`). En runtime lo enchufa Main (008).
 var _personal: Node = null
+## LA IMPRESORA DE DOCUMENTOS inyectada (GDD `impresora-documentos-tramite.md`): decide que tramites
+## llevan papel, cronometra el viaje del funcionario y RETIENE el cierre del tramite hasta que vuelve.
+## `null` = la mecanica no existe (compat total con todo lo anterior).
+var _impresora: Node = null
 ## Construcción inyectada (story 005: el aforo por asientos es SUYO). Sin ella → sin límite (tests).
 var _construccion: Node = null
 ## ⚠️ El hook de peonada (`fijar_hook_horas_extra`) se RETIRÓ en la story doc-003: cobraba euros por
@@ -472,6 +476,20 @@ func _promover_de_fuera(servicio: StringName) -> void:
 
 # ── Puestos, gate FL4 y emparejamiento (Story 003 · TR-flow-003 · FL3/FL4, States B) ─────────
 
+## Inyecta LA IMPRESORA DE DOCUMENTOS (GDD `impresora-documentos-tramite.md`). Sin ella, Flujo se
+## comporta EXACTAMENTE como antes de la mecanica: ningun tramite lleva papel y nada se retiene, y
+## por eso todos los tests previos de Flujo siguen siendo la red de seguridad de este cambio.
+##
+## Ejemplo de cableado (lo hace Main):
+## [codeblock]
+## var impresora: Node = ImpresoraDocumentos.new()
+## impresora.usar_construccion(construccion)
+## flujo.usar_impresora(impresora)
+## [/codeblock]
+func usar_impresora(impresora: Node) -> void:
+	_impresora = impresora
+
+
 ## Inyecta Personal (dependency injection → testeable). Sin él, ningún puesto está dotado (FL4).
 func usar_personal(personal: Node) -> void:
 	_personal = personal
@@ -568,6 +586,10 @@ func quitar_puesto_flujo(puesto_id: StringName) -> bool:
 	if _puestos_flujo[puesto_id]["persona"] != null:
 		_puestos_flujo[puesto_id]["retirada_pendiente"] = true
 		return false
+	# Sin ventanilla no hay mesa a la que volver: el viaje del papel de este puesto muere aquí (si lo
+	# hubiera). Sin esto, un viaje huérfano retendría para siempre un puesto que ya no existe.
+	if _impresora != null:
+		_impresora.cancelar_viaje(puesto_id)
 	_puestos_flujo.erase(puesto_id)
 	return true
 
@@ -869,8 +891,16 @@ func mult_equipamiento(puesto_id: StringName) -> float:
 ## (3) emparejar — los libres llaman EN el mismo tick; (4) avanzar caminos — la persona recorre el
 ## trayecto al puesto (enmienda 2026-07-25 "en camino no se tramita") y, al llegar, arranca la
 ## atención; con camino 0 (knob 0 / sin Construcción) arranca ese mismo tick (compat).
+## ⚠️ EL VIAJE DEL PAPEL (GDD `impresora-documentos-tramite.md`) mete DOS pasos entre (1) y (2), y su
+## sitio exacto es lo que hace que la cuenta salga clavada: las atenciones avanzan y disparan el
+## viaje, el viaje corre EN ESE MISMO tick (así el minuto en que el funcionario se levanta ya cuenta
+## como andado) y, por último, el que ya tiene el papel en la mano cierra su trámite AHORA y no un
+## tick más tarde. Resultado: un trámite con la impresora a N celdas termina exactamente
+## `max(t_tramite, t_tramite − T_AVISO + t_viaje)` — ni un minuto de más por culpa del orden.
 func _al_tick(delta_juego_min: float) -> void:
 	_avanzar_atenciones(delta_juego_min)
+	_avanzar_papel(delta_juego_min)
+	_resolver_retenidos()
 	_reintentar_demoliciones()
 	_emparejar()
 	_avanzar_caminos(delta_juego_min)
@@ -900,36 +930,110 @@ func _avanzar_atenciones(delta_min: float) -> void:
 		# horas extra desgasta más (lo modula el precio que el jugador paga por la peonada).
 		if _personal != null and _personal.has_method("cansar"):
 			_personal.cansar(_personal.agente_de(puesto_id), delta_min, _en_horas_extra_doc())
+		# EL VIAJE DEL PAPEL (GDD impresora, §Detailed Rules 1): con el restante AÚN sin descontar —el
+		# aviso mira los minutos que quedan AHORA— la impresora decide si el funcionario se levanta ya.
+		_avisar_impresora(puesto_id, persona, float(puesto["restante"]))
 		puesto["restante"] = float(puesto["restante"]) - delta_min
 		if puesto["restante"] > 0.0:
 			continue
-		var agente: RefCounted = _personal.agente_de(puesto_id) if _personal != null else null
-		if _bus != null:
-			_bus.tramite_completado.emit(persona.tramite_id(), agente)
-		_transicionar(persona, PersonaFlujoScript.ESTADO_RESUELTA)
-		puesto["persona"] = null
-		puesto["restante"] = 0.0
-		if puesto["cierre_pendiente"]:
-			puesto["abierto"] = false
-			puesto["cierre_pendiente"] = false
-		if puesto["retirada_pendiente"]:
-			_puestos_a_retirar.append(puesto_id)   # no se borra DENTRO de la iteración
-		# El café se pide AL TERMINAR una atención, nunca a media (compromiso de servicio): quien
-		# tiene la barra llena se levanta ahora, con el ciudadano ya despachado. Su puesto deja de
-		# estar dotado solo — el gate FL4 exige ASIGNADO, y descansando ya no lo está.
-		if _personal != null and _personal.has_method("necesita_descanso") 				and _personal.necesita_descanso(agente):
-			_personal.enviar_a_descansar(agente)
-		# LLAMADA ANTICIPADA: el cafe se pide ANTES de esto a proposito. Si el agente se acaba de
-		# levantar, la ventanilla ya no puede atender y al reservado hay que devolverle a la cola en
-		# vez de mandarle a un mostrador vacio. `estado_de_puesto` resuelve las tres causas de un
-		# golpe (cerrado por horario o por el jugador / sin agente por el cafe / retirado): solo si
-		# queda LIBRE —abierto Y dotado— puede empalmar con el siguiente.
-		if estado_de_puesto(puesto_id) == PUESTO_LIBRE:
-			_promover_siguiente(puesto_id)
-		else:
-			_liberar_siguiente(puesto_id)
+		# Fase **ESPERANDO_DOCUMENTO** (§Detailed Rules 3): el trámite "acabaría" pero el funcionario
+		# todavía no ha vuelto con el papel → NO se cierra. El ciudadano no se va: sigue En atención,
+		# así que Paciencia lo tiene parado desde la llamada, que es justo lo que pide el GDD.
+		if _impresora != null and _impresora.retiene(puesto_id):
+			puesto["restante"] = 0.0
+			continue
+		_completar_atencion(puesto_id, persona)
+	_drenar_retiradas()
+
+
+## Cierra una atención: emite `tramite_completado` UNA sola vez (Economía cobra, Paciencia cierra
+## visita), la Persona pasa a Resuelta, el puesto queda Libre —o Cerrado/retirado si tenía un
+## pendiente de la story 006— y se resuelve el café y el empalme con el siguiente.
+##
+## Está extraída de `_avanzar_atenciones` porque desde el VIAJE DEL PAPEL hay DOS momentos en que un
+## trámite puede cerrarse: cuando se agota su reloj (lo normal) y cuando el funcionario vuelve con el
+## documento de un trámite que ya estaba a 0 (`_resolver_retenidos`). Un solo sitio, un solo camino.
+func _completar_atencion(puesto_id: StringName, persona: RefCounted) -> void:
+	var puesto: Dictionary = _puestos_flujo[puesto_id]
+	var agente: RefCounted = _personal.agente_de(puesto_id) if _personal != null else null
+	if _bus != null:
+		_bus.tramite_completado.emit(persona.tramite_id(), agente)
+	_transicionar(persona, PersonaFlujoScript.ESTADO_RESUELTA)
+	puesto["persona"] = null
+	puesto["restante"] = 0.0
+	# El documento se entregó con el trámite: la ventanilla queda limpia para el siguiente.
+	if _impresora != null:
+		_impresora.consumir_viaje(puesto_id)
+	if puesto["cierre_pendiente"]:
+		puesto["abierto"] = false
+		puesto["cierre_pendiente"] = false
+	if puesto["retirada_pendiente"]:
+		_puestos_a_retirar.append(puesto_id)   # no se borra DENTRO de la iteración
+	# El café se pide AL TERMINAR una atención, nunca a media (compromiso de servicio): quien
+	# tiene la barra llena se levanta ahora, con el ciudadano ya despachado. Su puesto deja de
+	# estar dotado solo — el gate FL4 exige ASIGNADO, y descansando ya no lo está.
+	if _personal != null and _personal.has_method("necesita_descanso") 				and _personal.necesita_descanso(agente):
+		_personal.enviar_a_descansar(agente)
+	# LLAMADA ANTICIPADA: el cafe se pide ANTES de esto a proposito. Si el agente se acaba de
+	# levantar, la ventanilla ya no puede atender y al reservado hay que devolverle a la cola en
+	# vez de mandarle a un mostrador vacio. `estado_de_puesto` resuelve las tres causas de un
+	# golpe (cerrado por horario o por el jugador / sin agente por el cafe / retirado): solo si
+	# queda LIBRE —abierto Y dotado— puede empalmar con el siguiente.
+	if estado_de_puesto(puesto_id) == PUESTO_LIBRE:
+		_promover_siguiente(puesto_id)
+	else:
+		_liberar_siguiente(puesto_id)
+
+
+## Saca del registro los puestos con retirada pendiente acumulados durante una iteración (no se
+## pueden borrar DENTRO del bucle que recorre `_puestos_flujo`).
+func _drenar_retiradas() -> void:
 	for puesto_id: StringName in _puestos_a_retirar:
 		_puestos_flujo.erase(puesto_id)
+	_puestos_a_retirar.clear()
+
+
+## Le cuenta a la impresora lo que pasa en este puesto (GDD `impresora-documentos-tramite.md`):
+##   • que su sala **está atendiendo** en este turno (mantenimiento por USO — 2 €/turno operativo), y
+##   • si al trámite le quedan `T_AVISO` minutos y es de los que llevan papel (P2: todas las
+##     denuncias de ODAC y la expedición de TIE), que el funcionario **se levante ya**.
+## Sin impresora inyectada (los tests de Flujo puros) es un no-op: la mecánica no existe.
+func _avisar_impresora(puesto_id: StringName, persona: RefCounted, restante_min: float) -> void:
+	if _impresora == null or _construccion == null:
+		return
+	_impresora.registrar_atencion(puesto_id)
+	if not _impresora.es_tramite_con_papel(persona.servicio(), persona.tramite_id()):
+		return
+	if not _impresora.necesita_aviso(restante_min) or _impresora.hay_viaje(puesto_id):
+		return
+	_impresora.iniciar_viaje(puesto_id, _construccion.celda_de_trabajo(puesto_id))
+
+
+## Hace correr los viajes del papel en curso. Va DESPUÉS de avanzar las atenciones a propósito: el
+## minuto en que el funcionario se levanta ya cuenta como andado (ver el orden de `_al_tick`).
+func _avanzar_papel(delta_min: float) -> void:
+	if _impresora != null:
+		_impresora.avanzar(delta_min)
+
+
+## Cierra los trámites que estaban en **ESPERANDO_DOCUMENTO** y cuyo funcionario ACABA de volver con
+## el papel — en el mismo tick en que llega, no en el siguiente. Solo mira puestos con viaje
+## registrado: los trámites sin papel ya los cerró `_avanzar_atenciones`.
+func _resolver_retenidos() -> void:
+	if _impresora == null:
+		return
+	_puestos_a_retirar.clear()
+	for puesto_id: StringName in _puestos_flujo:
+		var puesto: Dictionary = _puestos_flujo[puesto_id]
+		var persona: RefCounted = puesto["persona"]
+		if persona == null or persona.estado != PersonaFlujoScript.ESTADO_EN_ATENCION:
+			continue
+		if float(puesto["restante"]) > 0.0:
+			continue
+		if not _impresora.hay_viaje(puesto_id) or _impresora.retiene(puesto_id):
+			continue
+		_completar_atencion(puesto_id, persona)
+	_drenar_retiradas()
 
 
 ## Le pide el café al titular de este puesto si le toca (Bienestar #13). Se llama desde DOS sitios y

@@ -56,6 +56,8 @@ const AgenteScript := preload("res://src/core/personal/agente.gd")
 const ConstruccionScript := preload("res://src/core/construccion/construccion.gd")
 ## Flujo (story flujo-008): el motor de colas — CIERRA el Core: la gente entra y el saldo sube.
 const FlujoScript := preload("res://src/core/flujo/flujo.gd")
+## La impresora de documentos y el viaje del papel (GDD impresora-documentos-tramite.md).
+const ImpresoraDocumentosScript := preload("res://src/core/impresora/impresora_documentos.gd")
 ## La capa cosmética de NPCs navegando (story flujo-008).
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
 const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
@@ -150,6 +152,8 @@ var _personal: Node
 var _lbl_plantilla: Label
 var _lbl_incidencia: Label
 var _construccion: Node
+## La impresora de documentos: el viaje del papel + los requisitos minimos de sala.
+var _impresora: Node
 var _flujo: Node
 var _paciencia: Node
 var _documentacion: Node
@@ -401,6 +405,7 @@ func _instanciar_mundo() -> void:
 	#   · cada TRAMO de pared            (`ParedesSalas` → `TramoPared`, hijo directo de aquí)
 	#   · el MOBILIARIO estático          (`Construccion/Elementos`, ver `montar_visual`)
 	#   · los CONTENEDORES de ventanilla  (`NPCsFlujo/Puestos`, ver su `configurar`)
+	#   · los MUÑECOS QUE ANDAN           (`NPCsFlujo/Escena`, 2026-08-06 — ver abajo)
 	#
 	# Godot ordena esa bolsa por la Y de pantalla de cada pieza (algoritmo del pintor): lo que está
 	# más abajo tapa a lo que está más arriba. Con eso, un muro DIVISORIO entre dos salas sale a la
@@ -409,14 +414,23 @@ func _instanciar_mundo() -> void:
 	# la ventanilla pegada al divisorio Documentación/ODAC). Ver la cabecera de `paredes_salas.gd`.
 	#
 	# ⚠️ Cada sistema sigue siendo dueño de sus nodos: aquí solo se les pasa DÓNDE colgarlos. Y los
-	# tres cuelgan a través de un nodo intermedio con `y_sort_enabled` propio, que es lo que hace que
-	# sus hijos entren en ESTA bolsa en vez de ordenarse como un bloque aparte (comprobado en el
+	# cuatro cuelgan a través de un nodo intermedio con `y_sort_enabled` propio, que es lo que hace
+	# que sus hijos entren en ESTA bolsa en vez de ordenarse como un bloque aparte (comprobado en el
 	# motor 4.6 con una sonda: y-sort anidado = una sola bolsa).
 	#
-	# Lo que NO entra aquí, y por qué: el suelo (z −2) y la tinta de las salas (z −1) van siempre
-	# debajo; la GENTE (`NPCsFlujo`, z 2) y las LUCES (z 3), siempre encima. El z_index manda sobre
-	# el y-sort, así que ponerlos fuera de la bolsa es exactamente la garantía que se quiere: ningún
-	# muro puede tapar a un muñeco por muy adelante que esté.
+	# ── LA GENTE ENTRÓ EN LA BOLSA (2026-08-06, cambio ESTRUCTURAL aprobado por el usuario) ──────
+	# Aquí ponía que la GENTE se quedaba FUERA, en su capa de z 2, "para que ningún muro pueda tapar
+	# a un muñeco por muy adelante que esté". Esa garantía se diseñó con muretes de 17 px; con
+	# `ALTO_PARED_FRENTE` a 32,5 px se volvió el bug: un NPC pegado por dentro al muro sur salía
+	# ENTERO por encima de él (captura del usuario). Los muñecos QUE ANDAN entran ya en esta bolsa y
+	# compiten por profundidad como cualquier pieza, por sus PIES. Ver la doc larga en
+	# `npcs_flujo.gd` ("LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA").
+	#
+	# Lo que NO entra aquí, y por qué: el suelo (z −3) y la tinta de las salas (z −2) van siempre
+	# debajo; las LUCES (z 3) y toda la INFORMACIÓN flotante —rótulos de sala y de puesto, barra de
+	# paciencia, señal de prohibido, taza de café—, siempre encima. El z_index manda sobre el
+	# y-sort, así que dejarlos fuera de la bolsa es exactamente la garantía que se quiere: un muro
+	# puede tapar el cuerpo de un muñeco, pero nunca un dato que el jugador necesita.
 	_mundo_profundo = Node2D.new()
 	_mundo_profundo.name = "MundoProfundo"
 	_mundo_profundo.y_sort_enabled = true
@@ -449,7 +463,22 @@ func _instanciar_mundo() -> void:
 	_personal.usar_tiempo(Tiempo)                # los cafés corren con el reloj de juego
 	add_child(_personal)
 	_construccion.usar_personal(_personal)
+	# LA IMPRESORA DE DOCUMENTOS (GDD impresora-documentos-tramite.md). Va ANTES del montaje de oficio
+	# a proposito: es ella quien coloca los objetos OBLIGATORIOS de cada sala (decision P1 del usuario,
+	# "no existe el caso sala sin impresora"), asi que la comisaria inicial ya nace con las suyas.
+	# Su handler de `nuevo_dia` (prioridad 17) cobra el mantenimiento POR USO: 2 EUR por cada turno en
+	# que su sala atiende, entre el mantenimiento plano de Construccion (16) y el cierre de Economia (20).
+	_impresora = ImpresoraDocumentosScript.new()
+	_impresora.name = "ImpresoraDocumentos"
+	_impresora.usar_construccion(_construccion)
+	_impresora.usar_economia(_economia)
+	_impresora.usar_tiempo(Tiempo)
+	add_child(_impresora)
 	_montar_comisaria_inicial()
+	# A PARTIR DE AQUI, toda sala nueva que construya el JUGADOR nace con sus objetos obligatorios y
+	# pagandolos (el montaje de oficio de arriba ya se sirvio los suyos gratis). Se cablea DESPUES del
+	# montaje a proposito: es la unica diferencia entre "lo entrega la DGP" y "lo compras tu".
+	_construccion.fijar_hook_sala_creada(_al_crear_sala_nueva)
 	# Las paredes de las salas (petición del usuario 2026-07-30: "si no todo el mundo ve a los
 	# funcionarios descansando, es raro"): solo VISUAL, no bloquean el paso (fase aparte). El nodo
 	# `_paredes_salas` ya está en el árbol (arriba, dentro de `_mundo_profundo`); aquí solo toca
@@ -467,6 +496,9 @@ func _instanciar_mundo() -> void:
 	_flujo.name = "Flujo"
 	_flujo.usar_personal(_personal)
 	_flujo.usar_construccion(_construccion)
+	# El viaje del papel: Flujo dispara el aviso, RETIENE el cierre del tramite mientras el funcionario
+	# esta fuera y lo cierra en cuanto vuelve con el documento. Sin esta linea Flujo va como antes.
+	_flujo.usar_impresora(_impresora)
 	add_child(_flujo)
 	_construccion.fijar_puede_demoler(_flujo.puede_demoler_puesto)   # gate AC-CO13
 	# Documentación cobra la peonada (F1) y desmotiva a quien sale tarde (DO5): necesita Economía
@@ -502,8 +534,8 @@ func _instanciar_mundo() -> void:
 	# La capa cosmética: NPCs + navegación bakeada del layout real.
 	_npcs = NPCsFlujoScript.new()
 	_npcs.name = "NPCs"
-	# La GENTE se queda en la capa de NPCs (z 2, por encima de cualquier pared); lo que entra en la
-	# bolsa de profundidad son los CONTENEDORES de ventanilla, que son mobiliario (ver `npcs_flujo`).
+	# `_mundo_profundo` es la bolsa de profundidad: ahí cuelga NPCsFlujo sus CONTENEDORES de
+	# ventanilla (mobiliario) y, desde el 2026-08-06, también sus MUÑECOS QUE ANDAN — ver arriba.
 	_npcs.configurar(
 		_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS, _mundo_profundo
 	)
@@ -1046,6 +1078,17 @@ func _texto_etiqueta_sala(sala_id: StringName) -> String:
 	return "🖥 equipamiento %d" % roundi(_construccion.equipamiento_de_sala(sala_id))
 
 
+## REQUISITOS MINIMOS DE SALA (GDD impresora-documentos-tramite.md, decision P1 del usuario): una
+## sala recien construida se sirve sola sus objetos OBLIGATORIOS -- hoy, la impresora de documentos
+## de Documentacion y de ODAC. Se COBRAN (600 EUR): es una compra del jugador, no un regalo.
+##
+## Si en ese momento no hay caja, el gate E4 de Economia rechaza la compra y la sala se queda sin su
+## impresora: `ImpresoraDocumentos.cumple_requisitos` lo dira, y la proxima carga de partida la
+## recoloca (el pase idempotente de `completar_todas_las_salas`). Se prefirio esto a tumbar la sala
+## entera por 600 EUR de mas -- una sala pagada no se le quita al jugador por sorpresa.
+func _al_crear_sala_nueva(sala_id: StringName) -> void:
+	_impresora.completar_requisitos(sala_id, false)
+
 ## El montaje inicial "DE OFICIO" (const-006, decisión ratificada): la DGP entrega la comisaría
 ## montada y pagada (coste 0) → saldo 3000 € y nómina 190 € INTACTOS. Construida por la API real de
 ## Construcción (los puestos llegan a Personal por el puente registrar_puesto, ya no a mano); ids
@@ -1075,6 +1118,15 @@ func _montar_comisaria_inicial() -> void:
 	# Ventanilla TIE inicial (feedback flujo-008, ratificada): (6,2) libre dentro de sala_documentacion.
 	_construccion.construir_de_oficio_elemento(&"puesto_tie", Vector2i(6, 2), &"tie_1")
 	_construccion.construir_de_oficio_elemento(&"puesto_odac", Vector2i(10, 2), &"odac_1")
+	# LAS IMPRESORAS DE DOCUMENTOS DEL TRAZADO INICIAL (GDD impresora-documentos-tramite.md, decision
+	# de colocacion del usuario): van DETRAS del puesto o a un lado, pero siempre de la mesa hacia
+	# atras -- NUNCA hacia el lado del ciudadano. Aqui no se elige la celda a mano: la decide
+	# `ImpresoraDocumentos.celda_para_comodidad` con esa regla, que es la MISMA que usa el jugador
+	# cuando designa una sala nueva y la que recoloca las que falten al cargar un save antiguo.
+	# Con el trazado de hoy sale sola la colocacion que pide el GDD: en Documentacion, justo detras del
+	# puesto de TIE; en ODAC, al lado de la fila del funcionario (detras no cabe: la sala acaba ahi).
+	# De oficio = coste 0 (la DGP entrega la comisaria montada y pagada, decision ratificada).
+	_impresora.completar_todas_las_salas(true)
 	for x: int in range(2, 6):
 		_construccion.construir_de_oficio_elemento(_construccion.ASIENTO_BASICO, Vector2i(x, 7))
 		_construccion.construir_de_oficio_elemento(_construccion.ASIENTO_BASICO, Vector2i(x, 8))
@@ -1379,6 +1431,11 @@ func _cargar_partida() -> void:
 		# que sin esto una partida cargada te dejaría derribar la fachada del edificio. Es
 		# idempotente (no duplica muros ni cobra nada).
 		_construccion.levantar_fachada()
+		# LAS IMPRESORAS QUE FALTEN (GDD impresora-documentos-tramite.md): *"al cargar un save sin ellas
+		# se aplica el mismo patron idempotente que la fachada -- se recolocan si faltan"*. Una partida
+		# guardada ANTES de esta mecanica no tiene impresoras, y sin ellas los tramites con papel se
+		# cerrarian sin viaje. De oficio (coste 0): a un save viejo no se le pasa factura retroactiva.
+		_impresora.completar_todas_las_salas(true)
 		_al_cambiar_layout()   # el layout cargado necesita re-bake de navegación y re-sincronizar
 
 

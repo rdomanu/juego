@@ -36,5 +36,21 @@ class_name TipoSala extends Resource
 ## a los funcionarios tomando café desde la sala de espera—; el resto nacen abiertas, en planta
 ## diáfana, porque ahí lo que se quiere es DELIMITAR la zona, no aislarla.
 @export var paredes_por_defecto: bool = false
+
+# ── REQUISITOS MÍNIMOS DE SALA (GDD impresora-documentos-tramite.md, decisión P1 del usuario) ──
+## Comodidades OBLIGATORIAS de esta sala, por `id` de catálogo. La regla que cerró el diseño de la
+## impresora: *"no existe el caso 'sala sin impresora'"* — una oficina de Documentación o de ODAC
+## nace con su impresora de documentos, y si falta (save antiguo, sala recién designada) se coloca
+## sola, idempotente, igual que la fachada.
+##
+## Es una mecánica GENERAL y reutilizable ("requisitos mínimos de sala"), no un caso especial de la
+## impresora: mañana un calabozo puede exigir su banco y su cámara sin tocar una línea de código.
+## Vacío = la sala no exige nada (salas de espera y de descanso).
+@export var comodidades_obligatorias: Array[StringName] = []
+## Cuántos PUESTOS exige como mínimo esta sala (Documentación: 1 · ODAC: 1). A diferencia de las
+## comodidades, un puesto NO se coloca solo: cuesta dinero y necesita un funcionario asignado, así
+## que el que falte se REPORTA (`ImpresoraDocumentos.puestos_faltantes`) para que la UI lo cuente.
+@export var puestos_minimos: int = 0
+
 ## Icono para la UI.
 @export var icono: Texture2D

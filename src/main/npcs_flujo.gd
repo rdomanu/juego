@@ -95,8 +95,9 @@ var _plaza_de: Dictionary[Vector2i, Node] = {}
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
 ## Segunda línea del rótulo de un puesto (hoy: los minutos que le quedan al que está de café).
 var _rotulo_extra: Dictionary[StringName, String] = {}
-## Capa donde cuelgan los muñecos que caminan al descanso (hereda el z_index 1 de `configurar`, así
-## se dibujan por encima de las salas como el resto de NPCs).
+## Capa donde cuelgan los CUERPOS que caminan al descanso. Vive en el PLANO LÓGICO (oculto): aquí no
+## se dibuja nada — el muñeco visible de cada uno se registra aparte en `_capa_escena`, que desde el
+## 2026-08-06 vive en la bolsa de y-sort compartida (ver "LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA").
 var _capa_descansos: Node2D = null
 ## Dónde se planta el funcionario DE PIE (muñeco de piezas, sin sprite del agente): el centro de la
 ## celda norte de su mostrador — regla de rejilla del usuario (2026-08-02). Es la MISMA constante
@@ -137,6 +138,53 @@ const CAPA_FRENTE: int = 2
 const CAPA_FRENTE_SUR: int = 3
 const CAPA_FRENTE_SUR_ALTO: int = 4
 
+## ── LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA (2026-08-06, cambio ESTRUCTURAL) ────────────────────
+## Hasta hoy la GENTE QUE ANDA se dibujaba en una capa propia con `z_index = 2` FIJO, por encima de
+## toda la bolsa de y-sort (paredes + mobiliario + ventanillas). Esa decisión se tomó cuando
+## `ALTO_PARED_FRENTE` medía 17 px: un murete de esa altura no llegaba ni a la cintura de un muñeco,
+## así que "la gente nunca queda tapada" salía gratis y evitaba que un tabique se comiera a un NPC.
+##
+## Con `ALTO_PARED_FRENTE` = 32,5 px (media de los 65 px de `ALTO_PARED`, subida el 2026-08-05 para
+## que la pared midiera 1,48× el personaje como en la referencia elegida) esa regla es insostenible:
+## el usuario lo confirmó con captura (`scratchpad/capas_odac_antes.png`) — un ciudadano plantado
+## por DENTRO junto al muro frontal se dibuja ENTERO por encima de él, como si flotara fuera de la
+## sala, porque su z 2 gana sin siquiera comparar la Y.
+##
+## Orden del usuario: **los muñecos andantes compiten por profundidad como cualquier otra pieza**.
+## `_capa_escena` pasa a colgar de la bolsa compartida ("MundoProfundo" de `Main`, z 0) — ver
+## `configurar`. El punto por el que se ordena cada muñeco son SUS PIES: `MunecoScript` ancla por la
+## base, y `colocar_muneco` pone el nodo exactamente en `Proyeccion.proyectar(punto_cuadrado)`, o
+## sea el centro del rombo de la celda que está pisando. Contra el centro de la base de un tramo
+## (`ParedesSalas._punto_de_orden`, que cae SIEMPRE entre el centro de la celda de detrás y el de la
+## de delante) eso da, sin decidir nada y en los dos lados a la vez:
+##   · muñeco DENTRO de la sala, junto al muro sur → el tramo tiene más Y → la media pared le tapa
+##     las piernas (es lo que se ve desde la calle: alguien detrás de un pretil);
+##   · muñeco FUERA, delante del mismo muro → el muñeco tiene más Y → se ve ENTERO por delante.
+##
+## ── LA ESCALERA DE CAPAS, DESPUÉS DEL CAMBIO ────────────────────────────────────────────────────
+##   suelo liso (z −3) < tinta de salas (z −2) < rejilla de obra (z −1)
+##     < ▓ BOLSA DE Y-SORT, z 0 ▓ → tramos de pared + mobiliario + contenedores de ventanilla
+##                                  + **MUÑECOS QUE ANDAN** (`_capa_escena`), todos por su Y
+##       < ciudadano ATENDIDO en el frente de su ventanilla (`Z_FRENTE_PUESTO`, z 1)
+##         < rótulos del puesto (`Z_ROTULOS_PUESTO`, z 2) y etiquetas de sala (Main, z 1)
+##           < respaldo de la silla de espera (`Z_RESPALDO_FRENTE_SUR`, z 4)
+##             < rótulos/iconos FLOTANTES sobre la cabeza (`Z_ROTULO_FLOTANTE`, z 6)
+##               < luces (`LucesObjetos`, z 3 — capa aparte, no compite con lo de arriba)
+##
+## ⚠️ LA REGLA QUE SIGUE EN PIE: es el CUERPO del muñeco el que compite por profundidad. Todo lo que
+## sea INFORMACIÓN flotando sobre su cabeza (barra de paciencia, señal de prohibido, taza de café)
+## va a `Z_ROTULO_FLOTANTE` y NUNCA lo tapa un muro — un dato que el jugador necesita no se esconde
+## detrás de una pared. Ver esa constante.
+##
+## z RELATIVO al muñeco de los rótulos/iconos que flotan sobre su cabeza. 6 es el primer valor por
+## encima de TODO lo que hay en la escalera de arriba (`Z_RESPALDO_FRENTE_SUR` = 4 es el techo
+## actual, y el ciudadano atendido puede estar ya en z 1, así que 4 + 1 = 5 sería empate): así una
+## señal de prohibido se ve igual de bien ande el muñeco por donde ande y esté sentado donde esté.
+## Lo comparten los tres indicadores flotantes del juego: la barra de paciencia y la señal de
+## prohibido del ciudadano (`NPCCiudadano`, que tiene su propia copia de esta constante para no
+## crear una dependencia circular con este fichero) y la taza + la señal del caminante de aquí.
+const Z_ROTULO_FLOTANTE: int = 6
+
 ## ── EL PUESTO ES MOBILIARIO, NO GENTE (🐛 FIX 2026-08-03, bug con captura del usuario) ──────────
 ## *"el mostrador de la ventanilla TIE pegada al borde sur/este de Documentación se dibuja POR
 ## ENCIMA del murete frontal"*. Causa exacta, medida en el motor (`tools/_diag_oclusion_murete.gd`,
@@ -161,8 +209,10 @@ const CAPA_FRENTE_SUR_ALTO: int = 4
 ## Por qué NO rompe nada de lo aprobado (comprobado con fotomontaje antes/después):
 ##  · mesa tapa las piernas del policía sentado → van JUNTOS en el bloque, su orden relativo es el
 ##    mismo orden de árbol de siempre;
-##  · el CIUDADANO atendido sigue en z 2 (+1 en el frente, `Z_FRENTE_PUESTO`) → sigue viéndose por
-##    encima del mostrador y de su asiento, como se aprobó;
+##  · el CIUDADANO atendido sube a `Z_FRENTE_PUESTO` → sigue viéndose por encima del mostrador y de
+##    su asiento, como se aprobó (⚠️ 2026-08-06: su z efectivo pasó de 3 a 1 al bajar la capa de
+##    muñecos de z 2 a la bolsa; los ÓRDENES RELATIVOS que importan no cambian — sigue por encima
+##    del contenedor del puesto, z 0, y por debajo del respaldo, z 4);
 ##  · el RESPALDO de su silla sigue en `Z_RESPALDO_FRENTE_SUR` = 4 (z efectivo 4) y le tapa la
 ##    lumbar (ver esa constante);
 ##  · las etiquetas y barras del puesto llevan `Z_ROTULOS_PUESTO` para conservar su z efectivo 2 —
@@ -170,8 +220,9 @@ const CAPA_FRENTE_SUR_ALTO: int = 4
 ##
 ## El muñeco del POLICÍA baja también a z 0 (es parte del bloque). Es lo correcto: está DENTRO de
 ## su sala, así que el murete de esa sala le queda DELANTE y debe taparle la base como a cualquier
-## otra cosa que esté ahí dentro. Con `ALTO_PARED_FRENTE` = 17 px el murete ni le roza (su celda
-## está una fila más al norte, 20 px más arriba), así que se le sigue viendo entero.
+## otra cosa que esté ahí dentro. (Desde el 2026-08-06 esto vale para TODOS los muñecos, anden o
+## estén plantados: ver "LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA" arriba. Con `ALTO_PARED_FRENTE` =
+## 32,5 px el murete SÍ le llega, y taparle la base es exactamente lo que se busca.)
 ##
 ## `Z_MUEBLES_PUESTO` solo se aplica en el camino de RESPALDO (sin capa profunda inyectada, ver
 ## `configurar`): ahí la capa de puestos sigue colgando de `_capa_escena` (z 2) y necesita este −2
@@ -179,8 +230,14 @@ const CAPA_FRENTE_SUR_ALTO: int = 4
 const Z_MUEBLES_PUESTO: int = -2
 ## z RELATIVO de las etiquetas/barras del contenedor del puesto, para que `Z_MUEBLES_PUESTO` no se
 ## las lleve por delante. El contenedor queda en z efectivo 0, así que un +2 aquí las devuelve al
-## z efectivo 2 EXACTO que tenían antes del fix (la capa de gente): ni más —no deben pisar a los
-## muñecos, que también están en 2 y se ordenan con ellas por y-sort— ni menos.
+## z efectivo 2 EXACTO que tenían antes del fix (la capa de gente).
+##
+## ⚠️ 2026-08-06: ya no comparten z con los muñecos (que bajaron a la bolsa, z 0), así que ahora
+## quedan SIEMPRE por encima de ellos en vez de ordenarse por y-sort con ellos. Se deja el valor
+## intacto y a propósito: son INFORMACIÓN del puesto (nombre del funcionario, estado, cansancio) y
+## el criterio del proyecto es que un dato accionable no lo tape nadie — ni un muro ni un muñeco
+## que pase por delante. El caso de solape es además raro (habría que plantarse justo sobre el
+## rótulo) y el mal menor evidente: mejor un rótulo legible sobre una cabeza que un rótulo perdido.
 const Z_ROTULOS_PUESTO: int = 2
 
 ## Coloca/reordena `hijo` en la capa `capa` dentro de `contenedor`. Si `hijo` no es aún su hijo, lo
@@ -389,10 +446,11 @@ func color_de_animo(animo: StringName) -> Color:
 
 
 ## `capa_profunda` (2026-08-03): el nodo con `y_sort_enabled` de `Main` ("MundoProfundo") donde se
-## ordenan por profundidad las paredes y el mobiliario. Los CONTENEDORES de ventanilla cuelgan de
-## ahí (vía `_capa_puestos`) porque son mobiliario — ver `Z_MUEBLES_PUESTO`. La GENTE no: se queda
-## en `_capa_escena` (z 2), por encima de cualquier pared. `null` → todo como antes del cambio
-## (herramientas y tests que montan este nodo sueltos).
+## ordenan por profundidad las paredes y el mobiliario. Cuelgan de ahí los CONTENEDORES de
+## ventanilla (vía `_capa_puestos`, porque son mobiliario — ver `Z_MUEBLES_PUESTO`) y, desde el
+## 2026-08-06, TAMBIÉN LA GENTE QUE ANDA (vía `_capa_escena` — ver "LOS MUÑECOS ANDANTES ENTRAN EN
+## LA BOLSA"). `null` → todo como antes del cambio, con las dos capas colgando de este nodo y
+## heredando su `z_index` (herramientas y tests que montan este nodo sueltos).
 func configurar(
 	flujo: Node,
 	construccion: Node,
@@ -406,7 +464,12 @@ func configurar(
 	# Gotcha de orden de dibujo: las capas visuales de Construcción cuelgan de un nodo NO-CanvasItem
 	# → son RAÍCES de canvas aparte que se pintan después del bloque de Main (donde vivimos). Sin
 	# esto, los NPCs se dibujan DEBAJO de las salas al cruzarlas. z_index 1 los pone encima.
-	z_index = 2   # sobre el suelo (0) y sobre las paredes (1): la gente nunca queda tapada
+	#
+	# ⚠️ 2026-08-06: este z_index ya NO gobierna a la gente en el juego real — `_capa_escena` se
+	# cuelga de la bolsa de y-sort compartida (ver abajo) y ahí no hereda nada de aquí. Sigue vivo
+	# SOLO para el camino de RESPALDO (`capa_profunda == null`: sondas y tests que montan este nodo
+	# suelto), donde las dos capas cuelgan de aquí y necesitan quedar por encima del suelo.
+	z_index = 2
 	_flujo = flujo
 	_construccion = construccion
 	_personal = personal
@@ -437,7 +500,15 @@ func configurar(
 	# nodos del MISMO z_index. Por eso los muñecos cuelgan de aquí directamente, y no metidos cada
 	# uno en un subnodo suyo.
 	_capa_escena.y_sort_enabled = true
-	add_child(_capa_escena)
+	# ── LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA (2026-08-06, cambio ESTRUCTURAL) ─────────────────
+	# Ver la sección de la cabecera con ese mismo título. `_capa_escena` deja de colgar de este nodo
+	# (z 2, por encima de TODA pared) y pasa a la bolsa de y-sort compartida: sus muñecos compiten
+	# por profundidad, uno a uno, contra cada tramo de pared y cada mueble. Mismo mecanismo y mismo
+	# origen (`pos_suelo`) que `_capa_puestos`, justo debajo.
+	if capa_profunda != null:
+		capa_profunda.add_child(_capa_escena)
+	else:
+		add_child(_capa_escena)
 	# La capa de VENTANILLAS: mobiliario, no gente. Va a la bolsa compartida si Main la inyecta (así
 	# cada puesto se ordena contra las paredes y los muebles de su sala); si no, se queda dentro de
 	# `_capa_escena` compensando con `Z_MUEBLES_PUESTO` para conservar su z efectivo de siempre.
@@ -590,6 +661,14 @@ func en_frente_del_puesto(npc: Node) -> bool:
 ## no toca a nadie más: el ciudadano que ANDA por el mapa se queda en z 0 y lo sigue ordenando el
 ## y-sort como siempre. Verificado en engine-reference (isometrico-2d.md §5): el y-sort ordena
 ## DENTRO de cada grupo de z_index y jamás dibuja un z menor por delante de uno mayor.
+##
+## ⚠️ 2026-08-06 (los muñecos entran en la bolsa): el VALOR no cambia y el efecto tampoco, pero el
+## z efectivo del ciudadano atendido pasa de 3 (capa de gente 2 + 1) a 1 (bolsa 0 + 1). Se repasó
+## uno a uno contra quién compite y todos los órdenes relativos se conservan: mostrador y sillas del
+## puesto en z 0 (le quedan debajo), respaldo de la silla de espera en 4 (le queda encima y le tapa
+## la lumbar), rótulos del puesto en 2. Y añade un efecto BUENO y buscado: al estar en z 1 sigue sin
+## poder taparle un muro —está pegado al mostrador, de cara a cámara, y ahí debe verse entero—
+## mientras que el mismo ciudadano ANDANDO por el mapa está en z 0 y sí compite con las paredes.
 const Z_FRENTE_PUESTO: int = 1
 
 ## ⚠️ PROBADO Y DESCARTADO CON FOTOMONTAJE (2026-08-03): poner la silla ENTERA por encima de la
@@ -606,7 +685,9 @@ const Z_FRENTE_PUESTO: int = 1
 ## 🐛 2026-08-03 (fix del murete): pasa de 2 a 4 SIN cambiar el resultado en pantalla. Es un z
 ## RELATIVO al contenedor del puesto, y ese contenedor bajó de z efectivo 2 a 0 (`Z_MUEBLES_PUESTO`);
 ## sumar 4 en vez de 2 deja el respaldo en el MISMO z efectivo 4 de siempre, que es lo que le
-## mantiene por encima del ciudadano sentado (z efectivo 3 = capa de muñecos 2 + `Z_FRENTE_PUESTO`).
+## mantiene por encima del ciudadano sentado (2026-08-06: ese ciudadano está ahora en z efectivo 1
+## —bolsa 0 + `Z_FRENTE_PUESTO`— en vez de 3, así que el respaldo le sigue ganando, con más holgura
+## todavía; el orden relativo, que es lo único que importa aquí, no cambia).
 const Z_RESPALDO_FRENTE_SUR: int = 4
 
 ## ── Y EL ARRIME AL MOSTRADOR (mismo estado, misma función) ────────────────────────────────────
@@ -1330,6 +1411,10 @@ func _poner_taza(cuerpo: Node2D) -> void:
 	taza.add_theme_font_size_override("font_size", 10)
 	taza.position = Vector2(-6, -34)
 	taza.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 2026-08-06: por encima de cualquier pared (ver `Z_ROTULO_FLOTANTE`). La taza es la explicación
+	# de por qué esa ventanilla está parada; si un muro la tapa, el jugador ve un funcionario quieto
+	# sin motivo — justo el síntoma que esta taza vino a resolver.
+	taza.z_index = Z_ROTULO_FLOTANTE
 	muneco.add_child(taza)
 
 
@@ -1531,6 +1616,9 @@ func _crear_muneco_caminante(agente: RefCounted = null) -> CharacterBody2D:
 	var icono_bloqueo := IconoProhibidoScript.new()
 	icono_bloqueo.position = Vector2(0.0, -46.0)
 	icono_bloqueo.visible = false
+	# 2026-08-06: el CUERPO del muñeco ya compite con las paredes por profundidad, pero esta señal
+	# NO — es la única pista de que alguien se ha quedado sin camino, y un murete no puede comérsela.
+	icono_bloqueo.z_index = Z_ROTULO_FLOTANTE
 	visual.add_child(icono_bloqueo)
 	visual.set_meta(&"icono_bloqueo", icono_bloqueo)
 	return muneco

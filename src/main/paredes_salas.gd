@@ -83,13 +83,21 @@ const ALTO_PARED: float = 65.0
 ## `ALTO_PARED` (2026-08-03, "PAREDES FRONTALES BAJITAS" — ver la cabecera del fichero): lo bastante
 ## alta para tapar la base de un mueble arrimado a ella (el bug del sofá — con la antigua altura de
 ## 10 px el respaldo se salía por encima), y aun así claramente más baja que la trasera, que es la
-## lectura que pide el género. No hace falta preocuparse por tapar a la gente: los NPCs van en su
-## PROPIA capa (`NPCsFlujo`, z_index 2) por encima de CUALQUIER pared (todas viven en la bolsa de
-## y-sort compartida, z 0), así que su altura no compite con la de un muñeco.
+## lectura que pide el género.
+##
+## ⚠️ ENMIENDA 2026-08-06 — ESTA PARED SÍ TAPA A LA GENTE, Y DEBE HACERLO. Aquí ponía que no hacía
+## falta preocuparse por los muñecos porque iban en su PROPIA capa (`NPCsFlujo`, z 2) por encima de
+## cualquier pared. Eso era cierto cuando esta constante valía 17 px (ni le llegaba a la cintura a
+## un muñeco de 44), pero con `ALTO_PARED` = 65 px el murete mide 32,5 y el usuario cazó el
+## resultado con captura: un NPC pegado por dentro al muro sur se dibujaba ENTERO por encima de él,
+## flotando fuera de la sala. Desde el cambio estructural de esa fecha los muñecos que andan viven
+## en la MISMA bolsa de y-sort que las paredes, así que esta altura sí compite con la de un muñeco:
+## por dentro le tapa las piernas (correcto: está detrás del pretil) y por fuera no le toca. Ver
+## "LOS MUÑECOS ANDANTES ENTRAN EN LA BOLSA" en `npcs_flujo.gd`.
 const ALTO_PARED_FRENTE: float = ALTO_PARED / 2.0
 ## Largo de cada jamba (marco corto de puerta) — sobrio, sin arte elaborado (andamio hasta el art bible).
 const LARGO_JAMBA: float = 10.0
-## ── LA ESCALERA DE CAPAS DEL JUEGO, TRAS EL PASO A Y-SORT (2026-08-03) ─────────────────────────
+## ── LA ESCALERA DE CAPAS DEL JUEGO (y-sort 2026-08-03 · muñecos en la bolsa 2026-08-06) ────────
 ## Ya NO hay constantes de z para las paredes: todas viven en z_index 0, dentro de la bolsa de
 ## y-sort compartida ("MundoProfundo", ver `main.gd`), y su orden contra cada mueble lo decide la
 ## profundidad, tramo a tramo (ver `_punto_de_orden`). El z_index solo separa lo que NUNCA debe
@@ -99,11 +107,21 @@ const LARGO_JAMBA: float = 10.0
 ##     < tinta/baldosas de las salas (`Construccion/_capa_salas`, z −2)
 ##       < cuadrícula del modo construcción (`ModoConstruccion/RejillaConstruccion`, z −1, 2026-08-05)
 ##       < ▓ BOLSA DE Y-SORT, z 0 ▓  → paredes (`TramoPared`) + mobiliario (`_capa_elementos`)
-##                                     + contenedores de ventanilla (`NPCsFlujo/Puestos`),
+##                                     + contenedores de ventanilla (`NPCsFlujo/Puestos`)
+##                                     + ★ MUÑECOS QUE ANDAN (`NPCsFlujo/Escena`, 2026-08-06) ★,
 ##                                     ordenados entre sí por su Y de base
-##         < rótulos de sala/puesto (z 1-2: información, no la tapa un muro)
-##           < gente (`NPCsFlujo`, z 2)
-##             < luces (`LucesObjetos`, z 3)
+##         < ciudadano ATENDIDO en el frente de su ventanilla (`Z_FRENTE_PUESTO`, z 1)
+##           < rótulos de sala/puesto (z 1-2: información, no la tapa un muro)
+##             < respaldo de la silla de espera (`Z_RESPALDO_FRENTE_SUR`, z 4)
+##               < rótulos/iconos FLOTANTES sobre la cabeza (`Z_ROTULO_FLOTANTE`, z 6)
+##                 < luces (`LucesObjetos`, z 3 — capa aparte: no compite con lo de arriba)
+##
+## ★ EL CAMBIO DEL 2026-08-06: la GENTE QUE ANDA salió de su capa privada de z 2 (que la ponía por
+## encima de CUALQUIER pared sin comparar nada) y entró en la bolsa. Motivo: con `ALTO_PARED_FRENTE`
+## a 32,5 px, un muñeco pegado por dentro al muro sur se dibujaba entero encima de él (bug con
+## captura del usuario). Ahora compite por profundidad como cualquier pieza — la doc larga, con los
+## dos casos y los números, está en `npcs_flujo.gd`. Lo único que sigue SIEMPRE por encima de un
+## muro es la INFORMACIÓN (rótulos, barra de paciencia, señal de prohibido, taza de café).
 ## ── EL COLOR DE UNA PARED LO DECIDE EL MODELO (PINTURA, 2026-08-04) ────────────────────────────
 ## Hasta hoy había DOS colores fijos aquí (el tono por tipo de sala en `_color_de_pared` y el gris de
 ## obra `COLOR_MURO_LIBRE`) y ninguno de los dos lo elegía el jugador. Decisión del usuario
