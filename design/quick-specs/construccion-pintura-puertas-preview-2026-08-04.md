@@ -32,6 +32,19 @@ regla de imagen-antes-del-OK.
 - Nota de seguridad: una sala sin puerta ya no rompe nada — los NPC esperan con la señal 🚫
   (mecánica de accesos 2026-08-03) hasta que la puerta se abra.
 
+## 3b. Arte de puertas y ventanas (decisión 2026-08-04, 2ª tanda)
+
+- Las piezas del pack están a escala arquitectónica real y NO adaptadas a la pared enana del
+  juego — hay que ADAPTARLAS en tamaño y posición a la pared (orden del usuario).
+- Identificación del usuario sobre la hoja: ARQ_004 (A) = puerta, adaptar a la pared.
+  ARQ_009 (B) = **ventana alargada** que debe ocupar la pared de arriba a abajo, bien adaptada
+  en tamaño y posición. ARQ_023 (C) = pared con ventana incrustada en L — redundante con
+  nuestras paredes, descartada. ARQ_022 (D) = **pantalla de presentaciones para reuniones**
+  (no es ventana) — apartada como futuro prop de sala de reuniones.
+- Vía preferente: si KayKit u otro kit del mismo estilo trae puertas/ventanas que encajen
+  mejor, usarlas ("si ves que se pueden coger del kaykit mejor hazlo o lo que tú veas").
+  Decisión final con hoja a escala real de la pared antes del OK.
+
 ## 4. Preview de objetos estilo tycoon (fantasma transparente)
 
 - Al colocar un objeto, ANTES de comprarlo/colocarlo se ve su sprite real semitransparente en la
