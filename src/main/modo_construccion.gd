@@ -57,6 +57,15 @@ const HERRAMIENTA_PINTAR_SUELO := &"pintar_suelo"
 ## Lado (en píxeles) de cada muestra de color de la rejilla de la paleta.
 const LADO_MUESTRA := Vector2(26.0, 20.0)
 
+## ── LA CUADRÍCULA DEL MODO (2026-08-05 · quick-spec §3c; ver la clase `RejillaConstruccion`) ────
+## Blanco a alfa muy bajo: se lee sobre cualquier color de suelo (el tinte de una sala, una celda
+## pintada de terracota) sin competir con el fantasma verde/rojo, que es lo que el ojo tiene que
+## seguir mientras coloca. Con el atenuador del modo (negro al 18 %) por encima, queda como una
+## trama técnica de plano — que es exactamente lo que es.
+const COLOR_REJILLA_CONSTRUCCION := Color(1.0, 1.0, 1.0, 0.14)
+## Grosor de la línea de la rejilla, en píxeles (1 px: una trama, no un dibujo).
+const GROSOR_REJILLA_CONSTRUCCION: float = 1.0
+
 ## La paleta (30 colores data-driven). Preload por el mismo convenio que `TramoParedScript` en
 ## `paredes_salas.gd`: un `const …Script` en vez de depender del registro global del `class_name`.
 const PaletaPinturaScript := preload("res://src/core/construccion/paleta_pintura.gd")
@@ -191,8 +200,52 @@ class PreviewIso extends Node2D:
 		grosor = ancho
 		color = nuevo_color
 		queue_redraw()
+
+
+## ── LA CUADRÍCULA, SOLO AL CONSTRUIR (2026-08-05 · quick-spec §3c) ──────────────────────────────
+## Orden del usuario tras comparar con la demo de Summer: *"en juego normal el suelo va limpio; la
+## rejilla de celdas solo se muestra con el modo construcción activo"*. Hasta hoy la rejilla que se
+## veía era el BORDE pintado dentro de cada tile del suelo de `Main` (visible siempre, se estuviera
+## construyendo o no) más las juntas marcadas de las baldosas de `Construccion`; las dos se han
+## limpiado. Esta es la rejilla ÚTIL: la que te dice dónde va a caer lo que estás colocando.
+##
+## Es un `Node2D` en coordenadas de MUNDO (hijo directo de `ModoConstruccion`, que también lo es),
+## no un `Control` de la `CanvasLayer` de la barra: tiene que estar clavada sobre el suelo y moverse
+## con la cámara y el zoom (2026-08-04) como cualquier otra cosa del tablero.
+##
+## Rendimiento (regla del proyecto — cero trabajo por frame): las líneas se calculan UNA vez al
+## configurarla y se guardan; `_draw` es una sola llamada a `draw_multiline`, y solo ocurre cuando
+## el nodo se hace visible.
+class RejillaConstruccion extends Node2D:
+	## Los extremos de todas las líneas, por parejas (formato de `draw_multiline`).
+	var _puntos: PackedVector2Array = PackedVector2Array()
+	var _color: Color = Color.WHITE
+	var _grosor: float = 1.0
+
+	## Calcula la rejilla entera del edificio a partir de los VÉRTICES reales de la proyección (los
+	## mismos que usan las paredes), así que encaja al píxel con los rombos del suelo.
+	func construir(
+		construccion: Node, columnas: int, filas: int, color: Color, grosor: float
+	) -> void:
+		_color = color
+		_grosor = grosor
+		_puntos = PackedVector2Array()
+		for fila: int in range(filas + 1):
+			_puntos.append(construccion.esquina_en_pantalla(0, fila))
+			_puntos.append(construccion.esquina_en_pantalla(columnas, fila))
+		for columna: int in range(columnas + 1):
+			_puntos.append(construccion.esquina_en_pantalla(columna, 0))
+			_puntos.append(construccion.esquina_en_pantalla(columna, filas))
+		queue_redraw()
+
+	func _draw() -> void:
+		if _puntos.is_empty():
+			return
+		draw_multiline(_puntos, _color, _grosor, true)
 var _dialogo_cascada: ConfirmationDialog
 var _sala_a_demoler: StringName = &""
+## La cuadrícula del modo (2026-08-05): se enciende y se apaga con el modo, nada más.
+var _rejilla: RejillaConstruccion
 
 
 ## Inyección de dependencias (la llama Main ANTES de add_child).
@@ -203,7 +256,29 @@ func configurar(construccion: Node, tam_celda: int) -> void:
 
 func _ready() -> void:
 	_crear_ui()
+	_crear_rejilla()
 	_actualizar_visibilidad()
+
+
+## Monta la cuadrícula del modo construcción sobre el suelo (ver `RejillaConstruccion`).
+##
+## z_index −1 = LA CAPA DEL SUELO: por encima del suelo liso de `Main` (z −2) y del tinte de las
+## salas de `Construccion` (z −1, que se dibuja antes por orden de árbol — `Construccion` entra en
+## la escena antes que este nodo), y por DEBAJO de todo lo que se apoya en el suelo (paredes,
+## mobiliario y gente viven en z 0 o más). O sea: la rejilla se pinta SOBRE el suelo y POR DEBAJO de
+## las cosas, que es donde la espera quien la usa para medir.
+func _crear_rejilla() -> void:
+	if _construccion == null:
+		return   # sin modelo inyectado (tests/herramientas sueltas) no hay edificio que cuadricular
+	_rejilla = RejillaConstruccion.new()
+	_rejilla.name = "RejillaConstruccion"
+	_rejilla.z_index = -1
+	_rejilla.visible = false
+	add_child(_rejilla)
+	_rejilla.construir(
+		_construccion, _construccion.edificio_columnas, _construccion.edificio_filas,
+		COLOR_REJILLA_CONSTRUCCION, GROSOR_REJILLA_CONSTRUCCION
+	)
 
 
 # ── Entrada (la UI ordena por la API pública; atajos: B modo · clic dcho/Esc cancela) ────────
@@ -1275,6 +1350,10 @@ func _anadir_herramienta(texto: String, id: StringName, es_sala: bool) -> void:
 func _actualizar_visibilidad() -> void:
 	_fila_herramientas.visible = _activo
 	_atenuador.visible = _activo
+	# LA CUADRÍCULA VIVE Y MUERE CON EL MODO (2026-08-05 · quick-spec §3c). Este es el ÚNICO sitio
+	# donde se enciende: `_alternar_modo` y `activar_con_herramienta` ya pasan por aquí.
+	if _rejilla != null:
+		_rejilla.visible = _activo
 	if _rejilla_paleta != null and not _activo:
 		_rejilla_paleta.visible = false   # fuera del modo construcción no hay pincel ni paleta
 	_boton_modo.modulate = COLOR_BOTON_ACTIVO if _activo else Color.WHITE

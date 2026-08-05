@@ -320,6 +320,106 @@ func _color_dibujado_en(paredes: Node2D, punto: Vector2) -> Color:
 	return Color.TRANSPARENT
 
 
+# ── 9c. EL RODAPIÉ SE MUDÓ A LA PARED (2026-08-05 · quick-spec §3c) ───────────────────────
+# Orden del usuario: *"rodapié (zócalo) más pequeño y EN LA PARED, no en el suelo"*. Se comprueba
+# por los dos lados: que la BALDOSA del suelo ya no lleva ninguna tira de zócalo (su atlas es de
+# una sola fila y sin el blanco roto dentro) y que los TRAMOS DE MURO interiores sí la llevan.
+func test_la_baldosa_del_suelo_ya_no_lleva_zocalo_ni_filas_de_mascara() -> void:
+	# Arrange — el atlas de una baldosa, generado por el código real para un color cualquiera.
+	var construccion: Node = _construccion()
+	var textura: Texture2D = construccion._textura_de_celda(Color(0.4, 0.5, 0.6))
+
+	# Assert 1 — el atlas es una TIRA: `VARIACIONES_BALDOSA` de ancho por UNA baldosa de alto (antes
+	# eran 16 filas, una por máscara de "qué lados de la celda tocan pared").
+	var lado: int = construccion._tam_celda
+	assert_int(textura.get_height()) \
+		.override_failure_message("el atlas de baldosa tiene que ser de UNA fila (murio la mascara)") \
+		.is_equal(lado)
+	assert_int(textura.get_width()).is_equal(lado * ConstruccionScript.VARIACIONES_BALDOSA)
+
+	# Assert 2 — ni un solo píxel del blanco roto del rodapié dentro de la baldosa.
+	var imagen: Image = textura.get_image()
+	var pixeles_de_rodapie: int = 0
+	for y: int in imagen.get_height():
+		for x: int in imagen.get_width():
+			if imagen.get_pixel(x, y).is_equal_approx(ParedesSalasScript.COLOR_RODAPIE):
+				pixeles_de_rodapie += 1
+	assert_int(pixeles_de_rodapie) \
+		.override_failure_message("el suelo NO puede llevar rodapie pintado dentro de la baldosa") \
+		.is_equal(0)
+
+
+func test_los_muros_interiores_llevan_rodapie_y_la_fachada_no() -> void:
+	# Arrange — sala cerrada + fachada levantada, dibujadas por el código real.
+	var construccion: Node = _construccion()
+	_sala_cerrada(construccion)
+	var paredes: Node2D = auto_free(ParedesSalasScript.new())
+	add_child(paredes)
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+
+	# Act — se clasifica lo dibujado: piezas con rodapié y piezas de fachada con rodapié.
+	var con_rodapie: int = 0
+	var fachada_con_rodapie: int = 0
+	for tramo: Dictionary in paredes._tramos:
+		var rodapie: Color = tramo.get("rodapie", Color.TRANSPARENT)
+		if rodapie.a <= 0.0:
+			continue
+		con_rodapie += 1
+		assert_bool(_igual(rodapie, ParedesSalasScript.COLOR_RODAPIE)).is_true()
+		if _igual(tramo["color"], ParedesSalasScript.COLOR_FACHADA):
+			fachada_con_rodapie += 1
+
+	# Assert — los muros de la sala lo llevan; el ladrillo de la fachada, nunca.
+	assert_int(con_rodapie) \
+		.override_failure_message("los tramos de muro interior tienen que llevar rodapie") \
+		.is_greater(0)
+	assert_int(fachada_con_rodapie) \
+		.override_failure_message("la fachada de ladrillo NO lleva rodapie") \
+		.is_equal(0)
+
+
+func test_el_rodapie_no_cruza_el_hueco_de_una_puerta() -> void:
+	# Arrange — una puerta REAL en el tramo norte de la sala.
+	var construccion: Node = _construccion()
+	_sala_cerrada(construccion)
+	var paredes: Node2D = auto_free(ParedesSalasScript.new())
+	add_child(paredes)
+	paredes.configurar(construccion, TAM_CELDA, Vector2.ZERO)
+	construccion.fijar_hook_layout(Callable(paredes, "actualizar"))
+	var celda := Vector2i(4, RECT_SALA.position.y)
+	assert_bool(construccion.fijar_tipo_de_muro(celda, &"arriba", construccion.PUERTA)).is_true()
+
+	# Act — geometría de ESE tramo: centro (el hueco) y un extremo (el muñón de muro).
+	var desde: Vector2 = construccion.esquina_en_pantalla(celda.x, celda.y)
+	var hasta: Vector2 = construccion.esquina_en_pantalla(celda.x + 1, celda.y)
+
+	# Assert — en el centro no hay NINGUNA pieza (por eso se pasa), así que tampoco rodapié; en el
+	# muñón (12 % del tramo, dentro del 25 % que sigue siendo pared) el rodapié está.
+	assert_bool(_hay_pieza_en(paredes, desde.lerp(hasta, 0.5))) \
+		.override_failure_message("el hueco de la puerta tiene que seguir siendo hueco") \
+		.is_false()
+	assert_bool(_igual(
+		_rodapie_dibujado_en(paredes, desde.lerp(hasta, 0.12)), ParedesSalasScript.COLOR_RODAPIE
+	)).override_failure_message("los muñones de la puerta SI llevan rodapie").is_true()
+
+
+## ¿Pasa alguna pieza dibujada por ese punto? (mismo criterio de cercanía que `_color_dibujado_en`).
+func _hay_pieza_en(paredes: Node2D, punto: Vector2) -> bool:
+	return _color_dibujado_en(paredes, punto) != Color.TRANSPARENT
+
+
+## El rodapié de la primera pieza dibujada que pasa por ese punto (transparente si no hay ninguna,
+## o si esa pieza no lleva rodapié).
+func _rodapie_dibujado_en(paredes: Node2D, punto: Vector2) -> Color:
+	for tramo: Dictionary in paredes._tramos:
+		var cercano: Vector2 = Geometry2D.get_closest_point_to_segment(
+			punto, tramo["desde"], tramo["hasta"]
+		)
+		if punto.distance_to(cercano) <= 1.0:
+			return tramo.get("rodapie", Color.TRANSPARENT)
+	return Color.TRANSPARENT
+
+
 # ── 9. La PALETA: 30 colores, blanco el primero, todos válidos y sin ids repetidos ────────
 func test_la_paleta_tiene_30_colores_con_el_blanco_el_primero() -> void:
 	assert_int(PaletaPinturaScript.COLORES.size()).is_equal(30)

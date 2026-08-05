@@ -2003,32 +2003,46 @@ var _fuentes_tileset: Dictionary = {}
 ## veces no genera 20 texturas. Se vacía en cada `montar_visual` (el TileSet se rehace ahí).
 var _fuentes_color: Dictionary[String, int] = {}
 ## ── SUELOS CON ASPECTO DE BALDOSA (2026-08-05) ──────────────────────────────────────────────
-## El suelo deja de ser un color plano por celda: cada celda se dibuja con una BALDOSA con juntas
-## (líneas de lechada en los cuatro bordes), variación de tono sutil por celda (determinista:
-## hasheada de sus coordenadas — estable al mover la cámara o al redibujar) y un ZÓCALO donde la
-## celda toca una pared. Todo se genera por código (sin assets externos) y se cachea por color:
-## el atlas de una baldosa se crea una vez y se reutiliza para todas las celdas de ese color.
-## El color elegido por el jugador sigue siendo el tono base dominante — juntas, variación y
-## zócalo solo modulan sutilmente por encima (regla de `pintar_suelo`/`color_suelo_de`). La
-## variación y el zócalo se eligen POR CELDA en `_refrescar_visual` (coordenadas del atlas).
+## El suelo no es un color plano por celda: cada celda se dibuja con una BALDOSA con una junta
+## finísima en sus bordes y una variación de tono sutil por celda (determinista: hasheada de sus
+## coordenadas — estable al mover la cámara o al redibujar). Todo se genera por código (sin assets
+## externos) y se cachea por color: el atlas de una baldosa se crea una vez y se reutiliza para
+## todas las celdas de ese color. El color elegido por el jugador sigue siendo el tono base
+## dominante — junta y variación solo modulan por encima (`pintar_suelo`/`color_suelo_de`).
+##
+## ── LIMPIEZA DEL SUELO (2026-08-05 · quick-spec §3c) ────────────────────────────────────────
+## Feedback del usuario comparando con la demo de Summer: *"suelo y paredes MÁS LIMPIOS: menos
+## ruido visual que la baldosa actual con juntas marcadas"*. Tres decisiones, con sus números:
+##
+##   · La JUNTA baja de 2 px a **1 px** y su contraste de `darkened(0.30)` (+ desaturado a gris)
+##     a un simple `darkened(0.06)`: a zoom normal casi desaparece y el suelo se lee como una
+##     superficie continua con textura leve, no como una rejilla de azulejos de baño.
+##   · La VARIACIÓN de tono por celda baja de ±7 % a **±3,5 %** — sigue rompiendo el color plano,
+##     pero ya no se distingue "esa baldosa es más clara" de un vistazo.
+##   · El DEGRADADO diagonal de cada baldosa baja de ±4 % a **±2 %**. Es el que más ruido metía
+##     de los tres: al repetirse celda a celda dibujaba un patrón de claro/oscuro que marcaba la
+##     rejilla incluso sin juntas.
+##
+## Y **MUERE EL ZÓCALO DEL SUELO**: la tira de rodapié pintada dentro de la baldosa (y sus 16
+## filas de máscara de "qué lados tocan pared") se retira entera. El rodapié se muda a la BASE DEL
+## MURO, que es donde está en la vida real — lo dibuja `ParedesSalas`/`TramoPared` (orden del
+## usuario: *"rodapié más pequeño y EN LA PARED, no en el suelo"*). Consecuencia directa: el atlas
+## de una baldosa pasa de `VARIACIONES × 16` a `VARIACIONES × 1`, y la coordenada de atlas de una
+## celda ya no depende de los muros que la rodean (una celda del suelo vuelve a ser independiente
+## de lo que se construya a su alrededor).
+##
 ## Cuántas variaciones de tono tiene el atlas de una baldosa (eje X del atlas). La variación es
 ## sutil a propósito: modula el color elegido, nunca lo sustituye.
 const VARIACIONES_BALDOSA: int = 6
-## Amplitud de la variación de tono por celda (0.07 = ±7 % de claro/oscuro sobre el color base).
-const AMPLITUD_VARIACION_BALDOSA: float = 0.07
+## Amplitud de la variación de tono por celda (0.035 = ±3,5 % de claro/oscuro sobre el color base).
+const AMPLITUD_VARIACION_BALDOSA: float = 0.035
 ## Ancho de la junta/lechada en píxeles dentro de la baldosa (borde exterior de cada lado).
-const ANCHO_JUNTA: int = 2
-## Ancho del zócalo en píxeles dentro de la baldosa (tira pegada a la pared).
-const ANCHO_ZOCALO: int = 6
-## Color del zócalo: un blanco roto apagado (como el blanco roto de la paleta de pintura), que
-## casa con la paleta de tonos apagados del juego y no compite con el color del suelo.
-const COLOR_ZOCALO := Color(0.93, 0.90, 0.84)
-## Máscaras de zócalo: un bit por lado del plano lógico (misma convención que `clave_de_muro`).
-## Se combinan en un nibble 0..15 que elige la fila Y del atlas de la baldosa.
-const MASCARA_NORTE: int = 1
-const MASCARA_OESTE: int = 2
-const MASCARA_SUR: int = 4
-const MASCARA_ESTE: int = 8
+const ANCHO_JUNTA: int = 1
+## Cuánto se oscurece el color base para la junta. Muy bajo a propósito (ver la nota de limpieza):
+## la junta insinúa el despiece de la baldosa, no lo dibuja.
+const CONTRASTE_JUNTA: float = 0.06
+## Amplitud del degradado diagonal de cada baldosa (luz arriba-izquierda → sombra abajo-derecha).
+const AMPLITUD_DEGRADADO_BALDOSA: float = 0.02
 ## Alto en píxeles de las cajas placeholder (isométrico, 2026-07-30). Un mostrador se lee como
 ## mueble alto —a la altura del pecho de un muñeco de 22 px— y un asiento como algo bajo.
 const ALTO_MOSTRADOR: float = 16.0
@@ -2244,12 +2258,21 @@ func montar_visual(
 	# `local_to_map`/`to_local` siguen contestando en celdas del plano cuadrado, así que el clic
 	# del modo construcción sigue funcionando sin tocar una línea. Ver `Proyeccion.transformada`.
 	_capa_salas.transform = Proyeccion.transformada(desplazamiento)
-	# 🐛 FIX (2026-08-03, muro divisorio): la TINTA de sala baja a z −1, por debajo de cualquier
-	# pared (que están en 0 y 1) y por encima de la rejilla del suelo de Main (z −2). Antes empataba
+	# ── LA ESCALERA DEL SUELO (2026-08-05 · quick-spec §3c) ──────────────────────────────────────
+	# La tinta de sala baja de −1 a **−2** y el suelo liso de `Main` de −2 a −3, para dejar libre el
+	# escalón −1: ahí va la CUADRÍCULA del modo construcción (`ModoConstruccion.RejillaConstruccion`),
+	# que tiene que verse SOBRE el suelo de las salas (si no, la rejilla útil para construir
+	# desaparecía justo dentro de las habitaciones, que es donde se construye). Medido con el diag
+	# `_diag_suelo_limpio.gd`: con las dos a −1 la tinta ganaba y la rejilla solo se veía en el
+	# solar vacío. El orden RELATIVO no cambia ni la invariante de abajo: suelo < tinta < rejilla <
+	# paredes/mobiliario (0).
+	#
+	# 🐛 FIX (2026-08-03, muro divisorio): la TINTA de sala baja por debajo de cualquier
+	# pared (que están en 0 y 1) y por encima del suelo liso de Main. Antes empataba
 	# a z 0 con `ParedesFondo` y, al ir `ParedesSalas` antes que `Construccion` en el árbol, el suelo
 	# de una sala se pintaba ENCIMA de las paredes de esa pasada: el muro divisorio entre dos salas
 	# desaparecía tragado por el suelo de la sala vecina. Ver el comentario largo en `Main._crear_suelo`.
-	_capa_salas.z_index = -1
+	_capa_salas.z_index = -2
 	add_child(_capa_salas)
 	_capa_elementos = Node2D.new()
 	_capa_elementos.name = "Elementos"
@@ -2428,46 +2451,46 @@ func _fuente_de_color(color: Color) -> int:
 	return _fuentes_color[hex]
 
 
-## Genera el ATLAS de baldosas para un color: una rejilla de `VARIACIONES_BALDOSA` × 16 baldosas
-## de `_tam_celda` px. Eje X: variación de tono (determinista por celda). Eje Y: máscara de
-## zócalo (qué lados de la baldosa tocan pared). Se genera UNA vez por color y se cachea en
-## `_fuentes_tileset`/`_fuentes_color` — nunca por frame.
+## Genera el ATLAS de baldosas para un color: una TIRA de `VARIACIONES_BALDOSA` baldosas de
+## `_tam_celda` px (eje X: variación de tono, determinista por celda). Se genera UNA vez por color
+## y se cachea en `_fuentes_tileset`/`_fuentes_color` — nunca por frame.
+##
+## Las 16 filas de máscara de zócalo murieron el 2026-08-05 con el zócalo del suelo (quick-spec
+## §3c): el atlas es hoy 16 veces más pequeño y no depende de los muros que rodean a cada celda.
 func _textura_de_celda(color: Color) -> ImageTexture:
-	var filas_mascaras: int = 16
 	var atlas := Image.create(
-		_tam_celda * VARIACIONES_BALDOSA, _tam_celda * filas_mascaras, false, Image.FORMAT_RGBA8
+		_tam_celda * VARIACIONES_BALDOSA, _tam_celda, false, Image.FORMAT_RGBA8
 	)
-	for mascara: int in filas_mascaras:
-		for variacion: int in VARIACIONES_BALDOSA:
-			var baldosa := _pintar_baldosa(color, variacion, mascara)
-			atlas.blit_rect(
-				baldosa, Rect2i(0, 0, _tam_celda, _tam_celda),
-				Vector2i(variacion * _tam_celda, mascara * _tam_celda)
-			)
+	for variacion: int in VARIACIONES_BALDOSA:
+		var baldosa := _pintar_baldosa(color, variacion)
+		atlas.blit_rect(
+			baldosa, Rect2i(0, 0, _tam_celda, _tam_celda), Vector2i(variacion * _tam_celda, 0)
+		)
 	return ImageTexture.create_from_image(atlas)
 
 
-## Pinta UNA baldosa de `_tam_celda` px: el color elegido como base dominante, un degradado sutil
-## de claro (arriba-izquierda) a oscuro (abajo-derecha) para el aire prerenderizado suave, una
-## variación de tono determinista por celda, juntas de lechada en los cuatro bordes y, donde la
-## máscara lo pida, un zócalo de `ANCHO_ZOCALO` px pegado al borde.
-func _pintar_baldosa(color: Color, variacion: int, mascara: int) -> Image:
+## Pinta UNA baldosa de `_tam_celda` px: el color elegido como base dominante, un degradado muy
+## suave de claro (arriba-izquierda) a oscuro (abajo-derecha), una variación de tono determinista
+## por celda y una junta de 1 px de bajo contraste en los cuatro bordes. Los tres efectos son
+## deliberadamente tenues — ver la nota de LIMPIEZA DEL SUELO junto a las constantes.
+func _pintar_baldosa(color: Color, variacion: int) -> Image:
 	var imagen := Image.create(_tam_celda, _tam_celda, false, Image.FORMAT_RGBA8)
 	# Variación de tono determinista por celda: el índice llega ya hasheado de las coordenadas.
-	# El color elegido manda SIEMPRE: la variación solo lo aclara/oscurece un ±5 % como mucho.
+	# El color elegido manda SIEMPRE: la variación solo lo aclara/oscurece un ±3,5 % como mucho.
 	var factor: float = (
 		float(variacion) / float(VARIACIONES_BALDOSA - 1) - 0.5
 	) * 2.0 * AMPLITUD_VARIACION_BALDOSA
 	var base: Color = color.lightened(factor) if factor >= 0.0 else color.darkened(-factor)
-	# Degradado diagonal sutil (luz desde arriba-izquierda, sombra abajo-derecha).
+	# Degradado diagonal (luz desde arriba-izquierda, sombra abajo-derecha).
 	for y: int in _tam_celda:
 		for x: int in _tam_celda:
 			var t: float = float(x + y) / float(2 * _tam_celda)
-			imagen.set_pixel(x, y, base.lightened(0.04 * (1.0 - t)).darkened(0.04 * t))
-	# Juntas de lechada: línea apagada y desaturada en los CUATRO bordes (antes solo en dos).
-	# El oscurecido 0.30 es el MISMO que usaba el borde de rejilla viejo — solo que ahora recorre
-	# los cuatro lados y se desatura hacia un gris neutro para leerse como lechada, no como sombra.
-	var junta: Color = base.darkened(0.30).lerp(Color(0.45, 0.45, 0.45), 0.40)
+			imagen.set_pixel(x, y, base
+				.lightened(AMPLITUD_DEGRADADO_BALDOSA * (1.0 - t))
+				.darkened(AMPLITUD_DEGRADADO_BALDOSA * t))
+	# Junta: una línea de 1 px apenas más oscura que la baldosa, en los cuatro bordes. Ya no se
+	# desatura hacia gris (eso la convertía en una rejilla marcada): solo insinúa el despiece.
+	var junta: Color = base.darkened(CONTRASTE_JUNTA)
 	for i: int in ANCHO_JUNTA:
 		for x: int in _tam_celda:
 			imagen.set_pixel(x, i, junta)
@@ -2475,60 +2498,23 @@ func _pintar_baldosa(color: Color, variacion: int, mascara: int) -> Image:
 		for y: int in _tam_celda:
 			imagen.set_pixel(i, y, junta)
 			imagen.set_pixel(_tam_celda - 1 - i, y, junta)
-	# Zócalo: una tira apagada en el lado que toca pared (bits de la máscara).
-	if mascara & MASCARA_NORTE:
-		_pintar_zocalo(imagen, Rect2i(0, 0, _tam_celda, ANCHO_ZOCALO), true)
-	if mascara & MASCARA_OESTE:
-		_pintar_zocalo(imagen, Rect2i(0, 0, ANCHO_ZOCALO, _tam_celda), true)
-	if mascara & MASCARA_SUR:
-		_pintar_zocalo(imagen, Rect2i(0, _tam_celda - ANCHO_ZOCALO, _tam_celda, ANCHO_ZOCALO), false)
-	if mascara & MASCARA_ESTE:
-		_pintar_zocalo(imagen, Rect2i(_tam_celda - ANCHO_ZOCALO, 0, ANCHO_ZOCALO, _tam_celda), false)
 	return imagen
 
 
-## Pinta una tira de zócalo dentro de la baldosa (en el rect dado). El borde que da a la pared
-## (el exterior del rect) lleva una línea clara —la arista viva del rodapié— y el borde interior
-## (el que da al suelo) una sombra fina, para que se lea como una pieza ligeramente en relieve.
-## `luz_principio` dice si el borde CLARO es el del principio del rect (tiras norte/oeste) o el del
-## final (tiras sur/este); la sombra siempre cae en el borde opuesto, el que toca el suelo.
-func _pintar_zocalo(imagen: Image, rect: Rect2i, luz_principio: bool) -> void:
-	var luz: Color = COLOR_ZOCALO.lightened(0.12)
-	var sombra: Color = COLOR_ZOCALO.darkened(0.28)
-	for y: int in range(rect.position.y, rect.end.y):
-		for x: int in range(rect.position.x, rect.end.x):
-			imagen.set_pixel(x, y, COLOR_ZOCALO)
-	if rect.size.y < rect.size.x:
-		# Tira horizontal: la línea clara/sombra recorre una fila.
-		var fila_luz: int = rect.position.y if luz_principio else rect.end.y - 1
-		var fila_sombra: int = rect.end.y - 1 if luz_principio else rect.position.y
-		for x: int in range(rect.position.x, rect.end.x):
-			imagen.set_pixel(x, fila_luz, luz)
-			imagen.set_pixel(x, fila_sombra, sombra)
-	else:
-		# Tira vertical: la línea clara/sombra recorre una columna.
-		var col_luz: int = rect.position.x if luz_principio else rect.end.x - 1
-		var col_sombra: int = rect.end.x - 1 if luz_principio else rect.position.x
-		for y: int in range(rect.position.y, rect.end.y):
-			imagen.set_pixel(col_luz, y, luz)
-			imagen.set_pixel(col_sombra, y, sombra)
-
-
-## Crea los tiles del atlas en una fuente: `VARIACIONES_BALDOSA` variaciones × 16 máscaras de
-## zócalo, en las coordenadas (variación, máscara). Se crean TODOS de una vez para que
-## `_refrescar_visual` pueda apuntar a cualquiera sin crear tiles en caliente.
+## Crea los tiles del atlas en una fuente: `VARIACIONES_BALDOSA` variaciones, en las coordenadas
+## (variación, 0). Se crean TODOS de una vez para que `_refrescar_visual` pueda apuntar a
+## cualquiera sin crear tiles en caliente.
 func _crear_tiles_de_atlas(fuente: TileSetAtlasSource) -> void:
-	for mascara: int in 16:
-		for variacion: int in VARIACIONES_BALDOSA:
-			fuente.create_tile(Vector2i(variacion, mascara))
+	for variacion: int in VARIACIONES_BALDOSA:
+		fuente.create_tile(Vector2i(variacion, 0))
 
 
 ## La coordenada del atlas para una celda: X = variación de tono (hash determinista de la celda),
-## Y = máscara de zócalo (qué lados de la celda tocan pared). Determinista y estable: la misma
-## celda se dibuja SIEMPRE igual, se mueva la cámara o se redibuje lo que se redibuje; al repintar
-## la celda con otro color solo cambia la fuente (el color), no esta coordenada.
+## Y = 0 (fila única desde que murió el zócalo del suelo). Determinista y estable: la misma celda
+## se dibuja SIEMPRE igual, se mueva la cámara o se redibuje lo que se redibuje; al repintar la
+## celda con otro color solo cambia la fuente (el color), no esta coordenada.
 func _atlas_coord_de_celda(celda: Vector2i) -> Vector2i:
-	return Vector2i(_variacion_de_celda(celda), _mascara_zocalo_de_celda(celda))
+	return Vector2i(_variacion_de_celda(celda), 0)
 
 
 ## Variación de tono de una celda: un hash entero determinista de sus coordenadas. Estable bajo
@@ -2540,19 +2526,10 @@ func _variacion_de_celda(celda: Vector2i) -> int:
 	return posmod(h, VARIACIONES_BALDOSA)
 
 
-## Qué lados de la celda tocan una pared (para el zócalo). Usa `_muros` directamente (el visual
-## lee el modelo, ADR-0004); un bit por lado, igual que las máscaras de las constantes.
-func _mascara_zocalo_de_celda(celda: Vector2i) -> int:
-	var mascara: int = 0
-	if _muros.has(clave_de_muro(celda, &"arriba")):
-		mascara |= MASCARA_NORTE
-	if _muros.has(clave_de_muro(celda, &"izquierda")):
-		mascara |= MASCARA_OESTE
-	if _muros.has(clave_de_muro(celda, &"abajo")):
-		mascara |= MASCARA_SUR
-	if _muros.has(clave_de_muro(celda, &"derecha")):
-		mascara |= MASCARA_ESTE
-	return mascara
+## (2026-08-05 · quick-spec §3c) Aquí vivía `_mascara_zocalo_de_celda`: qué lados de la celda
+## tocaban pared, para elegir la fila del atlas donde iba pintada la tira de zócalo. Murió con el
+## zócalo del suelo — el rodapié es hoy una pieza del MURO (`ParedesSalas`/`TramoPared`), así que
+## el suelo ya no necesita saber nada de los muros que lo rodean.
 
 
 ## Construye la pieza placeholder de un elemento: una CAJA ISOMÉTRICA (`PiezaIso`) que ocupa sus

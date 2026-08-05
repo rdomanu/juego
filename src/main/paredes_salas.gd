@@ -91,8 +91,9 @@ const LARGO_JAMBA: float = 10.0
 ## profundidad, tramo a tramo (ver `_punto_de_orden`). El z_index solo separa lo que NUNCA debe
 ## entrelazarse con esa bolsa:
 ##
-##   rejilla del suelo (`Main/Suelo`, z −2)
-##     < tinta de las salas (`Construccion/_capa_salas`, z −1)
+##   suelo liso (`Main/Suelo`, z −3)
+##     < tinta/baldosas de las salas (`Construccion/_capa_salas`, z −2)
+##       < cuadrícula del modo construcción (`ModoConstruccion/RejillaConstruccion`, z −1, 2026-08-05)
 ##       < ▓ BOLSA DE Y-SORT, z 0 ▓  → paredes (`TramoPared`) + mobiliario (`_capa_elementos`)
 ##                                     + contenedores de ventanilla (`NPCsFlujo/Puestos`),
 ##                                     ordenados entre sí por su Y de base
@@ -128,6 +129,21 @@ const COLOR_VENTANA := Color(0.62, 0.80, 0.95, 0.85)
 ## (el centro) queda como hueco. 0.25 dueño de cada lado deja un hueco del 50% de la celda, ancho de
 ## sobra para que se lea "por aquí se pasa".
 const PROPORCION_STUB_PUERTA: float = 0.25
+## ── EL RODAPIÉ DE LOS MUROS INTERIORES (2026-08-05 · quick-spec §3c) ────────────────────────────
+## El zócalo que se pintaba dentro de la baldosa del suelo MURIÓ (ver `construccion.gd`): el rodapié
+## vive ahora en la base del muro, que es donde está en un edificio de verdad. Este fichero decide
+## QUIÉN lo lleva; el dibujo (3 px de franja + su canto) es cosa de `TramoPared`.
+##
+## ── POR QUÉ UN BLANCO ROTO FIJO Y NO "una versión clara del color del tramo" ────────────────────
+## El usuario dejó las dos opciones abiertas ("decide con criterio y documenta"). Se elige el blanco
+## roto fijo por una razón medible: **toda pared nace BLANCA** (quick-spec §2), y una "versión clara
+## del blanco" es blanco — el rodapié sería invisible justo en el caso más común del juego. Con un
+## tono fijo, en una pared blanca se lee como una pieza de carpintería un punto más cálida y apagada
+## (y su canto oscuro lo separa del paño), y en una pared pintada de terracota o de verde salvia
+## destaca como el rodapié lacado de cualquier edificio público — que es la lectura que pedía la
+## referencia de Summer. Es el MISMO tono que tenía el zócalo del suelo, así que la comisaría no
+## cambia de paleta: la pieza solo se muda de sitio.
+const COLOR_RODAPIE := Color(0.93, 0.90, 0.84)
 
 ## El script de `TramoPared` (una instancia POR TRAMO, ver la cabecera). Preload por el mismo
 ## convenio que usa el resto del proyecto para clases con `class_name` (p. ej. `MesaAtencionScript`
@@ -304,9 +320,13 @@ func _recalcular_tramos() -> void:
 		# procesan salas cuyo perímetro está entero levantado), y "" cae en el caso macizo, que es
 		# exactamente lo que se pintaba antes: la red de seguridad no cambia nada de lo que ya había.
 		var tipo: StringName = _construccion.tipo_muro_de_clave(unidad["clave_modelo"])
+		# `es_muro_fijo` se pregunta SOLO para el rodapié (la fachada de ladrillo no lleva). El
+		# color se sigue pidiendo con `false`, exactamente como hasta hoy: cambiarlo aquí teñiría
+		# de ladrillo los tramos de perímetro que caen sobre la fachada, y eso es otra decisión.
 		_agregar_arista(
 			unidad["desde"], unidad["hasta"], _cara_de_arista(unidad["detras"]),
-			_color_de_tramo(unidad["clave_modelo"], false), tipo
+			_color_de_tramo(unidad["clave_modelo"], false), tipo, true,
+			_construccion.es_muro_fijo(unidad["clave_modelo"])
 		)
 	# 3) (Las jambas del hueco automático murieron con él: una puerta REAL ya recibe las suyas en
 	#    `_agregar_puerta`, el mismo camino para venga de donde venga el tramo.)
@@ -332,7 +352,7 @@ func _recalcular_tramos() -> void:
 		_agregar_arista(
 			geo["desde"], geo["hasta"], _cara_de_arista(geo["detras"], fija),
 			_color_de_tramo(clave_construccion, fija),
-			_construccion.tipo_muro_de_clave(clave_construccion)
+			_construccion.tipo_muro_de_clave(clave_construccion), true, fija
 		)
 	# 5) EL PUNTO DE ORDEN de cada tramo (2026-08-03): la Y por la que el motor lo comparará contra
 	#    los muebles. Se rellena aquí, de una vez, para TODOS los caminos de arriba (perímetro de
@@ -428,12 +448,20 @@ func _geometria_de_muro_libre(clave: String) -> Dictionary:
 ##
 ## `con_jambas` solo lo apaga el hueco automático de una sala, que ya recibe las suyas —apuntando
 ## hacia DENTRO— en `_agregar_puerta`.
+##
+## `fija` (2026-08-05) marca la FACHADA de ladrillo: es lo único que decide aquí, y decide una sola
+## cosa — que ese tramo NO lleva rodapié (el rodapié es carpintería de interior; la fachada es el
+## plano del edificio, no una habitación).
 func _agregar_arista(
 	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color, tipo: StringName,
-	con_jambas: bool = true
+	con_jambas: bool = true, fija: bool = false
 ) -> void:
+	# El rodapié viaja DENTRO del diccionario de cada pieza de muro, así que lo dibuja el mismo
+	# `TramoPared` que el paño: mismo punto de orden, mismos tres modos de altura, y en una PUERTA
+	# solo aparece en los muñones — nunca cruzando el hueco, sin ninguna regla extra.
+	var rodapie: Color = Color.TRANSPARENT if fija else COLOR_RODAPIE
 	if tipo == _construccion.PUERTA:
-		_agregar_puerta(desde, hasta, cara, color, con_jambas)
+		_agregar_puerta(desde, hasta, cara, color, con_jambas, rodapie)
 		return
 	if tipo == _construccion.VENTANA:
 		# La ventana tambien SUBE (es pared), pero en color cristal translucido: se ve a traves,
@@ -459,10 +487,17 @@ func _agregar_arista(
 		var direccion: Vector2 = hasta - desde
 		var inicio_cristal: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
 		var fin_cristal: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
-		var jamba_izq: Dictionary = {"desde": desde, "hasta": inicio_cristal, "color": color}
+		# Los muñones de muro SÍ llevan rodapié (son pared); el CRISTAL no: la ventana de este juego
+		# es la alargada de suelo a techo (quick-spec §3b), y un rodapié pintado sobre el vidrio se
+		# leería como un poyete que no existe.
+		var jamba_izq: Dictionary = {
+			"desde": desde, "hasta": inicio_cristal, "color": color, "rodapie": rodapie,
+		}
 		jamba_izq.merge(cara)
 		_tramos.append(jamba_izq)
-		var jamba_der: Dictionary = {"desde": fin_cristal, "hasta": hasta, "color": color}
+		var jamba_der: Dictionary = {
+			"desde": fin_cristal, "hasta": hasta, "color": color, "rodapie": rodapie,
+		}
 		jamba_der.merge(cara)
 		_tramos.append(jamba_der)
 		var ventana: Dictionary = {
@@ -472,7 +507,9 @@ func _agregar_arista(
 		ventana.merge(cara)
 		_tramos.append(ventana)
 		return
-	var macizo: Dictionary = {"desde": desde, "hasta": hasta, "color": color}
+	var macizo: Dictionary = {
+		"desde": desde, "hasta": hasta, "color": color, "rodapie": rodapie,
+	}
 	macizo.merge(cara)
 	_tramos.append(macizo)
 
@@ -485,15 +522,21 @@ func _agregar_arista(
 ## puede pedir un "lado de dentro" fiable, y es un detalle decorativo, no una pista de navegación.
 func _agregar_puerta(
 	desde: Vector2, hasta: Vector2, cara: Dictionary, color: Color = Color.WHITE,
-	con_jambas: bool = true
+	con_jambas: bool = true, rodapie: Color = Color.TRANSPARENT
 ) -> void:
 	var direccion: Vector2 = hasta - desde
 	var inicio_hueco: Vector2 = desde + direccion * PROPORCION_STUB_PUERTA
 	var fin_hueco: Vector2 = hasta - direccion * PROPORCION_STUB_PUERTA
-	var izq: Dictionary = {"desde": desde, "hasta": inicio_hueco, "color": color}
+	# Los dos muñones llevan rodapié; el HUECO no es una pieza, así que el rodapié se interrumpe en
+	# la puerta exactamente igual que la pared (que es lo que pasa en un pasillo de verdad).
+	var izq: Dictionary = {
+		"desde": desde, "hasta": inicio_hueco, "color": color, "rodapie": rodapie,
+	}
 	izq.merge(cara)
 	_tramos.append(izq)
-	var der: Dictionary = {"desde": fin_hueco, "hasta": hasta, "color": color}
+	var der: Dictionary = {
+		"desde": fin_hueco, "hasta": hasta, "color": color, "rodapie": rodapie,
+	}
 	der.merge(cara)
 	_tramos.append(der)
 	if not con_jambas:

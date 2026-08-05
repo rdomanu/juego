@@ -28,6 +28,24 @@ const GROSOR_POR_DEFECTO: float = 4.0
 ## Grosor del remate superior de la pared (la franja clara de arriba — da la sensación de espesor).
 ## Puramente de DIBUJO (no de geometría/modelo), así que vive aquí y no en `ParedesSalas`.
 const GROSOR_REMATE: float = 3.0
+## ── EL RODAPIÉ, PIEZA DEL MURO (2026-08-05 · quick-spec §3c) ────────────────────────────────────
+## Orden del usuario tras comparar con la demo de Summer: *"rodapié (zócalo) más pequeño y EN LA
+## PARED, no en el suelo"*. Antes se pintaba dentro de la baldosa del suelo (una tira de 6 px en la
+## celda que tocaba pared); hoy es una franja en la BASE de la cara del muro, dibujada por el mismo
+## nodo que el muro. Que sea el MISMO nodo y no una pieza aparte es deliberado:
+##   · el orden de profundidad sale gratis y es exacto (comparten `position`, o sea el punto de
+##     orden del tramo) — dos nodos con la misma Y no tienen desempate garantizado en el y-sort;
+##   · los tres MODOS DE ALTURA (auto/todas/bajitas) lo respetan solos: el rodapié se apoya en la
+##     base, que no se mueve con la altura;
+##   · una PUERTA se dibuja en dos muñones con un hueco en medio, así que el rodapié NO cruza el
+##     hueco sin ninguna regla extra: solo existe donde existe muro.
+## Alto en píxeles de la franja de rodapié (encargo: "2-3 px de alto en pantalla").
+const ALTO_RODAPIE: float = 3.0
+## Tope de seguridad: en un tramo muy bajo el rodapié no puede comerse la pared entera.
+const FRACCION_MAX_RODAPIE: float = 0.5
+## Cuánto se oscurece el propio color del rodapié para su línea de canto (la arista superior, la
+## que lo separa del paño de pared y lo hace legible incluso sobre una pared blanca).
+const OSCURECIDO_CANTO_RODAPIE: float = 0.22
 
 ## Los dos extremos de la base, ya en coordenadas LOCALES (relativas al punto de orden). Se guardan
 ## así —y no en mundo— porque la `position` del nodo ES el punto de orden: dibujar en absoluto lo
@@ -37,6 +55,9 @@ var _hasta: Vector2 = Vector2.ZERO
 var _color: Color = Color.WHITE
 var _alto: float = 0.0
 var _grosor: float = GROSOR_POR_DEFECTO
+## Color del rodapié de este tramo. TRANSPARENTE = este tramo no lleva rodapié (la fachada de
+## ladrillo, el cristal de una ventana, las jambas): lo decide `ParedesSalas`, nunca este nodo.
+var _rodapie: Color = Color.TRANSPARENT
 
 
 ## Carga la pieza (un tramo o una jamba de `ParedesSalas`) y se coloca en su punto de orden. Único
@@ -48,6 +69,7 @@ func fijar(pieza: Dictionary) -> void:
 	_color = pieza["color"] as Color
 	_alto = float(pieza.get("alto", 0.0))
 	_grosor = float(pieza.get("grosor", GROSOR_POR_DEFECTO))
+	_rodapie = pieza.get("rodapie", Color.TRANSPARENT) as Color
 	queue_redraw()
 
 
@@ -62,5 +84,24 @@ func _draw() -> void:
 	draw_colored_polygon(
 		PackedVector2Array([_desde, _hasta, _hasta + subir, _desde + subir]), _color
 	)
+	_dibujar_rodapie()
 	draw_line(_desde + subir, _hasta + subir, _color.lightened(0.35), GROSOR_REMATE, true)
 	draw_line(_desde, _hasta, _color.darkened(0.4), 1.5, true)
+
+
+## La franja de rodapié en la BASE del paño (ver la nota de arriba). Se dibuja DESPUÉS del paño de
+## pared —lo tapa— y ANTES del remate y de la línea de contacto con el suelo, que sigue quedando
+## por encima haciendo de sombra de apoyo. Sin rodapié (color transparente) no cuesta nada.
+func _dibujar_rodapie() -> void:
+	if _rodapie.a <= 0.0:
+		return
+	var alto: float = minf(ALTO_RODAPIE, _alto * FRACCION_MAX_RODAPIE)
+	if alto <= 0.0:
+		return
+	var sube := Vector2(0.0, -alto)
+	draw_colored_polygon(
+		PackedVector2Array([_desde, _hasta, _hasta + sube, _desde + sube]), _rodapie
+	)
+	draw_line(
+		_desde + sube, _hasta + sube, _rodapie.darkened(OSCURECIDO_CANTO_RODAPIE), 1.0, true
+	)

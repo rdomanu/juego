@@ -18,10 +18,10 @@ const TAM_CELDA: int = 40
 ## Dimensiones del suelo visible, en celdas (24×13 ≈ ventana por defecto 1152×648 con margen).
 const COLUMNAS: int = 24
 const FILAS: int = 13
-## Paleta placeholder (suelo de comisaría sobrio; la línea marca la rejilla).
+## Paleta placeholder (suelo de comisaría sobrio). El borde de rejilla que llevaba cada tile murió
+## el 2026-08-05: la cuadrícula solo se ve en modo construcción (ver `_crear_suelo`).
 const COLOR_FONDO := Color(0.13, 0.14, 0.16)
 const COLOR_SUELO := Color(0.22, 0.24, 0.27)
-const COLOR_LINEA := Color(0.30, 0.32, 0.36)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 ## ── ZOOM DE CÁMARA (2026-08-04, petición del usuario: "como en los Sims") ────────────────────────
 ## Límites en torno al 1.0× con el que se jugaba hasta hoy (sin `Camera2D` la vista era fija: Godot
@@ -1143,14 +1143,20 @@ func _cambiar_zoom(mult: float, punto_pantalla: Vector2) -> void:
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
-## Crea el suelo: un TileSet mínimo generado por código (tile plano con borde de rejilla) y una
-## rejilla COLUMNAS×FILAS pintada con set_cell. Solo estética; sin interacción de ratón (Construcción #7).
+## Crea el suelo: un TileSet mínimo generado por código (tile PLANO) y una rejilla COLUMNAS×FILAS
+## pintada con set_cell. Solo estética; sin interacción de ratón (Construcción #7).
+##
+## ── LA CUADRÍCULA SE FUE AL MODO CONSTRUCCIÓN (2026-08-05 · quick-spec §3c) ─────────────────────
+## Hasta hoy cada tile llevaba pintadas dos líneas de `COLOR_LINEA` (su borde de arriba y el de la
+## izquierda): esa era LA REJILLA que se veía jugando por toda la comisaría. Orden del usuario tras
+## comparar con la demo de Summer: *"en juego normal el suelo va limpio; la rejilla de celdas solo
+## se muestra con el modo construcción activo"*. Así que el tile queda liso y la rejilla renace como
+## un OVERLAY del modo construcción (`ModoConstruccion.RejillaConstruccion`), que aparece y
+## desaparece con él — y que dibuja líneas continuas de rejilla, no bordes de tile, así que su color
+## vive allí (`COLOR_REJILLA_CONSTRUCCION`) y no aquí.
 func _crear_suelo() -> void:
 	var imagen := Image.create(TAM_CELDA, TAM_CELDA, false, Image.FORMAT_RGBA8)
 	imagen.fill(COLOR_SUELO)
-	for i in TAM_CELDA:
-		imagen.set_pixel(i, 0, COLOR_LINEA)
-		imagen.set_pixel(0, i, COLOR_LINEA)
 	var fuente := TileSetAtlasSource.new()
 	fuente.texture = ImageTexture.create_from_image(imagen)
 	fuente.texture_region_size = Vector2i(TAM_CELDA, TAM_CELDA)
@@ -1162,15 +1168,16 @@ func _crear_suelo() -> void:
 	var suelo := TileMapLayer.new()
 	suelo.name = "Suelo"
 	suelo.tile_set = tileset
-	# 🐛 FIX (2026-08-03, muro divisorio): el SUELO baja a z −2 y la tinta de sala de Construcción a
-	# −1 (ver `montar_visual`). Antes los dos empataban a z 0 con las paredes, y el empate lo rompía
+	# 🐛 FIX (2026-08-03, muro divisorio): el SUELO baja a z −3 y la tinta de sala de Construcción a
+	# −2 (ver `montar_visual`; los dos bajaron un escalón el 2026-08-05 para dejar el −1 libre a la
+	# cuadrícula del modo construcción). Antes los dos empataban a z 0 con las paredes, y el empate lo rompía
 	# el orden del árbol: `ParedesSalas` se añade ANTES que `Construccion` (por el fix del sofá), así
 	# que CUALQUIER suelo se dibujaba ENCIMA de las paredes de la pasada FONDO. No se notaba porque
 	# la cara de una pared trasera sube hacia una zona donde no hay sala... hasta que un DIVISORIO
 	# entró en esa pasada: su cara sube sobre el suelo de la sala vecina, y ese suelo se la comía —
 	# el tabique entre Descanso y ODAC desaparecía. Regla nueva, sin excepciones: **un suelo nunca se
-	# dibuja por encima de una pared**. Los dos siguen ordenados entre sí (rejilla −2 < tinta −1).
-	suelo.z_index = -2
+	# dibuja por encima de una pared**. Los dos siguen ordenados entre sí (suelo −3 < tinta −2).
+	suelo.z_index = -3
 	# Centrado aproximado en la ventana por defecto (1152×648).
 	suelo.transform = Proyeccion.transformada(pos_suelo)
 	for x in COLUMNAS:
