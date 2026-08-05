@@ -2568,3 +2568,27 @@ design/quick-specs/construccion-pintura-puertas-preview-2026-08-04.md:
 DECISIONES PENDIENTES DEL USUARIO: precios definitivos estanterías · pieza esquina en L sí/no ·
 variantes de color de ciudadanos (hoja por hacer) · los colores de pared elegidos los pinta él
 en el juego (paleta completa disponible).
+
+---
+
+# 🔌 SESIÓN 2026-08-05 — Summer Engine probado + CONEXIÓN MCP EN CURSO
+
+- Suelo de baldosas (generado por Summer, auditado y adoptado): commit `38ea5b0`. Deuda: tests del suelo.
+- COMPARACIÓN props (7 modelos poly.pizza, capturas/fuentes/props_poly/): NUESTRO pipeline ganó
+  (demo con arrimado 0.00px + sobremesa sobre tablero medido, tools/_demo_props_pipeline.*) vs
+  Summer (3 intentos, 2 rescates del coordinador, props colocados fuera del edificio).
+  Veredicto usuario PENDIENTE de confirmar con ambas capturas delante; decisión de integración de
+  los 7 props al catálogo TAMBIÉN pendiente (hoja v2 aprobación parcial: "pequeños o en el centro"
+  → resuelto en la demo). OJO: Summer dejó sprites propios en assets/sprites/mobiliario/
+  ({taquilla,vending,...}_*.png SIN prefijo comodidad_) y una carpeta demo/ — SIN commitear, decidir
+  si se borran al integrar los props de verdad.
+- MCP: integración Summer↔Claude Code ES OFICIAL (docs.summerengine.com/mcp/claude-code, puerto
+  6550, requiere la app abierta con el proyecto). Setup lanzado con
+  `npx -y summer-engine@latest setup claude-code --yes`. TRAS EL REINICIO: probar conexión con algo
+  inofensivo (summer_play + summer_screenshot), reglas pactadas: commit antes de sesión con Summer,
+  nunca dos editores a la vez, generación de pago solo con OK del usuario por uso, todo auditado.
+- PENDIENTES DEL USUARIO (sin cambios): puerta A/B · ventana tal cual/ensanchada · props 7 OK →
+  integración con soportes para sobremesa · 5 mejoras del guion (propuestas, sin luz verde aún) ·
+  hoja puertas/ventanas → integrar arte en tramos tras decisión.
+- EN VUELO al cerrar: nada de agentes (todos cerrados). Tools de la sesión sin commitear:
+  _render/_hoja/_diag props, _demo_props_pipeline (se commitean ahora), morralla vieja intacta.
