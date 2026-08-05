@@ -45,6 +45,20 @@ regla de imagen-antes-del-OK.
   mejor, usarlas ("si ves que se pueden coger del kaykit mejor hazlo o lo que tú veas").
   Decisión final con hoja a escala real de la pared antes del OK.
 
+## 3c. Dirección de arte del suelo/pared (usuario, 2026-08-05, tras comparar con la demo de Summer)
+
+Feedback literal comparando ambas demos ("me gusta bastante más el diseño que ha hecho summer"):
+- **Suelo y paredes MÁS LIMPIOS**: menos ruido visual que la baldosa actual con juntas marcadas.
+- **RODAPIÉ (zócalo): más pequeño y EN LA PARED, no en el suelo** — muere la tira de zócalo
+  pintada dentro de la baldosa; nace un rodapié fino en la base del muro (paredes_salas).
+- **CUADRÍCULA solo al construir**: en juego normal el suelo va limpio; la rejilla de celdas
+  solo se muestra con el modo construcción activo.
+- **Fuente de agua: medidas de ORIGEN** (la reescalada a 1,20 m se ve pequeña — recuperar la
+  proporción original del modelo).
+- **La mesa con los 3 aparatos encima: demasiado y desordenado** — no amontonar; cada aparato
+  de sobremesa con su soporte propio (precedente de la radio con mesita horneada) o colocación
+  con sentido, no todos sobre el mismo mueble.
+
 ## 4. Preview de objetos estilo tycoon (fantasma transparente)
 
 - Al colocar un objeto, ANTES de comprarlo/colocarlo se ve su sprite real semitransparente en la
