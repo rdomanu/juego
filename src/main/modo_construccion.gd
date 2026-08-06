@@ -616,7 +616,7 @@ func _al_soltar() -> void:
 		return
 	_arrastrando = false
 	var creada: StringName = _construccion.construir_sala(
-		_herramienta, _rect_entre(_celda_inicio, _construccion.celda_bajo_cursor()),
+		_herramienta, _rect_entre(_celda_inicio, _celda_bajo_cursor_consciente_de_muros()),
 		1 if _nueva_sala_con_paredes else -1
 	)
 	# Si nació cerrada (la casilla "Con paredes", o un tipo que se cierra solo como la de descanso),
@@ -965,7 +965,7 @@ func _process(delta: float) -> void:
 		if _destello_restante > 0.0:
 			return
 		_celda_anterior = Vector2i(-999, -999)   # se acabó: que el preview normal vuelva a pintarse
-	var celda: Vector2i = _construccion.celda_bajo_cursor()
+	var celda: Vector2i = _celda_bajo_cursor_consciente_de_muros()
 	# El LADO solo importa para el pincel de muro (los demás previews cubren la celda entera); se
 	# calcula aquí una única vez y se reutiliza tanto en la guarda como en el propio preview. Live
 	# poll (`get_global_mouse_position`) vale para un FANTASMA (no muta el modelo) — el gotcha de
@@ -1343,6 +1343,23 @@ func _celda_lado_de_muro_en(punto_mundo: Vector2) -> Array:
 				return par
 	var celda: Vector2i = _construccion.celda_de_punto(punto_mundo)
 	return [celda, _lado_mas_cercano(punto_mundo, celda)]
+
+
+## EL PICKING EN VIVO, CONSCIENTE DE MUROS (bug reportado 2026-08-06 — "es difícil jugar con el
+## cursor desviado"). `Construccion.celda_bajo_cursor()` es picking de SUELO puro: un punto sobre
+## la CARA VISIBLE de un muro (que sube `ParedesSalas.ALTO_PARED` px en pantalla) cae en la celda
+## de DETRÁS de esa pared — el mismo defecto que ya arregló `_celda_lado_de_muro_en` para pintar
+## pared / puerta-ventana / demoler, pero SOLO ahí. Aquí se reutiliza exactamente esa misma
+## función (mismo quad, mismo criterio "gana el tramo más cercano a cámara") para el resto de
+## herramientas que leen el cursor EN VIVO — sala nueva/arrastre/AMPLIAR (`_process` y
+## `_al_soltar`), puesto, asiento, comodidad y el pincel de muro nuevo — así el resaltado y la
+## acción apuntan siempre a la celda que el jugador VE, no a la que hay detrás de un muro alto.
+## Sin pared bajo el punto, cae al picking de suelo de siempre (mismo resultado que
+## `celda_bajo_cursor()`: `_celda_lado_de_muro_en` ya usa `celda_de_punto`, matemáticamente
+## equivalente — ver la cabecera de esa función en `construccion.gd`).
+func _celda_bajo_cursor_consciente_de_muros() -> Vector2i:
+	var par: Array = _celda_lado_de_muro_en(get_global_mouse_position())
+	return par[0]
 
 
 ## Duplicado A PROPÓSITO de `Construccion._arista_dentro_del_edificio` (privado — la tarea prohíbe

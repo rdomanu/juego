@@ -221,6 +221,34 @@ func test_el_trazado_de_oficio_deja_las_dos_oficinas_conformes() -> void:
 	assert_int(impresora.impresoras().size()).is_equal(2)
 
 
+# ── REGRESIÓN (playtest 2026-08-06 — silla del funcionario y fotocopiadora solapadas) ──────
+## `ImpresoraDocumentos._paso_de`/`_delante_de` llevaban la codificación VIEJA de orientación
+## (`orientacion == 1`, booleana) mientras `Construccion` ya usaba 4 estados reales en grados
+## (HORIZONTAL=0/VERTICAL=90/HORIZONTAL_GIRADO=180/VERTICAL_GIRADO=270). Con un puesto HORIZONTAL
+## (0) la comparación vieja seguía coincidiendo por accidente —de ahí que el bug no saliera en los
+## tests de arriba, todos con la orientación por defecto—; con VERTICAL (90) caía siempre a la rama
+## horizontal y calculaba "detrás" en el eje norte-sur en vez del este-oeste real del puesto, así
+## que la impresora podía acabar pisando la silla del propio funcionario o fuera de toda sala.
+func test_impresora_detras_de_puesto_vertical_no_pisa_su_propia_silla() -> void:
+	# Arrange — puesto en VERTICAL (90°): mostrador norte-sur, ciudadano al OESTE (frente), así que
+	# "detrás" —donde se sienta el funcionario, y donde debe ir la impresora un paso más allá— es el
+	# ESTE. Sitio de sobra por los cuatro costados (misma sala limpia que el resto del fichero).
+	var construccion: Node = _construccion()
+	construccion._crear_sala(SALA_DOC, RECT_LIMPIA)
+	construccion.construir_de_oficio_elemento(
+		PUESTO_DOC, ANCLA_HOLGADA, &"doc_vertical", construccion.VERTICAL
+	)
+	var impresora: Node = _impresora(construccion)
+	var sala_id: StringName = _sala_en(construccion, ANCLA_HOLGADA)
+	# Act
+	var celda: Vector2i = impresora.celda_para_comodidad(sala_id, ImpresoraScript.ID_CATALOGO)
+	# Assert — nunca dentro de la huella del propio puesto (la silla del funcionario incluida)...
+	var huella: Array[Vector2i] = construccion.celdas_de_elemento(&"doc_vertical")
+	assert_bool(celda in huella).is_false()
+	# ...y del lado correcto: DETRÁS es ESTE para VERTICAL (el ciudadano espera al OESTE, x menor).
+	assert_int(celda.x).is_greater(ANCLA_HOLGADA.x)
+
+
 func test_el_trazado_de_oficio_no_duplica_impresoras_al_repetirse() -> void:
 	# Arrange — es la ruta de "cargar un save antiguo": se llama SIEMPRE, tenga o no impresoras.
 	var construccion: Node = _trazado_de_oficio()

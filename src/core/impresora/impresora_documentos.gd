@@ -510,14 +510,34 @@ func _candidatas_de_puesto(puesto_id: StringName, detras: bool) -> Array[Vector2
 
 ## El vector de UNA celda a lo largo del mostrador según su orientación. MISMA cuenta que
 ## `Construccion._paso_de` (no se puede llamar: es privada) — si aquella cambia, esta también.
+##
+## 🐛 FIX 2026-08-06 (playtest, silla/impresora solapadas): `orientacion == 1` era la codificación
+## VIEJA (booleana, 0/1). Desde que `Construccion` pasó a 4 estados reales en grados (HORIZONTAL=0,
+## VERTICAL=90, HORIZONTAL_GIRADO=180, VERTICAL_GIRADO=270 — ver `Construccion._paso_de`) esta copia
+## quedó DESINCRONIZADA: para VERTICAL (90) la comparación daba `false` y caía siempre a la rama
+## horizontal, y las dos GIRADAS (180/270) no tenían rama en absoluto. Solo coincidía por accidente
+## con HORIZONTAL (0). Mismo colapso a EJE que la fuente: SOLO importa `_es_eje_vertical`, no si
+## está "dada la vuelta" (mismo criterio que `Construccion._paso_de`).
 func _paso_de(orientacion: int) -> Vector2i:
-	return Vector2i(0, 1) if orientacion == 1 else Vector2i(1, 0)
+	var vertical: bool = (
+		orientacion == _construccion.VERTICAL or orientacion == _construccion.VERTICAL_GIRADO
+	)
+	return Vector2i(0, 1) if vertical else Vector2i(1, 0)
 
 
 ## El vector de UNA celda hacia DELANTE (el lado del ciudadano); hacia detrás es el mismo en
-## negativo. MISMA cuenta que `Construccion._perpendicular_de`.
+## negativo. MISMA cuenta que `Construccion._perpendicular_de` — ver el mismo FIX de arriba: ahora
+## cubre las 4 orientaciones reales (SUR/OESTE/NORTE/ESTE), no solo las 2 viejas.
 func _delante_de(orientacion: int) -> Vector2i:
-	return Vector2i(-1, 0) if orientacion == 1 else Vector2i(0, 1)
+	match orientacion:
+		_construccion.VERTICAL:
+			return Vector2i(-1, 0)   # 90°: oeste
+		_construccion.HORIZONTAL_GIRADO:
+			return Vector2i(0, -1)   # 180°: norte
+		_construccion.VERTICAL_GIRADO:
+			return Vector2i(1, 0)    # 270°: este
+		_:
+			return Vector2i(0, 1)    # 0° (HORIZONTAL): sur
 
 
 ## Los PUESTOS colocados en una sala, en orden estable de construcción.
