@@ -134,3 +134,63 @@ func test_varias_filas_de_muros_cada_una_resuelve_a_su_propia_fila() -> void:
 #      comentario de `_modo()` arriba). La cobertura real de la función nueva son los tests 1-3: los
 #      DOS sitios de consumo (`_process` línea ~968, `_al_soltar` línea ~619) llaman a la MISMA
 #      función de una línea que ellos ejercitan.
+
+
+# ── 5. RONDA 2 (2026-08-06, "sigue desviado, no tanto como antes" jugando con zoom/pan): los tests
+#      1-3 puentean `get_global_mouse_position()` (llaman a `_celda_lado_de_muro_en(punto)` directo),
+#      así que NUNCA podían reproducir un bug que viviera en la ADQUISICIÓN del punto o en la
+#      transformada de CÁMARA -- exactamente donde vivía el segundo bug (la `CanvasLayer` del
+#      fantasma no seguía a la cámara, ver el fix en `modo_construccion.gd::_crear_ui`/`_process`).
+#      Este test SÍ pasa por el camino real: `Camera2D` con pan+zoom≠1, un `ModoConstruccion` real
+#      colgado del árbol (`configurar()` ANTES de `add_child` -- el orden real de `main.gd`;
+#      invertido revienta `_crear_ui` con `_construccion` todavía nulo), el punto de pantalla
+#      entregado por un `InputEventMouseMotion` de verdad (`push_input`, sin DisplayServer, headless-
+#      -friendly) y `_celda_bajo_cursor_consciente_de_muros()` -- la función de producción exacta.
+#      NOTA: esto demuestra que la SELECCIÓN de celda sobrevive a la cámara (lo esperado, porque
+#      `get_global_mouse_position()` ya deshace la cámara sola); el bug de "cursor desviado con
+#      zoom" era de DIBUJO (la caja verde, no la celda elegida) y ESO no es observable sin GPU/
+#      ventana -- lo cubre `tools/_diag_picking_visual.gd`, no un test headless.
+func test_camara_con_pan_y_zoom_no_desvia_la_celda_seleccionada() -> void:
+	# Arrange — el mismo fixture de siempre + una cámara con pan y zoom "feos" a propósito.
+	var mundo: Dictionary = _mundo()
+	var construccion: Node = mundo["construccion"]
+	var fila := 4
+	_sala_de_una_fila(construccion, fila)
+
+	var camara: Camera2D = auto_free(Camera2D.new())
+	camara.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	camara.zoom = Vector2(1.4, 1.4)
+	camara.position = Vector2(-83.0, 41.0)
+	add_child(camara)
+	camara.make_current()
+
+	var modo: Node2D = auto_free(ModoConstruccionScript.new())
+	modo.configurar(construccion, TAM_CELDA, mundo["paredes"])
+	add_child(modo)   # ORDEN: configurar() ANTES -- ver la cabecera de este test.
+
+	var punto_mundo: Vector2 = _punto_cara_norte(construccion, fila)
+	# 🐛 FIX (2026-08-06, hallazgo de esta misma tanda): la fórmula estaba al revés -- comprobado
+	# contra `get_canvas_transform()` real del motor, con `ANCHOR_MODE_FIXED_TOP_LEFT` la relación
+	# es `mundo = pantalla/zoom + posición` -> `pantalla = (mundo - posición) * zoom` (MULTIPLICAR).
+	# El comentario viejo de `Main._cambiar_zoom` decía lo contrario -- YA CORREGIDO ahí también
+	# (bug real de juego, no solo de esta sonda: cada zoom con la rueda desviaba la vista).
+	var punto_pantalla: Vector2 = (punto_mundo - camara.position) * camara.zoom
+
+	# Act — inyección por el camino REAL, no una llamada directa a la matemática de picking.
+	# `Input.parse_input_event()`, NO `get_viewport().push_input()`: en `--script` headless este
+	# último NO actualiza el ratón trackeado del Viewport (confirmado con sonda aparte); el del
+	# singleton `Input` sí, y GdUnit4 corre sobre un árbol normal donde ambos caminos son válidos.
+	var evento := InputEventMouseMotion.new()
+	evento.position = punto_pantalla
+	evento.global_position = punto_pantalla
+	Input.parse_input_event(evento)
+	await get_tree().process_frame   # `process_frame` a secas no existe aquí -- esto NO es un SceneTree
+	var celda: Vector2i = modo._celda_bajo_cursor_consciente_de_muros()
+
+	# Assert
+	assert_that(celda) \
+		.override_failure_message(
+			"con camara pan=%s zoom=%s se esperaba (1,%d), salio %s"
+			% [camara.position, camara.zoom, fila, celda]
+		) \
+		.is_equal(Vector2i(1, fila))

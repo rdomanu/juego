@@ -1185,17 +1185,28 @@ func _crear_camara() -> void:
 
 
 ## Cambia el zoom por el factor `mult` (>1 aleja, <1 acerca) manteniendo fijo, bajo `punto_pantalla`,
-## el MISMO punto del mundo que había antes del cambio — fórmula estándar de zoom centrado en cursor:
-## con `ANCHOR_MODE_FIXED_TOP_LEFT`, `mundo = pantalla·zoom + posición`; para que el mundo bajo
-## `punto_pantalla` no se mueva al cambiar de zoom, la posición se corrige por la diferencia exacta
-## que introduce el nuevo zoom en ese punto. El atajo de teclado (+/-) pasa el centro de la pantalla
-## en vez del cursor — no hay cursor que fijar, así que se ancla el centro de la vista.
+## el MISMO punto del mundo que había antes del cambio — fórmula estándar de zoom centrado en cursor.
+##
+## 🐛 FIX (2026-08-06, bug "cursor desviado" jugando con zoom — hallazgo de la RONDA 2 de ese bug,
+## mientras se perseguía otra causa en `modo_construccion.gd`): la fórmula de aquí estaba INVERTIDA.
+## Con `ANCHOR_MODE_FIXED_TOP_LEFT` la relación real (comprobada contra `get_canvas_transform()` del
+## motor, no solo derivada a mano) es `mundo = pantalla / zoom + posición` — NO `pantalla · zoom +
+## posición`, que es lo que decía el comentario viejo y en lo que se basaba el código de abajo.
+## Con la fórmula vieja (`posicion += (anterior - nuevo) * punto_pantalla`), CADA rueda de ratón
+## desplazaba el mundo bajo el cursor ~150px en una comisaría normal (probado con la sonda: `mundo
+## bajo el cursor` saltaba de (800,450) a (647,364) tras UN solo `PASO_ZOOM`) — el propio gesto de
+## hacer zoom, no una herramienta de construcción concreta, así que afectaba a TODO el juego, no
+## solo al modo construcción. Derivando de la relación correcta (mundo = pantalla/zoom + posición),
+## para que el mundo bajo `punto_pantalla` no se mueva: `posición_después = posición_antes +
+## punto_pantalla · (1/zoom_antes − 1/zoom_después)` — confirmado con la sonda: deriva exactamente
+## (0,0) zoomando y volviendo. El atajo de teclado (+/-) pasa el centro de la pantalla en vez del
+## cursor — no hay cursor que fijar, así que se ancla el centro de la vista.
 func _cambiar_zoom(mult: float, punto_pantalla: Vector2) -> void:
 	var anterior: Vector2 = _camara.zoom
 	var nuevo: Vector2 = (anterior * mult).clamp(Vector2(ZOOM_MIN, ZOOM_MIN), Vector2(ZOOM_MAX, ZOOM_MAX))
 	if nuevo.is_equal_approx(anterior):
 		return
-	_camara.position += (anterior - nuevo) * punto_pantalla
+	_camara.position += punto_pantalla * (Vector2.ONE / anterior - Vector2.ONE / nuevo)
 	_camara.zoom = nuevo
 
 

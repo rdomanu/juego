@@ -137,6 +137,13 @@ var _destello_restante: float = 0.0
 
 # ── Nodos de UI (construidos por código, patrón del HUD del esqueleto) ───────────────────────
 var _atenuador: ColorRect
+## `CanvasLayer` APARTE para el fantasma (`_preview_*`), separada de `capa`/"UIConstruccion" (barra
+## de herramientas + atenuador): su `.transform` se iguala cada frame a `get_canvas_transform()`
+## (ver `_process`) para que el fantasma seleccionado SIGA a la cámara del juego (zoom/pan,
+## 2026-08-04) igual que el resto del tablero -- fix del bug "cursor desviado" jugando con zoom, ver
+## el comentario largo en `_crear_ui`. La barra/atenuador se quedan SIN esta transformada a
+## propósito (overlay de pantalla fija).
+var _capa_preview: CanvasLayer
 ## HFlowContainer (no HBox): con los nombres del catálogo la fila supera el ancho de la ventana y
 ## los últimos botones (Asiento, Demoler) quedaban FUERA de pantalla — el flow envuelve en filas.
 var _fila_herramientas: HFlowContainer
@@ -933,6 +940,12 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 
 # ── Preview fantasma (dibujo en _process con guarda de celda — ADR-0001) ─────────────────────
 func _process(delta: float) -> void:
+	# FIX "cursor desviado" con cámara zoom/pan (ver el comentario largo en `_crear_ui`): la
+	# `CanvasLayer` del fantasma sigue la transformada mundo→pantalla de la cámara ACTUAL cada
+	# frame -- una asignación de `Transform2D` (struct, sin alloc), no un recorrido de nada; barato
+	# incluso a 60 fps con el modo construcción activo.
+	if _capa_preview != null:
+		_capa_preview.transform = get_canvas_transform()
 	# EL VELO DE ZONAS (tarea 3): se refresca mientras el modo está activo, tenga o no herramienta en
 	# la mano — es una lectura del layout, no del pincel. `refrescar()` comprueba su propia firma
 	# antes de hacer ningún trabajo real (ver `VeloZonas`): con el layout quieto, esto es un puñado
@@ -1747,6 +1760,7 @@ func _rect_entre(a: Vector2i, b: Vector2i) -> Rect2i:
 func _crear_ui() -> void:
 	var capa := CanvasLayer.new()
 	capa.name = "UIConstruccion"
+	capa.layer = 1   # explícito (el valor por defecto de Godot) — ver `_capa_preview` más abajo.
 	add_child(capa)
 	# Atenuador del mundo en modo construcción (deja pasar el ratón).
 	_atenuador = ColorRect.new()
@@ -1755,33 +1769,59 @@ func _crear_ui() -> void:
 	_atenuador.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	capa.add_child(_atenuador)
 
+	# 🐛 FIX (bug "cursor desviado", jugado con cámara pan/zoom, 2026-08-06): el fantasma vivía en
+	# `capa` (arriba), una `CanvasLayer` normal — transform IDENTIDAD siempre, ajena a la cámara del
+	# juego (`Main._camara`, con zoom y pan desde 2026-08-04). Sus posiciones se calculan en MUNDO
+	# (`Construccion.esquina_en_pantalla`/`_punto_en_pantalla`, el mismo espacio que usa
+	# `TramoPared` y el resto del tablero, que SÍ cuelga del canvas base afectado por la cámara). Con
+	# la cámara en zoom=1/pos=0 mundo==pantalla y no se notaba (de ahí el comentario viejo, ahora
+	# borrado, "sin cámara, mundo y pantalla coinciden"); en cuanto se hace zoom o pan, el fantasma
+	# se queda pintado en coordenadas de MUNDO dentro de un lienzo que las trata como PANTALLA
+	# directa — de ahí el desvío, CRECIENTE con la distancia al punto de anclaje de la cámara (es un
+	# error de ESCALA, no solo de origen). La selección de celda (`_celda_lado_de_muro_en` vía
+	# `get_global_mouse_position()`, que SÍ deshace la cámara) siempre acertó la celda correcta —
+	# esto es puramente el DIBUJO del rombo/caja verde, no la lógica de picking (por eso mi fix de
+	# antes, el de los muros, ayudó con las paredes pero no arregló "el cursor se ve desviado": son
+	# dos bugs distintos, éste bastante más viejo).
+	#
+	# FIX: `_capa_preview`, una `CanvasLayer` APARTE (layer 2, por ENCIMA de `capa`/atenuador —
+	# sigue tapando el atenuador igual que antes) cuya `.transform` se iguala cada frame a
+	# `get_canvas_transform()` (ver `_process`, justo al principio) — la MISMA transformada mundo→
+	# pantalla que ya usa el resto del tablero (paredes, mobiliario), así el fantasma la hereda sin
+	# tocar ni una coordenada de las que ya se calculaban. El atenuador y la barra de herramientas
+	# (`capa`) se quedan SIN esta transformada a propósito: son overlay de pantalla fija, no deben
+	# moverse ni escalar con el zoom.
+	_capa_preview = CanvasLayer.new()
+	_capa_preview.name = "PreviewFantasma"
+	_capa_preview.layer = 2
+	add_child(_capa_preview)
+
 	# El fantasma de MAYÚS del pincel de pintura (tarea 2), ANTES que `_preview_caja` en el árbol
 	# para quedar POR DEBAJO de él (el resaltado del tramo/celda señalado se sigue leyendo encima
 	# del relleno de "todo lo que se va a pintar").
 	_preview_mayus = PreviewMayusPintura.new()
-	capa.add_child(_preview_mayus)
+	_capa_preview.add_child(_preview_mayus)
 	# Preview fantasma POR ENCIMA del atenuador (feedback del usuario: no se veía dónde iba a caer).
-	# Sin cámara, las coordenadas de mundo y de pantalla coinciden → puede vivir en la CanvasLayer.
 	# Borde grueso + relleno translúcido: se distingue sobre cualquier color de sala.
 	_preview_caja = PreviewIso.new()
 	_preview_caja.visible = false
-	capa.add_child(_preview_caja)
+	_capa_preview.add_child(_preview_caja)
 	# El fantasma de SPRITE REAL (quick-spec §4), hermano de la caja de arriba — mismo criterio de
 	# capa (por encima del atenuador, por debajo del texto que se añade a continuación).
 	_preview_sprite = Sprite2D.new()
 	_preview_sprite.visible = false
-	capa.add_child(_preview_sprite)
+	_capa_preview.add_child(_preview_sprite)
 	# El triángulo de ORIENTACIÓN, POR ENCIMA del sprite/caja (tarea de hoy): apunta hacia el FRENTE
 	# del objeto en mano — ver `PreviewOrientacion` y `_colocar_triangulo_orientacion`.
 	_preview_triangulo = PreviewOrientacion.new()
 	_preview_triangulo.visible = false
-	capa.add_child(_preview_triangulo)
+	_capa_preview.add_child(_preview_triangulo)
 	_preview_texto = Label.new()
 	_preview_texto.visible = false
 	_preview_texto.add_theme_font_size_override("font_size", 13)
 	_preview_texto.add_theme_color_override("font_outline_color", Color.BLACK)
 	_preview_texto.add_theme_constant_override("outline_size", 4)
-	capa.add_child(_preview_texto)
+	_capa_preview.add_child(_preview_texto)
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
