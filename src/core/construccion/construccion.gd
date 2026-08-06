@@ -610,20 +610,36 @@ func _celdas_de(
 
 
 ## El vector de UNA celda en la dirección en la que crece el cuerpo de un elemento según su
-## orientación (`HORIZONTAL` → este, `VERTICAL` → sur) — fuente única de esta cuenta: la comparten
-## la reserva de celdas del modelo (arriba) y el ancla visual de los sprites multi-celda
-## (`_crear_pieza`, vía `Proyeccion.delta_ultima_celda`).
+## orientación (`HORIZONTAL`/`HORIZONTAL_GIRADO` → este, `VERTICAL`/`VERTICAL_GIRADO` → sur) —
+## fuente única de esta cuenta: la comparten la reserva de celdas del modelo (arriba) y el ancla
+## visual de los sprites multi-celda (`_crear_pieza`, vía `Proyeccion.delta_ultima_celda`). SOLO
+## depende del EJE (`_es_eje_vertical`), no de si la pieza está "dada la vuelta": 0°/180° reservan
+## la MISMA huella, 90°/270° la traspuesta — pedido explícito de la tarea de las 4 orientaciones.
 func _paso_de(orientacion: int) -> Vector2i:
-	return Vector2i(0, 1) if orientacion == VERTICAL else Vector2i(1, 0)
+	return Vector2i(0, 1) if _es_eje_vertical(orientacion) else Vector2i(1, 0)
 
 
-## El vector de UNA celda hacia DELANTE (el lado del ciudadano); hacia detrás es el mismo en negativo.
-## Es `_paso_de` girado 90° en el mismo sentido, así que rotar una pieza con fondo la gira ENTERA y
-## rígida: en `HORIZONTAL` el mostrador crece al este y su fondo va norte/sur (el ciudadano al SUR,
-## que es justo donde lo planta Flujo: `celda + (0,1)`); en `VERTICAL`, mostrador al sur y fondo
-## este/oeste.
+## El vector de UNA celda hacia DELANTE (el lado del ciudadano/el FRENTE del mueble); hacia detrás es
+## el mismo en negativo. En las dos poses de SIEMPRE es `_paso_de` girado 90° en el mismo sentido,
+## así que rotar una pieza con fondo la gira ENTERA y rígida: en `HORIZONTAL` el mostrador crece al
+## este y su fondo va norte/sur (el ciudadano al SUR, que es justo donde lo planta Flujo:
+## `celda + (0,1)`); en `VERTICAL`, mostrador al sur y fondo este/oeste.
+##
+## Las dos GIRADAS (2026-08-06) comparten EJE con su pareja de siempre (mismo `_paso_de`, arriba) —
+## así que la huella no cambia— pero su FRENTE es el CONTRARIO: `HORIZONTAL_GIRADO` mira al norte
+## (la pieza "dada la vuelta" respecto a `HORIZONTAL`) y `VERTICAL_GIRADO` mira al este (dada la
+## vuelta respecto a `VERTICAL`). Las 4 salidas cubren las 4 direcciones canónicas del plano lógico,
+## una por orientación, sin repetir ninguna.
 func _perpendicular_de(orientacion: int) -> Vector2i:
-	return Vector2i(-1, 0) if orientacion == VERTICAL else Vector2i(0, 1)
+	match orientacion:
+		VERTICAL:
+			return Vector2i(-1, 0)   # 90°: oeste
+		HORIZONTAL_GIRADO:
+			return Vector2i(0, -1)   # 180°: norte (opuesto a HORIZONTAL)
+		VERTICAL_GIRADO:
+			return Vector2i(1, 0)    # 270°: este (opuesto a VERTICAL)
+		_:
+			return Vector2i(0, 1)    # 0° (HORIZONTAL): sur
 
 
 ## La HUELLA de un elemento YA COLOCADO (lo que RESERVA: las 6 celdas de un puesto), a partir de su
@@ -909,13 +925,49 @@ func _crear_sala_con_celdas(
 
 ## Los tres tipos de tabique (fase D, 2026-07-30). Todos SON pared a efectos de recinto —una puerta
 ## cierra la habitación igual que un muro—, pero solo la puerta deja PASAR (fase E).
-## ── ORIENTACIÓN DE LOS ELEMENTOS (rotar con R, 2026-07-30) ─────────────────────────────────
-## Petición del usuario: *"debe poder rotarse un objeto con la R por ejemplo"*. Un elemento de
-## varias celdas (el sofá de 3, el mostrador) crece desde su ancla en UNA dirección; girar es
-## elegir cuál. `HORIZONTAL` (crece hacia +X) es el valor de SIEMPRE, así que todo lo construido
-## antes de hoy —y todos los tests— siguen comportándose exactamente igual sin tocar nada.
-const HORIZONTAL: int = 0
-const VERTICAL: int = 1
+## ── ORIENTACIÓN DE LOS ELEMENTOS (rotar con R, 2026-07-30 · 4 ESTADOS REALES 2026-08-06) ────
+## Petición del usuario: *"debe poder rotarse un objeto con la R por ejemplo"*, extendida hoy a
+## *"que se pudiera posicionar en las 4 posiciones y que se viera si está dada la vuelta o de lado
+## correctamente"*. Un elemento de varias celdas (el sofá de 3, el mostrador) crece desde su ancla
+## en UNA dirección; girar es elegir cuál — y ahora, además, hacia dónde MIRA.
+##
+## Los 4 valores son GRADOS de verdad (no un enum 0/1 disfrazado): R cicla `ORIENTACIONES_CICLO` en
+## el sentido de "girar a la derecha" — SUR(0) → OESTE(90) → NORTE(180) → ESTE(270) → SUR. Los dos
+## nombres de SIEMPRE (`HORIZONTAL`/`VERTICAL`) siguen valiendo 0/90 — son las mismas dos poses que
+## existían antes de hoy (`VERTICAL` cambia de valor, 1 → 90; ver `_orientacion_migrada` para los
+## saves viejos), así que todo el código y los tests que ya comparaban `== HORIZONTAL`/`== VERTICAL`
+## siguen funcionando sin tocar una coma. Las dos nuevas comparten EJE —footprint— con una de las de
+## siempre (`_paso_de`: "0/180 una huella; 90/270 la traspuesta", pedido de la tarea) pero miran al
+## lado CONTRARIO (`_perpendicular_de`, el FRENTE): la pieza está "dada la vuelta", no "de lado".
+const HORIZONTAL: int = 0            # SUR — el de siempre
+const VERTICAL: int = 90             # OESTE — el de siempre (antes 1; ver `_orientacion_migrada`)
+const HORIZONTAL_GIRADO: int = 180   # NORTE — misma huella que HORIZONTAL, dado la vuelta
+const VERTICAL_GIRADO: int = 270     # ESTE — misma huella que VERTICAL, dado la vuelta
+## El ciclo de la tecla R, en orden (`ModoConstruccion._unhandled_input`, `KEY_R`).
+const ORIENTACIONES_CICLO: Array[int] = [HORIZONTAL, VERTICAL, HORIZONTAL_GIRADO, VERTICAL_GIRADO]
+
+
+## ¿Esta orientación crece por el eje VERTICAL del plano lógico (paso SUR, frente OESTE/ESTE)? Única
+## fuente de esta pregunta — la comparten `_paso_de`, `_perpendicular_de` y las dos funciones
+## estáticas de sprite de comodidad (`espalda_comodidad`/`rotacion_sprite_comodidad`), que no pueden
+## llamar a un método de instancia.
+static func _es_eje_vertical(orientacion: int) -> bool:
+	return orientacion == VERTICAL or orientacion == VERTICAL_GIRADO
+
+
+## MIGRACIÓN 2026-08-06 (2 estados → 4 reales): los saves de HOY guardan grados de verdad
+## (0/90/180/270). Los saves VIEJOS (de antes de esta fecha) guardaban el enum binario 0/1 — con
+## `VERTICAL` ahora en 90, ese "1" suelto ya no es un grado válido, así que se traduce a mano:
+## H(0) → 0 (sin cambio), V(1) → 90 (el mismo oeste de siempre, solo que en grados). Cualquier otro
+## valor que no sea uno de los 4 grados válidos (corrupto, o el propio "1" legado) cae al defecto de
+## `HORIZONTAL` — MISMA ley que el resto de `load_state` (ADR-0002: la entrada rara se descarta, sin
+## tumbar el save).
+func _orientacion_migrada(valor: int) -> int:
+	if ORIENTACIONES_CICLO.has(valor):
+		return valor
+	if valor == 1:   # legado: el VERTICAL de antes de hoy
+		return VERTICAL
+	return HORIZONTAL
 
 
 const TABIQUE := &"muro"
@@ -2306,7 +2358,7 @@ func load_state(d: Dictionary) -> void:
 		_elementos[elemento_id] = {
 			"catalogo": catalogo, "celda": celda, "sala": sala_en(celda),
 			"coste_pagado": float(datos.get("coste_pagado", 0.0)),
-			"orientacion": VERTICAL if int(datos.get("orientacion", HORIZONTAL)) == VERTICAL else HORIZONTAL,
+			"orientacion": _orientacion_migrada(int(datos.get("orientacion", HORIZONTAL))),
 		}
 		# Solo los PUESTOS se registran en Personal: ni un asiento ni una máquina de vending son una
 		# vacante que cubrir. (Antes bastaba con `not es_asiento` porque las comodidades ni llegaban
@@ -2503,9 +2555,16 @@ static func _sprites_comodidad() -> Dictionary:
 		},
 		# Fotocopiadora de la mecánica de documentos (2026-08-06): primera pieza del reparto
 		# "Summer diseña, nosotros integramos" — generación IA vía Summer Engine, reescalada al
-		# factor de presencia (39 px = 1,20 m × 1,25; plan-escalado.md §1) y con rotaciones por
-		# espejo desde la vista buena (las 4 "vistas" de la IA eran el mismo ángulo).
-		&"impresora_documentos": {"rotacion": 0},
+		# factor de presencia (39 px = 1,20 m × 1,25; plan-escalado.md §1). AHORA con las 4 VISTAS
+		# REALES (2026-08-06, rotación de 4 estados): `rotacion_directa` (ver más abajo) usa el PNG
+		# que corresponde literalmente al grado de `orientacion` — no hay "espalda" que calcular,
+		# las 4 caras son arte real, no espejo de una sola vista.
+		&"impresora_documentos": {"rotacion": 0, "rotacion_directa": true},
+		# Impresora de DNI (2026-08-06, misma segunda pieza del reparto Summer): 4 vistas reales +
+		# huella 2×1 real (`superficie = 2` en su `.tres`) — el modelo YA soportaba multi-celda con
+		# `rotacion_directa` sin tocar nada más (`_celdas_de`/`_pieza_sprite_comodidad` genéricos, el
+		# mismo camino que el sofá de 3 plazas): 0°/180° reservan 2×1, 90°/270° la traspuesta 1×2.
+		&"impresora_dni": {"rotacion": 0, "rotacion_directa": true},
 	}
 
 
@@ -2517,24 +2576,36 @@ static func es_comodidad_de_pared(id_catalogo: StringName) -> bool:
 
 
 ## Hacia qué pared da la espalda esta comodidad estando girada así. `Vector2i.ZERO` = no es de pared.
+## Colapsa las 4 orientaciones a EJE (`_es_eje_vertical`): un mueble de pared solo conoce las DOS
+## traseras de siempre (ver el aviso largo de `ESPALDA_HORIZONTAL`/`ESPALDA_VERTICAL`) — girarlo
+## 180° (mismo eje, "dado la vuelta") lo deja pegado a la MISMA pared que su pareja de siempre, que
+## es el comportamiento de fallback que pide la tarea para todo lo que no tenga las 4 vistas reales.
 static func espalda_comodidad(id_catalogo: StringName, orientacion: int) -> Vector2i:
 	if not es_comodidad_de_pared(id_catalogo):
 		return Vector2i.ZERO
-	return ESPALDA_VERTICAL if orientacion == VERTICAL else ESPALDA_HORIZONTAL
+	return ESPALDA_VERTICAL if _es_eje_vertical(orientacion) else ESPALDA_HORIZONTAL
 
 
-## La rotación del PNG que le toca a una comodidad según cómo esté girada en el modelo. Un mueble de
-## pared (una sola arista) pide la que le deje la espalda contra SU pared; el resto del catálogo no
-## tiene "frente" que enseñar, así que gire como gire usa siempre la misma (la de calibración).
+## La rotación del PNG que le toca a una comodidad según cómo esté girada en el modelo.
 ##
-## Una pieza DE ESQUINA (`espalda_extra_0`) es la MISMA excepción por otro motivo: YA enseña sus DOS
-## paredes en una sola pose (medido: es la ÚNICA de las 4 rotaciones del render que abre el rincón a
-## cámara — ver el aviso largo junto a `COMODIDAD_ESTANTERIA_ESQUINA`), así que tampoco cambia de PNG
-## con la R — la R solo decide hacia qué celda crece la segunda reserva del modelo.
+## TRES casos, en orden de prioridad:
+##  1. `rotacion_directa` (2026-08-06, 4 vistas reales — hoy solo la fotocopiadora): el PNG que toca
+##     es LITERALMENTE el grado de `orientacion` (0/90/180/270) — no hay "espalda" que calcular, las
+##     4 caras son arte real. Es el caso que pide la tarea: "que se viera si está dada la vuelta o de
+##     lado correctamente".
+##  2. Mueble de pared (una sola arista, `espalda_0` sin `espalda_extra_0`): pide la que le deje la
+##     espalda contra SU pared — colapsada a EJE (`_es_eje_vertical`: solo 2 traseras posibles, ver
+##     `espalda_comodidad`), que es el fallback de 2 vistas que pide la tarea para lo que no declara
+##     `rotacion_directa`.
+##  3. El resto del catálogo (sin "frente" que enseñar, y la pieza DE ESQUINA por la MISMA excepción
+##     de siempre — YA enseña sus DOS paredes en una sola pose, ver `COMODIDAD_ESTANTERIA_ESQUINA`):
+##     gire como gire usa siempre la misma (la de calibración).
 static func rotacion_sprite_comodidad(datos: Dictionary, orientacion: int) -> int:
+	if datos.get("rotacion_directa", false):
+		return orientacion
 	if not datos.has("espalda_0") or datos.has("espalda_extra_0"):
 		return int(datos["rotacion"])
-	var deseada: Vector2i = ESPALDA_VERTICAL if orientacion == VERTICAL else ESPALDA_HORIZONTAL
+	var deseada: Vector2i = ESPALDA_VERTICAL if _es_eje_vertical(orientacion) else ESPALDA_HORIZONTAL
 	return AnclajeSprite.rotacion_para_espalda(datos["espalda_0"], deseada)
 
 
@@ -2990,8 +3061,8 @@ func _crear_pieza(
 		# La huella crece en +X o en +Y según cómo esté girada la pieza (rotar con R, 2026-07-30) —
 		# es el MISMO eje que reserva el modelo en `_celdas_de`, así que lo que se ve es lo que se
 		# ocupa.
-		var ancho: int = 1 if orientacion == VERTICAL else celdas
-		var largo: int = celdas if orientacion == VERTICAL else 1
+		var ancho: int = 1 if _es_eje_vertical(orientacion) else celdas
+		var largo: int = celdas if _es_eje_vertical(orientacion) else 1
 		if de_techo:
 			# Una luz se marca con un PUNTO ÁMBAR, no con una caja: cuelga del techo, no ocupa suelo y
 			# no debe tapar lo que haya debajo (petición del usuario 2026-07-30).
@@ -3082,8 +3153,10 @@ func _hay_sprite_asiento_sofa3(orientacion: int) -> bool:
 	return ResourceLoader.exists(_ruta_sprite_asiento_sofa3(orientacion))
 
 
+## Colapsado a EJE (`_es_eje_vertical`): el sofá solo tiene DOS vistas renderizadas (fallback de 2
+## vistas de la tarea de las 4 orientaciones) — 180°/270° reutilizan la pose de su pareja de EJE.
 func _rotacion_asiento_sofa3(orientacion: int) -> int:
-	return ROT_ASIENTO_SOFA3_HORIZONTAL if orientacion == HORIZONTAL else ROT_ASIENTO_SOFA3_VERTICAL
+	return ROT_ASIENTO_SOFA3_VERTICAL if _es_eje_vertical(orientacion) else ROT_ASIENTO_SOFA3_HORIZONTAL
 
 
 func _ruta_sprite_asiento_sofa3(orientacion: int) -> String:

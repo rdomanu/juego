@@ -11,3 +11,4 @@ familia = "funcionario"
 coste_construccion_eur = 2200
 coste_mantenimiento_dia_eur = 3
 aporte = 6.0
+superficie = 2

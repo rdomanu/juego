@@ -157,6 +157,9 @@ var _velo_zonas: VeloZonas
 ## `offset`/`centered` (vía `AnclajeSprite.aplicar`) solo cuando la guarda de celda/herramienta/
 ## rotación de `_process` deja pasar — ver `_mostrar_fantasma_sprite`.
 var _preview_sprite: Sprite2D
+## El triángulo azul de ORIENTACIÓN (2026-08-06), hermano de `_preview_sprite`/`_preview_caja`: ver
+## `PreviewOrientacion`. Solo visible con un ELEMENTO en mano (`_refrescar_preview_elemento`).
+var _preview_triangulo: PreviewOrientacion
 var _preview_texto: Label
 ## Rejilla de muestras de color del pincel (5 por fila = una familia de la paleta por fila). Solo
 ## visible con un pincel de pintura en la mano — es el SUBMENÚ del pincel, no una barra permanente.
@@ -252,6 +255,36 @@ class PreviewIso extends Node2D:
 		linea_alto = alto
 		color = nuevo_color
 		queue_redraw()
+
+
+## ── EL TRIÁNGULO DE ORIENTACIÓN DEL FANTASMA (2026-08-06) ───────────────────────────────────────
+## Un triángulo azul en el suelo, DELANTE del objeto que llevas en la mano, apuntando hacia su
+## FRENTE (`ModoConstruccion._frente_de_orientacion`) — para que se vea hacia dónde va a mirar el
+## mueble ANTES de soltar el clic, y que gire con él al pulsar R.
+##
+## Vive en la MISMA `CanvasLayer` que el resto del fantasma (`UIConstruccion`), hermano de
+## `PreviewIso`/`Sprite2D` — NO es un hijo de la bolsa y-sort de `MundoProfundo` (ADR-0005 no aplica
+## aquí: no hay sillas/mesas con las que intercalarse, es UI de colocación por encima de todo lo
+## demás del modo, igual que el resto de `_preview_*`). Solo visible con un ELEMENTO en la mano
+## (nunca con sala/muro/puerta/pincel, y nunca fuera del modo construcción).
+class PreviewOrientacion extends Node2D:
+	const COLOR_RELLENO := Color(0.25, 0.55, 1.0, 0.85)
+	const COLOR_BORDE := Color(0.05, 0.25, 0.65, 0.95)
+	var _puntos: PackedVector2Array = PackedVector2Array()
+
+	## Los tres vértices YA proyectados a pantalla (ápice, base A, base B — el orden no importa para
+	## rellenar, pero `[0]` es el que usan los diagnósticos como "la punta").
+	func pintar(puntos: PackedVector2Array) -> void:
+		_puntos = puntos
+		queue_redraw()
+
+	func _draw() -> void:
+		if _puntos.size() < 3:
+			return
+		draw_colored_polygon(_puntos, COLOR_RELLENO)
+		var cerrado: PackedVector2Array = _puntos.duplicate()
+		cerrado.append(_puntos[0])
+		draw_polyline(cerrado, COLOR_BORDE, 2.0, true)
 
 
 ## ── LA CUADRÍCULA, SOLO AL CONSTRUIR (2026-08-05 · quick-spec §3c) ──────────────────────────────
@@ -470,15 +503,14 @@ func _unhandled_input(evento: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 			KEY_R:
 				# ROTAR (petición del usuario, 2026-07-30: *"debe poder rotarse un objeto con la R
-				# por ejemplo"*). Gira la pieza que llevas en la mano, no una ya colocada: cambia el
-				# eje por el que crece su cuerpo. Se fuerza el redibujado del fantasma poniendo la
+				# por ejemplo"*; ampliada 2026-08-06: *"que se pudiera posicionar en las 4
+				# posiciones y que se viera si está dada la vuelta o de lado correctamente"*). Cicla
+				# las 4 orientaciones REALES (`Construccion.ORIENTACIONES_CICLO`, 0→90→180→270→0) —
+				# ya no un simple alterna H/V. Se fuerza el redibujado del fantasma poniendo la
 				# guarda de celda en un imposible — si no, el preview solo se refresca al MOVER el
 				# ratón y girar sin moverse no se vería.
 				if _activo and not _es_sala and _herramienta != &"" and _herramienta != &"demoler":
-					_orientacion = (
-						_construccion.HORIZONTAL if _orientacion == _construccion.VERTICAL
-						else _construccion.VERTICAL
-					)
+					_orientacion = _siguiente_orientacion(_orientacion)
 					_celda_anterior = Vector2i(-999, -999)
 					get_viewport().set_input_as_handled()
 		return
@@ -910,6 +942,7 @@ func _process(delta: float) -> void:
 	if not _activo or _herramienta == &"":
 		_preview_caja.visible = false
 		_preview_sprite.visible = false
+		_preview_triangulo.visible = false
 		_preview_texto.visible = false
 		_preview_mayus.limpiar()
 		_celda_anterior = Vector2i(-999, -999)
@@ -972,6 +1005,8 @@ func _process(delta: float) -> void:
 	# mano tiene sprite real (quick-spec §4) — así cualquier otra herramienta (muro, puerta, pincel,
 	# sala) hereda el apagado sin tener que tocar sus propias funciones una por una.
 	_preview_sprite.visible = false
+	# Mismo criterio para el triángulo de orientación: solo `_refrescar_preview_elemento` lo enciende.
+	_preview_triangulo.visible = false
 	if _herramienta == &"demoler":
 		_refrescar_preview_demoler(celda, lado)
 		_preview_mayus.limpiar()
@@ -1417,11 +1452,17 @@ func _refrescar_preview_elemento(celda: Vector2i) -> void:
 	# `Construccion._celdas_de`) — si una sola celda del cuerpo no cabe, `valido` ya sale false; aquí
 	# solo faltaba pintar la caja con el mismo ancho que va a ocupar de verdad.
 	var superficie: int = _superficie_de_herramienta()
-	# La huella del fantasma gira con la pieza (R): el mismo eje que va a reservar el modelo.
+	# La huella del fantasma gira con la pieza (R): el mismo EJE que va a reservar el modelo (0°/180°
+	# comparten huella, 90°/270° la traspuesta — `Construccion._paso_de`).
 	var huella: Vector2i = (
-		Vector2i(1, superficie) if _orientacion == _construccion.VERTICAL
+		Vector2i(1, superficie) if _eje_vertical_de(_orientacion)
 		else Vector2i(superficie, 1)
 	)
+	# EL TRIÁNGULO DE ORIENTACIÓN (2026-08-06): siempre que hay un ELEMENTO en mano, independiente
+	# de si tiene sprite real o cae a la caja gris — es un dato de COLOCACIÓN (hacia dónde va a mirar
+	# el objeto), no del arte. Gira con R porque `_orientacion` ya fuerza el redibujado del preview
+	# (ver el atajo KEY_R en `_unhandled_input`).
+	_colocar_triangulo_orientacion(celda, huella, _frente_de_orientacion(_orientacion))
 	var puede: bool = valido and con_caja
 	# SPRITE REAL en vez de caja gris (quick-spec 2026-08-04 §4): si el catálogo tiene arte para esta
 	# herramienta, el fantasma es el mueble de verdad, semitransparente y teñido de válido/inválido.
@@ -1448,6 +1489,13 @@ const COMODIDADES_CON_SPRITE: Array[StringName] = [
 	&"equipo_informatico", &"papelera", &"dispensador_agua", &"radio",
 ]
 
+## Comodidades con VISTA REAL por orientación (2026-08-06, 4 estados): el PNG que toca es
+## literalmente el grado de `_orientacion` — mismo criterio que `rotacion_directa` en
+## `Construccion._sprites_comodidad()` (privado, duplicado a propósito). Hoy solo la fotocopiadora
+## (`comodidad_impresora_documentos_{0,90,180,270}.png`, las 4 vistas de Summer); el resto del
+## catálogo con sprite sigue en una sola pose fija (`COMODIDADES_CON_SPRITE`, sin cambios).
+const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [&"impresora_documentos", &"impresora_dni"]
+
 
 ## Los datos para pintar el fantasma como sprite (`{"textura", "paso", "celdas"}`) o vacío
 ## (`textura == null`) si `herramienta` no tiene arte propio — entonces manda la caja de siempre.
@@ -1461,9 +1509,12 @@ func _sprite_de_herramienta(herramienta: StringName, orientacion: int, celdas: i
 	# `Construccion._rotacion_asiento_sofa3`, privada — espejado aquí igual que el resto de esta
 	# sección).
 	if herramienta == _construccion.COMODIDAD_SOFA_DESCANSO:
+		# Colapsado a EJE (`_eje_vertical_de`): el sofá solo tiene DOS vistas renderizadas (fallback
+		# de 2 vistas de la tarea de las 4 orientaciones) — mismo criterio que
+		# `Construccion._rotacion_asiento_sofa3` (privada, espejado aquí a propósito).
 		var rot: int = (
-			_construccion.ROT_ASIENTO_SOFA3_HORIZONTAL if orientacion == _construccion.HORIZONTAL
-			else _construccion.ROT_ASIENTO_SOFA3_VERTICAL
+			_construccion.ROT_ASIENTO_SOFA3_VERTICAL if _eje_vertical_de(orientacion)
+			else _construccion.ROT_ASIENTO_SOFA3_HORIZONTAL
 		)
 		var ruta: String = "%s%s_%d.png" % [
 			_construccion.RUTA_SPRITES_MOBILIARIO, _construccion.ASIENTO_SOFA3, rot,
@@ -1471,6 +1522,19 @@ func _sprite_de_herramienta(herramienta: StringName, orientacion: int, celdas: i
 		if ResourceLoader.exists(ruta):
 			return {
 				"textura": _textura_cacheada(ruta), "paso": _paso_de_orientacion(orientacion),
+				"celdas": celdas,
+			}
+		return vacio
+	# COMODIDADES CON 4 VISTAS REALES (2026-08-06): el PNG que toca es literalmente el grado de
+	# `orientacion` — mismo criterio que `rotacion_directa` en `Construccion._sprites_comodidad()`
+	# (privado, espejado aquí a propósito, igual que el resto de esta sección).
+	if COMODIDADES_ROTACION_DIRECTA.has(herramienta):
+		var ruta_rot: String = "%scomodidad_%s_%d.png" % [
+			_construccion.RUTA_SPRITES_MOBILIARIO, String(herramienta), orientacion,
+		]
+		if ResourceLoader.exists(ruta_rot):
+			return {
+				"textura": _textura_cacheada(ruta_rot), "paso": _paso_de_orientacion(orientacion),
 				"celdas": celdas,
 			}
 		return vacio
@@ -1503,10 +1567,48 @@ func _sprite_de_herramienta(herramienta: StringName, orientacion: int, celdas: i
 	return vacio
 
 
+## La orientación SIGUIENTE del ciclo de la R (2026-08-06, 4 estados reales):
+## `Construccion.ORIENTACIONES_CICLO` en orden — 0→90→180→270→0. Si `actual` no está en el ciclo
+## (dato corrupto de una herramienta de diagnóstico, o un save a medio migrar) cae a HORIZONTAL, la
+## misma ley defensiva que usa `Construccion._orientacion_migrada`.
+func _siguiente_orientacion(actual: int) -> int:
+	var ciclo: Array[int] = _construccion.ORIENTACIONES_CICLO
+	var indice: int = ciclo.find(actual)
+	if indice == -1:
+		return _construccion.HORIZONTAL
+	return ciclo[(indice + 1) % ciclo.size()]
+
+
 ## Espeja `Construccion._paso_de` (privada): hacia dónde crece el cuerpo de la pieza según su
-## orientación (H → este, V → sur). Mismo duplicado a propósito que el resto de esta sección.
+## orientación. SOLO depende del EJE (`_eje_vertical_de`, no de si está "dada la vuelta"): 0°/180°
+## crecen al este, 90°/270° al sur — mismo duplicado a propósito que el resto de esta sección.
 func _paso_de_orientacion(orientacion: int) -> Vector2i:
-	return Vector2i(0, 1) if orientacion == _construccion.VERTICAL else Vector2i(1, 0)
+	return Vector2i(0, 1) if _eje_vertical_de(orientacion) else Vector2i(1, 0)
+
+
+## ¿Esta orientación crece por el eje vertical (paso sur)? Espeja `Construccion._es_eje_vertical`
+## (privada) — mismo duplicado a propósito que el resto de esta sección.
+func _eje_vertical_de(orientacion: int) -> bool:
+	return orientacion == _construccion.VERTICAL or orientacion == _construccion.VERTICAL_GIRADO
+
+
+## El FRENTE de la pieza en mano —hacia dónde MIRA, "el lado del ciudadano"— espejando
+## `Construccion._perpendicular_de` (privada): mismo duplicado a propósito que el de arriba. Es el
+## vector que usa el triángulo de orientación (`_colocar_triangulo_orientacion`).
+##
+## 4 ESTADOS REALES (2026-08-06): las 4 orientaciones del ciclo de R dan las 4 direcciones
+## canónicas, una cada una — SUR(0)/OESTE(90)/NORTE(180)/ESTE(270), el mismo mapeo que
+## `Construccion._perpendicular_de`. El triángulo (`PreviewOrientacion`/
+## `_colocar_triangulo_orientacion`) ya aceptaba cualquiera de las 4 desde que se creó — esta
+## función es la que ahora las alcanza todas de verdad, no solo dos.
+func _frente_de_orientacion(orientacion: int) -> Vector2i:
+	if orientacion == _construccion.VERTICAL:
+		return Vector2i(-1, 0)          # 90°: oeste
+	if orientacion == _construccion.HORIZONTAL_GIRADO:
+		return Vector2i(0, -1)          # 180°: norte
+	if orientacion == _construccion.VERTICAL_GIRADO:
+		return Vector2i(1, 0)           # 270°: este
+	return Vector2i(0, 1)               # 0° (HORIZONTAL): sur
 
 
 ## Carga perezosa y cacheada (regla de rendimiento de la tarea: nada de recargar texturas cada
@@ -1573,6 +1675,49 @@ func _colocar_caja(celda: Vector2i, tam: Vector2i, color: Color) -> void:
 	_preview_texto.position = arriba + Vector2(-60.0, -26.0)
 
 
+## EL TRIÁNGULO DE ORIENTACIÓN (2026-08-06): un triángulo azul en el suelo, DELANTE de la huella del
+## objeto en mano, apuntando hacia `frente` (una de las 4 direcciones canónicas del plano lógico
+## cuadrado — `Vector2i(1,0)`/`(-1,0)`/`(0,1)`/`(0,-1)`; el llamante decide cuál con
+## `_frente_de_orientacion`). Se calcula ENTERO en el plano CUADRADO (mismo criterio que la huella
+## de `_colocar_caja`) y se proyecta al final, una sola vez por refresco.
+const MARGEN_TRIANGULO_ORIENTACION: float = 6.0
+const BASE_TRIANGULO_ORIENTACION: float = 14.0
+const LARGO_TRIANGULO_ORIENTACION: float = 16.0
+
+func _colocar_triangulo_orientacion(celda: Vector2i, huella: Vector2i, frente: Vector2i) -> void:
+	var frente_f := Vector2(frente)
+	# Perpendicular a `frente` en el plano cuadrado (gira 90° el mismo vector): el eje de la BASE
+	# del triángulo, a lo largo del borde delantero de la huella.
+	var lateral := Vector2(-frente_f.y, frente_f.x)
+	var centro_huella: Vector2 = (Vector2(celda) + Vector2(huella) * 0.5) * float(_tam_celda)
+	# El semiancho de la huella EN EL EJE de `frente` (el que hay que recorrer desde el centro para
+	# llegar al borde delantero): si `frente` es este/oeste, ese eje es `huella.x`; si es norte/sur,
+	# `huella.y` — es la misma cuenta que separa `_paso_de`/`_perpendicular_de` por ejes en Construcción.
+	var semiancho_frente: float = (
+		(float(huella.x) if frente.x != 0 else float(huella.y)) * 0.5 * float(_tam_celda)
+	)
+	var base_centro: Vector2 = (
+		centro_huella + frente_f * (semiancho_frente + MARGEN_TRIANGULO_ORIENTACION)
+	)
+	var apice: Vector2 = base_centro + frente_f * LARGO_TRIANGULO_ORIENTACION
+	var base_a: Vector2 = base_centro + lateral * (BASE_TRIANGULO_ORIENTACION * 0.5)
+	var base_b: Vector2 = base_centro - lateral * (BASE_TRIANGULO_ORIENTACION * 0.5)
+	_preview_triangulo.pintar(PackedVector2Array([
+		_punto_en_pantalla(apice), _punto_en_pantalla(base_a), _punto_en_pantalla(base_b),
+	]))
+	_preview_triangulo.visible = true
+
+
+## Un punto del plano CUADRADO llevado a PANTALLA, en el mismo sistema de coordenadas que ya usan
+## `_construccion.centro_en_pantalla`/`esquina_en_pantalla` (mundo == pantalla, sin cámara — ver la
+## cabecera de `_crear_ui`). `esquina_en_pantalla(0, 0)` es exactamente el `_origen` PRIVADO de
+## `Construccion` (`_origen + Proyeccion.esquina_iso(0,0)` y `esquina_iso(0,0) == proyectar(ZERO) ==
+## ZERO`) — se lee así, sin tocar ese fichero, mismo criterio de duplicado a propósito que el resto
+## de este archivo.
+func _punto_en_pantalla(punto_cuadrado: Vector2) -> Vector2:
+	return _construccion.esquina_en_pantalla(0, 0) + Proyeccion.proyectar(punto_cuadrado)
+
+
 func _rect_entre(a: Vector2i, b: Vector2i) -> Rect2i:
 	var origen := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
 	var fin := Vector2i(maxi(a.x, b.x), maxi(a.y, b.y))
@@ -1607,6 +1752,11 @@ func _crear_ui() -> void:
 	_preview_sprite = Sprite2D.new()
 	_preview_sprite.visible = false
 	capa.add_child(_preview_sprite)
+	# El triángulo de ORIENTACIÓN, POR ENCIMA del sprite/caja (tarea de hoy): apunta hacia el FRENTE
+	# del objeto en mano — ver `PreviewOrientacion` y `_colocar_triangulo_orientacion`.
+	_preview_triangulo = PreviewOrientacion.new()
+	_preview_triangulo.visible = false
+	capa.add_child(_preview_triangulo)
 	_preview_texto = Label.new()
 	_preview_texto.visible = false
 	_preview_texto.add_theme_font_size_override("font_size", 13)

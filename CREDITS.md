@@ -32,6 +32,7 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | ["Locker"](https://poly.pizza/m/aGmZ4jQD2y) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Taquilla (`taquilla_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["File Cabinet"](https://poly.pizza/m/9732ObD3OY) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Archivador (`archivador_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | Fotocopiadora de oficina (generación IA propia vía Summer Engine, encargo del proyecto) | — | Generación propia (términos de Summer Engine; sin atribución CC exigible) | Impresora de documentos (`comodidad_impresora_documentos_*.png`, reescalada a 39 px = 1,20 m × factor de presencia 1,25) | **En uso** (2026-08-06) |
+| Impresora de DNI moderna (generación IA propia vía Summer Engine, encargo del proyecto) | — | Generación propia (términos de Summer Engine; sin atribución CC exigible) | Impresora de DNI (`comodidad_impresora_dni_*.png`, escala definitiva de Summer, 59×77 px la vista 0°) | **En uso** (2026-08-06) |
 
 ### Texto de atribución a incluir en los créditos del juego
 
