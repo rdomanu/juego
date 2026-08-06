@@ -112,12 +112,12 @@ func test_la_transicion_no_da_saltos() -> void:
 
 
 func test_solo_se_encienden_los_que_tienen_luz_propia() -> void:
-	# La tele, el vending, la fuente y el equipo informático tienen pantalla o piloto; la papelera
-	# y el revistero, no. Que la lista salga del CATÁLOGO es lo que permite añadir objetos sin tocar
-	# la capa visual.
+	# La tele, el vending, el dispensador y el equipo informático tienen pantalla o piloto; la
+	# papelera y el revistero, no. Que la lista salga del CATÁLOGO es lo que permite añadir objetos
+	# sin tocar la capa visual. (`fuente_agua` retirada 2026-08-06, duplicado del dispensador.)
 	assert_bool(Datos.obtener(&"Comodidad", &"television").emite_luz).is_true()
 	assert_bool(Datos.obtener(&"Comodidad", &"vending").emite_luz).is_true()
-	assert_bool(Datos.obtener(&"Comodidad", &"fuente_agua").emite_luz).is_true()
+	assert_bool(Datos.obtener(&"Comodidad", &"dispensador_agua").emite_luz).is_true()
 	assert_bool(Datos.obtener(&"Comodidad", &"equipo_informatico").emite_luz).is_true()
 	assert_bool(Datos.obtener(&"Comodidad", &"papelera").emite_luz).is_false()
 	assert_bool(Datos.obtener(&"Comodidad", &"revistero").emite_luz).is_false()

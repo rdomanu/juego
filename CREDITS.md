@@ -23,12 +23,12 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | ["Citizen 3"](https://poly.pizza/m/26UC5iU4Fk) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadana civil `civil_m2` | **En uso** (2026-08-04) |
 | ["Retail Worker"](https://poly.pizza/m/kpw4fiF8St) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h4` | **En uso** (2026-08-04) |
 | ["Crypto Bro"](https://poly.pizza/m/zGOWefrMDQ) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Ciudadano civil `civil_h5` | **En uso** (2026-08-04) |
-| ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En uso** (2026-08-01: mostrador de ventanilla y pantallas del equipo informático) |
+| ["Isometric office"](https://sketchfab.com/3d-models/isometric-office-d31464eed8044190911b221648aca432) | Companion_Cube | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | Mobiliario de oficina (solo la geometría; ver nota) | **En uso** (2026-08-01: mostrador de ventanilla y pantallas del equipo informático; 2026-08-06: también el dispensador de agua, `comodidad_dispensador_agua_*.png` — pieza OBJ_002/SUB_002_0 de este mismo kit, `tools/render_mobiliario.gd`/`_reescalar_dispensador.gd`, MODELO=`capturas/NPC/Oficina/isometric_office.glb`) |
 | ["Coffee Machine"](https://poly.pizza/m/EWVe4TaOiB) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Cafetera (`cafetera_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["Vending Machine"](https://poly.pizza/m/ZhziWexNWk) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Máquina expendedora (`vending_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["Printer"](https://poly.pizza/m/6uy3vUnmbCJ) | Mikael Ganehag Brorsson | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Impresora (`impresora_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["Flat-screen TV"](https://poly.pizza/m/KmT5q0N2AH) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Televisión (`television_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
-| ["Water Cooler"](https://poly.pizza/m/zWi9p5FSxD) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Fuente de agua (`fuente_agua_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
+| ["Water Cooler"](https://poly.pizza/m/zWi9p5FSxD) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Fuente de agua (`fuente_agua_*.png`, sprites vía pipeline 3D→sprites) | **Retirado** (2026-08-06: comodidad `fuente_agua` unificada con `dispensador_agua` por decisión del usuario — duplicaba el mismo objeto; `.tres` y sprites borrados del catálogo) |
 | ["Locker"](https://poly.pizza/m/aGmZ4jQD2y) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Taquilla (`taquilla_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | ["File Cabinet"](https://poly.pizza/m/9732ObD3OY) | J-Toastie | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | Archivador (`archivador_*.png`, sprites vía pipeline 3D→sprites) | **En uso** (2026-08-05) |
 | Fotocopiadora de oficina (generación IA propia vía Summer Engine, encargo del proyecto) | — | Generación propia (términos de Summer Engine; sin atribución CC exigible) | Impresora de documentos (`comodidad_impresora_documentos_*.png`, reescalada a 39 px = 1,20 m × factor de presencia 1,25) | **En uso** (2026-08-06) |
@@ -96,10 +96,6 @@ is licensed under Creative Commons Attribution
 (https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
 
 "Flat-screen TV" (https://poly.pizza/m/KmT5q0N2AH) by J-Toastie
-is licensed under Creative Commons Attribution
-(https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
-
-"Water Cooler" (https://poly.pizza/m/zWi9p5FSxD) by J-Toastie
 is licensed under Creative Commons Attribution
 (https://creativecommons.org/licenses/by/3.0/). — modificado (renderizado a sprites)
 

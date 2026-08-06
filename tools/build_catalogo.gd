@@ -361,11 +361,10 @@ func _generar_comodidades() -> void:
 		&"radio", "Hilo musical", "Musica ambiente: la espera se hace menos larga.",
 		"ciudadano", 250, 1, 3.0
 	), "comodidades")
-	_guardar(_comodidad(
-		&"fuente_agua", "Fuente de agua", "Agua fresca para los que llevan horas. Gratis.",
-		"ciudadano", 400, 2, 3.0, true, 0.0, 2.0, 10.0,
-		true, Color(0.85, 0.95, 1.0), 70.0    # un piloto blanco tenue
-	), "comodidades")
+	# `fuente_agua` RETIRADA (2026-08-06, decisión del usuario: unificar los objetos de agua —
+	# duplicaba `dispensador_agua`, que sobrevive tal cual). El `.tres` se borró del catálogo; esta
+	# herramienta ya no la regenera. Ver CREDITS.md (fila "Water Cooler" → retirada) y las notas de
+	# `datos/comodidades/dispensador_agua.tres` (sin tocar).
 	_guardar(_comodidad(
 		&"vending", "Maquina de vending", "Cafe y algo de picar: cada consumicion deja 1 EUR en caja.",
 		"ciudadano", 1200, 3, 5.0, true, 1.0, 3.0, 15.0,

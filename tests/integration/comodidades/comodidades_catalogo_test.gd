@@ -63,6 +63,10 @@ func _sala_oficina(construccion: Node) -> StringName:
 # la familia "funcionario": es un objeto NUEVO y distinto de `impresora_dni` (decisión P3 del
 # usuario — aquella se queda como comodidad de confort no funcional). Es además la PRIMERA comodidad
 # con mantenimiento POR USO, y por eso se comprueba aquí su ficha entera.
+#
+# 2026-08-06 (más tarde): BAJA de 12 a 11. `fuente_agua` RETIRADA (decisión del usuario: unificar
+# los objetos de agua — duplicaba `dispensador_agua`, que sobrevive tal cual con su tamaño y su
+# `.tres`). `datos/comodidades/fuente_agua.tres` borrado del catálogo.
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
 	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
@@ -74,7 +78,7 @@ func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	assert_array(ids).contains(["impresora_documentos"])
 	assert_int(de_este_epic.size()).override_failure_message(
 		"las familias ciudadano+funcionario traen %s" % [ids]
-	).is_equal(12)
+	).is_equal(11)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")
@@ -225,11 +229,14 @@ func test_una_tele_hace_que_aguanten_treinta_y_cuatro_minutos() -> void:
 func test_la_sala_perfecta_toca_el_suelo_y_no_baja_mas() -> void:
 	var mundo: Array = _mundo()
 	var construccion: Node = mundo[0]
-	# Todo el catálogo de ciudadano: 6+5+3+3+2+1 = 20 → 1 − 0.4 = 0.6 (el suelo exacto).
+	# Catálogo de ciudadano sin `fuente_agua` (retirada 2026-08-06, duplicado de `dispensador_agua`)
+	# + un 2º hilo musical para completar el mismo suelo de siempre: 6+5+3+3+2+1 = 20 → 1−0.4 = 0.6.
+	# Nada impide dos radios en la misma sala; el objetivo del test (probar el clamp del suelo con la
+	# sala saturada) no depende de que sea "una de cada".
 	construccion.construir_elemento(&"television", Vector2i(2, 7))
 	construccion.construir_elemento(&"vending", Vector2i(3, 7))
 	construccion.construir_elemento(&"radio", Vector2i(4, 7))
-	construccion.construir_elemento(&"fuente_agua", Vector2i(5, 7))
+	construccion.construir_elemento(&"radio", Vector2i(5, 7))
 	construccion.construir_elemento(&"revistero", Vector2i(2, 8))
 	construccion.construir_elemento(&"papelera", Vector2i(3, 8))
 	var paciencia: Node = auto_free(PacienciaScript.new())

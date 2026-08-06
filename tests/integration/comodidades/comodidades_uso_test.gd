@@ -68,9 +68,10 @@ func test_al_vending_se_va_pero_la_tele_se_ve_desde_el_asiento() -> void:
 	# La tele y el hilo musical se disfrutan sentado: solo confort de ambiente.
 	assert_bool(Datos.obtener(&"Comodidad", &"television").usable).is_false()
 	assert_bool(Datos.obtener(&"Comodidad", &"radio").usable).is_false()
-	# La fuente y el revistero se usan, pero no cobran: dan servicio, no dinero.
+	# El revistero se usa, pero no cobra: da servicio, no dinero. (`fuente_agua` retirada 2026-08-06,
+	# duplicado de `dispensador_agua`, que no es "usable" — ver `test_la_fuente_calma_pero_no_cobra`.)
 	assert_bool(Datos.obtener(&"Comodidad", &"revistero").usable).is_true()
-	assert_float(Datos.obtener(&"Comodidad", &"fuente_agua").ingreso_por_uso_eur).is_equal(0.0)
+	assert_float(Datos.obtener(&"Comodidad", &"revistero").ingreso_por_uso_eur).is_equal(0.0)
 
 
 func test_construccion_lista_los_usables_del_servicio() -> void:
@@ -140,15 +141,19 @@ func test_la_barra_no_se_pasa_de_cien_al_volver() -> void:
 
 
 func test_la_fuente_calma_pero_no_cobra() -> void:
+	# `fuente_agua` retirada 2026-08-06 (duplicado de `dispensador_agua` — decisión del usuario de
+	# unificar los objetos de agua; el dispensador que sobrevive NO es "usable"). El revistero cubre
+	# el mismo caso de diseño que este test vigila ("hay objetos usables que calman gratis, no todo
+	# es el vending"): `usable = true`, `ingreso_por_uso_eur = 0.0`, igual que tenía la fuente.
 	var mundo: Array = _mundo()
 	var economia: Node = mundo[1]
-	mundo[0].construir_elemento(&"fuente_agua", Vector2i(3, 7))
+	mundo[0].construir_elemento(&"revistero", Vector2i(3, 7))
 	var paciencia: Node = _paciencia_con(mundo[0], economia)
 	var persona: RefCounted = _persona()
 	paciencia.registrar(persona)
 	paciencia.drenar(persona, 15.0)
 	var saldo_antes: float = economia.saldo_eur
-	_ponerse_a_usar(paciencia, mundo[0], persona, &"fuente_agua", 2.0)
+	_ponerse_a_usar(paciencia, mundo[0], persona, &"revistero", 2.0)
 	paciencia._consumir_uso_comodidad(persona, 2.0)
 	assert_float(economia.saldo_eur).is_equal(saldo_antes)     # gratis
 	assert_float(economia.ingreso_comodidades_dia).is_equal(0.0)

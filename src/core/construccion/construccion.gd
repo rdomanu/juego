@@ -2557,7 +2557,11 @@ static func _sprites_comodidad() -> Dictionary:
 	return {
 		COMODIDAD_EQUIPO_INFORMATICO: {"rotacion": 0},
 		COMODIDAD_PAPELERA: {"rotacion": 0},
-		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0},
+		# Dispensador de agua (2026-08-06, unificación de los objetos de agua — decisión del usuario:
+		# sobrevive éste, se retira `fuente_agua` duplicado): sus 4 PNG son 4 vistas REALES (frente/
+		# lado/espalda del armario, no la misma vuelta a espejo) → `rotacion_directa`, mismo criterio
+		# que la nevera/impresoras. Tamaño y `.tres` intactos, solo cambia qué PNG le toca a cada giro.
+		COMODIDAD_DISPENSADOR_AGUA: {"rotacion": 0, "rotacion_directa": true},
 		COMODIDAD_RADIO: {"rotacion": 0},
 		COMODIDAD_ESTANTERIA: {"rotacion": 0, "espalda_0": Vector2i(-1, 0)},
 		COMODIDAD_ESTANTERIA_PEQUENA: {
