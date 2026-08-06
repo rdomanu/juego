@@ -2579,6 +2579,16 @@ static func _sprites_comodidad() -> Dictionary:
 		# `rotacion_directa` sin tocar nada más (`_celdas_de`/`_pieza_sprite_comodidad` genéricos, el
 		# mismo camino que el sofá de 3 plazas): 0°/180° reservan 2×1, 90°/270° la traspuesta 1×2.
 		&"impresora_dni": {"rotacion": 0, "rotacion_directa": true},
+		# Nevera (2026-08-06, arte KayKit gratuito — Furniture Bits, ver CREDITS.md): 4 vistas reales
+		# (puerta/tirador visibles solo de frente/lado, panel liso detrás) → `rotacion_directa`, mismo
+		# criterio que la impresora de DNI. Huella 1 celda (superficie por defecto en su `.tres`).
+		&"nevera": {"rotacion": 0, "rotacion_directa": true},
+		# Lámpara de pie (2026-08-06, arte KayKit gratuito — Restaurant Bits, ver CREDITS.md): pantalla
+		# y pie REDONDOS — las 4 vistas renderizadas son visualmente indistinguibles entre sí (sin cara
+		# ni tirador que orientar), así que se trata como el resto de comodidades SIN frente
+		# (`COMODIDAD_EQUIPO_INFORMATICO`/`_PAPELERA`/etc.): una sola pose, gire como gire. Solo existe
+		# el PNG a 0° en disco (a propósito: no hay motivo para renderizar 3 vistas idénticas).
+		&"lampara_pie": {"rotacion": 0},
 	}
 
 

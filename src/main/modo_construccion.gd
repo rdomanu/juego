@@ -1486,7 +1486,7 @@ func _refrescar_preview_elemento(celda: Vector2i) -> void:
 ## el mismo coste que ya paga hoy cualquier comodidad nueva sin sprite (nada) o con sprite (un alta
 ## en cada sitio). Todas a rotación 0: ninguna comodidad de 1 celda tiene "frente".
 const COMODIDADES_CON_SPRITE: Array[StringName] = [
-	&"equipo_informatico", &"papelera", &"dispensador_agua", &"radio",
+	&"equipo_informatico", &"papelera", &"dispensador_agua", &"radio", &"lampara_pie",
 ]
 
 ## Comodidades con VISTA REAL por orientación (2026-08-06, 4 estados): el PNG que toca es
@@ -1494,7 +1494,9 @@ const COMODIDADES_CON_SPRITE: Array[StringName] = [
 ## `Construccion._sprites_comodidad()` (privado, duplicado a propósito). Hoy solo la fotocopiadora
 ## (`comodidad_impresora_documentos_{0,90,180,270}.png`, las 4 vistas de Summer); el resto del
 ## catálogo con sprite sigue en una sola pose fija (`COMODIDADES_CON_SPRITE`, sin cambios).
-const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [&"impresora_documentos", &"impresora_dni"]
+const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [
+	&"impresora_documentos", &"impresora_dni", &"nevera",
+]
 
 
 ## Los datos para pintar el fantasma como sprite (`{"textura", "paso", "celdas"}`) o vacío
