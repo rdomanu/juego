@@ -17,6 +17,9 @@ const NPCScript := preload("res://src/main/npc_ciudadano.gd")
 const MunecoScript := preload("res://src/main/muneco.gd")
 ## La mesa de la ventanilla, con su ordenador y sus papeles (2026-07-31).
 const MesaAtencionScript := preload("res://src/main/mesa_atencion.gd")
+## El viaje del papel (GDD impresora-documentos-tramite.md): solo para leer sus FASE_* al sondear por
+## tick, igual que MesaAtencionScript se usa por sus constantes — NUNCA se muta nada desde aquí (FL5).
+const ImpresoraDocumentosScript := preload("res://src/core/impresora/impresora_documentos.gd")
 ## La señal de prohibido sobre la cabeza de quien está BLOQUEADO sin camino real a su destino
 ## (bug 2026-08-03, compartida con `NPCCiudadano`).
 const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
@@ -36,6 +39,7 @@ const ROTULO_ESTADO: Dictionary[StringName, String] = {
 	&"en_camino": "EN CAMINO",   # enmienda 2026-07-25: llamada emitida, el ciudadano aún camina
 	&"atendiendo": "ATENDIENDO",
 	&"descansando": "☕ DESCANSO",   # Bienestar #13: su titular se ha ido a por su café
+	&"a_por_documento": ImpresoraDocumentosScript.TEXTO_A_POR_EL_DOCUMENTO,   # GDD impresora: ficha ventanilla
 }
 const COLOR_ESTADO: Dictionary[StringName, Color] = {
 	&"cerrado": Color(0.6, 0.6, 0.6),
@@ -44,6 +48,7 @@ const COLOR_ESTADO: Dictionary[StringName, Color] = {
 	&"en_camino": Color(0.6, 0.7, 0.9),
 	&"atendiendo": Color(0.5, 0.75, 1.0),
 	&"descansando": Color(0.85, 0.7, 0.45),   # ámbar tostado: ni alarma ni normalidad
+	&"a_por_documento": Color(0.55, 0.75, 0.95),   # azul claro: se distingue del ámbar del café
 }
 ## Uniforme del policía (torso azul marino, cabeza clara — estilo npc_ciudadano).
 const COLOR_POLICIA_TORSO := Color(0.10, 0.14, 0.30)
@@ -81,6 +86,9 @@ var _flujo: Node = null
 var _construccion: Node = null
 var _personal: Node = null
 var _paciencia: Node = null
+## El viaje del papel (GDD impresora-documentos-tramite.md). Sin ella cableada, ningún puesto hace el
+## viaje visual: se degrada a "no hay papel que buscar", igual que el propio módulo si no la inyectan.
+var _impresora: Node = null
 var _tam_celda: int = 40
 var _pos_suelo: Vector2 = Vector2.ZERO
 var _columnas: int = 24
@@ -378,6 +386,13 @@ var _camino_incorporacion: Dictionary = {}
 ## `_iniciar_camino_incorporacion` y se quita en `_cerrar_camino_incorporacion`.
 var _incorporacion_en_curso: Dictionary[StringName, bool] = {}
 
+# ── Trayecto cosmético del VIAJE DEL PAPEL (GDD impresora-documentos-tramite.md) ─────────────────
+## Mismo patrón de sondeo por tick que `_camino_descanso`, pero indexado por PUESTO y no por agente:
+## la API de `ImpresoraDocumentos` es por puesto (es la ventanilla la que tiene el viaje, sea quien
+## sea su titular ese día). `puesto_id` → Dictionary del viaje EN CURSO, mismas claves que
+## `_camino_descanso` salvo "fase" (aquí: &"yendo" → &"en_impresora" → &"volviendo") y "celda_sala".
+var _camino_impresora: Dictionary = {}
+
 
 ## El objeto que esta persona está usando ahora (`&""` si ninguno) — lo LEE el NPC para saber si
 ## tiene que acercarse a la máquina. Cosmético puro: aquí no se decide nada (FL5).
@@ -389,6 +404,12 @@ func comodidad_de(persona: RefCounted) -> StringName:
 
 func usar_paciencia(paciencia: Node) -> void:
 	_paciencia = paciencia
+
+
+## Inyecta el viaje del papel (GDD impresora-documentos-tramite.md): sin ella, ningún funcionario se
+## levanta a por el documento (cosmético puro, FL5 — nunca decide nada de la simulación).
+func usar_impresora(impresora: Node) -> void:
+	_impresora = impresora
 
 
 ## El ánimo que debe mostrar esta persona, o `&""` si no procede enseñarlo (ya la han llamado, o no
@@ -749,6 +770,7 @@ func _physics_process(_delta: float) -> void:
 	_refrescar_puestos()
 	_refrescar_descansos()
 	_refrescar_incorporaciones()
+	_refrescar_impresora()
 	_sincronizar_caminantes()
 
 
@@ -1031,6 +1053,15 @@ func _refrescar_puestos() -> void:
 			nombre = de_cafe.nombre
 			var quedan: int = roundi(_personal.minutos_de_descanso_restantes(de_cafe))
 			_rotulo_extra[puesto_id] = "☕ %d min" % quedan
+		# EL VIAJE DEL PAPEL (GDD impresora-documentos-tramite.md, patrón "☕ DESCANSO"): mientras
+		# `retiene()` sea true el trámite sigue "en atención" para Flujo (Paciencia no lo penaliza),
+		# pero el jugador tiene que VER por qué la ventanilla no avanza. `de_cafe == null` de guarda
+		# (los dos viajes no pueden coincidir: no se manda a nadie a por café mientras atiende).
+		var a_por_papel: bool = (
+			de_cafe == null and _impresora != null and _impresora.retiene(puesto_id)
+		)
+		if a_por_papel:
+			estado = &"a_por_documento"
 		_asegurar_visual_puesto(puesto_id, celda)
 		# Si el puesto se MUEVE (modo obra), su visual le sigue (DIFF por celda vista).
 		var contenedor: Node2D = _visual_de_puesto[puesto_id]
@@ -1045,9 +1076,16 @@ func _refrescar_puestos() -> void:
 			# en sus puestos, estan fuera de la comisaria" — los mostradores se iban un tablero
 			# entero hacia abajo a la derecha, y con ellos los policias que los atienden.
 			contenedor.position = Proyeccion.centro_iso(celda)
+		# Oculta al policía FIJO del mostrador mientras el viaje cosmético del papel esté vivo O el
+		# modelo siga reteniendo (unión de las dos condiciones, no solo una: cubre tanto el caso en
+		# que el muñeco tarda más en llegar que el modelo en decir "entregado" como el contrario —
+		# igual que `_regreso_en_curso` cubre el mismo hueco en el descanso, pero sin depender de
+		# acertar con la fase exacta en la que se produce el desfase).
+		var oculto_por_impresora: bool = _camino_impresora.has(puesto_id) or a_por_papel
 		_actualizar_visual_puesto(
 			puesto_id, dotado, nombre, estado, _rotulo_extra.get(puesto_id, ""), cansancio,
-			_regreso_en_curso.has(puesto_id), _incorporacion_en_curso.has(puesto_id)
+			_regreso_en_curso.has(puesto_id), _incorporacion_en_curso.has(puesto_id),
+			oculto_por_impresora
 		)
 		if de_cafe == null:
 			_rotulo_extra.erase(puesto_id)
@@ -1541,6 +1579,100 @@ func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 	_borrar_caminante(viaje["muneco"] as Node)
 
 
+## El trayecto cosmético del VIAJE DEL PAPEL (GDD impresora-documentos-tramite.md). Mismo espíritu
+## que `_refrescar_descansos` (sondeo por tick, un viaje persistente que se REUSA hasta que vuelve),
+## pero indexado por PUESTO —la API de `ImpresoraDocumentos` es por puesto— y con tres pasadas:
+##   1) ALTAS  — puesto cuyo viaje ACABA de entrar en FASE_IDA y aún no tiene viaje cosmético.
+##   2) BAJAS  — el modelo ya dice FASE_VUELTA (o el viaje desapareció del todo: cancelado/consumido
+##      a medias, p. ej. el ciudadano abandonó) y el muñeco todavía no ha girado. Cubre TAMBIÉN el
+##      edge case de la impresora demolida a mitad de viaje (`ImpresoraDocumentos.
+##      impresora_demolida`): esa función salta directa a FASE_VUELTA, así que aquí no hace falta
+##      distinguirlo — el muñeco gira desde donde esté, con o sin papel, igual que el descanso gira
+##      desde "yendo" si la pausa termina antes de llegar a la sala.
+##   3) AVANCE — cada viaje vivo se mueve un paso; se cierra al llegar de vuelta al puesto.
+func _refrescar_impresora() -> void:
+	if _impresora == null or _flujo == null or _construccion == null:
+		return
+	for puesto_id: StringName in _flujo.puestos_registrados():
+		if (
+			_impresora.fase_de(puesto_id) == ImpresoraDocumentosScript.FASE_IDA
+			and not _camino_impresora.has(puesto_id)
+		):
+			_iniciar_camino_impresora(puesto_id)
+	for puesto_id: StringName in _camino_impresora:
+		var viaje: Dictionary = _camino_impresora[puesto_id]
+		var fase_modelo: StringName = _impresora.fase_de(puesto_id)
+		var debe_volver: bool = (
+			fase_modelo == ImpresoraDocumentosScript.FASE_VUELTA
+			or fase_modelo == ImpresoraDocumentosScript.FASE_SIN_VIAJE
+		)
+		if debe_volver and viaje["fase"] != &"volviendo":
+			_iniciar_vuelta_impresora(viaje)
+	var terminados: Array[StringName] = []
+	for puesto_id: StringName in _camino_impresora:
+		if _avanzar_camino_impresora(_camino_impresora[puesto_id]):
+			terminados.append(puesto_id)
+	for puesto_id: StringName in terminados:
+		_cerrar_camino_impresora(_camino_impresora[puesto_id])
+		_camino_impresora.erase(puesto_id)
+
+
+## Arranca el viaje de IDA: crea el muñeco caminante UNA vez (con el sprite de quien esté dotando el
+## puesto ahora mismo, si lo hay) y lo manda a la celda de la impresora más cercana que ya decidió el
+## modelo (`impresora_de`) — su propia celda es transitable (las comodidades NO se recortan como
+## obstáculo en `_bakear_navegacion`, solo los puestos y los muros; mismo criterio que usa el café
+## con `destino_de`/`comodidad_de`).
+func _iniciar_camino_impresora(puesto_id: StringName) -> void:
+	var agente: RefCounted = null
+	if _personal != null and _personal.puesto_dotado(puesto_id):
+		agente = _personal.agente_de(puesto_id)
+	var muneco: CharacterBody2D = _crear_muneco_caminante(agente)
+	muneco.position = _punto_de_su_puesto(puesto_id)
+	_capa_descansos.add_child(muneco)
+	var impresora_id: StringName = _impresora.impresora_de(puesto_id)
+	var destino: Vector2 = _punto_de_su_puesto(puesto_id)
+	if impresora_id != &"":
+		destino = _construccion.centro_de_celda(_construccion.posicion_de(impresora_id))
+	_camino_impresora[puesto_id] = {
+		"muneco": muneco,
+		"nav": muneco.get_node("Nav") as NavigationAgent2D,
+		"fase": &"yendo",
+		"puesto_id": puesto_id,
+		"listo": false,
+		"destino_pendiente": destino,
+	}
+
+
+## Da la vuelta a un viaje YA EXISTENTE (nunca crea un muñeco nuevo), igual que `_iniciar_vuelta` del
+## descanso: si aún iba "yendo" (p. ej. la impresora se demolió a mitad de camino), gira desde donde
+## esté — no hace falta que "llegue" primero.
+func _iniciar_vuelta_impresora(viaje: Dictionary) -> void:
+	viaje["fase"] = &"volviendo"
+	viaje["destino_pendiente"] = _punto_de_su_puesto(viaje["puesto_id"])
+
+
+## Avanza un viaje de IMPRESORA un paso (delega el movimiento en `_mover_paso`, compartido con
+## descanso e incorporación). Devuelve `true` solo cuando el viaje ha terminado del todo (vuelta
+## completa); "en_impresora" se queda quieto — es el modelo (`FASE_RECOGIDA`, con su `t_recogida_min`)
+## quien decide cuánto dura la pausa, no el muñeco.
+func _avanzar_camino_impresora(viaje: Dictionary) -> bool:
+	if viaje["fase"] == &"en_impresora":
+		return false
+	if not _mover_paso(viaje):
+		return false
+	if viaje["fase"] == &"yendo":
+		viaje["fase"] = &"en_impresora"
+		return false
+	return true   # "volviendo" y ha llegado: viaje cosmético completo
+
+
+## Cierra un viaje de impresora terminado: borra el muñeco. La supresión del mostrador la decide
+## `_refrescar_puestos` en caliente (`_camino_impresora.has(puesto_id)` + `retiene()`), así que aquí
+## no hay nada más que liberar (a diferencia del descanso, no hay asiento ni taza que soltar).
+func _cerrar_camino_impresora(viaje: Dictionary) -> void:
+	_borrar_caminante(viaje["muneco"] as Node)
+
+
 ## El PREFIJO de sprite de un funcionario, repartido determinista por su NOMBRE (identidad estable
 ## del agente — no cambia al reasignarlo de puesto, a diferencia de `puesto_id`; mismo criterio que
 ## `MunecoScript.piel_de` reparte la piel de los ciudadanos por su número de turno, nunca por azar,
@@ -1792,7 +1924,8 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 ## exactamente la cadencia con la que tiene sentido que el jugador la vea moverse.
 func _actualizar_visual_puesto(
 	puesto_id: StringName, dotado: bool, nombre: String, estado: StringName, extra: String,
-	cansancio: float = 0.0, oculto_por_regreso: bool = false, oculto_por_llegada: bool = false
+	cansancio: float = 0.0, oculto_por_regreso: bool = false, oculto_por_llegada: bool = false,
+	oculto_por_impresora: bool = false
 ) -> void:
 	var contenedor: Node2D = _visual_de_puesto[puesto_id]
 	var visto_dotado: bool = contenedor.get_meta(&"dotado", false)
@@ -1803,10 +1936,12 @@ func _actualizar_visual_puesto(
 	var visto_paso_cansancio: int = contenedor.get_meta(&"paso_cansancio", -1)
 	var visto_regreso: bool = contenedor.get_meta(&"oculto_por_regreso", false)
 	var visto_llegada: bool = contenedor.get_meta(&"oculto_por_llegada", false)
+	var visto_impresora: bool = contenedor.get_meta(&"oculto_por_impresora", false)
 	if (
 		visto_dotado == dotado and visto_nombre == nombre and visto_estado == estado
 		and visto_extra == extra and visto_paso_cansancio == paso_cansancio
 		and visto_regreso == oculto_por_regreso and visto_llegada == oculto_por_llegada
+		and visto_impresora == oculto_por_impresora
 	):
 		return   # nada cambió (ni siquiera el TRAMO de cansancio ni el regreso/llegada): cero toques
 	contenedor.set_meta(&"dotado", dotado)
@@ -1816,6 +1951,7 @@ func _actualizar_visual_puesto(
 	contenedor.set_meta(&"paso_cansancio", paso_cansancio)
 	contenedor.set_meta(&"oculto_por_regreso", oculto_por_regreso)
 	contenedor.set_meta(&"oculto_por_llegada", oculto_por_llegada)
+	contenedor.set_meta(&"oculto_por_impresora", oculto_por_impresora)
 	# Horario provisional 2026-07-25 "los funcionarios se van": con el puesto cerrado (por horario o
 	# por el jugador) el muñeco y su nombre desaparecen del mostrador — caminar a casa es juice futuro.
 	var policia: Node2D = contenedor.get_node("Policia")
@@ -1850,7 +1986,7 @@ func _actualizar_visual_puesto(
 	var en_activo: bool = (
 		dotado and estado != &"descansando"
 		and (not cerrado or _en_su_puesto.has(puesto_id))
-		and not oculto_por_regreso and not oculto_por_llegada
+		and not oculto_por_regreso and not oculto_por_llegada and not oculto_por_impresora
 	)
 	policia.visible = en_activo
 	var lbl_nombre: Label = contenedor.get_node("Nombre")

@@ -134,6 +134,12 @@ var _hook_sala_creada: Callable = Callable()
 ## Hook de cambio de layout (story flujo-008): Main lo cablea para re-bakear la navegación de los
 ## NPCs y re-sincronizar los puestos de Flujo. Sin cablear → no-op (tests).
 var _hook_layout: Callable = Callable()
+## Hook de ELEMENTO DEMOLIDO (GDD impresora-documentos-tramite.md, edge case: *"impresora demolida a
+## mitad de viaje: el funcionario vuelve con las manos vacías"*). Main lo cablea a
+## `ImpresoraDocumentos.impresora_demolida`, que solo actúa si el id demolido coincide con el de un
+## viaje en curso — aquí no se filtra por catálogo a propósito (misma regla que los demás hooks:
+## Construcción no debe conocer a ningún sistema por su nombre). Sin cablear → no-op (tests).
+var _hook_elemento_demolido: Callable = Callable()
 
 ## CONTADOR GLOBAL de versión del layout (bug 2026-08-05: *"aunque haya una puerta, la gente
 ## atraviesa la pared en algunas ocasiones"*). `static`, así que vive en la CLASE y no en cada
@@ -167,6 +173,12 @@ func _avisar_sala_creada(sala_id: StringName) -> void:
 ## Cablea el hook de cambio de layout (se dispara en cada mutación del modelo, nunca por frame).
 func fijar_hook_layout(hook: Callable) -> void:
 	_hook_layout = hook
+
+
+## Cablea el hook de "elemento demolido" (aviso puntual, uno por demolición). Se dispara ANTES de
+## borrar el elemento de `_elementos`, con su id todavía válido.
+func fijar_hook_elemento_demolido(hook: Callable) -> void:
+	_hook_elemento_demolido = hook
 
 
 func _ready() -> void:
@@ -2039,6 +2051,8 @@ func demoler_elemento(elemento_id: StringName) -> bool:
 	_abonar(float(elemento["coste_pagado"]) * pct_reembolso)
 	if elemento["catalogo"] != ASIENTO_BASICO and _personal != null:
 		_personal.quitar_puesto(elemento_id)
+	if _hook_elemento_demolido.is_valid():
+		_hook_elemento_demolido.call(elemento_id)
 	_elementos.erase(elemento_id)
 	_refrescar_visual()
 	return true

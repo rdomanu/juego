@@ -474,6 +474,9 @@ func _instanciar_mundo() -> void:
 	_impresora.usar_economia(_economia)
 	_impresora.usar_tiempo(Tiempo)
 	add_child(_impresora)
+	# Edge case del GDD: "impresora demolida a mitad de viaje -> el funcionario vuelve con las manos
+	# vacias". Construccion no conoce a Impresora por nombre (regla de capas); solo avisa por hook.
+	_construccion.fijar_hook_elemento_demolido(_impresora.impresora_demolida)
 	_montar_comisaria_inicial()
 	# A PARTIR DE AQUI, toda sala nueva que construya el JUGADOR nace con sus objetos obligatorios y
 	# pagandolos (el montaje de oficio de arriba ya se sirvio los suyos gratis). Se cablea DESPUES del
@@ -540,6 +543,7 @@ func _instanciar_mundo() -> void:
 		_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS, _mundo_profundo
 	)
 	_npcs.usar_paciencia(_paciencia)   # el aro de ánimo sobre cada ciudadano (story paciencia-008)
+	_npcs.usar_impresora(_impresora)   # el muñeco del viaje del papel + la ficha "🖨 a por el documento"
 	add_child(_npcs)
 	_sincronizar_puestos_flujo()
 	_construccion.fijar_hook_layout(_al_cambiar_layout)
