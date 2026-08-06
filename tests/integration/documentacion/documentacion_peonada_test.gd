@@ -243,6 +243,36 @@ func test_una_denuncia_de_odac_no_desmotiva_a_nadie() -> void:
 	assert_int(agente.motivacion).is_equal(3)
 
 
+## Regresión (bug de la impresora, 2026-08-06): `_al_tramite_completado` consultaba el catálogo
+## TramiteDoc SIN FILTRAR (`tramite()` → `Datos.obtener`, ruidoso) con el id de CUALQUIER trámite
+## cerrado — una denuncia ODAC ("estafa" no existe en TramiteDoc) disparaba `push_warning` en
+## CADA cierre (ruido de log; el comportamiento ya era correcto, sin horario que incumplir). El fix
+## usa `Datos.obtener_silencioso` (mismo patrón que `datos.gd` ya ofrece para "¿es de este tipo?").
+func test_documentacion_tramite_odac_completado_no_genera_aviso() -> void:
+	# Arrange — Doc cerrada (900 = 15:00): si la consulta ruidosa colara, este es el minuto que la
+	# dispara (la rama de DO5 solo se evalúa fuera de horario).
+	var mundo: Array = _mundo(1, 900.0)
+	var doc: Node = mundo[0]
+	var agente: RefCounted = mundo[3].agente_de(&"doc_1")
+
+	# Act + Assert — la comprobación "¿es de Doc?" debe ser SILENCIOSA: cero push_warning/push_error.
+	await assert_error(func() -> void: doc._al_tramite_completado(&"estafa", agente)).is_success()
+
+
+## Companion del test de arriba: el fix no debe silenciar de más — un trámite de Doc genuino
+## (id VÁLIDO en el catálogo) también cierra sin ningún aviso y el DO5 (desmotivación por rezago
+## fuera de horario) sigue intacto.
+func test_documentacion_tramite_doc_completado_no_genera_aviso_y_desmotiva() -> void:
+	# Arrange
+	var mundo: Array = _mundo(1, 900.0)               # 15:00, Doc cerrada
+	var doc: Node = mundo[0]
+	var agente: RefCounted = mundo[3].agente_de(&"doc_1")
+
+	# Act + Assert
+	await assert_error(func() -> void: doc._al_tramite_completado(&"dni", agente)).is_success()
+	assert_int(agente.motivacion).is_equal(2)   # DO5 intacto: sigue desmotivando 1 punto
+
+
 # ── AC-DC05 / DO12 · La brújula: el nivel de demanda ─────────────────────────────────────
 func test_el_nivel_de_demanda_se_delega_en_demanda() -> void:
 	var doc: Node = _mundo(1)[0]

@@ -410,7 +410,10 @@ func _al_nuevo_dia() -> void:
 func _al_tramite_completado(tramite_id: StringName, agente: RefCounted) -> void:
 	if agente == null or _tiempo == null:
 		return
-	if tramite(tramite_id) == null:
+	# Comprobación SILENCIOSA (`Datos.obtener_silencioso`, no `tramite()`/`Datos.obtener`): que este id
+	# sea de una denuncia ODAC (no de Doc) es un caso normal en cada cierre de trámite, no un dato roto
+	# — con `obtener` cada denuncia completada disparaba un push_warning de "no existe id" (ruido).
+	if Datos.obtener_silencioso(TIPO_TRAMITE, tramite_id) == null:
 		return                              # no es un trámite de Doc (ODAC no tiene horario)
 	if estado_servicio(_tiempo.minutos_juego) != ESTADO_CERRADO:
 		return                              # dentro de su jornada: nadie se queda a deber nada
