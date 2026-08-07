@@ -277,12 +277,13 @@ const ID_SPRITE_SILLA_ESPERA := "comodidad_silla_espera_madera"
 ## usuario 2026-08-02: la dirección de un asiento se juzga con el asiento vacío):
 ##  · Funcionario (`comodidad_silla_oficina`, 2026-08-07): 0° — el asiento (cojín) se ve de cara,
 ##    el respaldo detrás; el policía se sienta mirando al sur, hacia el ciudadano.
-##  · Espera (`comodidad_silla_espera_madera`, 2026-08-07): 270° — el respaldo (listones) queda
-##    hacia cámara, a la espalda del ciudadano, que mira al norte hacia la mesa. Mismo número que
-##    la generación anterior (270): coincidencia de la nueva geometría, verificada con
-##    `_check_silla_espera_madera.png` en el scratchpad, no heredada sin mirar.
+##  · Espera (`comodidad_silla_espera_madera`, 2026-08-07): 180° — el ciclo de orientación del
+##    lote (facing(180°)=NORTE, ver _render_sillas_ciudadano.gd) es el que deja al ciudadano
+##    mirando a la mesa. La 270° elegida inicialmente "a ojo con la silla vacía" quedaba DE LADO
+##    (facing oeste) — lo detectó el usuario en el juego real ("la silla está al revés",
+##    2026-08-07) y se corrigió comparando capturas en motor de 180 vs 270.
 const ROT_SILLA_FUNCIONARIO: int = 0
-const ROT_SILLA_ESPERA: int = 270
+const ROT_SILLA_ESPERA: int = 180
 
 
 ## ── LA SILLA DE ESPERA, PARTIDA EN DOS (2026-08-03) ──────────────────────────────────────────
