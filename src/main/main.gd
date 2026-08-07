@@ -33,6 +33,10 @@ const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 const ZOOM_MIN: float = 0.5
 const ZOOM_MAX: float = 2.5
 const PASO_ZOOM: float = 1.1
+## Pan de teclado (2026-08-07, "no se puede mover la pantalla con las teclas WASD o con el ratón"):
+## px de MUNDO por segundo a zoom 1.0 — `_procesar_pan_camara` la divide por el zoom actual, así que
+## el número real varía con cuánto mundo se vea (ver esa función).
+const VELOCIDAD_PAN_BASE: float = 800.0
 ## Modos globales de altura de las paredes (petición del usuario 2026-08-04): el orden en que cicla
 ## el botón del HUD / la tecla Home. Ver la cabecera de `ParedesSalas.modo_altura`.
 const ORDEN_MODOS_PARED: Array[StringName] = [&"auto", &"todas", &"bajitas"]
@@ -201,8 +205,17 @@ var _entorno_exterior: Node2D
 ## La bolsa de ordenación por PROFUNDIDAD (2026-08-03): paredes + mobiliario + ventanillas, todo lo
 ## que se apoya en el suelo y puede taparse entre sí. Ver el comentario largo de `_instanciar_mundo`.
 var _mundo_profundo: Node2D
-## La cámara del juego (2026-08-04): rueda del ratón = zoom (ver `_cambiar_zoom`).
+## La cámara del juego (2026-08-04): rueda del ratón = zoom (ver `_cambiar_zoom`); desde 2026-08-07
+## también WASD/flechas + arrastre con el botón central (ver `_procesar_pan_camara`).
 var _camara: Camera2D
+## Los límites ABSOLUTOS (con `pos_suelo` ya sumado) dentro de los que puede moverse `_camara` —
+## el borde exacto de lo que cubre `EntornoExterior` (`limites_iso_cubiertos()`), fijados una vez en
+## `_fijar_limites_camara()`. Fuera de ellos, al zoom que sea, se vería el vacío detrás del entorno.
+var _limite_camara_min: Vector2 = Vector2.ZERO
+var _limite_camara_max: Vector2 = Vector2.ZERO
+## `true` mientras el botón CENTRAL del ratón está pulsado — arrastre de cámara tipo "grab and drag"
+## (petición del usuario: "si hago zoom quiero también desplazarme").
+var _arrastrando_camara: bool = false
 ## El botón cíclico "Paredes: Auto/Enteras/Bajitas" del HUD (2026-08-04) — se guarda para refrescar
 ## su texto al cambiar de modo (con la tecla Home no pasa por el botón).
 var _btn_paredes: Button
@@ -211,6 +224,7 @@ var _btn_paredes: Button
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
 	_crear_camara()
+	_fijar_limites_camara()
 	# El entorno exterior va ANTES que el suelo interior (fondo antes que figura — ver la cabecera de
 	# `entorno_exterior.gd`): su z_index ya lo deja por debajo pase lo que pase, pero el orden del
 	# árbol sigue el mismo criterio que el resto del archivo.
@@ -308,16 +322,31 @@ func _ready() -> void:
 
 
 ## El dibujo corre en tiempo real (_process, ADR-0001): refresca los textos leyendo el reloj.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_refrescar_etiquetas()
+	_procesar_pan_camara(delta)
 
 
 ## Atajos de teclado: Espacio = pausa/reanuda; 1/2/3 = velocidades. La UI solo ORDENA por la API pública.
 func _unhandled_input(evento: InputEvent) -> void:
+	# ARRASTRE DE CÁMARA con el botón CENTRAL (petición del usuario: "si hago zoom quiero también
+	# desplazarme") — el mundo sigue al ratón, como cualquier "grab and drag" de mapa. Se comprueba
+	# ANTES que el resto: es un gesto de cámara, no de juego, y no debe competir con nada más.
+	if evento is InputEventMouseMotion and _arrastrando_camara:
+		var arrastre := evento as InputEventMouseMotion
+		_camara.position = _clamp_posicion_camara(
+			_camara.position - arrastre.relative / _camara.zoom, get_viewport_rect().size
+		)
+		get_viewport().set_input_as_handled()
+		return
 	# CLIC DERECHO sobre un ciudadano que espera = COLARLO (mecánica pedida por el usuario
 	# 2026-07-26). Llega aquí solo si nadie lo consumió antes (el modo construcción tiene prioridad).
 	if evento is InputEventMouseButton:
 		var raton := evento as InputEventMouseButton
+		if raton.button_index == MOUSE_BUTTON_MIDDLE:
+			_arrastrando_camara = raton.pressed
+			get_viewport().set_input_as_handled()
+			return
 		# CLIC IZQUIERDO sobre una VENTANILLA = abrir su ficha (petición del usuario 2026-07-31:
 		# *"al pulsar en alguna ventanilla debería poder verse como un menú… tipo tycoon"*). Llega
 		# aquí solo si el modo construcción no lo consumió antes: en obra, el clic izquierdo
@@ -1194,6 +1223,62 @@ func _crear_camara() -> void:
 	_camara.make_current()
 
 
+## Los límites ABSOLUTOS del pan (2026-08-07, "que al moverse no se vean cosas vacías fuera, solo
+## entorno" — como Theme Hospital): `EntornoExterior.limites_iso_cubiertos()` ya calculó el
+## rectángulo, en el mismo origen relativo que usan sus `RECT_*`; aquí solo hace falta sumarle
+## `pos_suelo` para pasarlo a las coordenadas ABSOLUTAS en las que vive `_camara.position` (el mismo
+## marco que usa `_cambiar_zoom`). Se llama UNA vez, justo tras crear la cámara — el área cubierta no
+## cambia en caliente (solo el pan/zoom del jugador dentro de ella).
+func _fijar_limites_camara() -> void:
+	var relativo: Rect2 = EntornoExterior.limites_iso_cubiertos()
+	_limite_camara_min = pos_suelo + relativo.position
+	_limite_camara_max = _limite_camara_min + relativo.size
+
+
+## Recorta `posicion_deseada` para que, al zoom ACTUAL de `_camara`, una ventana de `ventana` px
+## quede dentro de `[_limite_camara_min, _limite_camara_max]` — se llama SIEMPRE tras cualquier
+## cambio de posición O de zoom (rueda, +/-, WASD/flechas, arrastre central): el zoom ya tenía su
+## propio clamp (`nuevo.clamp(...)` en `_cambiar_zoom`), pero ESE solo evita un zoom fuera de rango,
+## no que la posición se salga del entorno cubierto una vez aplicado el nuevo zoom.
+##
+## `ventana` es un PARÁMETRO (no `get_viewport_rect().size` leído aquí dentro) a propósito: así la
+## función es pura — sin nodo en el árbol, sin `Viewport` — y los tests pueden llamarla directo sobre
+## un `Main` sin `add_child` (mismo patrón que `ModoConstruccion` en
+## `construccion_picking_muros_test.gd::_modo()`), igual que pide `src/CLAUDE.md`
+## ("preferir inyección de dependencias... para que se pueda testear").
+func _clamp_posicion_camara(posicion_deseada: Vector2, ventana: Vector2) -> Vector2:
+	var visible: Vector2 = ventana / _camara.zoom
+	var maximo := Vector2(
+		maxf(_limite_camara_max.x - visible.x, _limite_camara_min.x),
+		maxf(_limite_camara_max.y - visible.y, _limite_camara_min.y),
+	)
+	return posicion_deseada.clamp(_limite_camara_min, maximo)
+
+
+## El pan de teclado (WASD + flechas, petición del usuario "no se puede mover la pantalla") —
+## continuo mientras se mantenga pulsada, velocidad en MUNDO inversamente proporcional al zoom
+## actual (`VELOCIDAD_PAN_BASE / zoom`): con la cámara a `ZOOM_MAX` se ve POCO mundo y conviene ir
+## fino; a `ZOOM_MIN` (el que MÁS mundo enseña — ver la cabecera de `entorno_exterior.gd`) conviene
+## cubrir terreno rápido. Corre en `_process` (tiempo real, la cámara no es parte de la simulación de
+## juego — ADR-0001) y pasa SIEMPRE por `_clamp_posicion_camara`, igual que el zoom.
+func _procesar_pan_camara(delta: float) -> void:
+	var direccion := Vector2.ZERO
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		direccion.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		direccion.x += 1.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		direccion.y -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		direccion.y += 1.0
+	if direccion == Vector2.ZERO:
+		return
+	var velocidad: float = VELOCIDAD_PAN_BASE / _camara.zoom.x
+	_camara.position = _clamp_posicion_camara(
+		_camara.position + direccion.normalized() * velocidad * delta, get_viewport_rect().size
+	)
+
+
 ## Cambia el zoom por el factor `mult` (>1 aleja, <1 acerca) manteniendo fijo, bajo `punto_pantalla`,
 ## el MISMO punto del mundo que había antes del cambio — fórmula estándar de zoom centrado en cursor.
 ##
@@ -1216,8 +1301,13 @@ func _cambiar_zoom(mult: float, punto_pantalla: Vector2) -> void:
 	var nuevo: Vector2 = (anterior * mult).clamp(Vector2(ZOOM_MIN, ZOOM_MIN), Vector2(ZOOM_MAX, ZOOM_MAX))
 	if nuevo.is_equal_approx(anterior):
 		return
-	_camara.position += punto_pantalla * (Vector2.ONE / anterior - Vector2.ONE / nuevo)
+	var posicion_anclada: Vector2 = (
+		_camara.position + punto_pantalla * (Vector2.ONE / anterior - Vector2.ONE / nuevo)
+	)
 	_camara.zoom = nuevo
+	# El clamp se aplica DESPUÉS del anclaje al cursor, con el zoom YA nuevo (Punto B del encargo:
+	# "el clamp se aplica tras zoom Y tras pan") — nunca se toca la fórmula de anclaje de arriba.
+	_camara.position = _clamp_posicion_camara(posicion_anclada, get_viewport_rect().size)
 
 
 # ── Entorno exterior (design/art/entorno-exterior.md, fase 1) ────────────────────────────────
