@@ -85,6 +85,9 @@ const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
 const LucesObjetosScript := preload("res://src/main/luces_objetos.gd")
 ## Las paredes de las salas (petición del usuario 2026-07-30): fase VISUAL, no bloquean el paso.
 const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
+## El marco exterior NO JUGABLE (design/art/entorno-exterior.md, fase 1): calle+control+aparcamiento
+## pintados alrededor del edificio. Fondo puro — ver la cabecera del propio fichero (capa/ADR-0005).
+const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## Alto reservado abajo para la barra del HUD (estilo tycoon — petición del usuario 2026-07-24):
@@ -192,6 +195,9 @@ var _capa_etiquetas_sala: Node2D
 var _etiqueta_de_sala: Dictionary[StringName, Label] = {}
 ## Las paredes de las salas (2026-07-30): capa cosmética aparte, mismo hook de layout que las de arriba.
 var _paredes_salas: Node2D
+## El marco exterior (2026-08-07): calle/control/aparcamiento pintados, fuera del rect jugable — NO
+## entra en `_mundo_profundo` (fondo puro, ver la cabecera de `entorno_exterior.gd`).
+var _entorno_exterior: Node2D
 ## La bolsa de ordenación por PROFUNDIDAD (2026-08-03): paredes + mobiliario + ventanillas, todo lo
 ## que se apoya en el suelo y puede taparse entre sí. Ver el comentario largo de `_instanciar_mundo`.
 var _mundo_profundo: Node2D
@@ -205,6 +211,10 @@ var _btn_paredes: Button
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
 	_crear_camara()
+	# El entorno exterior va ANTES que el suelo interior (fondo antes que figura — ver la cabecera de
+	# `entorno_exterior.gd`): su z_index ya lo deja por debajo pase lo que pase, pero el orden del
+	# árbol sigue el mismo criterio que el resto del archivo.
+	_crear_entorno_exterior()
 	_crear_suelo()
 	_instanciar_mundo()
 	_crear_hud()
@@ -1208,6 +1218,18 @@ func _cambiar_zoom(mult: float, punto_pantalla: Vector2) -> void:
 		return
 	_camara.position += punto_pantalla * (Vector2.ONE / anterior - Vector2.ONE / nuevo)
 	_camara.zoom = nuevo
+
+
+# ── Entorno exterior (design/art/entorno-exterior.md, fase 1) ────────────────────────────────
+## El marco NO JUGABLE alrededor del edificio: calle, control de acceso y aparcamiento pintados
+## por código, en la MISMA rejilla lógica que el resto (`pos_suelo` es el mismo origen que usa
+## `_crear_suelo` justo después). Ver `EntornoExterior` para las tres garantías de "no jugable"
+## (sin picking, sin colisión, sin navegación) y el porqué de su capa (ADR-0005).
+func _crear_entorno_exterior() -> void:
+	_entorno_exterior = EntornoExteriorScript.new()
+	_entorno_exterior.name = "EntornoExterior"
+	add_child(_entorno_exterior)
+	_entorno_exterior.configurar(TAM_CELDA, pos_suelo, COLUMNAS, FILAS)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
