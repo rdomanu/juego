@@ -67,3 +67,6 @@ ESPAÑOL llano con orden y detalle (MEMORY.md — leerla). NUNCA ofrecer parar. 
   encargo (está descrito en la cola, punto 2). Verificar contra disco lo que dejara hecho
   (assets/sprites/entorno/casa_*.png re-renderizados o no, entorno_exterior.gd tocado o no).
 - git: 18 commits sin pushear (hasta e14d443 docs del traspaso). El lote UI sigue sin commitear.
+- APUNTE FINAL DEL USUARIO sobre las casas: "una casa es más pequeña que una sala" — usar
+  también LAS SALAS de la comisaría como vara de medir (una casa ≥ una sala típica de 4-6
+  celdas; parcela 6-8 celdas va bien encaminada). Verificarlo en la composición de escala.
