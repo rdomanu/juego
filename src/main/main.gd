@@ -70,6 +70,9 @@ const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 const DocumentacionScript := preload("res://src/feature/documentacion/documentacion.gd")
 ## El andamio de interacción del modo construcción (story const-007).
 const ModoConstruccionScript := preload("res://src/main/modo_construccion.gd")
+## La herramienta DEV de composición del entorno (2026-08-07): "¿podría hacerlo yo con esos
+## objetos, como si fuera un builder?" — SOLO se instancia con `--disenador` (ver `_ready`).
+const ModoDisenadorEntornoScript := preload("res://src/main/modo_disenador_entorno.gd")
 ## El andamio del panel de personal (feedback flujo-008): contratar del mercado + asignar a puestos.
 const PanelPersonalScript := preload("res://src/main/panel_personal.gd")
 ## El panel del horario de Documentación (story doc-005): el slider que decide cuánto abres.
@@ -219,12 +222,24 @@ var _arrastrando_camara: bool = false
 ## El botón cíclico "Paredes: Auto/Enteras/Bajitas" del HUD (2026-08-04) — se guarda para refrescar
 ## su texto al cambiar de modo (con la tecla Home no pasa por el botón).
 var _btn_paredes: Button
+## Las luces de objetos/farolas (2026-08-07): guardado para que `ModoDisenadorEntorno` pueda
+## refrescar `usar_farolas()` cada vez que el usuario coloca/borra/carga una farola en el modo.
+var _luces_objetos: Node2D = null
+## El modo diseñador de entorno (2026-08-07): herramienta DEV, SOLO existe si el proceso arrancó con
+## `--disenador` (ver `_ready`) — en juego normal esta variable se queda `null` para siempre.
+var _modo_disenador_entorno: Node2D = null
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
 	_crear_camara()
 	_fijar_limites_camara()
+	# LA BOLSA DE PROFUNDIDAD nace AQUÍ (2026-08-07, antes vivía dentro de `_instanciar_mundo`):
+	# `EntornoExterior` necesita colgar sus props CON ALTURA (farola/seto/casas/coches...) de esta
+	# MISMA bolsa para competir por profundidad con las paredes del edificio (fix del bug "una farola
+	# pegada al sur del muro se dibujaba siempre detrás" — ver la cabecera larga de
+	# `EntornoExterior.configurar`), así que tiene que existir ANTES de `_crear_entorno_exterior()`.
+	_crear_mundo_profundo()
 	# El entorno exterior va ANTES que el suelo interior (fondo antes que figura — ver la cabecera de
 	# `entorno_exterior.gd`): su z_index ya lo deja por debajo pase lo que pase, pero el orden del
 	# árbol sigue el mismo criterio que el resto del archivo.
@@ -238,6 +253,19 @@ func _ready() -> void:
 	_modo_construccion.name = "ModoConstruccion"
 	_modo_construccion.configurar(_construccion, TAM_CELDA, _paredes_salas)
 	add_child(_modo_construccion)
+	# Modo diseñador de entorno (2026-08-07): herramienta DEV, invisible en juego normal — SOLO se
+	# instancia si el proceso arrancó con `--disenador` (`OS.get_cmdline_user_args`, mismo patrón que
+	# `--pausa`). Sin el flag esta variable se queda `null` y F12 no hace nada (ver
+	# `_unhandled_input`): un jugador normal no puede ni encontrar la herramienta.
+	if OS.get_cmdline_user_args().has("--disenador"):
+		_modo_disenador_entorno = ModoDisenadorEntornoScript.new()
+		_modo_disenador_entorno.name = "ModoDisenadorEntorno"
+		# `configurar()` ANTES de `add_child()` (mismo contrato que `ModoConstruccion`): `_ready()`
+		# construye sus capas usando `_tam_celda`/`_origen`/`_mundo_profundo`, así que tienen que
+		# estar puestos ANTES de que el árbol dispare `_ready()`.
+		_modo_disenador_entorno.configurar(TAM_CELDA, pos_suelo, _mundo_profundo)
+		add_child(_modo_disenador_entorno)
+		_modo_disenador_entorno.layout_cambiado.connect(_al_cambiar_layout_disenador)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
 	_panel_personal = PanelPersonalScript.new()
@@ -310,6 +338,11 @@ func _ready() -> void:
 	luces.name = "LucesObjetos"
 	add_child(luces)
 	luces.configurar(_construccion, Tiempo)
+	# Las farolas del entorno exterior TAMBIÉN se encienden de noche (2026-08-07, mismo mecanismo
+	# que las comodidades interiores — ver la cabecera de `LucesObjetos.usar_farolas`). Se llama de
+	# nuevo cada vez que `ModoDisenadorEntorno` cambia el layout (colocar/borrar/cargar farolas).
+	_luces_objetos = luces
+	luces.usar_farolas(_entorno_exterior.puntos_farolas())
 	_resaltar_boton(Tiempo.velocidad_actual)
 	_refrescar_etiquetas()
 	# Población inicial de las etiquetas de sala: el hook de layout (`_al_cambiar_layout`) se cablea
@@ -407,6 +440,12 @@ func _unhandled_input(evento: InputEvent) -> void:
 			# La tecla de los Sims para alternar el nivel de detalle de paredes (petición del usuario
 			# 2026-08-04). NO es "P": esa tecla ya abre el panel de Personal (`panel_personal.gd`).
 			_alternar_modo_paredes()
+		KEY_F12:
+			# El modo diseñador de entorno (2026-08-07): SOLO existe (no `null`) si el proceso
+			# arrancó con `--disenador` — sin el flag, F12 no encuentra nada que alternar y esta
+			# tecla no hace NADA en juego normal (invisibilidad real, no solo "oculto").
+			if _modo_disenador_entorno != null:
+				_modo_disenador_entorno.alternar()
 
 
 # ── El mundo (sistemas Core instanciados — arquitectura §3.4 paso 3) ─────────────────────────
@@ -470,10 +509,10 @@ func _instanciar_mundo() -> void:
 	# paciencia, señal de prohibido, taza de café—, siempre encima. El z_index manda sobre el
 	# y-sort, así que dejarlos fuera de la bolsa es exactamente la garantía que se quiere: un muro
 	# puede tapar el cuerpo de un muñeco, pero nunca un dato que el jugador necesita.
-	_mundo_profundo = Node2D.new()
-	_mundo_profundo.name = "MundoProfundo"
-	_mundo_profundo.y_sort_enabled = true
-	add_child(_mundo_profundo)
+	#
+	# `_mundo_profundo` YA EXISTE al llegar aquí (`_crear_mundo_profundo`, llamada desde `_ready`
+	# ANTES que `_crear_entorno_exterior` — ver esa función para el motivo: `EntornoExterior` también
+	# necesita colgar de esta bolsa).
 	# `ParedesSalas` va vacío todavía (sus `TramoPared` nacen en `configurar()`, más abajo, cuando ya
 	# hay salas que dibujar): lo que importa aquí es que cuelgue de la bolsa.
 	_paredes_salas = ParedesSalasScript.new()
@@ -1319,7 +1358,20 @@ func _crear_entorno_exterior() -> void:
 	_entorno_exterior = EntornoExteriorScript.new()
 	_entorno_exterior.name = "EntornoExterior"
 	add_child(_entorno_exterior)
-	_entorno_exterior.configurar(TAM_CELDA, pos_suelo, COLUMNAS, FILAS)
+	_entorno_exterior.configurar(TAM_CELDA, pos_suelo, COLUMNAS, FILAS, _mundo_profundo)
+
+
+## La bolsa de ordenación por PROFUNDIDAD (2026-08-03, movida a función propia el 2026-08-07 —
+## ver el comentario de `_ready`): paredes + mobiliario + ventanillas + gente + (desde hoy) los
+## props CON ALTURA del entorno exterior, todo lo que se apoya en el suelo y puede taparse entre sí.
+## Godot ordena esa bolsa por la Y de pantalla de cada pieza (algoritmo del pintor). Ver el
+## comentario largo de `_instanciar_mundo` para el resto del reparto de capas (suelo/luces/rótulos
+## fuera de esta bolsa a propósito).
+func _crear_mundo_profundo() -> void:
+	_mundo_profundo = Node2D.new()
+	_mundo_profundo.name = "MundoProfundo"
+	_mundo_profundo.y_sort_enabled = true
+	add_child(_mundo_profundo)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
@@ -1535,6 +1587,14 @@ func _alternar_modo_paredes() -> void:
 	if _btn_paredes != null:
 		_btn_paredes.text = "🧱 Paredes: %s (Home)" % NOMBRES_MODO_PARED[siguiente]
 	_avisar_accion("Paredes: %s" % NOMBRES_MODO_PARED[siguiente], COLOR_TENUE_HUD)
+
+
+## El modo diseñador colocó/borró/cargó una farola: `LucesObjetos` recalcula su lista entera (barato
+## — un puñado de farolas, nunca por frame, solo en este evento). Mismo criterio que
+## `Main._crear_entorno_exterior` al arrancar, solo que ahora la fuente es el modo, no el procedural.
+func _al_cambiar_layout_disenador() -> void:
+	if _luces_objetos != null and _modo_disenador_entorno != null:
+		_luces_objetos.usar_farolas(_modo_disenador_entorno.puntos_farolas())
 
 
 ## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que

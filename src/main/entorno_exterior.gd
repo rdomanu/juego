@@ -144,12 +144,24 @@ const ZONAS_CERCANAS: Array[Rect2i] = [
 ]
 
 ## Las 5 plazas (3 patrulla + 2 visita), de oeste a este dentro de `RECT_RECINTO`.
+##
+## ── PLAZAS A 3 CELDAS DE FONDO (2026-08-07, "los coches ocupan MÍNIMO 3 celdas; la mesa ocupa 2 y
+## un coche es más grande") ────────────────────────────────────────────────────────────────────────
+## Antes cada plaza medía 1×2. El re-render de `tools/render_entorno_urbano.gd` (calibrado por
+## LARGO real, no por altura) mide ahora ~3,2 celdas de largo por ~1,6-2,1 de ancho
+## (`tools/_diag_medir_coches.gd`, verificado en el motor) -- el fondo de la plaza crece a 3 para
+## que el coche no sobresalga por el camino/la fachada. El ANCHO se queda en 1 celda a propósito
+## (no 2): ensanchar el recinto entero para dar 2 celdas a cada una de las 5 plazas es un rediseño
+## de layout mayor (RECT_RECINTO, el trazado de la valla, el camino) fuera de esta tarea -- un coche
+## de hasta 2,1 celdas de ancho en una plaza de 1 se sale un poco a los lados de su línea pintada
+## (igual que en una plaza de calle real, donde el coche nunca calza justo la marca), efecto
+## aceptado por ahora.
 const PLAZAS_APARCAMIENTO: Array[Dictionary] = [
-	{"id": &"visita_1", "tipo": &"visita", "rect": Rect2i(-7, 7, 1, 2), "celda_ancla": Vector2i(-7, 8)},
-	{"id": &"visita_2", "tipo": &"visita", "rect": Rect2i(-6, 7, 1, 2), "celda_ancla": Vector2i(-6, 8)},
-	{"id": &"patrulla_1", "tipo": &"patrulla", "rect": Rect2i(-5, 7, 1, 2), "celda_ancla": Vector2i(-5, 8)},
-	{"id": &"patrulla_2", "tipo": &"patrulla", "rect": Rect2i(-4, 7, 1, 2), "celda_ancla": Vector2i(-4, 8)},
-	{"id": &"patrulla_3", "tipo": &"patrulla", "rect": Rect2i(-3, 7, 1, 2), "celda_ancla": Vector2i(-3, 8)},
+	{"id": &"visita_1", "tipo": &"visita", "rect": Rect2i(-7, 7, 1, 3), "celda_ancla": Vector2i(-7, 8)},
+	{"id": &"visita_2", "tipo": &"visita", "rect": Rect2i(-6, 7, 1, 3), "celda_ancla": Vector2i(-6, 8)},
+	{"id": &"patrulla_1", "tipo": &"patrulla", "rect": Rect2i(-5, 7, 1, 3), "celda_ancla": Vector2i(-5, 8)},
+	{"id": &"patrulla_2", "tipo": &"patrulla", "rect": Rect2i(-4, 7, 1, 3), "celda_ancla": Vector2i(-4, 8)},
+	{"id": &"patrulla_3", "tipo": &"patrulla", "rect": Rect2i(-3, 7, 1, 3), "celda_ancla": Vector2i(-3, 8)},
 ]
 
 ## Anclas con nombre para garita/barrera (sin sprite propio todavía — fuera del alcance de esta
@@ -165,6 +177,10 @@ const ANCLAS_FAROLAS_PERIMETRO: Array[Vector2i] = [
 
 # ── PROPS: rutas de los sprites renderizados (`tools/render_entorno_urbano.gd`) ──────────────────
 const CARPETA_PROPS := "res://assets/sprites/entorno/"
+## Las 4 rotaciones que trae cada pieza renderizada (`tools/render_entorno_urbano.gd`), en el orden
+## del CICLO (R en el diseñador avanza por este mismo orden). Usada por `textura_de_pieza` para
+## resolver cualquier entero de rotación a uno de los 4 PNG que existen de verdad.
+const ORIENTACIONES_VALIDAS: Array[int] = [0, 90, 180, 270]
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
 
 const TEX_ARBOL_URBANO := preload("res://assets/sprites/entorno/arbol_urbano_0.png")
@@ -218,6 +234,28 @@ const ESPACIADO_ARBOL_DISPERSO: int = 70
 ## césped libre (sin camino, sin plaza).
 const ESPACIADO_ARBOL_RECINTO: int = 8
 
+## ── ENTORNO FIJO (2026-08-07 — "¿podría hacerlo yo con esos objetos, como si fuera un builder?")
+## ────────────────────────────────────────────────────────────────────────────────────────────────
+## Si `res://datos/entorno_layout.json` existe, SUSTITUYE el scatter procedural entero (barrio de
+## casas, valla+seto del recinto, árboles/farolas/parterres del recinto, coches y el verde con
+## parches) por lo que el usuario compuso a mano con `ModoDisenadorEntorno`. Lo que NO cambia nunca
+## (fijo en código, con o sin layout): la calle, las aceras, el recinto/césped/camino base y las 5
+## plazas de aparcamiento pintadas -- ese es el ESQUELETO de circulación (`ANCLA_GARITA`, el
+## recorrido que bakea `NPCsFlujo`) del que depende el juego, y no es lo que el usuario pidió poder
+## tocar (pidió el "barrio disperso" y el decorado, no el trazado de acceso a la comisaría).
+##
+## El flujo de congelado (ver `ModoDisenadorEntorno`): el diseñador guarda en
+## `user://entorno_disenado.json`; cuando el usuario dice "ya tenemos el entorno", alguien copia ese
+## archivo a `res://datos/entorno_layout.json` (mismo esquema exacto -- ver `leer_layout`) y a partir
+## de ahí CUALQUIER partida arranca con ese entorno fijo. Ese paso de copia es MANUAL a propósito.
+const RUTA_LAYOUT_FIJO := "res://datos/entorno_layout.json"
+
+## Los tipos de superficie que pinta el pincel del diseñador, y su color -- LOS MISMOS planos que ya
+## usa el resto de este fichero (nunca se inventa un color nuevo para el layout fijo).
+const COLOR_POR_TIPO_SUPERFICIE: Dictionary[StringName, Color] = {
+	&"cesped": COLOR_CESPED, &"asfalto": COLOR_CALZADA, &"acera": COLOR_ACERA,
+}
+
 var _tam_celda: int = 40
 var _origen: Vector2 = Vector2.ZERO
 var _capa_suelo: TileMapLayer = null
@@ -225,16 +263,34 @@ var _capa_marcas: Node2D = null
 ## Assets CASI PLANOS (camino/calzada/acera/entrada de casa) -- sin y-sort, son parte del suelo.
 var _capa_overlays_planas: Node2D = null
 ## Assets CON ALTURA (valla/seto/árboles/casas/coches/farolas) -- CON y-sort (encargo: "orden de
-## dibujo interno por y para que no se solapen mal").
+## dibujo interno por y para que no se solapen mal"). Hijo de `_mundo_profundo` cuando lo hay (ver
+## `configurar`); si no, cae al patrón viejo (hijo de esta capa, fondo puro) -- SOLO por compatibilidad
+## con tests/herramientas sueltas que no montan un `Main` completo.
 var _capa_decor: Node2D = null
 var _fuentes: Dictionary[String, int] = {}
 ## Celdas ya reservadas por una casa del barrio (huella + margen) -- para que el scatter de árboles
 ## sueltos no plante uno encima de una casa recién colocada.
 var _celdas_reservadas_barrio: Dictionary = {}
+## Las ANCLAS de pantalla (el pie del poste) de cada farola colocada -- procedural o del layout fijo
+## -- para que `LucesObjetos.usar_farolas` las encienda de noche con el mismo mecanismo que las
+## comodidades interiores. Ver `puntos_farolas`.
+var _puntos_farolas: Array[Vector2] = []
 
 
-## Construye TODO el visual (una sola vez — nunca por frame).
-func configurar(tam_celda: int, origen: Vector2, columnas: int, filas: int) -> void:
+## Construye TODO el visual (una sola vez — nunca por frame). `mundo_profundo` es la bolsa de
+## profundidad de `Main` (ADR-0005): si se pasa, los props CON ALTURA de esta capa (`_capa_decor`)
+## cuelgan de ahí para COMPETIR por profundidad con las paredes/mobiliario/gente del edificio -- ver
+## la nota larga más abajo, junto a la creación de `_capa_decor`. `null` (por defecto) preserva el
+## comportamiento histórico para tests/herramientas que no montan un `Main` completo.
+## `ruta_layout_fijo` (por defecto `RUTA_LAYOUT_FIJO`) es un parámetro de INYECCIÓN, no una constante
+## leída a ciegas dentro del cuerpo (`coding-standards.md`: "preferir inyección de dependencias...
+## para que se pueda testear") -- así un test puede apuntar a un archivo de scratch en vez de tocar
+## el `res://datos/entorno_layout.json` real (que además, en un run de verdad, congelaría el entorno
+## para TODAS las partidas siguientes si un test se dejara algo a medio escribir).
+func configurar(
+	tam_celda: int, origen: Vector2, columnas: int, filas: int, mundo_profundo: Node2D = null,
+	ruta_layout_fijo: String = RUTA_LAYOUT_FIJO
+) -> void:
 	_tam_celda = tam_celda
 	_origen = origen
 	_avisar_si_invade_lo_jugable(columnas, filas)
@@ -247,7 +303,8 @@ func configurar(tam_celda: int, origen: Vector2, columnas: int, filas: int) -> v
 	_capa_suelo.z_index = Z_CAPA
 	add_child(_capa_suelo)
 
-	# ── 1) RELLENOS PLANOS (el único dibujo "por código" que queda -- ver la cabecera) ───────────
+	# ── 1) RELLENOS PLANOS del ESQUELETO fijo (calle/recinto/plazas -- ver la cabecera de "ENTORNO
+	# FIJO": esto se pinta SIEMPRE, con o sin layout de usuario) ─────────────────────────────────
 	_pintar_rect(RECT_CALZADA, COLOR_CALZADA)
 	_pintar_rect(RECT_ACERA, COLOR_ACERA)
 	_pintar_rect(RECT_CESPED, COLOR_CESPED)
@@ -261,7 +318,6 @@ func configurar(tam_celda: int, origen: Vector2, columnas: int, filas: int) -> v
 	_pintar_rect(RECT_ACERA_NAV_SUR, COLOR_ACERA)
 	for plaza: Dictionary in PLAZAS_APARCAMIENTO:
 		_pintar_rect(plaza["rect"], COLOR_APARCAMIENTO)
-	_pintar_verde_exterior()
 
 	_capa_marcas = Node2D.new()
 	_capa_marcas.name = "MarcasAparcamiento"
@@ -276,15 +332,36 @@ func configurar(tam_celda: int, origen: Vector2, columnas: int, filas: int) -> v
 	add_child(_capa_overlays_planas)
 	_capa_decor = Node2D.new()
 	_capa_decor.name = "Decor"
-	_capa_decor.z_index = Z_CAPA
 	_capa_decor.y_sort_enabled = true
-	add_child(_capa_decor)
+	if mundo_profundo != null:
+		# 🐛 FIX (2026-08-07, capas — el usuario: una farola/casa/coche del entorno pegada al SUR del
+		# edificio se dibujaba SIEMPRE detrás del muro, aunque estuviera "más abajo" en pantalla (lo
+		# que en isométrico debería taparlo a ÉL). Causa raíz: TODO `EntornoExterior` vivía a
+		# `z_index = Z_CAPA` (−5), muy por debajo del z=0 de `MundoProfundo` (paredes/mobiliario/
+		# gente) -- el z_index GANA SIEMPRE al orden por Y, así que ningún prop de esta capa podía
+		# dibujarse jamás delante de un muro. `_capa_decor` entra como hijo de `MundoProfundo` (se
+		# deja su `z_index` en el 0 por defecto: cualquier otro valor volvería a ganarle SIEMPRE al
+		# orden por Y) -- mismo patrón que ya usan `ParedesSalas`/`Construccion`/`NPCsFlujo`: un
+		# contenedor con `y_sort_enabled` propio colgado del bag exterior hace que SUS hijos compitan
+		# EN el bag exterior (verificado en el motor 4.6, ver el comentario largo de
+		# `Main._instanciar_mundo`). Las SUPERFICIES (`_capa_suelo`/`_capa_marcas`/
+		# `_capa_overlays_planas`) se QUEDAN en el fondo -- son parte del suelo, no compiten con nada.
+		mundo_profundo.add_child(_capa_decor)
+	else:
+		_capa_decor.z_index = Z_CAPA
+		add_child(_capa_decor)
 
-	_pintar_overlay_camino()
-	_colocar_casas_barrio()
-	_colocar_valla_y_seto()
-	_colocar_props_recinto()
-	_colocar_coches()
+	var fijo: Dictionary = leer_layout(ruta_layout_fijo)
+	if not fijo.is_empty():
+		_pintar_overlay_camino()
+		_aplicar_layout_fijo(fijo)
+	else:
+		_pintar_verde_exterior()
+		_pintar_overlay_camino()
+		_colocar_casas_barrio()
+		_colocar_valla_y_seto()
+		_colocar_props_recinto()
+		_colocar_coches()
 
 
 ## El punto de PANTALLA de una celda de esta capa.
@@ -295,6 +372,90 @@ func punto_pantalla_de_ancla(celda: Vector2i) -> Vector2:
 ## El `TileMapLayer` de suelo, para que sondas/tests puedan leer `get_used_cells()`.
 func capa_suelo() -> TileMapLayer:
 	return _capa_suelo
+
+
+## Las anclas de pantalla (pie de poste) de todas las farolas colocadas -- procedurales o del layout
+## fijo. `Main` se las pasa a `LucesObjetos.usar_farolas()` para que alumbren de noche con el mismo
+## mecanismo que las comodidades interiores (ver la cabecera de `LucesObjetos`).
+func puntos_farolas() -> Array[Vector2]:
+	return _puntos_farolas
+
+
+## ── LECTURA DEL LAYOUT (compartida con `ModoDisenadorEntorno`, que escribe el MISMO esquema en
+## `user://entorno_disenado.json`) ────────────────────────────────────────────────────────────────
+## `{"version":1, "piezas":[{"id":String,"celda":[x,y],"rotacion":int}, ...],
+##   "superficies":[{"celda":[x,y],"tipo":String}, ...]}`. Devuelve `{}` (sin avisar) si `ruta` no
+## existe -- caso normal (no hay layout todavía); `push_error` + `{}` si existe pero está corrupto/no
+## es el esquema esperado -- un layout inválido NUNCA debe tumbar el arranque del juego, solo cae al
+## procedural (o, en el diseñador, se trata como "vacío").
+static func leer_layout(ruta: String) -> Dictionary:
+	if not FileAccess.file_exists(ruta):
+		return {}
+	var f: FileAccess = FileAccess.open(ruta, FileAccess.READ)
+	if f == null:
+		push_error("EntornoExterior.leer_layout: no se pudo abrir '%s' (error %d)" % [ruta, FileAccess.get_open_error()])
+		return {}
+	var texto: String = f.get_as_text()
+	f.close()
+	var parseado: Variant = JSON.parse_string(texto)
+	if typeof(parseado) != TYPE_DICTIONARY:
+		push_error("EntornoExterior.leer_layout: '%s' no es un objeto JSON válido" % ruta)
+		return {}
+	return parseado
+
+
+## La textura de una pieza del catálogo (`assets/sprites/entorno/<id>_<rotación>.png`), cacheada por
+## ruta -- todas las piezas colocables (procedurales o del diseñador) tienen sus 4 rotaciones ya
+## renderizadas (`tools/render_entorno_urbano.gd`). `null` + aviso si el id/rotación no existe (un
+## layout guardado con un id viejo que ya no está en el catálogo no debe reventar la carga).
+static var _cache_texturas_layout: Dictionary[String, Texture2D] = {}
+static func textura_de_pieza(id: String, rotacion: int) -> Texture2D:
+	var rot: int = rotacion if ORIENTACIONES_VALIDAS.has(rotacion) else 0
+	var ruta: String = "%s%s_%d.png" % [CARPETA_PROPS, id, rot]
+	if _cache_texturas_layout.has(ruta):
+		return _cache_texturas_layout[ruta]
+	if not ResourceLoader.exists(ruta):
+		push_warning("EntornoExterior.textura_de_pieza: '%s' no existe -- pieza del layout ignorada" % ruta)
+		return null
+	var tex: Texture2D = load(ruta)
+	_cache_texturas_layout[ruta] = tex
+	return tex
+
+
+## Aplica un layout FIJO ya parseado (ver `leer_layout`): pinta las superficies pintadas a mano y
+## coloca cada pieza en su celda/rotación -- EN VEZ DE todo el scatter procedural (ver la cabecera
+## "ENTORNO FIJO"). Nunca toca el esqueleto (calle/recinto/plazas), que ya se pintó antes de llamar
+## aquí (ver `configurar`).
+func _aplicar_layout_fijo(datos: Dictionary) -> void:
+	for entrada: Variant in datos.get("superficies", []):
+		if typeof(entrada) != TYPE_DICTIONARY:
+			continue
+		var celda: Vector2i = _celda_de_entrada(entrada)
+		var tipo := StringName(String(entrada.get("tipo", "")))
+		if COLOR_POR_TIPO_SUPERFICIE.has(tipo):
+			_pintar_celda(celda, COLOR_POR_TIPO_SUPERFICIE[tipo])
+	for entrada: Variant in datos.get("piezas", []):
+		if typeof(entrada) != TYPE_DICTIONARY:
+			continue
+		var celda: Vector2i = _celda_de_entrada(entrada)
+		var id: String = String(entrada.get("id", ""))
+		var rotacion: int = int(entrada.get("rotacion", 0))
+		var textura: Texture2D = textura_de_pieza(id, rotacion)
+		if textura == null:
+			continue
+		if id == "camino_recinto" or id == "entrada_casa":
+			_colocar_overlay_plano(textura, celda)
+		else:
+			_colocar_prop(textura, celda)
+			if id == "farola":
+				_puntos_farolas.append(punto_pantalla_de_ancla(celda))
+
+
+func _celda_de_entrada(entrada: Dictionary) -> Vector2i:
+	var c: Variant = entrada.get("celda", [0, 0])
+	if typeof(c) != TYPE_ARRAY or (c as Array).size() < 2:
+		return Vector2i.ZERO
+	return Vector2i(int((c as Array)[0]), int((c as Array)[1]))
 
 
 func _avisar_si_invade_lo_jugable(columnas: int, filas: int) -> void:
@@ -602,8 +763,10 @@ func _colocar_props_recinto() -> void:
 					_colocar_prop(textura, celda)
 	for ancla: Vector2i in ANCLAS_FAROLAS:
 		_colocar_prop(TEX_FAROLA, ancla)
+		_puntos_farolas.append(punto_pantalla_de_ancla(ancla))
 	for ancla: Vector2i in ANCLAS_FAROLAS_PERIMETRO:
 		_colocar_prop(TEX_FAROLA, ancla)
+		_puntos_farolas.append(punto_pantalla_de_ancla(ancla))
 	# Dos parterres junto a la entrada (control), a lado y lado del camino -- toque de jardín de la
 	# referencia (`capturas/entorno.PNG`).
 	_colocar_prop(TEX_PLANTER, Vector2i(RECT_CONTROL.position.x, FILA_PUERTA - 2))

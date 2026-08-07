@@ -27,6 +27,11 @@ var _construccion: Node = null
 var _tiempo: Node = null
 ## `elemento_id -> PointLight2D`, para no recrear luces que ya existen.
 var _luz_de: Dictionary[StringName, PointLight2D] = {}
+## Las luces de las FAROLAS del entorno exterior (2026-08-07) -- ver `usar_farolas`. Lista aparte del
+## diccionario de arriba: una farola no tiene `elemento_id` de Construcción (vive fuera del rect
+## jugable, en `EntornoExterior`/`ModoDisenadorEntorno`), así que no puede entrar por
+## `_sincronizar_luces` (esa función solo pregunta a Construcción por objetos con `emite_luz`).
+var _luces_farolas: Array[PointLight2D] = []
 ## Firma de lo construido: si no cambia, no se toca ningún nodo.
 var _firma: String = ""
 ## Última energía aplicada (evita escribir en N luces cada frame por un cambio invisible).
@@ -43,10 +48,43 @@ func configurar(construccion: Node, tiempo: Node) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _construccion == null:
-		return
-	_sincronizar_luces()
+	if _construccion != null:
+		_sincronizar_luces()
 	_aplicar_energia()
+
+
+## ── LAS FAROLAS DEL ENTORNO EXTERIOR (2026-08-07) ────────────────────────────────────────────────
+## Mismo MECANISMO que las comodidades interiores (`PointLight2D` + la misma curva horaria
+## `energia_a_las` + la misma textura degradada `_crear_textura_luz`), con su PROPIA lista fijada de
+## una vez (no hay `elemento_id` de Construcción que diferenciar por DIFF — ver el campo). Reemplaza
+## la lista ANTERIOR entera: se llama una vez al montar el entorno (`Main._ready`) y de nuevo cada
+## vez que `ModoDisenadorEntorno` cambia el layout (colocar/borrar/cargar una farola) — nunca desde
+## `_process`.
+const COLOR_FAROLA := Color(1.0, 0.82, 0.55)
+const RADIO_FAROLA := 90.0
+## Desplazamiento en pantalla desde el ANCLA (el pie del poste) hasta la CABEZA del farol -- la luz
+## cuelga de ahí, no del suelo (aprox. del alto medido de `farola_0.png`, ~129 px -- ver
+## `tools/render_entorno_urbano.gd`).
+const DESVIO_LUZ_FAROLA := Vector2(0.0, -108.0)
+
+func usar_farolas(anclas: Array[Vector2]) -> void:
+	for luz: PointLight2D in _luces_farolas:
+		luz.queue_free()
+	_luces_farolas.clear()
+	if _textura == null:
+		_textura = _crear_textura_luz()
+	for ancla: Vector2 in anclas:
+		var luz := PointLight2D.new()
+		luz.texture = _textura
+		luz.color = COLOR_FAROLA
+		luz.texture_scale = RADIO_FAROLA / 64.0
+		luz.energy = 0.0
+		luz.blend_mode = Light2D.BLEND_MODE_ADD
+		luz.position = ancla + DESVIO_LUZ_FAROLA
+		luz.z_index = 3   # mismo criterio que el resto de esta clase: por encima de todo
+		add_child(luz)
+		_luces_farolas.append(luz)
+	_energia_vista = -1.0   # que la próxima `_aplicar_energia` las alcance YA, aunque no cambie la hora
 
 
 ## Crea o retira luces según lo que haya construido. Por DIFF: la firma es la lista de objetos
@@ -109,7 +147,7 @@ func _sincronizar_luces() -> void:
 ## Sube o baja la energía de TODAS las luces según la hora. Un solo cálculo por frame y, si el valor
 ## no ha cambiado de forma perceptible, ni se tocan los nodos.
 func _aplicar_energia() -> void:
-	if _luz_de.is_empty() or _tiempo == null:
+	if (_luz_de.is_empty() and _luces_farolas.is_empty()) or _tiempo == null:
 		return
 	var energia: float = energia_a_las(_tiempo.minutos_juego)
 	if absf(energia - _energia_vista) < 0.01:
@@ -119,6 +157,9 @@ func _aplicar_energia() -> void:
 		var luz: PointLight2D = _luz_de[elemento_id]
 		luz.energy = energia
 		luz.visible = energia > 0.01   # apagadas del todo, ni se dibujan
+	for luz: PointLight2D in _luces_farolas:
+		luz.energy = energia
+		luz.visible = energia > 0.01
 
 
 ## Cuánta luz dan a esa hora: **0 de día, 1 de noche**, con transición suave al anochecer y al

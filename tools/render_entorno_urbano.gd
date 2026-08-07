@@ -50,6 +50,29 @@ const CARPETA_ROADS := "res://capturas/fuentes/kenney_roads/Models/GLB format/"
 ##    y ruidosa) -- en su lugar se mide el ANCHO de la silueta en bruto y se fuerza a que ocupe
 ##    exactamente `ancho_objetivo_celdas × Proyeccion.ANCHO_ROMBO` px, que es la huella real de la
 ##    pieza en la rejilla isométrica del juego (80 px = 1 celda de ancho de rombo).
+##  · `longitud_objetivo_m` -- SOLO para los coches (2026-08-07, encargo "los coches ocupan MÍNIMO 3
+##    celdas; la mesa ocupa 2 y un coche es más grande"). Calibrar un coche por ALTURA (como el resto
+##    de piezas con volumen) da un resultado demasiado pequeño: el kit Kenney low-poly es "achaparrado"
+##    a propósito (estilo cartoon) y su alto real NO guarda la proporción alto:largo de un coche real.
+##    Igual que `ancho_objetivo_celdas`, este modo mide el ANCHO de la silueta en bruto a 0°, pero el
+##    objetivo sale de METROS × la misma conversión px/metro × factor de presencia que `altura_objetivo_m`.
+##    ⚠️ ESTE NÚMERO **NO ES el largo real del coche en metros** -- con la cámara isométrica a yaw 45°
+##    el "ancho en bruto" de un coche mide una combinación de su largo y su ancho, Y ADEMÁS
+##    `AnclajeSprite.semiejes_base` (la medida que de verdad importa: es la que usa el JUEGO para
+##    anclar cada prop) mide el CONTORNO INFERIOR de la silueta, que en un coche con guardabarros/
+##    parachoques queda por debajo de la huella "de caja" que asume esa función -- las dos cosas
+##    juntas hacen que la huella medida en celdas no coincida con la aritmética ingenua de arriba.
+##    ⚠️ GOTCHA DE ESTA MISMA TAREA: `load()` desde `--headless --script` (fuera del editor) devuelve
+##    el PNG CACHEADO en `.godot/imported/` si ya existía uno -- un re-render que SOBRESCRIBE el
+##    archivo en disco NO invalida ese caché por sí solo. Los dos primeros intentos de esta tarea
+##    midieron sin querer la MISMA imagen vieja cacheada (ninguno de los cambios de arriba se estaba
+##    viendo) y llevaron el número a un exceso absurdo (13,8-19,1 m -> 9-11 celdas reales). El PASO
+##    OBLIGATORIO antes de medir: `godot --headless --path <proyecto> --import` (reimporta todo y
+##    sale) SIEMPRE después de un re-render, antes de volver a medir con
+##    `tools/_diag_medir_coches.gd`. Con el caché ya limpio, estos tres valores (una REGLA DE TRES
+##    empírica sobre la medida real, mismo método que `MULTIPLICADOR_MOSTRADOR1`/`MULTIPLICADOR_SOFA3`
+##    de `render_mobiliario.gd`) dan una huella de ~3,2-3,6 celdas de largo -- verificado en el motor
+##    (intento 3 de 3, con el `--import` de por medio).
 ##
 ## Las 5 casas (tipos a/d/g/k/o -- variedad de fachada dentro del abecedario a..u del pack) llevan
 ## una altura ESCALONADA (6,0-8,0 m) a propósito: "elige 4-5 tipos variados" -- sin poder abrir cada
@@ -67,9 +90,9 @@ const MODELOS: Array[Dictionary] = [
 	{"id": "arbol_urbano", "ruta": CARPETA_SUMMER + "arbol_urbano.glb", "altura_objetivo_m": 4.5},
 	{"id": "seto", "ruta": CARPETA_SUMMER + "seto.glb", "altura_objetivo_m": 0.8},
 	{"id": "farola", "ruta": CARPETA_SUMMER + "farola.glb", "altura_objetivo_m": 4.0},
-	{"id": "coche_policia", "ruta": CARPETA_CARKIT + "police.glb", "altura_objetivo_m": 1.5},
-	{"id": "coche_sedan", "ruta": CARPETA_CARKIT + "sedan.glb", "altura_objetivo_m": 1.5},
-	{"id": "coche_suv", "ruta": CARPETA_CARKIT + "suv.glb", "altura_objetivo_m": 1.5},
+	{"id": "coche_policia", "ruta": CARPETA_CARKIT + "police.glb", "longitud_objetivo_m": 4.8},
+	{"id": "coche_sedan", "ruta": CARPETA_CARKIT + "sedan.glb", "longitud_objetivo_m": 5.3},
+	{"id": "coche_suv", "ruta": CARPETA_CARKIT + "suv.glb", "longitud_objetivo_m": 5.6},
 	{"id": "casa_a", "ruta": CARPETA_SUBURBAN + "building-type-a.glb", "altura_objetivo_m": 6.0},
 	{"id": "casa_d", "ruta": CARPETA_SUBURBAN + "building-type-d.glb", "altura_objetivo_m": 6.5},
 	{"id": "casa_g", "ruta": CARPETA_SUBURBAN + "building-type-g.glb", "altura_objetivo_m": 7.0},
@@ -181,6 +204,7 @@ func _ejecutar(todas: Dictionary) -> void:
 	for modelo: Dictionary in MODELOS:
 		var id: String = modelo["id"]
 		var por_ancho: bool = modelo.has("ancho_objetivo_celdas")
+		var por_longitud: bool = modelo.has("longitud_objetivo_m")
 		var nombres: PackedStringArray = _nombres_de(todas, id)
 		if nombres.is_empty():
 			push_warning("[ENTORNO URBANO] %s: receta vacía -- se salta" % id)
@@ -209,6 +233,19 @@ func _ejecutar(todas: Dictionary) -> void:
 			print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2f celdas->%.1fpx -> factor=%.4f" % [
 				id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
 				ancho_celdas, objetivo_px, escala_pieza
+			])
+		elif por_longitud:
+			# Ver la cabecera de `MODELOS`: mismo mecanismo que `ancho_objetivo_celdas` (mide el ANCHO
+			# de la silueta en bruto), pero el objetivo sale de METROS REALES x la conversión
+			# px/metro x factor de presencia -- la MISMA escala que usan el resto de piezas con volumen
+			# -- en vez de celdas de rejilla.
+			var longitud_m: float = modelo["longitud_objetivo_m"]
+			objetivo_px = longitud_m * PX_POR_METRO * FACTOR_PRESENCIA
+			medido_bruto_px = _medir_ancho(imagen_0)
+			escala_pieza = objetivo_px / float(maxi(medido_bruto_px, 1))
+			print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2fm->%.1fpx -> factor=%.4f" % [
+				id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
+				longitud_m, objetivo_px, escala_pieza
 			])
 		else:
 			var altura_objetivo_m: float = modelo["altura_objetivo_m"]
