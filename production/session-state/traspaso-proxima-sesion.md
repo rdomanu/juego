@@ -58,3 +58,12 @@ ESPAÑOL llano con orden y detalle (MEMORY.md — leerla). NUNCA ofrecer parar. 
 2. git status: debe haber SOLO el lote de UI sin commitear (más untracked intencionado: sondas _diag_*, morralla vieja, packs). Pregunta el veredicto del usuario sobre la UI nueva (la estaba probando) → suite + visual + commit del lote UI.
 3. Pregunta si pushear los 17 commits.
 4. Saluda en llano: estado, la cola (UI → casas grandes → su sesión de diseño → congelado), y qué decisiones le esperan.
+
+═══ ÚLTIMO MINUTO (cierre real de la sesión, 2026-08-08) ═══
+- Suite del lote UI: VERDE (Exit 0). Falta SOLO el veredicto visual del usuario sobre la UI
+  nueva (¿solape resuelto con F12? ¿barra de pestañas a gusto?) → entonces commit del lote UI.
+- EN VUELO al cerrar: agente re-renderizando las CASAS a escala de parcela (6-8 celdas, scatter
+  reducido, huella del diseñador actualizada) — si no terminó, relanzar esa tarea con el mismo
+  encargo (está descrito en la cola, punto 2). Verificar contra disco lo que dejara hecho
+  (assets/sprites/entorno/casa_*.png re-renderizados o no, entorno_exterior.gd tocado o no).
+- git: 18 commits sin pushear (hasta e14d443 docs del traspaso). El lote UI sigue sin commitear.
