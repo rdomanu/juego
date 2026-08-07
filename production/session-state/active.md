@@ -2694,3 +2694,310 @@ en el juego (paleta completa disponible).
 - Gotchas de sesión: summer_replace_text multilinea FALLA en archivos CRLF (main.gd) → old_text
   de una línea · sondas con ModoConstruccion → set_process(false) · los PNG de "4 direcciones"
   de la IA de Summer NO son rotaciones reales.
+
+---
+
+# ⭐ HITO 2026-08-06 (sesión Fable, commit 9a5b72b) — 4 posiciones + impresora DNI
+
+- **Rotación 4 posiciones REAL** (pedido del usuario): R cicla 0/90/180/270, huella traspuesta
+  en 90/270, sprites rotacion_directa con fallback 2 vistas, migración saves (1→90). 12 tests.
+- **Triángulo azul de orientación** en preview de colocación (capa UI construcción, no y-sort).
+- **Impresora de DNI integrada**: modelo 3D Summer (plan Pro CONTRATADO hoy; ~3% cupo/pieza),
+  aprobada "tal cual" por el usuario (alta ~2,30m, imponente), 4 vistas reales del pipeline
+  propio a 58px, comodidad_impresora_dni_*, superficie=2, CREDITS al día. GLB en
+  capturas/fuentes/impresora_dni_summer/.
+- **Spec mecánica DNI DECIDIDO** (design/quick-specs/impresora-dni-quick-spec.md): cola FIFO
+  por máquina, ámbito por sala, OBLIGATORIA a 2.200€ (decisión usuario, excepción a regla
+  600€), sustituye bonus pasivo, malus enfado clamp [1.0,1.3], ratio 1:10 atasco / 3-4:10
+  fluido (Sakasegawa). PENDIENTE DE IMPLEMENTAR (historia futura).
+- Suite 850/850 Exit 0 + arranque limpio. Sondas nuevas desechables en tools/ (_diag_triangulo,
+  _diag_rotacion_4, _diag/render/hoja impresora_dni*).
+- **Estrategia de gasto Summer pactada**: pago solo piezas protagonistas; gratis vía KayKit
+  local (nevera fridge_A/B, lámparas, mesas, sillas/sofás/estanterías para lote REVISAR),
+  biblioteca Summer (árboles/setos/farola/calzada excelente; SIN oficina/electrodomésticos),
+  7 sprites viejos de Summer ya pagados. Único hueco de pago detectado: revistero.
+
+## 📌 PEDIDO DEL USUARIO (2026-08-06, durante playtest — PENDIENTE, tras los bugs del cursor):
+Viaje del papel VISIBLE de punta a punta: el policía vuelve de la impresora CON un papel en
+las manos → gesto de entrega al ciudadano en la ventanilla → el ciudadano sale de comisaría
+con el papel a la vista. (Extiende el viaje visual de npcs_flujo recién cableado; aplica a
+impresora de documentos y en su día a la de DNI.)
+
+## 🐛 BUG DEL PLAYTEST (2026-08-06): el viaje visual de la impresora ATRAVIESA LA MESA
+El policía va en línea recta a la impresora (cruza el mostrador/mesa, sin esquivar mobiliario)
+y a la vuelta pasa por el NPC/ciudadano antes de volver a su silla (parada intermedia rara).
+Arreglar JUNTO con el papel visible (mismo código, npcs_flujo/_camino_impresora): usar el
+pathfinding real con obstáculos (como los ciudadanos), coreografía ida→recoger→mesa→entrega.
+
+## ✅ DECISIÓN DEL USUARIO (2026-08-06): VENTANAS EN LA FACHADA — SÍ
+Se abre la regla "la fachada no se toca" SOLO para ventanas: el jugador podrá poner ventanas
+en los muros fijos (la fachada sigue indemolible y sin puertas nuevas). Al diseñar el plano de
+la comisaría inicial nueva, incluir algunas ventanas de serie. Implementar tras el fix del
+cursor (mismo código de construcción). Ref: construccion.gd fijar_tipo_de_muro (_muros_fijos).
+
+## 🪑 EN CURSO (2026-08-06): mesa de ventanilla 2 celdas con Summer
+Job de generación 3D lanzado (idempotencyKey comisario-mesa-ventanilla-v1, ~0,54$, OK del
+usuario). Spec del BLOQUE 2×3: fila ciudadano (2 celdas, silla centrada) + MESA 2 celdas
+(estilo ventanilla, solo el mueble, sin sillas pegadas) + fila policía (2 celdas, silla de
+escritorio en medio con hueco a los lados). Al llegar: pipeline 4 vistas reales + hoja del
+bloque 2×3 montado con las sillas existentes y muñecos → veredicto del usuario.
+
+## 💡 IDEA DE DISEÑO APROBADA EN CONCEPTO (2026-08-06): ventanillas y sillas por CALIDADES
+3 tiers de mobiliario de atención con precio/beneficio crecientes. Reparto de efectos propuesto
+por el coordinador y bien recibido: mesa de ventanilla (3 calidades) → RAPIDEZ del trámite ·
+silla del policía (3 calidades) → CANSANCIO/fatiga (engancha con descansos/café) · silla del
+ciudadano (3 calidades) → PACIENCIA mientras espera (engancha con sistema de paciencia).
+Cada compra resuelve un problema visible distinto. La mesa 2×3 de Summer en curso = base de las
+3 versiones (misma silueta, acabados distintos). PENDIENTE: quick-spec con números cuando pase
+la cola actual (bugs cursor + papel visible + ventanas fachada).
+REGLA AÑADIDA POR EL USUARIO (2026-08-06): las sillas de los tiers son objetos SUELTOS e
+independientes del bloque de ventanilla — colocables en cualquier sitio (decorativas, esquinas,
+sala de espera). El bloque 2×3 es disposición recomendada, NUNCA un mueble soldado. El efecto
+de cada silla aplica por contexto (junto a puesto → policía; en espera → ciudadano sentado).
+ACTUALIZACIÓN mesas ventanilla (2026-08-06): concepto de la 1ª mesa APROBADO por el usuario con
+un defecto señalado: el monitor mira al CIUDADANO y debe mirar al POLICÍA (pendiente decidir si
+se regenera o se disimula). Encargadas las otras 2 variantes del tier (OK de gasto dado):
+BÁSICA (mesa sencilla + CRT antiguo ancho mirando al policía, sin mampara; job
+comisario-mesa-ventanilla-basica-v1) y PRO (mesa moderna + 2 pantallas planas al policía +
+mampara; job comisario-mesa-ventanilla-pro-v1). GLB de la 1ª (media) en
+capturas/fuentes/mesa_ventanilla_summer/ — OJO: trae una SILLA NEGRA incrustada pese al prompt
+(comprobar si es nodo separable al renderizar; si está fusionada, decidir regenerar/disimular).
+MESAS VENTANILLA — veredictos del usuario (2026-08-06): PRO APROBADA tal cual (blanca moderna,
+2 pantallas, placa policial, sin silla). BÁSICA v1 rechazada por: mampara de cristal que no
+debe llevar + CRT demasiado grande/mal puesto → regenerada como v2 (job
+comisario-mesa-ventanilla-basica-v2, OK de gasto dado): sin cristal/mampara/silla/cajonera,
+CRT pequeño centrado delante del policía. MEDIA (v1): concepto aprobado, defectos conocidos
+(monitor mira al ciudadano + silla incrustada) — pendiente decidir tras comprobar en render si
+la silla es nodo separable.
+
+## 🛒 FICHAJES DEL USUARIO EN LA BIBLIOTECA GRATIS (2026-08-06, del catálogo HTML):
+1. Escritorio "Low Poly Game Asset" → mesa de trabajo INTERNA (no atención al público; para
+   judicial/despachos futuros — judicial aún no existe).
+2. Silla "Low Poly Office Chair" → aprovechar (candidata al lote REVISAR de sillas infladas).
+3. "Low Poly Vending Machine" → le gusta MÁS que la vending vieja de Summer (sin integrar) →
+   sustituirla.
+PLAN: descargar los 3 GLB de la biblioteca (gratis) + render 4 vistas a escala + hojas con
+muñeco → veredicto del usuario → integrar. BATCH junto con las 3 mesas de ventanilla, cuando
+el motor quede libre (no mientras el usuario juega — regla anti-pantalla-gris).
+
+## ✅ PLAN UI KENNEY APROBADO Y EN COLA (2026-08-06): Theme de Godot con Kenney UI Pack v2.0
+local (tema azul+gris claro) + paneles de los packs UI Kenney de la biblioteca Summer (gratis).
+Fases: 0 cimientos (inventario+Theme) → 1 barra de construcción (pestañas por categoría con
+icono, tarjetas con miniatura+precio, fotomontaje previo sobre pantallazo real) → 2 HUD de
+partida → 3 ventanas. Posición en cola: DESPUÉS del lote de renders (mesas+fichajes), para que
+el fotomontaje enseñe las mesas nuevas. Todo capa visual, cero coste.
+
+## 📌 PEDIDO DEL USUARIO (2026-08-06, playtest): DESPLAZAMIENTO DE CÁMARA
+"Si hago zoom quiero también desplazarme" — hoy solo existe zoom con rueda, sin pan. Implementar:
+WASD/flechas + arrastre con botón central del ratón · velocidad proporcional al zoom · límites
+del tablero. HACER JUSTO DESPUÉS del fix definitivo del picking (mismo territorio de
+cámara/input — el picking corregido debe funcionar también con la cámara desplazada, así que
+el orden es: fix picking → pan de cámara → verificar picking CON pan y zoom juntos).
+SÍNTOMA ADICIONAL confirmado por el usuario (mismo bug de picking): al COLOCAR objetos
+(p. ej. una silla) tampoco respeta la celda elegida — aparece en otro lado. Coherente con la
+mezcla de espacios: el clic de colocación pasa por la misma conversión desviada que el
+resaltado. Verificar en la sonda del camino real que colocar también acierta.
+
+---
+
+# ⭐ CHECKPOINT 2026-08-06 (tarde) — commits 5-8 del día
+
+- `61c090e` nevera blanca + lámpara pie KayKit (CC BY) · `18f882d` unificación agua (dispensador
+  grande CON rotación real elegido por el usuario; fuente_agua retirada; procedencia real:
+  kit Isometric office) · `36e0cc3` fix silla-sobre-impresora (orientación vieja duplicada en
+  impresora_documentos) + picking consciente de muros · `ebbed1f` **fix GORDO: fórmula de zoom
+  INVERTIDA en Main._cambiar_zoom (~150px de deriva por paso de rueda) + fantasma de colocación
+  a capa con transform de cámara** (verificado camino real 3/3 + visual 4/4 a 0.00px) ·
+  `1adba83` silenciados 116 warnings/sesión (obtener_silencioso en _al_tramite_completado).
+- Suite tras todo: **857/857 Exit 0**. El "cursor desviado" del usuario tenía TRES capas:
+  picking plano sin muros → dibujo en capa sin cámara → fórmula de zoom invertida. Las tres
+  arregladas con regresiones.
+- INCIDENTES de proceso: caché .godot corrupta por instancias concurrentes (pantalla gris) →
+  regla dura: NADA de imports/tests con el juego abierto; import completo la reconstruye.
+  El usuario cierra ventanas negras de consola → avisado de que son los tests.
+  Agente borró _check_trazado.gd (untracked, irrecuperable, impacto bajo) → regla nueva en
+  memoria: prohibir borrados de archivos ajenos en prompts.
+- Mesas Summer: PRO renderizada y en hoja (bloque 2×3 con sillas actuales) · media y basica_v2
+  FUSIONADAS (silla/mampara no separables) → PENDIENTE decisión usuario: regenerar por módulos
+  (mesa vacía + aparatos nuestros compuestos, ~0,54$/u).
+- Fichajes biblioteca (escritorio+silla+vending) descargados; render+hoja EN CURSO.
+- PENDIENTE usuario: mesas por módulos sí/no · veredicto hoja fichajes · ¿ventanas cerradas
+  por él o solas? (sin errores en log; sospecha: cierra las consolas negras).
+
+## 📏 REGLAS DE LÓGICA DE BLOQUES fijadas por el usuario (2026-08-06 noche):
+- TODA mesa (ventanilla Y escritorio de trabajo interno) ocupa 2 CELDAS de ancho, con la silla
+  CENTRADA entre las 2 celdas de su lado.
+- SILLAS: el POLICÍA lleva silla de escritorio (con ruedas); el CIUDADANO una silla NORMAL
+  (nunca de escritorio — "no vas a un sitio y te ponen una silla de escritorio").
+- ORIENTACIÓN: TODO el mundo se sienta MIRANDO A LA MESA (en la hoja anterior ambas sillas
+  miraban hacia fuera — mal). Replicar la geometría real del juego (mesa_atencion).
+- Los 3 TIERS de ventanilla deben verse LOS 3 en la hoja: básica (mesa vacía v3 + CRT antiguo
+  generándose, job comisario-crt-antiguo-v1) · media (mesa+mampara vacía generándose, job
+  comisario-mesa-ventanilla-media-v2-vacia, + monitor plano equipo_informatico compuesto) ·
+  pro (aprobada tal cual).
+- VENDING NUEVA: APROBADA por el usuario → integrar (sustituye a la vieja) en el próximo lote
+  de integraciones. Escritorio y silla: pendientes del veredicto sobre la hoja corregida.
+
+## ✅ DECISIONES UI DEL USUARIO (2026-08-07 — las 5 del plan maestro):
+1. Encargo de arte: SISTEMA VISUAL COMPLETO, identidad POLICÍA NACIONAL ESPAÑOLA.
+2. Personal/Horario: VENTANA FLOTANTE para decisiones rápidas (como ahora); PANTALLA COMPLETA
+   para gestión compleja de niveles superiores (gestión de la comisaría).
+3. BARRA SUPERIOR nueva: información (reloj/dinero/velocidad/satisfacción) ARRIBA, herramientas ABAJO.
+4. BANDEJA DE AVISOS: SÍ entra en el encargo de arte aunque eventos/quejas no estén implementados.
+   ⚠️ APUNTADO PARA NO DUPLICAR: cuando se implementen eventos aleatorios/quejas, el arte de
+   avisos YA EXISTIRÁ — reutilizarlo, no encargarlo de nuevo.
+5. TONO: TYCOON SIMPÁTICO (tipo los tycoon clásicos), no dosier sobrio. (Actualiza ui-hud.md.)
+SIGUIENTE: redactar el prompt detalladísimo para Summer (revisión del usuario antes de gastar).
+
+## ✅ ENTORNO EXTERIOR: APROBADA FASE 1 (2026-08-07) con las recomendaciones: calle solo fachada
+sur + acera + 2-3 árboles/setos apagados + farola. Fase 2: aparcamiento 1 plaza + patrulla azul
+CNP. Banco/contenedor después. Implementar cuando el motor quede libre de la hoja de ventanillas.
+
+## 🧱 DESCUBRIMIENTO DEL USUARIO: Kenney Building Kit (kenney.nl/assets/building-kit, CC0) —
+kit de paredes/construcción que podría servir para el interior. ⚠️ EVALUAR ANTES DE ADOPTAR:
+nuestras paredes son DIBUJADAS POR CÓDIGO (pintura por CARA, modos auto/todas/bajitas, 65px) —
+un kit 3D texturizado puede chocar con la pintura por caras. Hacer comparativa visual + informe
+técnico (art-director + godot) antes de decidir. Descargar el kit a capturas/fuentes/.
+
+## 🏙️ ENTORNO EXTERIOR — DISEÑO DEL USUARIO (2026-08-07, sustituye la fase 1 genérica):
+Layout realista de comisaría: CALLE (solo zona de entrada) → CONTROL DE SEGURIDAD con GARITA
++ BARRERAS → recinto con APARCAMIENTO (3 plazas coche patrulla + 2 libres visitas) → entrada
+del edificio. Alrededor: bancos, farolas y vida · PARQUE pequeño al lado · FACHADAS de edificios
+de fondo completas SIN interior (decorado). ⚠️ kenney_carkit: EXCLUIR TRACTORES (solo turismos/
+furgonetas). "Piensa bien antes de pedir lo del entorno" — el concepto debe pensarse con este
+recorrido de seguridad antes de encargar/producir nada.
+
+## ✅ VEREDICTOS DEL USUARIO sobre hoja_ventanillas_final (2026-08-07):
+- SILLAS CIUDADANO: A aprobada (tier básico) · C aprobada como TIER INTERMEDIO (azul) · crear
+  una TERCERA con reposabrazos más cómoda (tier alto, generación pendiente ~0,54$).
+- ESCRITORIO: aprobado, PERO sobraba la silla negra compuesta — la blanca YA viene horneada en
+  el modelo y se queda ESA. Bloque escritorio SIN silla_oficina añadida.
+- VENTANILLAS: básica y media BIEN orientadas · PRO MAL: mesa/ordenador miran al ciudadano →
+  usar la rotación del modelo con monitores al policía (tiene 4 vistas renderizadas).
+- BÁSICA: el CRT sale FLOTANDO sobre la mesa → corregir asiento de la composición.
+- MEDIA: se ven 2 monitores POR ENCIMA de la mampara → UN solo monitor, integrado (más bajo,
+  fuente: pantalla individual del kit isometric office u otra gratis).
+- 🔑 DECISIÓN DE DISEÑO: YA NO se mejora equipamiento suelto — SE MEJORA LA VENTANILLA COMPLETA
+  (básica → media → pro; la utilidad de cada tier se verá). Actualizar quick-specs cuando toque.
+- ENTORNO: TODO ADELANTE ("hazlo y lo vamos viendo") SALVO garita+barrera: al usuario le da
+  miedo que la IA no la haga bien y propone CONSTRUIRLA ÉL con las piezas del Building Kit y
+  que la usemos → preparar sesión de edición del usuario (commit antes, regla nunca-dos-editores).
+- PROMPT UI: aprobado con UN cambio — color base BLANCO en lugar de crema. "Vamos viendo" →
+  pieza piloto (pestañas+tarjeta) tras actualizar el doc.
+
+## ✅ VEREDICTOS v2 (2026-08-07): ESCRITORIO OK (integrar) · BÁSICA: CRT descentrado/teclado
+levitando → centrarlo SIN que sobresalga (fix: componer EN 3D, no en 2D) · MEDIA: monitor muy
+PEQUEÑO → más grande, y NO puede dibujarse encima de la mampara (capas — fix: componer en 3D
+para oclusión real) · BLOQUES COMPLETOS por tier: básica=mesa+silla A · media=mesa+silla C ·
+pro=mesa+SILLA NUEVA CÓMODA del ciudadano (generándose, reposabrazos) — la ventanilla se
+mejora EN BLOQUE (mesa+sillas juntas) · PRO OK · UI: ESTILO APROBADO ("azul policía con fondo
+blanco") → producir el resto del kit (lecciones piloto: fondo magenta sólido, hover sin halo).
+
+## ✅ VEREDICTOS FINALES VENTANILLAS (2026-08-07): APROBADAS con sillas por tier:
+BÁSICA=silla madera A · MEDIA=silla azul C · PRO=silla cómoda nueva (GLB descargado,
+silla_ciudadano_comoda.glb, falta render 4 vistas). GO INTEGRACIÓN: la ventanilla actual del
+juego pasa a arte del TIER BÁSICO; media y pro integradas como assets para la futura mecánica
+de mejora por bloque. + escritorio + sillas A/C/cómoda + vending nueva. Precios provisionales.
+
+## ✅ ENTORNO AMPLIADO (2026-08-07): cubrir TODA la comisaría alrededor hasta LÍMITE
+infranqueable (estilo Theme Hospital: nunca ver vacío al mover la cámara) · más jardín, más
+parking/aceras, algún edificio de fondo — criterio libre del coordinador ("lo que veas").
+EMPAREJAR con el PAN DE CÁMARA pendiente (WASD/arrastre + límites = no ver vacío). Tras la
+integración. Base fase 1 YA verificada (12/12 tests + sonda, SIN commit aún — commit con suite).
+
+---
+# ⭐ CHECKPOINT commits 9-10 (2026-08-07): b8da661 entorno base fase 1 (capa EntornoExterior,
+calle/recinto/5 plazas/césped, 12 tests, sonda 115 celdas) · a05eec1 MEGA-LOTE catálogo 11→16:
+ventanilla del juego = TIER BÁSICO en vivo (mesa+CRT composición 3D, sillas por rol, Asiento
+25€ hereda arte madera) · tiers media/pro como assets (mecánica de mejora pendiente de
+quick-spec) · escritorio 350 + silla_oficina 90 + sillas espera 25/60/120 provisionales ·
+vending sprite nuevo · CREDITS +10. Suite 873/873 + arranque limpio.
+SIGUIENTE EN MOTOR: entorno COMPLETO alrededor (perímetro entero estilo Theme Hospital, más
+jardín/parking/aceras/edificios de fondo a criterio) + PAN DE CÁMARA con límites (WASD +
+arrastre botón central + velocidad por zoom + clamp al entorno). Luego: props del entorno
+(árboles/farolas/coches sin tractor) · garita del usuario cuando quiera · piezas UI restantes
+(4/8 hechas) · quick-spec mejora de ventanilla · papel visible + ruta impresora sin atravesar
+mesas · ventanas en fachada · evaluación Building Kit paredes.
+
+## 💡 ESTÁNDAR PROPUESTO POR EL USUARIO (2026-08-07): LADO DE ACCIÓN de cada objeto
+"Elaborar un plan para seleccionar un lado de acción: qué lado del diseño tiene que ir mirando
+a quién" — vending: acción en el frontal · silla: lado contrario al respaldo · ordenador: donde
+esté el funcionario... Sistematizar: metadato frente_accion por objeto en catálogo + convención
+de vistas ligada al lado de acción + LEY de verificación (toda hoja enseña al muñeco USANDO el
+lado de acción en cada rotación — sentado en sillas, de pie frente a máquinas). Doc en
+elaboración: design/art/lado-de-accion.md. Motivado por la silla del ciudadano 2 veces al revés.
+
+---
+# ⭐ CHECKPOINT commits 11-13 (2026-08-07 tarde): 9cf1bb5 silla 180 (insuficiente) · b250f2f
+CIUDAD ALREDEDOR COMPLETA (manzanas 6x6 deterministas, 1/5 parque, acera perimetral, acceso
+oeste intacto) + PAN DE CÁMARA (WASD/flechas/botón central, velocidad∝zoom, clamp al rect de
+cobertura = single source of truth con el dibujo; 15 tests) · 84db7de SILLA DEFINITIVA a 225°
+(vista de ACCIÓN elegida con muñeco sentado + recortes; azul/cómoda listas) + estándar
+design/art/lado-de-accion.md COMMITEADO (migración 18 objetos, 2 verificados; AVISO: sala de
+espera comparte mecanismo, verificar con muñeco sentado pendiente).
+Suite 887/887. 13 commits en el ciclo 2026-08-06/07.
+COLA VIVA: props del entorno sobre anclas (árboles/farolas/coches SIN tractores/banco) · piezas
+UI 5-8 (marco modal, pantalla completa, bandeja avisos, iconos ×2) · garita del usuario ·
+quick-spec mejora ventanilla por bloque · papel visible + ruta impresora sin atravesar mesas ·
+ventanas en fachada · evaluación Building Kit paredes · verificar sillas sala de espera con
+muñeco sentado · playtest del usuario del mega-lote.
+
+## 🔴 FEEDBACK PLAYTEST ENTORNO (2026-08-07): "muy raro, solo cuadrados de colores, no hay
+vida, las manzanas pequeñas y muchas" + "el recinto de la comisaría es inexistente".
+REHACER: 1) manzanas MÁS GRANDES y MENOS (calles 2 celdas, menos densidad, tejados con detalle
+—variación, parapetos, sombras—) · 2) RECINTO REAL: valla perimetral dibujada por código
+(estilo murete bajito del juego) rodeando explanada+aparcamiento, con hueco de entrada en el
+control (donde irán garita+barrera) · 3) VIDA: pasada de props YA — árboles urbanos en aceras y
+parques ("Low Poly Street Tree" descargándose), setos, farolas, coches del carkit (police.glb +
+turismos SIN tractores) en las plazas.
+
+## 🎮 PROPUESTA DEL USUARIO ACEPTADA (2026-08-07): MODO DISEÑADOR DE ENTORNO
+"¿Podría hacerlo yo con esos objetos, como si fuera un builder, y cuando lo tenga te digo 'ya
+tenemos el entorno' y lo guardas fijo para la primera comisaría?" → SÍ. Plan: herramienta
+in-game (patrón ModoConstruccion) con paleta de piezas del entorno (casas/valla/caminos/
+árboles/setos/farolas/coches/jardineras — los 22 sprites de assets/sprites/entorno/), colocación
+con rejilla + R + triángulo + cámara nueva, guardado a archivo de datos; al "ya tenemos el
+entorno" del usuario → se congela como entorno FIJO de la comisaría 1 (committeado). También
+servirá para montar la garita. Orden: commit reforma actual como base → construir el modo →
+sesión de diseño del usuario.
+REGLA DE ESCALA DEL USUARIO (2026-08-07): los COCHES ocupan MÍNIMO 3 CELDAS de largo ("la mesa
+ocupa 2 y un coche es más grande que una mesa"). Aplicar en el lote del modo diseñador:
+re-render de los coches del carkit a huella 3×1 mínimo (largo ≈4,5m con el factor de presencia)
++ redimensionar las plazas de aparcamiento acorde. Añadir la regla a design/art/plan-escalado.md
+cuando se toque ese doc (tabla de referencias relativas: mesa 2 celdas < coche 3+ celdas).
+
+---
+# ⭐ CHECKPOINT commits 14-16 (2026-08-07 noche): 098256e reforma entorno con assets reales
+(recinto campus, 5 casas Kenney, valla por tramos con hueco, props; Metro Corner descartado
+con evidencia; losetas de carretera aplazadas) · 05d590e MODO DISEÑADOR DE ENTORNO (flag
+--disenador + F12, paleta completa, F8 guarda a user://entorno_disenado.json, congelado =
+copiar a res://datos/entorno_layout.json que sustituye el scatter) + FIX CAPAS (props verticales
+del entorno a la bolsa y-sort de MundoProfundo — farolas del sur ya no se cortan, bug cazado
+por el usuario) + COCHES a 3,19 celdas (regla "mínimo 3") con plazas 1×3 + FAROLAS NOCTURNAS
+(luces_objetos, mismo mecanismo interior). Suite 905/905.
+PENDIENTE INMEDIATO: sesión de DISEÑO DEL USUARIO con el modo (lanzar con --disenador) → al
+"ya tenemos el entorno", congelar su layout. Después: piezas UI 5-8 · garita (la montará en el
+diseñador con piezas cuando estén en paleta o aparte) · quick-spec mejora ventanilla · papel
+visible · ventanas fachada · verificar sillas sala de espera sentadas · retoques estética
+entorno si el usuario los pide tras diseñar (vallas naranjas, variedad de árboles).
+
+## 🔴 FEEDBACK DEL DISEÑADOR EN USO (2026-08-07 noche): "funciona bien, me gusta" PERO:
+1. CASAS MUY PEQUEÑAS (escala vs coches/personas/comisaría — "una porción muy pequeña al lado
+   del edificio"): re-render a escala de PARCELA (~6-8 celdas de ancho, ~2-3× lo actual; una
+   casa >> un coche). El layout del usuario guarda celda+rotación → sus casas colocadas se
+   re-escalan solas al recargar sprites.
+2. UI URGENTE: el menú del diseñador SE SOLAPA con los datos del juego y cuesta seleccionar →
+   quick-fix: ocultar HUD del juego con el editor activo + recolocar/agrandar paleta. Y
+   acelerar el kit de UI completo (generando piezas 5-8 ya).
+
+## 🎨 UI IMPLEMENTADA SIN VERIFICAR (2026-08-07 noche, SIN commit — motor ocupado por la
+sesión de diseño del usuario): kit troceado (41 piezas assets/ui/kit/, contact-sheet en
+scratchpad; bordes "regulares" en hovers con halo + posible defringe pendiente en iconos) ·
+theme_comisario.tres (9-slice con márgenes ESTIMADOS, ajustar a ojo en editor) + fuente Kenney
+Future · src/ui/kit_ui_comisario.gd · barra de construcción NUEVA por pestañas+tarjetas+Demoler
+fijo (modo_construccion.gd) · FIX SOLAPE: HUD se oculta con el diseñador activo (señal
+activado_cambiado→main.gd) · paleta del diseñador con Theme y botones ≥48px · CREDITS (fuente
++ kit) · 2 tests nuevos escritos SIN ejecutar. Piezas de arte: todas menos la plantilla de
+pantalla completa (futuro). VERIFICAR AL LIBERARSE EL MOTOR: suite completa + visual (B barra
+nueva, márgenes 9-slice, --disenador+F12 oculta HUD) → commits. + CASAS a escala de parcela
+(re-render 2-3×) en el mismo hueco.
