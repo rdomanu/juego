@@ -84,12 +84,21 @@ const COLOR_SILLA := Color(0.30, 0.32, 0.38)
 ## `construir()` elige uno u otro con `es_legado`.
 const RUTA_SPRITES_MOBILIARIO := "res://assets/sprites/mobiliario/"
 const ID_SPRITE_MOSTRADOR := "mostrador_atencion"
-const ID_SPRITE_MOSTRADOR_2 := "mostrador_atencion2"
+## TIER BÁSICO (2026-08-07): sustituye a `mostrador_atencion2` (generación anterior) por la mesa de
+## ventanilla de Summer (`capturas/fuentes/mesa_ventanilla_summer/mesa_ventanilla_basica_v3_vacia.
+## glb`, renderizada por `tools/_render_mesa_ventanilla_lote.gd`). Es la PRIMERA pieza de un lote de
+## 3 tiers (básico/medio/pro, `design/art/mapa-integracion-mobiliario.md`); medio y pro solo tienen
+## sus PNG en `assets/` por ahora — sin mecánica de mejora todavía, ver el informe del lote.
+## `mostrador_atencion2_*.png` NO se borra (arte de otra generación, no creado en esta pasada): se
+## queda huérfano en `assets/` como referencia/fallback manual si hiciera falta revertir.
+const ID_SPRITE_MOSTRADOR_2 := "ventanilla_basica"
 ## Solo 0° por ahora: los puestos de atención SIEMPRE se construyen con la misma orientación fija
 ## (`CELDA_FUNCIONARIO`/`CELDA_CIUDADANO` no dependen de `orientacion` — `Construccion._crear_
 ## pieza` ni se la pasa a los puestos), así que no hace falta elegir entre las 4 rotaciones
 ## renderizadas. 0° es la que se vio, mirando las 4: el monitor de espaldas a cámara (nunca se le
 ## enseña la pantalla al ciudadano, ver la cabecera del fichero) y sin nada raro en el encuadre.
+## Verificado de nuevo con `ventanilla_basica` (2026-08-07, `_check_ventanilla_basica.png`): a 0° ya
+## se ve el DORSO del monitor CRT — la nueva mesa nace con la misma pose correcta, sin retocar nada.
 const ROT_MOSTRADOR: int = 0
 ## ── EL ANCLA YA NO SE ESCRIBE A MANO (2026-08-03, orden del usuario) ──────────────────────────
 ## Aquí vivían `ANCLA_FRACCION_MOSTRADOR` (0.521, 0.727) y `ANCLA_FRACCION_MOSTRADOR_2`
@@ -249,28 +258,31 @@ static func _pieza_sprite_mostrador(id_sprite: String, superficie: int) -> Node2
 	return raiz
 
 
-## ── SILLAS DE SPRITE (2026-08-01, 2ª tanda) ──────────────────────────────────────────────────
-## La roja de OBJ_042 para el funcionario; la de espera (OBJ_023, la más repetida del pack —ver
-## `render_mobiliario.gd`— la misma en TODAS las esperas, ventanillas incluidas) para el ciudadano
-## y para `Construccion.ASIENTO_BASICO`. Mismo patrón que el mostrador: si no hay sprite, la silla
-## de código de siempre.
-const ID_SPRITE_SILLA_FUNCIONARIO := "silla_funcionario"
-const ID_SPRITE_SILLA_ESPERA := "silla_espera"
+## ── SILLAS DE SPRITE (2026-08-01, 2ª tanda; TIER BÁSICO 2026-08-07) ────────────────────────────
+## La roja de OBJ_042 para el funcionario y la de espera (OBJ_023) para el ciudadano fueron la
+## PRIMERA generación. Sustituidas 2026-08-07 por el lote "tier básico" (Summer, KayKit CC BY vía
+## `_render_sillas_ciudadano.gd`/`design/art/mapa-integracion-mobiliario.md`): `comodidad_silla_
+## oficina` (funcionario) y `comodidad_silla_espera_madera` (ciudadano). Mismo prefijo `comodidad_`
+## que el catálogo genérico de comodidades a propósito: SON el mismo PNG que usa `Construccion.
+## _sprites_comodidad()` para venderlas sueltas — una sola generación de arte, dos consumidores.
+## Mismo patrón que el mostrador: si no hay sprite, la silla de código de siempre.
+const ID_SPRITE_SILLA_FUNCIONARIO := "comodidad_silla_oficina"
+## USADA TAMBIÉN por `Construccion.ASIENTO_BASICO` (ver `silla_espera_o_defecto`, más abajo): el
+## "Asiento (25 €)" del modo construcción comparte esta función y por tanto este arte — decisión
+## registrada en el informe del lote 2026-08-07 (sustitución de arte, NO de mecánica: precio y
+## comportamiento de `ASIENTO_BASICO` intactos).
+const ID_SPRITE_SILLA_ESPERA := "comodidad_silla_espera_madera"
 ## Cada silla, su PROPIA rotación — NO la misma para las dos: cada mueble tiene su frente en un
-## sitio distinto de la escena de origen (ver `render_mobiliario.gd`). Elegidas MIRANDO las 4 con
-## la silla VACÍA y flechas de referencia sobre la imagen (2º aviso del usuario 2026-08-02: la
-## primera elección se hizo con un muñeco sentado ENCIMA que tapaba el asiento — así se coló el
-## error; regla nueva: la dirección de un asiento se juzga con el asiento vacío):
-##  · Funcionario: 180° — el asiento abre hacia ABAJO-IZQUIERDA de pantalla, hacia el ciudadano
-##    (la misma dirección a la que da la cara de cajones del mostrador); el respaldo queda
-##    arriba-derecha, a la espalda del policía, que se sienta mirando al sur.
-##  · Espera: 270° — el asiento abre hacia ARRIBA-DERECHA, hacia la mesa; el respaldo queda hacia
-##    cámara, a la espalda del ciudadano.
-const ROT_SILLA_FUNCIONARIO: int = 180
+## sitio distinto de la escena de origen. Elegidas MIRANDO las 4 con la silla VACÍA (regla del
+## usuario 2026-08-02: la dirección de un asiento se juzga con el asiento vacío):
+##  · Funcionario (`comodidad_silla_oficina`, 2026-08-07): 0° — el asiento (cojín) se ve de cara,
+##    el respaldo detrás; el policía se sienta mirando al sur, hacia el ciudadano.
+##  · Espera (`comodidad_silla_espera_madera`, 2026-08-07): 270° — el respaldo (listones) queda
+##    hacia cámara, a la espalda del ciudadano, que mira al norte hacia la mesa. Mismo número que
+##    la generación anterior (270): coincidencia de la nueva geometría, verificada con
+##    `_check_silla_espera_madera.png` en el scratchpad, no heredada sin mirar.
+const ROT_SILLA_FUNCIONARIO: int = 0
 const ROT_SILLA_ESPERA: int = 270
-## Anclas actualizadas 2026-08-02 (nuevo re-render de todo el mobiliario — dato definitivo).
-const ANCLA_FRACCION_SILLA_FUNCIONARIO := Vector2(0.493, 0.824)
-const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.797)
 
 
 ## ── LA SILLA DE ESPERA, PARTIDA EN DOS (2026-08-03) ──────────────────────────────────────────
@@ -288,8 +300,16 @@ const ANCLA_FRACCION_SILLA_ESPERA := Vector2(0.495, 0.797)
 ## MIENTRAS NO EXISTAN LOS PNG, `hay_silla_espera_partida()` devuelve false y todo se comporta como
 ## hasta ahora (silla entera en `CAPA_FRENTE_SUR`, por debajo del sentado) — el cableado ya está
 ## puesto y se activa solo en cuanto aparezcan los ficheros.
-const ID_SPRITE_SILLA_ESPERA_ASIENTO := "silla_espera_asiento"
-const ID_SPRITE_SILLA_ESPERA_RESPALDO := "silla_espera_respaldo"
+##
+## ⚠️ TIER BÁSICO (2026-08-07): el ciudadano pasó a `comodidad_silla_espera_madera` (ver arriba),
+## que NO tiene despiece asiento/respaldo — solo la silla entera. Los ids de abajo se dejan
+## APUNTANDO A LOS PNG VIEJOS A PROPÓSITO (nunca se borraron, ver `silla_espera_asiento_270.png`/
+## `silla_espera_respaldo_270.png` en `assets/`) para no perder el trabajo si algún día se recorta
+## la silla nueva en dos mitades; como esos ficheros son de OTRA silla (la generación anterior, un
+## mueble distinto), `hay_silla_espera_partida()` los ignora y cae al camino de silla ENTERA — que
+## es lo correcto mientras no exista el despiece de la silla de madera.
+const ID_SPRITE_SILLA_ESPERA_ASIENTO := "silla_espera_madera_asiento"
+const ID_SPRITE_SILLA_ESPERA_RESPALDO := "silla_espera_madera_respaldo"
 ## Anclas DEFINITIVAS (2026-08-03): los dos PNG salieron con lienzos recortados a su propia caja
 ## (30×33 el asiento, 27×21 el respaldo), así que el coordinador localizó el ENCAJE exacto de cada
 ## pieza dentro de la silla entera por correlación de píxeles (asiento en offset +2,+10; respaldo
@@ -325,7 +345,10 @@ static func _ruta_sprite_silla(id_silla: String, rotacion: int) -> String:
 
 
 ## Una silla de sprite, anclada por el mismo punto que `silla()`: el sitio donde se sienta quien
-## la usa (`Vector2.ZERO` en local), no su esquina.
+## la usa (`Vector2.ZERO` en local), no su esquina. Ancla A MANO (`ancla_fraccion`) — SOLO admitida
+## para los recortes FLOTANTES del despiece asiento/respaldo (más abajo), que no tocan el suelo de
+## su propio lienzo y por eso `AnclajeSprite` no los puede medir (mide la base de patas en el
+## suelo). Para cualquier silla ENTERA, ver `_pieza_sprite_silla_anclada` (LEY AnclajeSprite).
 static func _pieza_sprite_silla(id_silla: String, rotacion: int, ancla_fraccion: Vector2) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Silla"
@@ -341,12 +364,24 @@ static func _pieza_sprite_silla(id_silla: String, rotacion: int, ancla_fraccion:
 	return raiz
 
 
+## Una silla ENTERA de sprite, anclada por `AnclajeSprite` (mide el centro de la base de patas del
+## propio PNG — nada a mano, ver la cabecera de `aplicar`). Huella de 1 celda siempre: `Vector2i(1,
+## 0)`/`1` son los mismos parámetros que usaría cualquier mueble de 1×1 sin cuerpo desplazado.
+static func _pieza_sprite_silla_anclada(id_silla: String, rotacion: int) -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Silla"
+	var sprite := Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.texture = load(_ruta_sprite_silla(id_silla, rotacion))
+	AnclajeSprite.aplicar(sprite, Vector2i(1, 0), 1)
+	raiz.add_child(sprite)
+	return raiz
+
+
 ## La silla del FUNCIONARIO: sprite si lo hay, si no la de código de siempre.
 static func silla_funcionario_o_defecto(hacia_atras: Vector2, color: Color = COLOR_SILLA) -> Node2D:
 	if hay_sprite_silla_funcionario():
-		return _pieza_sprite_silla(
-			ID_SPRITE_SILLA_FUNCIONARIO, ROT_SILLA_FUNCIONARIO, ANCLA_FRACCION_SILLA_FUNCIONARIO
-		)
+		return _pieza_sprite_silla_anclada(ID_SPRITE_SILLA_FUNCIONARIO, ROT_SILLA_FUNCIONARIO)
 	return silla(hacia_atras, color)
 
 
@@ -355,7 +390,7 @@ static func silla_funcionario_o_defecto(hacia_atras: Vector2, color: Color = COL
 ## sitios, a propósito: es la MISMA silla de espera del edificio).
 static func silla_espera_o_defecto(hacia_atras: Vector2, color: Color = COLOR_SILLA_ESPERA_DEFECTO) -> Node2D:
 	if hay_sprite_silla_espera():
-		return _pieza_sprite_silla(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA, ANCLA_FRACCION_SILLA_ESPERA)
+		return _pieza_sprite_silla_anclada(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA)
 	return silla(hacia_atras, color)
 
 

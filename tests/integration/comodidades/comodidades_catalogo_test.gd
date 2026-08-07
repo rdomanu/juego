@@ -64,9 +64,11 @@ func _sala_oficina(construccion: Node) -> StringName:
 # usuario — aquella se queda como comodidad de confort no funcional). Es además la PRIMERA comodidad
 # con mantenimiento POR USO, y por eso se comprueba aquí su ficha entera.
 #
-# 2026-08-06 (más tarde): BAJA de 12 a 11. `fuente_agua` RETIRADA (decisión del usuario: unificar
-# los objetos de agua — duplicaba `dispensador_agua`, que sobrevive tal cual con su tamaño y su
-# `.tres`). `datos/comodidades/fuente_agua.tres` borrado del catálogo.
+# 2026-08-07: sube de 11 a 16. Lote "tier básico" (informe del lote de integración de ventanillas):
+# 5 objetos nuevos en estas dos familias — `escritorio_trabajo`/`silla_oficina` (funcionario,
+# biblioteca pública Summer) y `silla_espera_madera`/`silla_espera_azul` (KayKit CC BY)/
+# `silla_espera_comoda` (Summer, encargo) (ciudadano). `vending` YA estaba en el catálogo (con
+# precio y `aporte` propios desde antes) — este lote solo le puso sprite, no suma al recuento.
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
 	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
@@ -76,9 +78,13 @@ func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	ids.sort()
 	assert_array(ids).contains(["estanteria", "estanteria_esquina", "estanteria_pequena"])
 	assert_array(ids).contains(["impresora_documentos"])
+	assert_array(ids).contains([
+		"escritorio_trabajo", "silla_espera_azul", "silla_espera_comoda", "silla_espera_madera",
+		"silla_oficina",
+	])
 	assert_int(de_este_epic.size()).override_failure_message(
 		"las familias ciudadano+funcionario traen %s" % [ids]
-	).is_equal(11)
+	).is_equal(16)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")

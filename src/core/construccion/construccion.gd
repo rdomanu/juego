@@ -2593,6 +2593,21 @@ static func _sprites_comodidad() -> Dictionary:
 		# (`COMODIDAD_EQUIPO_INFORMATICO`/`_PAPELERA`/etc.): una sola pose, gire como gire. Solo existe
 		# el PNG a 0° en disco (a propósito: no hay motivo para renderizar 3 vistas idénticas).
 		&"lampara_pie": {"rotacion": 0},
+		# ── LOTE "TIER BÁSICO" (2026-08-07) ────────────────────────────────────────────────────
+		# Escritorio de trabajo (Summer, biblioteca AI-generada gratis — ver CREDITS.md) y sillas
+		# KayKit CC BY (madera/azul) + Summer (oficina, cómoda) + vending nuevo (Summer): TODOS con
+		# 4 vistas reales renderizadas → `rotacion_directa`, mismo criterio que la impresora/nevera
+		# de la pasada anterior. `silla_oficina`/`silla_espera_madera` son EL MISMO PNG que usa
+		# `MesaAtencion` para la ventanilla tier básico (ver esa cabecera) — una generación, dos
+		# consumidores. `vending` sustituye la caja gris genérica de siempre (nunca tuvo sprite
+		# propio: no estaba en este diccionario) — el `.tres` `vending` ya existía, solo le faltaba
+		# el arte.
+		&"escritorio_trabajo": {"rotacion": 0, "rotacion_directa": true},
+		&"silla_oficina": {"rotacion": 0, "rotacion_directa": true},
+		&"silla_espera_madera": {"rotacion": 0, "rotacion_directa": true},
+		&"silla_espera_azul": {"rotacion": 0, "rotacion_directa": true},
+		&"silla_espera_comoda": {"rotacion": 0, "rotacion_directa": true},
+		&"vending": {"rotacion": 0, "rotacion_directa": true},
 	}
 
 

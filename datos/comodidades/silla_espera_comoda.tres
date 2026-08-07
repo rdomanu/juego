@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_sec01"]
+
+[resource]
+script = ExtResource("1_sec01")
+id = &"silla_espera_comoda"
+nombre = "Butaca de espera"
+descripcion = "Butaca acolchada con reposabrazos: la mejor espera que se puede comprar."
+familia = "ciudadano"
+coste_construccion_eur = 120
+aporte = 6.0
+superficie = 1

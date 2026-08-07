@@ -1526,6 +1526,10 @@ const COMODIDADES_CON_SPRITE: Array[StringName] = [
 ## catálogo con sprite sigue en una sola pose fija (`COMODIDADES_CON_SPRITE`, sin cambios).
 const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [
 	&"impresora_documentos", &"impresora_dni", &"nevera", &"dispensador_agua",
+	# Lote "tier básico" (2026-08-07) — ver `Construccion._sprites_comodidad()`, duplicado a
+	# propósito.
+	&"escritorio_trabajo", &"silla_oficina", &"silla_espera_madera", &"silla_espera_azul",
+	&"silla_espera_comoda", &"vending",
 ]
 
 

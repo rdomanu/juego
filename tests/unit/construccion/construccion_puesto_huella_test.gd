@@ -85,7 +85,10 @@ func _save_con(anclas: Dictionary) -> Dictionary:
 # ── El dato vive en el CATÁLOGO, no en el código (data-driven) ────────────────────────────
 func test_catalogo_puestos_declara_huella_2x3() -> void:
 	# Arrange / Act — la huella es una propiedad del objeto, igual que la `superficie` 3 del sofá.
-	var ids_puesto: Array[StringName] = [PUESTO, PUESTO_TIE, &"puesto_odac"]
+	# Los CUATRO tipos de puesto del catálogo (2026-08-07, lote de integración de ventanillas: se
+	# echó en falta `puesto_seguridad` en esta lista — el mostrador nuevo de tier básico reutiliza
+	# la misma huella 2×3 para los cuatro, así que los cuatro quedan pinned aquí, no solo tres).
+	var ids_puesto: Array[StringName] = [PUESTO, PUESTO_TIE, &"puesto_odac", &"puesto_seguridad"]
 
 	# Assert
 	for id_puesto: StringName in ids_puesto:
