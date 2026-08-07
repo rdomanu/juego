@@ -286,6 +286,32 @@ const ROT_SILLA_FUNCIONARIO: int = 0
 const ROT_SILLA_ESPERA: int = 180
 
 
+## ── VISTA "ACCIÓN AL NORTE" PARA LA VENTANILLA (2026-08-07, bug cazado 2 veces en el juego) ────
+## `design/art/lado-de-accion.md`: el ciudadano de la ventanilla se sienta mirando al NORTE, hacia
+## la mesa (de espaldas a cámara) -- para que el respaldo caiga DETRÁS de él (acción-al-norte) hace
+## falta un giro que NO es ninguno de los 4 cardinales que da el modelo de origen (`chair_A_wood`
+## es una pieza "de esquina": sus 4 caras reales caen en diagonal a cámara -- ver la cabecera de
+## `tools/_render_sillas_ciudadano.gd`). Con `ROT_SILLA_ESPERA` = 180 (elegido a ojo con la silla
+## VACÍA, ver el aviso de esa constante) las patas asoman a un LADO del sentado: el bug que el
+## usuario cazó DOS VECES en el juego real.
+##
+## Se renderizaron las 8 vistas del modelo (cada 45°, `tools/_render_sillas_ciudadano.gd`) y se
+## verificaron con el muñeco SENTADO de verdad en `tools/_diag_ventanillas_ingame.gd` (nunca la
+## silla vacía -- ley de `lado-de-accion.md` §4): a 180° las patas asoman claramente a la izquierda
+## del sentado; a 225° la silla queda ENTERA detrás -- ni patas ni respaldo asoman a ningún lado.
+## 225° se confirmó además contra `silla_espera_azul`/`silla_espera_comoda` (mismas 8 vistas, con
+## detalle propio que SÍ distingue cara/dorso sin ambigüedad): es la vista donde se ve el DORSO del
+## respaldo, no el asiento -- confirma que 225° es "acción al norte" en las 3 sillas del lote.
+##
+## SOLO para el lado del CIUDADANO en la ventanilla -- sala de espera y "Asiento (25 €)" siguen con
+## `ID_SPRITE_SILLA_ESPERA`/`ROT_SILLA_ESPERA` de siempre (180°, acción-al-sur): no se tocan en esta
+## pasada (fuera de alcance de este arreglo), aunque comparten la MISMA `DIRECCION_SENTADO` (norte,
+## `NPCsFlujo`) que la ventanilla y por tanto el MISMO riesgo teórico -- ver el aviso al usuario en
+## el informe de esta pasada, no verificado con captura por alcance.
+const ID_SPRITE_SILLA_ESPERA_VENTANILLA := "comodidad_silla_espera_madera_ventanilla"
+const ROT_SILLA_ESPERA_VENTANILLA: int = 225
+
+
 ## ── LA SILLA DE ESPERA, PARTIDA EN DOS (2026-08-03) ──────────────────────────────────────────
 ## Por qué: en el frente de la ventanilla el ciudadano se sienta MIRANDO A LA MESA (de espaldas a
 ## cámara), así que lo correcto es que el RESPALDO le tape la zona lumbar. Con la silla entera solo
@@ -518,7 +544,15 @@ static func construir(es_legado: bool = false) -> Node2D:
 ## LA POSICIÓN usa `CELDA_CIUDADANO` (arrime de medio paso, ver la constante): el mismo punto al que
 ## mira el ciudadano cuando le atienden.
 static func silla_ciudadano() -> Node2D:
-	var del_ciudadano: Node2D = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
+	var del_ciudadano: Node2D
+	if ResourceLoader.exists(
+		_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA_VENTANILLA, ROT_SILLA_ESPERA_VENTANILLA)
+	):
+		del_ciudadano = _pieza_sprite_silla_anclada(
+			ID_SPRITE_SILLA_ESPERA_VENTANILLA, ROT_SILLA_ESPERA_VENTANILLA
+		)
+	else:
+		del_ciudadano = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
 	del_ciudadano.name = "SillaCiudadano"
 	del_ciudadano.position = CELDA_CIUDADANO
 	return del_ciudadano
