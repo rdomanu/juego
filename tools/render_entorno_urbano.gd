@@ -333,8 +333,8 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"bk_muro", "bk_muro_esquina", "bk_ventana", "bk_puerta", "bk_columna", "bk_escaleras",
-	"bk_suelo", "bk_muro_bajo", "bk_borde", "bk_tuberia",
+	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
+	"carretera_paso_cebra",
 ]
 
 ## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
@@ -573,8 +573,15 @@ func _ejecutar(todas: Dictionary) -> void:
 			for k: int in escalados.size():
 				var img: Image = escalados[k]["imagen"]
 				var centro_ancla: Vector2 = escalados[k]["ancla"]
-				escalados[k]["imagen"] = _recortar_a_rombo(img, centro_ancla, objetivo_px)
-			print("[ENTORNO URBANO]   %s: cantos recortados al rombo ideal 2:1 (loseta completa, ancla de familia) en las 4 rotaciones" % id)
+				var recortada: Image = _recortar_a_rombo(img, centro_ancla, objetivo_px)
+				# 1.6) AFEITADO DE EXTREMOS (encargo 2026-08-08, "siguen con la marca cuando se
+				# unen, no se fusionan"): además del canto FUERA del rombo (1.5), el render deja
+				# DENTRO, pegado a cada borde por el que la vía continúa, una franja oscura de
+				# sombreado y un desvanecido de antialias que no llega opaco al borde -- al juntar
+				# dos losetas eso se ve como costura oscura con rendija. Se sanea extendiendo el
+				# perfil transversal de la vía hasta el borde exacto (ver `_afeitar_extremos_via`).
+				escalados[k]["imagen"] = _afeitar_extremos_via(recortada, centro_ancla, objetivo_px)
+			print("[ENTORNO URBANO]   %s: cantos recortados al rombo ideal 2:1 + extremos de via saneados en las 4 rotaciones" % id)
 
 		var compuesto: Dictionary = _componer(escalados)
 		var imagenes: Array[Image] = compuesto["imagenes"]
@@ -699,6 +706,107 @@ func _recortar_a_rombo(imagen: Image, centro: Vector2, ancho_ideal: float) -> Im
 				var c: Color = copia.get_pixel(px, py)
 				if c.a > 0.0:
 					copia.set_pixel(px, py, Color(c.r, c.g, c.b, 0.0))
+	return copia
+
+
+## Profundidad (en coordenadas de rombo 0..1) de la franja que se SANEA en cada extremo de vía --
+## cubre el canto oscuro (~4-6px en la loseta de 480px) y el desvanecido del antialias del render
+## 3D. 0,03 de rombo ≈ 14px horizontales de loseta (~0,18 celdas): invisible sobre asfalto plano,
+## suficiente para tragarse la marca entera.
+const AFEITADO_EXTREMOS_UV: float = 0.03
+## La muestra "sana" se toma un poco MÁS ADENTRO que la franja saneada -- si se muestreara al
+## mismo borde de la franja se copiaría parte del propio canto que se está eliminando.
+const AFEITADO_MUESTRA_UV: float = 0.05
+
+
+## ¿Es `c` un color de CALZADA (asfalto o línea central clara)? Umbrales medidos con PIL sobre los
+## PNG reales de las 5 piezas (2026-08-08, tarea "fusión de losetas"): asfalto (122,129,157), línea
+## central clara (163-183, azulada); quedan FUERA la franja oscura del borde de la vía (≤104 de
+## rojo), la banda blanca del arcén (255) y el vacío. El tono NO varía con la rotación (cara
+## superior con luz cenital -- medido en las 4 rotaciones de `carretera_recta`).
+func _es_color_de_calzada(c: Color) -> bool:
+	if c.a < 0.8:
+		return false
+	return c.r >= 0.43 and c.r <= 0.75 and c.b <= 0.95 and c.b > c.r
+
+
+## Los 4 bordes del rombo por los que la VÍA de esta pieza CONTINÚA hacia la loseta vecina
+## (`[NO, SE, NE, SO]` en pantalla), detectados muestreando 5 puntos junto a cada borde (a 0,12 de
+## profundidad, coordenada transversal 0,3..0,7): un borde es "vía" si ≥4 de las 5 muestras son
+## color de calzada. Sin config por pieza -- verificado con PIL sobre los PNG actuales: la recta
+## conecta NO+SE, la curva NO+SO, el cruce los 4, la T tres, y el paso de cebra NO+SE (sus franjas
+## blancas viven en el centro de la loseta, no en la zona de muestreo).
+func _bordes_de_via(imagen: Image, centro: Vector2, ancho_ideal: float) -> Array[bool]:
+	var semiancho: float = ancho_ideal * 0.5
+	var semialto: float = ancho_ideal * 0.25
+	var profundidad: float = 0.12
+	# Por borde: [u fijo, v fijo] -- el valor negativo marca la coordenada que BARRE (0,3..0,7).
+	var franjas: Array = [
+		[profundidad, -1.0],        # NO (u≈0): u fijo, v barre
+		[1.0 - profundidad, -1.0],  # SE (u≈1)
+		[-1.0, profundidad],        # NE (v≈0): v fijo, u barre
+		[-1.0, 1.0 - profundidad],  # SO (v≈1)
+	]
+	var bordes: Array[bool] = [false, false, false, false]
+	for b: int in 4:
+		var aciertos: int = 0
+		for t: float in [0.3, 0.4, 0.5, 0.6, 0.7]:
+			var u: float = franjas[b][0] if (franjas[b][0] as float) >= 0.0 else t
+			var v: float = franjas[b][1] if (franjas[b][1] as float) >= 0.0 else t
+			var px: int = clampi(roundi(centro.x + (u - v) * semiancho), 0, imagen.get_width() - 1)
+			var py: int = clampi(
+				roundi(centro.y + (u + v - 1.0) * semialto), 0, imagen.get_height() - 1
+			)
+			if _es_color_de_calzada(imagen.get_pixel(px, py)):
+				aciertos += 1
+		bordes[b] = aciertos >= 4
+	return bordes
+
+
+## AFEITADO DE EXTREMOS (encargo 2026-08-08: "las carreteras siguen con la marca cuando se unen,
+## no se fusionan" -- objetivo: fusión TOTAL asfalto-asfalto): el render 3D deja, DENTRO del rombo
+## y pegado a cada borde por el que la vía continúa, (a) una franja oscura de canto/sombreado y
+## (b) un desvanecido de antialias que no llega opaco al borde -- dos losetas juntas muestran una
+## costura oscura con rendija transparente. Se sanea EXTENDIENDO el perfil transversal de la vía
+## hasta el borde exacto del rombo: todo píxel a menos de `AFEITADO_EXTREMOS_UV` de un borde-vía
+## copia el color del punto homólogo a `AFEITADO_MUESTRA_UV` de profundidad (misma coordenada
+## transversal) -- asfalto empalma con asfalto, banda con banda y línea con línea. Los bordes SIN
+## vía no se tocan (el antialias del arcén contra el césped se conserva). NO se alfa nada: alfar
+## dejaría una rendija de suelo visible porque las losetas vecinas NO se solapan.
+func _afeitar_extremos_via(imagen: Image, centro: Vector2, ancho_ideal: float) -> Image:
+	var bordes: Array[bool] = _bordes_de_via(imagen, centro, ancho_ideal)
+	if not (bordes[0] or bordes[1] or bordes[2] or bordes[3]):
+		return imagen
+	var semiancho: float = ancho_ideal * 0.5
+	var semialto: float = ancho_ideal * 0.25
+	var copia: Image = imagen.duplicate()
+	var ancho_img: int = copia.get_width()
+	var alto_img: int = copia.get_height()
+	for py: int in range(alto_img):
+		for px: int in range(ancho_img):
+			var dx: float = (float(px) + 0.5) - centro.x
+			var dy: float = (float(py) + 0.5) - centro.y
+			var u: float = (dx / semiancho + dy / semialto + 1.0) * 0.5
+			var v: float = (dy / semialto - dx / semiancho + 1.0) * 0.5
+			if u < 0.0 or u > 1.0 or v < 0.0 or v > 1.0:
+				continue   # fuera del rombo ideal: territorio de `_recortar_a_rombo`
+			var nu: float = u
+			var nv: float = v
+			if bordes[0] and u < AFEITADO_EXTREMOS_UV:
+				nu = AFEITADO_MUESTRA_UV
+			elif bordes[1] and u > 1.0 - AFEITADO_EXTREMOS_UV:
+				nu = 1.0 - AFEITADO_MUESTRA_UV
+			if bordes[2] and v < AFEITADO_EXTREMOS_UV:
+				nv = AFEITADO_MUESTRA_UV
+			elif bordes[3] and v > 1.0 - AFEITADO_EXTREMOS_UV:
+				nv = 1.0 - AFEITADO_MUESTRA_UV
+			if is_equal_approx(nu, u) and is_equal_approx(nv, v):
+				continue
+			var sx: int = clampi(roundi(centro.x + (nu - nv) * semiancho), 0, ancho_img - 1)
+			var sy: int = clampi(
+				roundi(centro.y + (nu + nv - 1.0) * semialto), 0, alto_img - 1
+			)
+			copia.set_pixel(px, py, imagen.get_pixel(sx, sy))
 	return copia
 
 
