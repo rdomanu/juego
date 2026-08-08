@@ -4,8 +4,9 @@ extends Node2D
 ##
 ## Suelo de rejilla (`TileMapLayer`) + mundo Core instanciado (Economía, Demanda, Construcción,
 ## Personal, Flujo — en ese orden: tick y carga dependen de él) + capa cosmética de NPCs navegando
-## + HUD provisional de barra inferior (reloj/velocidad/saldo/demanda/personal/colas). Este HUD NO
-## es el de UX (design/ux/hud.md se diseñará aparte).
+## + el HUD real de UX (`HudComisario`, `src/ui/hud_comisario.gd`), reconstrucción total del
+## 2026-08-08 según `design/ux/hud-design.md` — sustituye entero al HUD provisional que vivía aquí
+## (ver `_crear_hud_comisario`).
 ##
 ## Reglas (control-manifest, Presentation): el HUD LEE el reloj (fuente única) y ORDENA la velocidad por
 ## la API pública (`Tiempo.fijar_velocidad`/`reanudar`); NUNCA muta su estado. El dibujo corre en
@@ -30,7 +31,6 @@ const FILAS: int = 13
 ## el 2026-08-05: la cuadrícula solo se ve en modo construcción (ver `_crear_suelo`).
 const COLOR_FONDO := Color(0.13, 0.14, 0.16)
 const COLOR_SUELO := Color(0.87, 0.84, 0.78)
-const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 ## ── ZOOM DE CÁMARA (2026-08-04, petición del usuario: "como en los Sims") ────────────────────────
 ## Límites en torno al 1.0× con el que se jugaba hasta hoy (sin `Camera2D` la vista era fija: Godot
 ## usa la transformada identidad cuando no hay ninguna cámara activa). 0.5× acerca al doble; 2.5×
@@ -49,22 +49,6 @@ const VELOCIDAD_PAN_BASE: float = 800.0
 const ORDEN_MODOS_PARED: Array[StringName] = [&"auto", &"todas", &"bajitas"]
 const NOMBRES_MODO_PARED: Dictionary[StringName, String] = {
 	&"auto": "Auto", &"todas": "Enteras", &"bajitas": "Bajitas",
-}
-
-## Nombres visibles de los turnos, indexados por el enum `Tiempo.Turno` (0/1/2).
-const NOMBRES_TURNO: Array[String] = ["Mañana", "Tarde", "Noche"]
-## Etiquetas de los botones de velocidad, indexadas por el enum `Tiempo.Velocidad` (0..3).
-const NOMBRES_VELOCIDAD: Array[String] = ["⏸ Pausa", "1×", "2×", "3×"]
-
-## Margen izquierdo (px) que reserva cada módulo de la barra superior para NO tapar su propio
-## icono (`KitUIComisario.MODULOS_BARRA_SUPERIOR`) -- a mano por módulo a propósito: cada PNG de
-## Summer tiene el icono a un ancho distinto (medido con `Read` sobre el propio archivo, no a ojo).
-## El resto de la posición del contenido SÍ es por contenedor (`_modulo_barra_superior`), esto es lo
-## único que depende del PÍXEL EXACTO del arte y por eso vive aquí, no en un `MarginContainer` a
-## ciegas. Sin entrada = 12px por defecto (módulo "velocidad": sin icono propio que esquivar, los
-## botones se centran sobre todo el ancho).
-const MARGEN_IZQ_MODULO_BARRA: Dictionary[StringName, int] = {
-	&"reloj": 95, &"saldo": 88, &"objetivo": 88,
 }
 
 ## Economía (Story 007 del epic economia): el primer sistema Core instanciado en el mundo (§3.4).
@@ -115,11 +99,15 @@ const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
-## El punto único del kit de arte de UI (piloto Summer, 2026-08-07): Fase 2 del HUD (2026-08-08) es
-## la PRIMERA pieza de `main.gd` que lo consume -- ver `_crear_barra_superior`.
-const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
+## El HUD real de UX (reconstrucción total, 2026-08-08): dos franjas propias -- ver la cabecera de
+## `HudComisario` para el árbol de nodos completo.
+const HudComisarioScript := preload("res://src/ui/hud_comisario.gd")
 ## Alto reservado abajo para la barra del HUD (estilo tycoon — petición del usuario 2026-07-24):
-## el mundo se centra en lo que queda por encima, no en la ventana entera.
+## el mundo se centra en lo que queda por encima, no en la ventana entera. Sigue en 84px, el MISMO
+## valor que `ModoConstruccion.HUECO_BARRA_INFO` (no tocado por esta story -- regla dura del
+## encargo) para que el hueco reservado abajo siga siendo consistente con la barra de construcción,
+## aunque la franja de acciones nueva del HUD (`HudComisario.ALTO_FRANJA_ACCIONES`) solo use 60 de
+## esos 84px -- ver la nota de esa constante para el pendiente de sincronización.
 const ALTO_BARRA_HUD: float = 84.0
 ## Posición en pantalla del ORIGEN de la rejilla — la esquina (0,0). La comparten el suelo de
 ## fondo, las capas de Construcción, las paredes y todo lo que se dibuje.
@@ -132,8 +120,10 @@ const ALTO_BARRA_HUD: float = 84.0
 	COLUMNAS, FILAS,
 	Vector2(get_viewport_rect().size.x, get_viewport_rect().size.y - ALTO_BARRA_HUD)
 )
-## Colores del estado financiero (placeholder sobrio; SIEMPRE acompañados de texto — accesibilidad).
-const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
+## Colores de estado para avisos puntuales (SIEMPRE acompañados de texto — accesibilidad). El trío
+## "Holgado/Justo/Negativo" del saldo ahora vive dentro de `HudComisario` (paleta propia, spec
+## §1.5) -- `COLOR_HOLGADO` se retiró de aquí por quedar sin uso; estos dos siguen sirviendo a los
+## avisos de `_avisar_accion` (colar, guardar/cargar) y al menú contextual de sala.
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
 const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
 ## Gris tenue del HUD (texto secundario) -- pensado para el fondo OSCURO de la barra inferior
@@ -172,24 +162,9 @@ const ID_SALA_VENTANILLA_BASE := 160
 ## cerrar de verdad (la de descanso, para que no se vea a los funcionarios de cafe desde la cola).
 const ID_SALA_PAREDES := 106
 
-## Colores del nivel de demanda (DG12; SIEMPRE acompañados de texto — respaldo daltónico).
-const COLORES_NIVEL: Dictionary[StringName, Color] = {
-	&"BAJA": Color(0.55, 0.9, 0.55), &"MEDIA": Color(1.0, 0.8, 0.35), &"ALTA": Color(0.95, 0.4, 0.4),
-}
-
-var _lbl_hora: Label
-var _lbl_fecha: Label
-var _lbl_turno: Label
-var _botones: Array[Button] = []
 var _economia: Node
-var _lbl_saldo: Label
-var _lbl_estado_fin: Label
 var _demanda: Node
-var _lbl_llegadas: Label
-var _lbl_nivel: Label
 var _personal: Node
-var _lbl_plantilla: Label
-var _lbl_incidencia: Label
 var _construccion: Node
 ## La impresora de documentos: el viaje del papel + los requisitos minimos de sala.
 var _impresora: Node
@@ -200,10 +175,6 @@ var _odac: Node
 var _panel_ventanilla: CanvasLayer
 var _panel_horario: CanvasLayer
 var _npcs: Node2D
-var _lbl_flujo: Label
-var _lbl_atendiendo: Label
-var _lbl_puerta_doc: Label
-var _lbl_sin_servicio: Label
 var _panel_personal: CanvasLayer
 var _panel_admin: CanvasLayer
 ## Menú del clic derecho sobre un ciudadano (petición del usuario 2026-07-26) + a quién apunta.
@@ -220,9 +191,6 @@ var _ventanillas_del_menu: Array[StringName] = []
 ## El modo construcción, para poder darle la herramienta ya en la mano desde el menú.
 var _modo_construccion: Node2D
 var _persona_del_menu: RefCounted = null
-var _lbl_guardado: Label
-var _lbl_satisfaccion: Label
-var _lbl_reclamaciones: Label
 ## Etiquetas de sala (petición del usuario 2026-07-29: "no se sabe como de bonificado está la sala
 ## de descanso o las otras salas"): confort/equipamiento/descanso instalado, SIN abrir ningún menú.
 ## Capa aparte (z_index 1, por ENCIMA del suelo de las salas — mismo criterio que los NPCs) + un
@@ -248,32 +216,24 @@ var _limite_camara_max: Vector2 = Vector2.ZERO
 ## `true` mientras el botón CENTRAL del ratón está pulsado — arrastre de cámara tipo "grab and drag"
 ## (petición del usuario: "si hago zoom quiero también desplazarme").
 var _arrastrando_camara: bool = false
-## El botón cíclico "Paredes: Auto/Enteras/Bajitas" del HUD (2026-08-04) — se guarda para refrescar
-## su texto al cambiar de modo (con la tecla Home no pasa por el botón).
-var _btn_paredes: Button
 ## Las luces de objetos/farolas (2026-08-07): guardado para que `ModoDisenadorEntorno` pueda
 ## refrescar `usar_farolas()` cada vez que el usuario coloca/borra/carga una farola en el modo.
 var _luces_objetos: Node2D = null
 ## El modo diseñador de entorno (2026-08-07): herramienta DEV, SOLO existe si el proceso arrancó con
 ## `--disenador` (ver `_ready`) — en juego normal esta variable se queda `null` para siempre.
 var _modo_disenador_entorno: Node2D = null
-## La capa del HUD del juego (reloj/velocidad/saldo/demanda/personal/flujo/acciones/satisfacción,
-## `_crear_hud`). Guardada para poder OCULTARLA mientras el diseñador de entorno está activo (fix del
-## solape: bug reportado "me cuesta seleccionar, se solapan con los datos del juego" — las dos son
-## paneles `PRESET_BOTTOM_WIDE` y se dibujaban una encima de otra). Solo existe con `--disenador`
-## conectada (ver `_ready`); en juego normal nadie la toca y el HUD se comporta igual que siempre.
-var _capa_hud: CanvasLayer = null
-## La barra superior nueva (Fase 2 del HUD, 2026-08-08 -- decisión del usuario "información ARRIBA,
-## herramientas ABAJO"): reloj/velocidad/saldo/objetivo con el arte del kit (`_crear_barra_
-## superior`). Capa PROPIA, DELIBERADAMENTE separada de `_capa_hud`: a diferencia del HUD inferior,
-## esta barra NO se oculta con construcción/diseñador activos -- verifica `_al_activar_construccion`
-## / `_al_activar_disenador` (más abajo): las dos solo tocan `_capa_hud`, nunca esta variable. Se
-## añade al árbol SIN `layer` explícita (se queda en la 1 por defecto, igual que `_capa_hud`): el
-## orden real lo da que se crea ANTES que los paneles/modales (Personal, Horario, ODAC, Comisario…),
-## así que esos se siguen dibujando POR ENCIMA cuando se abren -- mismo mecanismo de apilado por
-## orden de inserción que ya usaba `_capa_hud`. Solo la brújula de depuración se sube aparte a la
-## layer 10 (`_crear_brujula_orientacion`) para quedar por encima de TODO a propósito.
-var _capa_barra_superior: CanvasLayer = null
+## El HUD real de UX (reconstrucción total, 2026-08-08 -- `HudComisario`, `design/ux/hud-design.
+## md`): SU PROPIA `CanvasLayer` (dos franjas dentro, superior siempre visible + acciones
+## ocultable). Sustituye a las dos capas separadas que tenía el HUD provisional (`_capa_hud` +
+## `_capa_barra_superior`, ya no existen). Guardado para: (1) alimentarlo cada frame desde
+## `_process` (`_hud.refrescar()`), (2) ocultar SOLO su franja de acciones mientras construcción o
+## el diseñador de entorno están activos (`_hud.ocultar_acciones(...)`, ver `_al_activar_
+## construccion`/`_al_activar_disenador` -- la franja superior nunca se oculta, spec §1). Se añade
+## al árbol SIN `layer` explícita (capa 1 por defecto): antes que los paneles/modales (Personal,
+## Horario, ODAC, Comisario…) para que esos sigan dibujándose POR ENCIMA al abrirse -- mismo
+## mecanismo de apilado por orden de inserción que ya usaba el HUD viejo. Solo la brújula de
+## depuración se sube aparte a la layer 10 (`_crear_brujula_orientacion`), por encima de TODO.
+var _hud: HudComisario = null
 
 
 ## ── BRÚJULA DE ORIENTACIÓN (herramienta DEV temporal, 2026-08-08) ────────────────────────────────
@@ -382,12 +342,9 @@ func _ready() -> void:
 	_crear_entorno_exterior()
 	_crear_suelo()
 	_instanciar_mundo()
-	_crear_hud()
-	# Barra superior (Fase 2 del HUD, 2026-08-08): capa PROPIA, ANTES que los paneles/modales de más
-	# abajo (para que la sigan tapando al abrirse, mismo criterio que `_capa_hud`). El ORDEN respecto
-	# a `_crear_hud()` no importa hoy (ninguna de las dos lee a la otra), se deja detrás por lectura:
-	# "primero el HUD de siempre, luego lo nuevo".
-	_crear_barra_superior()
+	# El HUD real de UX (reconstrucción total, 2026-08-08): capa PROPIA, ANTES que los paneles/
+	# modales de más abajo (para que la sigan tapando al abrirse).
+	_crear_hud_comisario()
 	# Brújula de orientación (herramienta DEV, 2026-08-08): capa propia, independiente del HUD --
 	# ver `BRUJULA_ORIENTACION_VISIBLE` y la cabecera de `BrujulaOrientacion`.
 	_crear_brujula_orientacion()
@@ -458,11 +415,11 @@ func _ready() -> void:
 			_paciencia, _demanda, _flujo, _construccion, Tiempo, _economia, _personal,
 			_documentacion
 		)
-	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): resaltado del
-	# botón activo y refresco inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001).
-	EventBus.velocidad_cambiada.connect(_resaltar_boton)
-	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _refrescar_etiquetas())
-	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _refrescar_etiquetas())
+	# El HUD reacciona a los avisos del bus (además del refresco continuo de _process): refresco
+	# inmediato del turno/ciclo. La UI escucha; nunca muta (ADR-0001). La velocidad NO necesita
+	# señal propia: `HudComisario.refrescar()` lee `Tiempo.velocidad_actual` directo cada frame.
+	EventBus.cambio_de_turno.connect(func(_turno: int) -> void: _hud.refrescar())
+	EventBus.cambio_dia_noche.connect(func(_es_noche: bool) -> void: _hud.refrescar())
 	# El modal del Comisario: Economía PAUSA el juego al tocar el suelo de deuda y espera una
 	# decisión. Sin alguien escuchando esa señal, esa pausa era un bloqueo del que no se salía.
 	var modal: CanvasLayer = ModalComisarioScript.new()
@@ -497,8 +454,7 @@ func _ready() -> void:
 	# nuevo cada vez que `ModoDisenadorEntorno` cambia el layout (colocar/borrar/cargar farolas).
 	_luces_objetos = luces
 	luces.usar_farolas(_entorno_exterior.puntos_farolas())
-	_resaltar_boton(Tiempo.velocidad_actual)
-	_refrescar_etiquetas()
+	_hud.refrescar()
 	# Población inicial de las etiquetas de sala: el hook de layout (`_al_cambiar_layout`) se cablea
 	# DENTRO de `_instanciar_mundo` DESPUÉS de montar la comisaría inicial, así que esa primera
 	# construcción nunca lo dispara (ver comentario de `_actualizar_etiquetas_salas`). Sin esta
@@ -510,7 +466,7 @@ func _ready() -> void:
 
 ## El dibujo corre en tiempo real (_process, ADR-0001): refresca los textos leyendo el reloj.
 func _process(delta: float) -> void:
-	_refrescar_etiquetas()
+	_hud.refrescar()
 	_procesar_pan_camara(delta)
 
 
@@ -1174,8 +1130,7 @@ func _colar_a(persona: RefCounted) -> void:
 
 ## Aviso corto de una acción del jugador en la barra de acciones (se ve donde se mira al pulsar).
 func _avisar_accion(texto: String, color: Color) -> void:
-	_lbl_guardado.text = texto
-	_lbl_guardado.modulate = color
+	_hud.avisar(texto, color)
 
 
 ## Una ficha de Demanda llega a la puerta: Flujo la admite (turno + aforo) y nace su NPC visible.
@@ -1572,264 +1527,23 @@ func _crear_suelo() -> void:
 	add_child(suelo)
 
 
-# ── HUD provisional (construido por código, como el prototipo validado) ──────────────────────
-## Barra inferior estilo tycoon (petición del usuario 2026-07-24): demanda · personal · flujo ·
-## acciones. Desde la Fase 2 del HUD (2026-08-08, "información ARRIBA, herramientas ABAJO") el
-## reloj/velocidad/saldo/satisfacción se JUBILARON de aquí -- viven en `_crear_barra_superior` con
-## el arte del kit. Lo que queda abajo son los hints de teclas, la demanda/llegadas del día, la
-## plantilla/nómina y la cola/atención en curso, más la botonera de acciones (Personal/Horario/
-## Guardar/Cargar/Paredes) -- eso último se mudará en la fase 3.
-func _crear_hud() -> void:
-	var capa := CanvasLayer.new()
-	capa.name = "HUD"
-	add_child(capa)
-	# Guardada para poder ocultarla desde `_al_activar_disenador` (fix del solape con la paleta del
-	# diseñador de entorno) — ver la cabecera larga de `_capa_hud`.
-	_capa_hud = capa
-
-	var panel := PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	# Gotcha de anclas: anclada abajo, la barra debe CRECER HACIA ARRIBA (si no, se sale de pantalla).
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	capa.add_child(panel)
-
-	var fila := HBoxContainer.new()
-	fila.add_theme_constant_override("separation", 14)
-	panel.add_child(fila)
-
-	# Bloque de demanda (story demanda-007): llegadas del día + nivel BAJA/MEDIA/ALTA, SOLO lectura.
-	var caja_demanda := _seccion(fila)
-	_lbl_llegadas = Label.new()
-	_lbl_llegadas.add_theme_font_size_override("font_size", 13)
-	caja_demanda.add_child(_lbl_llegadas)
-	_lbl_nivel = Label.new()
-	_lbl_nivel.add_theme_font_size_override("font_size", 11)
-	caja_demanda.add_child(_lbl_nivel)
-
-	# Bloque de personal (story personal-007): plantilla + nómina + incidencia, SOLO lectura.
-	var caja_personal := _seccion(fila)
-	_lbl_plantilla = Label.new()
-	_lbl_plantilla.add_theme_font_size_override("font_size", 13)
-	caja_personal.add_child(_lbl_plantilla)
-	_lbl_incidencia = Label.new()
-	_lbl_incidencia.add_theme_font_size_override("font_size", 11)
-	caja_personal.add_child(_lbl_incidencia)
-
-	# Bloque de flujo (story flujo-008): colas por servicio + atenciones en curso + FPS, pull.
-	var caja_flujo := _seccion(fila)
-	_lbl_flujo = Label.new()
-	_lbl_flujo.add_theme_font_size_override("font_size", 13)
-	caja_flujo.add_child(_lbl_flujo)
-	_lbl_atendiendo = Label.new()
-	_lbl_atendiendo.add_theme_font_size_override("font_size", 11)
-	caja_flujo.add_child(_lbl_atendiendo)
-	# Puerta de Documentación (feedback flujo-008): abierta/cerrada + hora, texto SIEMPRE + color.
-	_lbl_puerta_doc = Label.new()
-	_lbl_puerta_doc.add_theme_font_size_override("font_size", 11)
-	caja_flujo.add_child(_lbl_puerta_doc)
-	# Aviso de "hay gente que NADIE puede atender" (acción #2 del retro del Sprint 2). Nace vacío:
-	# solo ocupa sitio cuando de verdad pasa algo.
-	_lbl_sin_servicio = Label.new()
-	_lbl_sin_servicio.add_theme_font_size_override("font_size", 11)
-	_lbl_sin_servicio.modulate = COLOR_ROJOS
-	caja_flujo.add_child(_lbl_sin_servicio)
-
-	# Acciones del jugador (feedback del usuario 2026-07-26: "no hay panel de guardado, ni de personal
-	# accesible como el de construir"). Todo lo que se puede hacer, VISIBLE y con su tecla al lado.
-	var caja_acciones := _seccion(fila)
-	# Nota de atajos (venía en la sección de velocidad, jubilada a la barra superior en la Fase 2 del
-	# HUD -- 2026-08-08): se queda abajo con el resto de hints, ahora como cabecera de esta sección.
-	var nota := Label.new()
-	nota.text = (
-		"Espacio pausa · 1/2/3 velocidad · B construcción · P personal · rueda/± zoom · "
-		+ "Home paredes (HUD provisional)"
-	)
-	nota.add_theme_font_size_override("font_size", 10)
-	nota.modulate = Color(1, 1, 1, 0.55)
-	caja_acciones.add_child(nota)
-	var botonera := HFlowContainer.new()
-	botonera.add_theme_constant_override("h_separation", 6)
-	botonera.add_theme_constant_override("v_separation", 4)
-	caja_acciones.add_child(botonera)
-	botonera.add_child(_boton_accion("👥 Personal (P)", func() -> void: _abrir_personal()))
-	botonera.add_child(_boton_accion("🕐 Horario (H)", func() -> void: _abrir_horario()))
-	botonera.add_child(_boton_accion("💾 Guardar (F5)", func() -> void: _guardar_partida()))
-	botonera.add_child(_boton_accion("📂 Cargar (F9)", func() -> void: _cargar_partida()))
-	# Modo de paredes, estilo Sims (petición del usuario 2026-08-04): cicla auto → enteras → bajitas.
-	_btn_paredes = _boton_accion(
-		"🧱 Paredes: %s (Home)" % NOMBRES_MODO_PARED[ORDEN_MODOS_PARED[0]],
-		func() -> void: _alternar_modo_paredes()
-	)
-	botonera.add_child(_btn_paredes)
-	# El botón de calibrar solo aparece en desarrollo (va con el panel: el jugador no lo ve nunca).
-	if _panel_admin != null:
-		botonera.add_child(_boton_accion("⚙ Calibrar (F1) · DEV", func() -> void: _panel_admin.alternar()))
-	_lbl_guardado = Label.new()
-	_lbl_guardado.add_theme_font_size_override("font_size", 10)
-	_lbl_guardado.modulate = COLOR_TENUE_HUD
-	_lbl_guardado.text = "Partida sin guardar"
-	caja_acciones.add_child(_lbl_guardado)
-
-
-## Un botón de la barra de acciones (font pequeña, sin foco — gotcha: si no, Espacio lo "pulsa").
-func _boton_accion(texto: String, accion: Callable) -> Button:
-	var boton := Button.new()
-	boton.text = texto
-	boton.add_theme_font_size_override("font_size", 11)
-	boton.focus_mode = Control.FOCUS_NONE
-	boton.pressed.connect(accion)
-	return boton
-
-
-# ── Barra superior (Fase 2 del HUD, 2026-08-08) ───────────────────────────────────────────────
-## Construye la barra superior con el arte del kit: `Panel` ancho anclado arriba (`KitUIComisario.
-## VARIANTE_BARRA_SUPERIOR`) con 4 módulos ilustrados en fila -- reloj, velocidad, saldo, objetivo
-## (satisfacción/reclamaciones). Capa PROPIA (`_capa_barra_superior`, ver su cabecera): sigue
-## visible con construcción/diseñador activos, a diferencia de `_capa_hud`.
-##
-## Alto del panel (164 px) calculado, NO copiado 1:1 del alto nativo de `barra_superior_fondo.png`
-## (935×185): 185 incluía holgura vertical de sobra en la maqueta original de Summer; aquí es
-## `margen_superior(22) + alto_de_fila(98, el alto nativo de cada módulo) + margen_inferior(44)`
-## -- los 22/44 son los MISMOS px que ya usa `VARIANTE_BARRA_SUPERIOR` como `texture_margin_top`/
-## `_bottom` en el tema (`assets/ui/theme_comisario.tres`), así que el borde no se deforma. Si en
-## captura se ve demasiado alta, el ajuste es un pase de escalado UNIFORME de este número + el
-## `custom_minimum_size` de cada módulo, no un recorte suelto de uno de los dos.
-func _crear_barra_superior() -> void:
-	var capa := CanvasLayer.new()
-	capa.name = "BarraSuperior"
-	add_child(capa)
-	_capa_barra_superior = capa
-
-	var panel := Panel.new()
-	panel.name = "Panel"
-	panel.theme = KitUIComisarioScript.tema()
-	panel.theme_type_variation = KitUIComisarioScript.VARIANTE_BARRA_SUPERIOR
-	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	panel.grow_vertical = Control.GROW_DIRECTION_END
-	panel.custom_minimum_size = Vector2(0, 164)
-	capa.add_child(panel)
-
-	# Mismos 19/22/20/44 que `texture_margin_*` de `sb_barra` en el tema: el contenido no invade el
-	# borde/pie navy pintado por el 9-slice del fondo.
-	var margen := MarginContainer.new()
-	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margen.add_theme_constant_override("margin_left", 19)
-	margen.add_theme_constant_override("margin_top", 22)
-	margen.add_theme_constant_override("margin_right", 20)
-	margen.add_theme_constant_override("margin_bottom", 44)
-	panel.add_child(margen)
-
-	var fila := HBoxContainer.new()
-	fila.add_theme_constant_override("separation", 10)
-	margen.add_child(fila)
-
-	# Módulo RELOJ: hora grande + fecha/turno pequeños (mismos datos/formato de siempre --
-	# `_refrescar_etiquetas` no cambia salvo el recorte de `_lbl_fecha`, ver esa función).
-	var mod_reloj := _modulo_barra_superior(fila, &"reloj")
-	var caja_reloj := VBoxContainer.new()
-	caja_reloj.add_theme_constant_override("separation", 0)
-	mod_reloj.add_child(caja_reloj)
-	_lbl_hora = _etiqueta_barra_superior(24)
-	caja_reloj.add_child(_lbl_hora)
-	_lbl_fecha = _etiqueta_barra_superior(11)
-	caja_reloj.add_child(_lbl_fecha)
-	_lbl_turno = _etiqueta_barra_superior(11)
-	caja_reloj.add_child(_lbl_turno)
-
-	# Módulo VELOCIDAD: los mismos botones Pausa/1×/2×/3× de siempre (mismo `_botones`/
-	# `_resaltar_boton`, sin tocar esa lógica), ahora encima del arte del módulo.
-	var mod_velocidad := _modulo_barra_superior(fila, &"velocidad")
-	var fila_botones := HBoxContainer.new()
-	fila_botones.add_theme_constant_override("separation", 4)
-	mod_velocidad.add_child(fila_botones)
-	for indice in NOMBRES_VELOCIDAD.size():
-		var boton := Button.new()
-		boton.text = NOMBRES_VELOCIDAD[indice]
-		boton.add_theme_font_size_override("font_size", 11)
-		# Gotcha del prototipo: sin esto, Espacio "pulsa" el botón enfocado en vez de pausar.
-		boton.focus_mode = Control.FOCUS_NONE
-		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(indice as Tiempo.Velocidad))
-		fila_botones.add_child(boton)
-		_botones.append(boton)
-
-	# Módulo SALDO: saldo + estado financiero (color dinámico por `.modulate`, sin cambios en
-	# `_refrescar_etiquetas` salvo el recorte de `_lbl_estado_fin`, ver esa función).
-	var mod_saldo := _modulo_barra_superior(fila, &"saldo")
-	var caja_saldo := VBoxContainer.new()
-	caja_saldo.add_theme_constant_override("separation", 0)
-	mod_saldo.add_child(caja_saldo)
-	_lbl_saldo = _etiqueta_barra_superior(18)
-	caja_saldo.add_child(_lbl_saldo)
-	_lbl_estado_fin = _etiqueta_barra_superior(11)
-	caja_saldo.add_child(_lbl_estado_fin)
-
-	# Módulo OBJETIVO: satisfacción + reclamaciones (color dinámico, sin cambios en
-	# `_refrescar_etiquetas` salvo el recorte de ambos textos y el "sin graves" por defecto -- ver
-	# `COLOR_TENUE_HUD_CLARO`: `COLOR_TENUE_HUD` era blanco pensado para el fondo OSCURO de abajo).
-	var mod_objetivo := _modulo_barra_superior(fila, &"objetivo")
-	var caja_objetivo := VBoxContainer.new()
-	caja_objetivo.add_theme_constant_override("separation", 0)
-	mod_objetivo.add_child(caja_objetivo)
-	_lbl_satisfaccion = _etiqueta_barra_superior(13)
-	caja_objetivo.add_child(_lbl_satisfaccion)
-	_lbl_reclamaciones = _etiqueta_barra_superior(11)
-	caja_objetivo.add_child(_lbl_reclamaciones)
-
-
-## Un módulo ilustrado de la barra superior: `Control` cuyo alto mínimo lo fija el PNG nativo del
-## módulo (`KitUIComisario.modulo_barra_superior`, sin deformarlo -- `TextureRect.STRETCH_KEEP_
-## CENTERED` nunca escala, solo centra) + un hueco (`CenterContainer`) para que quien llama meta
-## Labels o botones, desplazado a la derecha del icono propio de cada módulo
-## (`MARGEN_IZQ_MODULO_BARRA` -- el único número a mano por módulo, y a propósito: el resto de la
-## posición SÍ es por contenedor). Si el contenido pide más ancho del que trae el PNG (p.ej. un
-## texto largo), el `MarginContainer` raíz CRECE para darle sitio -- el arte se queda centrado a su
-## tamaño real (nunca se estira) y el módulo vecino nunca se tapa, porque `fila` sigue repartiendo
-## por el tamaño mínimo real de cada módulo.
-func _modulo_barra_superior(fila: HBoxContainer, id: StringName) -> CenterContainer:
-	var textura: Texture2D = KitUIComisarioScript.modulo_barra_superior(id)
-
-	var raiz := MarginContainer.new()
-	raiz.name = "Modulo" + String(id).capitalize()
-	raiz.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fila.add_child(raiz)
-
-	var fondo := TextureRect.new()
-	fondo.texture = textura
-	fondo.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	raiz.add_child(fondo)
-
-	var margen := MarginContainer.new()
-	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margen.add_theme_constant_override("margin_left", MARGEN_IZQ_MODULO_BARRA.get(id, 12))
-	margen.add_theme_constant_override("margin_right", 12)
-	margen.add_theme_constant_override("margin_top", 6)
-	margen.add_theme_constant_override("margin_bottom", 6)
-	raiz.add_child(margen)
-
-	var centro := CenterContainer.new()
-	margen.add_child(centro)
-	return centro
-
-
-## Una etiqueta de la barra superior: tamaño de fuente pedido + color marino (`KitUIComisario.
-## COLOR_TEXTO_PRINCIPAL`) + un contorno del MISMO marino (2 px). El contorno es el que garantiza
-## que se siga leyendo pase lo que pase con el color dinámico que le ponga `_refrescar_etiquetas`
-## (`.modulate` tiñe TAMBIÉN el contorno, pero un contorno oscuro modulado por un color de estado
-## sigue siendo mucho más oscuro que el fondo pastel del módulo). Verificado a mano con los píxeles
-## reales de cada PNG (`Read` + muestreo RGB): el ámbar de "justo" (`COLOR_JUSTO`, usado por saldo/
-## satisfacción) sobre el fondo crema del módulo saldo da un contraste de ~1.6:1 SIN contorno --
-## muy por debajo del 4.5:1 de WCAG texto normal; con el contorno el trazo sigue leyéndose con
-## ~13:1 de contraste. Las 3 etiquetas que NUNCA se colorean dinámicamente (hora/fecha/turno) se
-## quedan con el marino base, que ya tiene buen contraste sobre el módulo reloj (azul pálido).
-func _etiqueta_barra_superior(tam: int) -> Label:
-	var etiqueta := Label.new()
-	etiqueta.add_theme_font_size_override("font_size", tam)
-	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-	etiqueta.add_theme_color_override("font_outline_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-	etiqueta.add_theme_constant_override("outline_size", 2)
-	return etiqueta
+# ── HUD real de UX (reconstrucción total, 2026-08-08 — `design/ux/hud-design.md`) ────────────
+## Instancia `HudComisario` (`src/ui/hud_comisario.gd`) entero: TODO el layout/contenido/estados
+## del HUD vive en esa clase (ADR-0001: la UI se construye a sí misma, `Main` solo la alimenta con
+## los sistemas Core de solo lectura y reconecta sus 5 señales de acción a los callbacks que ya
+## existían -- `_abrir_personal`/`_abrir_horario`/`_guardar_partida`/`_cargar_partida`/
+## `_alternar_modo_paredes`, ninguno nuevo).
+func _crear_hud_comisario() -> void:
+	var hud: HudComisario = HudComisarioScript.new()
+	hud.name = "HudComisario"
+	add_child(hud)
+	_hud = hud
+	hud.configurar(_economia, _demanda, _personal, _flujo, _paciencia, _documentacion, _paredes_salas)
+	hud.personal_solicitado.connect(_abrir_personal)
+	hud.horario_solicitado.connect(_abrir_horario)
+	hud.guardar_solicitado.connect(_guardar_partida)
+	hud.cargar_solicitado.connect(_cargar_partida)
+	hud.paredes_solicitado.connect(_alternar_modo_paredes)
 
 
 ## Abre el panel de personal (lo mismo que la tecla P, pero descubrible con el ratón).
@@ -1851,8 +1565,8 @@ func _alternar_modo_paredes() -> void:
 	var indice: int = ORDEN_MODOS_PARED.find(_paredes_salas.modo_altura)
 	var siguiente: StringName = ORDEN_MODOS_PARED[(indice + 1) % ORDEN_MODOS_PARED.size()]
 	_paredes_salas.fijar_modo_altura(siguiente)
-	if _btn_paredes != null:
-		_btn_paredes.text = "🧱 Paredes: %s (Home)" % NOMBRES_MODO_PARED[siguiente]
+	# El texto de la píldora "Paredes: <modo> (Home)" ya NO se empuja desde aquí -- `HudComisario.
+	# refrescar()` lee `_paredes_salas.modo_altura` directo cada frame (poll, spec §5).
 	_avisar_accion("Paredes: %s" % NOMBRES_MODO_PARED[siguiente], COLOR_TENUE_HUD)
 
 
@@ -1865,12 +1579,14 @@ func _al_cambiar_layout_disenador() -> void:
 
 
 ## Fix del solape (petición del usuario 2026-08-07: "me cuesta seleccionar, se solapan con los datos
-## del juego"): `ModoDisenadorEntorno` y el HUD del juego son dos paneles `PRESET_BOTTOM_WIDE` que se
-## dibujaban uno encima del otro. Solo VISIBILIDAD — el HUD sigue vivo debajo (`_process` lo sigue
-## refrescando), así que al salir del diseñador reaparece con los datos al día, sin reconstruir nada.
+## del juego"): `ModoDisenadorEntorno` y la franja de acciones del HUD son paneles `PRESET_BOTTOM_
+## WIDE` que se dibujaban uno encima del otro. Solo VISIBILIDAD, y SOLO de la franja de acciones —
+## la franja superior del HUD (reloj/saldo/etc.) SIGUE visible (spec §1, "información ARRIBA,
+## herramientas ABAJO" -- siempre arriba, pase lo que pase abajo). El HUD sigue vivo debajo
+## (`_process` lo sigue refrescando), así que al salir del diseñador reaparece con los datos al día.
 func _al_activar_disenador(activo: bool) -> void:
-	if _capa_hud != null:
-		_capa_hud.visible = not activo
+	if _hud != null:
+		_hud.ocultar_acciones(activo)
 	# Lienzo limpio mientras se diseña (2026-08-08, encargo "poder diseñar sin la morralla
 	# procedural delante"): oculta el scatter procedural (casas/coches/árboles/vallas del barrio) al
 	# entrar, lo devuelve al salir -- ver `EntornoExterior.fijar_scatter_visible`.
@@ -1879,33 +1595,34 @@ func _al_activar_disenador(activo: bool) -> void:
 
 
 ## Gemelo de `_al_activar_disenador` para `ModoConstruccion` (fix del solape 2026-08-08: la barra de
-## construcción, anclada abajo igual que el HUD, lo tapaba) — sin combinar con el diseñador de
-## entorno a propósito: son modos que hoy no se solapan en la práctica (uno es --disenador, el otro
-## el juego normal), así que cada señal pisa la visibilidad del HUD de forma independiente, como ya
-## hacía `_al_activar_disenador`. Desde la Fase 2 del HUD (mismo día: "información ARRIBA,
-## herramientas ABAJO") esto SOLO afecta a `_capa_hud` (la barra inferior) -- `_capa_barra_superior`
-## es una capa aparte que ninguna de las dos funciones toca, así que sigue visible con estos modos.
+## construcción, anclada abajo igual que la franja de acciones, la tapaba) — sin combinar con el
+## diseñador de entorno a propósito: son modos que hoy no se solapan en la práctica (uno es
+## --disenador, el otro el juego normal), así que cada señal pisa la visibilidad de forma
+## independiente, como ya hacía `_al_activar_disenador`. Solo la franja de acciones se oculta -- la
+## superior del HUD nunca se toca (spec §1, regla dura).
 func _al_activar_construccion(activo: bool) -> void:
-	if _capa_hud != null:
-		_capa_hud.visible = not activo
+	if _hud != null:
+		_hud.ocultar_acciones(activo)
 
 
 ## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que
 ## no tener guardado (el jugador cree que su partida está a salvo y no lo está).
 func _guardar_partida() -> void:
 	var ok: bool = SaveManager.guardar_partida()
-	_lbl_guardado.text = (
-		"Guardado a las %s" % Tiempo.hhmm(Tiempo.minutos_juego) if ok else "⚠ No se pudo guardar"
+	_avisar_accion(
+		"Guardado a las %s" % Tiempo.hhmm(Tiempo.minutos_juego) if ok else "⚠ No se pudo guardar",
+		COLOR_TENUE_HUD if ok else COLOR_ROJOS
 	)
-	_lbl_guardado.modulate = COLOR_TENUE_HUD if ok else COLOR_ROJOS
 
 
 ## Carga la última partida guardada. Tras cargar, el juego queda EN PAUSA (contrato del ADR-0002:
 ## "cargar sitúa" — nada se mueve hasta que el jugador reanuda).
 func _cargar_partida() -> void:
 	var ok: bool = SaveManager.cargar_partida()
-	_lbl_guardado.text = "Partida cargada (en pausa)" if ok else "⚠ No hay partida guardada"
-	_lbl_guardado.modulate = COLOR_TENUE_HUD if ok else COLOR_ROJOS
+	_avisar_accion(
+		"Partida cargada (en pausa)" if ok else "⚠ No hay partida guardada",
+		COLOR_TENUE_HUD if ok else COLOR_ROJOS
+	)
 	if ok:
 		# Vuelve a marcar la fachada como FIJA: en el save sus aristas son tabiques corrientes, así
 		# que sin esto una partida cargada te dejaría derribar la fachada del edificio. Es
@@ -1917,155 +1634,6 @@ func _cargar_partida() -> void:
 		# cerrarian sin viaje. De oficio (coste 0): a un save viejo no se le pasa factura retroactiva.
 		_impresora.completar_todas_las_salas(true)
 		_al_cambiar_layout()   # el layout cargado necesita re-bake de navegación y re-sincronizar
-
-
-## Color de la satisfacción, con los MISMOS umbrales que el ánimo de la gente (66/33): lo que ve el
-## jugador en la barra y lo que ve sobre las cabezas hablan el mismo idioma.
-func _color_satisfaccion(sat: float) -> Color:
-	if sat > _paciencia.umbral_animo_alto:
-		return COLOR_HOLGADO
-	if sat < _paciencia.umbral_animo_bajo:
-		return COLOR_ROJOS
-	return COLOR_JUSTO
-
-
-## Una sección vertical de la barra inferior (con separador a partir de la segunda).
-func _seccion(fila: HBoxContainer) -> VBoxContainer:
-	if fila.get_child_count() > 0:
-		fila.add_child(VSeparator.new())
-	var caja := VBoxContainer.new()
-	caja.add_theme_constant_override("separation", 2)
-	fila.add_child(caja)
-	return caja
-
-
-## Refresca hora/fecha/turno LEYENDO el reloj (fuente única; jamás se escribe en él) y el saldo
-## LEYENDO Economía (la UI lee y ordena, nunca muta — ADR-0001).
-##
-## Textos RECORTADOS respecto al HUD provisional (Fase 2, 2026-08-08): `_lbl_fecha`/`_lbl_estado_
-## fin`/`_lbl_satisfaccion`/`_lbl_reclamaciones` ahora viven en un módulo de ~130 px de ancho útil
-## (el módulo entero mide 234-242 px, menos el hueco del icono y los márgenes -- ver `MARGEN_IZQ_
-## MODULO_BARRA`), no en la barra inferior sin límite de ancho de antes. El texto completo que
-## llevaban se conserva en `tooltip_text` para quien pase el ratón por encima.
-func _refrescar_etiquetas() -> void:
-	_lbl_hora.text = Tiempo.hhmm(Tiempo.minutos_juego)
-	_lbl_fecha.text = "Mes %d · Sem %d · Año %d" % [Tiempo.mes, Tiempo.semana, Tiempo.anio]
-	_lbl_turno.text = "Turno: %s" % NOMBRES_TURNO[Tiempo.turno_de(Tiempo.minutos_juego)]
-	if _economia == null or _lbl_saldo == null:
-		return
-	var saldo: float = _economia.saldo_eur
-	_lbl_saldo.text = "%.2f €" % saldo
-	if saldo < 0.0:
-		_lbl_saldo.modulate = COLOR_ROJOS
-		_lbl_estado_fin.text = "NÚMEROS ROJOS"
-		_lbl_estado_fin.tooltip_text = "Estado: NÚMEROS ROJOS (gasto bloqueado)"
-		_lbl_estado_fin.modulate = COLOR_ROJOS
-	elif saldo < _economia.umbral_holgura_ui:
-		_lbl_saldo.modulate = COLOR_JUSTO
-		_lbl_estado_fin.text = "Justo"
-		_lbl_estado_fin.tooltip_text = "Estado: justo"
-		_lbl_estado_fin.modulate = COLOR_JUSTO
-	else:
-		_lbl_saldo.modulate = COLOR_HOLGADO
-		_lbl_estado_fin.text = "Holgado"
-		_lbl_estado_fin.tooltip_text = "Estado: holgado"
-		_lbl_estado_fin.modulate = COLOR_HOLGADO
-	if _demanda == null or _lbl_llegadas == null:
-		return
-	_lbl_llegadas.text = "Llegadas hoy: %d" % _demanda.llegadas_hoy
-	var nivel: StringName = _demanda.nivel_demanda()
-	_lbl_nivel.text = "Demanda Doc: %s" % nivel
-	_lbl_nivel.modulate = COLORES_NIVEL.get(nivel, Color.WHITE)
-	if _personal == null or _lbl_plantilla == null:
-		return
-	# Personal (story personal-007): pull de los getters — plantilla, nómina F1 y ausencias del día.
-	var nomina: float = 0.0
-	var ausencias: Array[String] = []
-	for agente: RefCounted in _personal.plantilla:
-		nomina += _personal.salario_dia(agente)
-		if agente.estado == AgenteScript.ESTADO_AUSENTE:
-			var donde: String = String(agente.puesto_id) if agente.puesto_id != &"" else "banquillo"
-			ausencias.append("%s (%s)" % [agente.nombre, donde])
-	_lbl_plantilla.text = "Plantilla: %d · Nómina: %.0f €/día" % [_personal.plantilla.size(), nomina]
-	if ausencias.is_empty():
-		_lbl_incidencia.text = "Plantilla al completo"
-		_lbl_incidencia.modulate = COLOR_HOLGADO
-	else:
-		var verbo: String = "falta" if ausencias.size() == 1 else "faltan"
-		_lbl_incidencia.text = "Hoy %s: %s" % [verbo, ", ".join(ausencias)]
-		_lbl_incidencia.modulate = COLOR_JUSTO
-	if _flujo == null or _lbl_flujo == null:
-		return
-	# Flujo (story flujo-008): colas y atenciones por pull de getters; FPS para el guardrail 60.
-	_lbl_flujo.text = "En cola: %d Doc · %d ODAC" % [
-		_flujo.personas_en_cola(&"Documentacion"), _flujo.personas_en_cola(&"ODAC"),
-	]
-	_lbl_atendiendo.text = "Atendiendo: %d · FPS %d" % [
-		_flujo.atendiendo_total(), Engine.get_frames_per_second(),
-	]
-	# ⚠ Gente esperando algo que ninguna ventanilla construida puede atender: si no se dice, esperan
-	# para siempre y el jugador no tiene forma de enterarse (el "misterio de las 22:00").
-	var huerfanos: Dictionary = _flujo.tramites_sin_servicio()
-	# Bienestar #13: quien está de café NO es lo mismo que un puesto sin contratar. Se dice aparte y
-	# con su motivo, porque la solución del jugador es distinta: esperar (vuelven solos), montar la
-	# sala de descanso para que tarden menos, o contratar a alguien que cubra el hueco.
-	var de_cafe: Array[StringName] = (
-		_personal.puestos_en_descanso() if _personal.has_method("puestos_en_descanso") else []
-	)
-	if huerfanos.is_empty() and de_cafe.is_empty():
-		_lbl_sin_servicio.text = ""
-	elif not huerfanos.is_empty():
-		var trozos: Array[String] = []
-		for tramite: StringName in huerfanos:
-			trozos.append("%s ×%d" % [tramite, huerfanos[tramite]])
-		_lbl_sin_servicio.text = "⚠ Nadie puede atender: %s" % ", ".join(trozos)
-		_lbl_sin_servicio.modulate = COLOR_ROJOS
-	else:
-		# Solo cafés: es un aviso, no una alarma — vuelven ellos solos.
-		var en_cola: int = _flujo.personas_en_cola(&"Documentacion") + _flujo.personas_en_cola(&"ODAC")
-		_lbl_sin_servicio.text = "☕ %d ventanilla(s) de descanso%s" % [
-			de_cafe.size(), (" · %d esperando" % en_cola) if en_cola > 0 else "",
-		]
-		_lbl_sin_servicio.modulate = COLOR_JUSTO
-	# Satisfacción (story paciencia-008): hoy / ayer, con la escala a la vista. El color del texto
-	# refuerza (verde/ámbar/rojo por los umbrales de ánimo), pero el número manda.
-	var sat_hoy: float = _paciencia.sat_global()
-	var sat_ayer: float = _paciencia.sat_cierre_de(&"Documentacion")
-	_lbl_satisfaccion.text = "%d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
-	_lbl_satisfaccion.tooltip_text = "Satisfacción: %d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
-	_lbl_satisfaccion.modulate = _color_satisfaccion(sat_hoy)
-	var graves: int = _paciencia.reclamaciones_graves_jornada
-	_lbl_reclamaciones.text = "%d hoy%s · %d mes" % [
-		_paciencia.reclamaciones_jornada,
-		(" (%d graves)" % graves) if graves > 0 else "",
-		_paciencia.reclamaciones_mes,
-	]
-	_lbl_reclamaciones.tooltip_text = "Reclamaciones hoy: %d%s · mes: %d" % [
-		_paciencia.reclamaciones_jornada,
-		(" (%d graves)" % graves) if graves > 0 else "",
-		_paciencia.reclamaciones_mes,
-	]
-	# `COLOR_TENUE_HUD_CLARO`, NO `COLOR_TENUE_HUD`: este Label vive ahora en el módulo OBJETIVO
-	# (fondo pastel claro), no en la barra inferior oscura -- ver la cabecera de las dos constantes.
-	_lbl_reclamaciones.modulate = COLOR_ROJOS if graves > 0 else COLOR_TENUE_HUD_CLARO
-	# Estado del servicio de Documentación (story doc-002): ABIERTA / CERRANDO / CERRADA — el texto
-	# SIEMPRE dice lo que pasa; el color solo lo refuerza (regla de daltónicos del manifiesto).
-	var hora_cierre: String = Tiempo.hhmm(float(_documentacion.hora_cierre_min))
-	var hora_admision: String = Tiempo.hhmm(float(_documentacion.hora_ultima_admision()))
-	match _documentacion.estado_servicio(Tiempo.minutos_juego):
-		_documentacion.ESTADO_ABIERTO:
-			_lbl_puerta_doc.text = "Doc: ABIERTA (admite hasta %s · cierra %s)" % [
-				hora_admision, hora_cierre
-			]
-			_lbl_puerta_doc.modulate = COLOR_HOLGADO
-		_documentacion.ESTADO_CERRANDO:
-			_lbl_puerta_doc.text = "Doc: CERRANDO (ya no da número · cierra %s)" % hora_cierre
-			_lbl_puerta_doc.modulate = COLOR_BOTON_ACTIVO
-		_:
-			_lbl_puerta_doc.text = "Doc: CERRADA (abre %s)" % Tiempo.hhmm(
-				float(_documentacion.apertura_base_min)
-			)
-			_lbl_puerta_doc.modulate = Color(0.6, 0.6, 0.6)
 
 
 ## **El único punto por el que viaja el horario de Documentación** (story doc-002): su dueño decide y
@@ -2104,12 +1672,6 @@ func _al_cambiar_peonada(eur_hora: float, generosidad: float) -> void:
 		_economia.fijar_peonada_eur_hora(eur_hora)
 	if _personal != null:
 		_personal.fijar_generosidad_peonada(generosidad)
-
-
-## Resalta el botón de la velocidad activa (dorado) y apaga el resto. Oyente de `velocidad_cambiada`.
-func _resaltar_boton(indice: int) -> void:
-	for i in _botones.size():
-		_botones[i].modulate = COLOR_BOTON_ACTIVO if i == indice else Color.WHITE
 
 
 # ── Evidencia ADVISORY de la story (solo en desarrollo, nunca en build exportada) ────────────

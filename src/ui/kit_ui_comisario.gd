@@ -21,6 +21,13 @@ const VARIANTE_PILDORA_PRIMARIA := &"PildoraPrimaria"
 const VARIANTE_PILDORA_SECUNDARIA := &"PildoraSecundaria"
 const VARIANTE_VENTANA_MODAL := &"VentanaModal"
 const VARIANTE_BARRA_SUPERIOR := &"BarraSuperior"
+## Los 3 módulos ilustrados de la barra superior, ahora 9-slice REAL vía `StyleBoxTexture` del tema
+## (reconstrucción total del HUD, 2026-08-08) -- sustituyen al `TextureRect` a tamaño nativo del
+## piloto Fase 2. Ver la cabecera larga de `sb_mod_reloj` en `theme_comisario.tres` para las
+## márgenes medidas y el límite de alto conocido (el icono ocupa casi el 100% del alto nativo).
+const VARIANTE_MODULO_RELOJ := &"ModuloReloj"
+const VARIANTE_MODULO_VELOCIDAD := &"ModuloVelocidad"
+const VARIANTE_MODULO_SALDO := &"ModuloSaldo"
 const VARIANTE_TOAST_INFO := &"ToastInfo"
 const VARIANTE_TOAST_AVISO := &"ToastAviso"
 const VARIANTE_TOAST_CRITICO := &"ToastCritico"

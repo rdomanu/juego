@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=27 format=3]
+[gd_resource type="Theme" load_steps=49 format=3]
 
 [ext_resource type="FontFile" path="res://assets/fonts/kenney_future.ttf" id="1_font"]
 [ext_resource type="Texture2D" path="res://assets/ui/kit/pestana_normal.png" id="2_pest_n"]
@@ -21,6 +21,9 @@
 [ext_resource type="Texture2D" path="res://assets/ui/kit/toast_critico.png" id="19_toa_c"]
 [ext_resource type="Texture2D" path="res://assets/ui/kit/toast_queja.png" id="20_toa_q"]
 [ext_resource type="Texture2D" path="res://assets/ui/kit/barra_superior_fondo.png" id="21_barra"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/barra_superior_modulo_reloj.png" id="22_mod_reloj"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/barra_superior_modulo_velocidad.png" id="23_mod_vel"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/barra_superior_modulo_saldo.png" id="24_mod_saldo"]
 
 [sub_resource type="StyleBoxTexture" id="sb_pest_n"]
 texture = ExtResource("2_pest_n")
@@ -214,6 +217,39 @@ texture_margin_top = 22.0
 texture_margin_right = 20.0
 texture_margin_bottom = 44.0
 
+[sub_resource type="StyleBoxTexture" id="sb_mod_reloj"]
+texture = ExtResource("22_mod_reloj")
+texture_margin_left = 95.0
+texture_margin_top = 16.0
+texture_margin_right = 16.0
+texture_margin_bottom = 16.0
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxTexture" id="sb_mod_vel"]
+texture = ExtResource("23_mod_vel")
+texture_margin_left = 12.0
+texture_margin_top = 12.0
+texture_margin_right = 12.0
+texture_margin_bottom = 12.0
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxTexture" id="sb_mod_saldo"]
+texture = ExtResource("24_mod_saldo")
+texture_margin_left = 88.0
+texture_margin_top = 16.0
+texture_margin_right = 16.0
+texture_margin_bottom = 16.0
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+
 [sub_resource type="StyleBoxEmpty" id="sb_vacio"]
 
 [resource]
@@ -268,6 +304,15 @@ VentanaModal/styles/panel = SubResource("sb_ven_m")
 
 BarraSuperior/base_type = &"Panel"
 BarraSuperior/styles/panel = SubResource("sb_barra")
+
+ModuloReloj/base_type = &"Panel"
+ModuloReloj/styles/panel = SubResource("sb_mod_reloj")
+
+ModuloVelocidad/base_type = &"Panel"
+ModuloVelocidad/styles/panel = SubResource("sb_mod_vel")
+
+ModuloSaldo/base_type = &"Panel"
+ModuloSaldo/styles/panel = SubResource("sb_mod_saldo")
 
 ToastInfo/styles/panel = SubResource("sb_toa_i")
 ToastAviso/styles/panel = SubResource("sb_toa_a")

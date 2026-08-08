@@ -44,6 +44,9 @@ func test_tema_trae_las_variantes_que_consume_src_main() -> void:
 		KitUIComisarioScript.VARIANTE_PESTANA, KitUIComisarioScript.VARIANTE_TARJETA,
 		KitUIComisarioScript.VARIANTE_BOTON_DEMOLER, KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA,
 		KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA, KitUIComisarioScript.VARIANTE_BARRA_SUPERIOR,
+		# Reconstrucción total del HUD (2026-08-08): los 3 módulos ilustrados ahora son 9-slice real.
+		KitUIComisarioScript.VARIANTE_MODULO_RELOJ, KitUIComisarioScript.VARIANTE_MODULO_VELOCIDAD,
+		KitUIComisarioScript.VARIANTE_MODULO_SALDO,
 	]
 
 	# Act / Assert
