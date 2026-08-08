@@ -204,7 +204,8 @@ const TEX_ACERA_RECTA_0 := preload("res://assets/sprites/entorno/acera_recta_0.p
 const TEX_ACERA_RECTA_90 := preload("res://assets/sprites/entorno/acera_recta_90.png")
 const TEX_PLANTER := preload("res://assets/sprites/entorno/planter_0.png")
 
-## Las 5 fachadas de casa (tipos a/d/g/k/o, ver `render_entorno_urbano.gd`) para el barrio disperso.
+## Las 5 fachadas de casa (tipos a/d/g/k/o, ver `render_entorno_urbano.gd`) para el barrio disperso,
+## en el MISMO orden que `ANCHO_CASA_BARRIO` (índice a índice — nunca reordenar uno sin el otro).
 const TEX_CASAS: Array[Texture2D] = [
 	preload("res://assets/sprites/entorno/casa_a_0.png"),
 	preload("res://assets/sprites/entorno/casa_d_0.png"),
@@ -212,18 +213,29 @@ const TEX_CASAS: Array[Texture2D] = [
 	preload("res://assets/sprites/entorno/casa_k_0.png"),
 	preload("res://assets/sprites/entorno/casa_o_0.png"),
 ]
+## El ancho de parcela (celdas) con el que se calibró cada casa en `tools/render_entorno_urbano.gd`
+## (ley 12, "casa pequeña ~6 / mediana ~7 / grande ~8"). Usado para dimensionar la huella de reserva
+## de CADA candidato (`_colocar_casas_barrio`) -- antes la reserva era un cuadrado fijo de 7×7 que
+## no distinguía tipo ni comprobaba contra OTRAS casas ya colocadas (bug latente: con la escala vieja
+## nunca se notó, con casas 2-3× más anchas sí solapaban).
+const ANCHO_CASA_BARRIO: Array[int] = [6, 6, 7, 7, 8]
 
 ## Las 4 direcciones cardinales del plano lógico, para recorrer vecinos de una celda.
 const VECINOS_4: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 
 ## Casas del barrio disperso: candidatos en una rejilla gruesa con jitter (no alineados a ojo),
-## filtrados por hash y por no invadir ninguna zona reservada. `MAX_CASAS_BARRIO` cerca del "3-5
-## edificios vecinos sueltos, repartidos con césped entre ellos" del encargo.
-const ESPACIADO_CASA_BARRIO: int = 24
+## filtrados por hash y por no invadir ninguna zona reservada NI la huella de otra casa ya colocada.
+## 2026-08-08 (ley 12, casas 2-3× más anchas -- ver `ANCHO_CASA_BARRIO`): `ESPACIADO_CASA_BARRIO`
+## sube 24->30 y `MAX_CASAS_BARRIO` baja 5->4 para que el barrio "respire" con el tamaño nuevo (antes
+## la reserva de cada casa era un cuadrado fijo de 7×7 que ni distinguía tipo ni chocaba con otras
+## casas -- con casas de hasta 8 celdas de ancho eso ya no alcanza, ver `_colocar_casas_barrio`).
+const ESPACIADO_CASA_BARRIO: int = 30
 const JITTER_CASA_BARRIO: int = 8
 const PROBABILIDAD_CASA_BARRIO: int = 3
-const MAX_CASAS_BARRIO: int = 5
-const RADIO_RESERVA_CASA: int = 3
+const MAX_CASAS_BARRIO: int = 4
+## Aire extra (celdas) sumado al semiancho de CADA tipo de casa al construir su huella de reserva --
+## separa una casa de la siguiente/zona sin que se toquen borde con borde.
+const MARGEN_RESERVA_CASA: int = 1
 
 ## Árboles sueltos dispersos por el verde exterior (fuera del recinto): 1 de cada
 ## `ESPACIADO_ARBOL_DISPERSO` celdas válidas -- sparse a propósito, "árboles dispersos", no un
@@ -268,9 +280,12 @@ var _capa_overlays_planas: Node2D = null
 ## con tests/herramientas sueltas que no montan un `Main` completo.
 var _capa_decor: Node2D = null
 var _fuentes: Dictionary[String, int] = {}
-## Celdas ya reservadas por una casa del barrio (huella + margen) -- para que el scatter de árboles
-## sueltos no plante uno encima de una casa recién colocada.
-var _celdas_reservadas_barrio: Dictionary = {}
+## Huellas (rect lógico) de las casas del barrio YA colocadas -- 2026-08-08: antes esta bolsa se
+## declaraba pero NUNCA se rellenaba (bug latente sin notar mientras las casas eran pequeñas): ni
+## dos casas se comprobaban entre sí, ni el scatter de árboles sueltos las esquivaba de verdad. Ahora
+## SÍ se rellena en `_colocar_casas_barrio` y la consulta `_celda_reservada` (así el árbol disperso de
+## `_pintar_verde_exterior` tampoco planta uno encima de una casa).
+var _huellas_casas_barrio: Array[Rect2i] = []
 ## Las ANCLAS de pantalla (el pie del poste) de cada farola colocada -- procedural o del layout fijo
 ## -- para que `LucesObjetos.usar_farolas` las encienda de noche con el mismo mecanismo que las
 ## comodidades interiores. Ver `puntos_farolas`.
@@ -586,6 +601,9 @@ func _celda_reservada(celda: Vector2i) -> bool:
 	for zona: Rect2i in ZONAS_CERCANAS:
 		if zona.has_point(celda):
 			return true
+	for huella: Rect2i in _huellas_casas_barrio:
+		if huella.has_point(celda):
+			return true
 	return false
 
 
@@ -806,9 +824,15 @@ func _colocar_casas_barrio() -> void:
 			var jx: int = posmod(h >> 3, JITTER_CASA_BARRIO) - JITTER_CASA_BARRIO / 2
 			var jy: int = posmod(h >> 9, JITTER_CASA_BARRIO) - JITTER_CASA_BARRIO / 2
 			var celda := Vector2i(bx * ESPACIADO_CASA_BARRIO + jx, by * ESPACIADO_CASA_BARRIO + jy)
+			# El TIPO se decide ANTES de construir la huella (2026-08-08, ley 12): cada casa mide lo
+			# que mide (`ANCHO_CASA_BARRIO`, 6-8 celdas), así que su reserva tiene que ser DE ESE
+			# tamaño -- un cuadrado fijo (el bug de antes) o bien reservaba de más para la pequeña o
+			# de menos para la grande.
+			var indice: int = posmod(h, TEX_CASAS.size())
+			var ancho_celdas: int = ANCHO_CASA_BARRIO[indice]
+			var radio: int = int(ceili(float(ancho_celdas) * 0.5)) + MARGEN_RESERVA_CASA
 			var huella := Rect2i(
-				celda - Vector2i(RADIO_RESERVA_CASA, RADIO_RESERVA_CASA),
-				Vector2i(RADIO_RESERVA_CASA * 2 + 1, RADIO_RESERVA_CASA * 2 + 1)
+				celda - Vector2i(radio, radio), Vector2i(radio * 2 + 1, radio * 2 + 1)
 			)
 			if huella.intersects(RECT_NAV_PEATONAL):
 				continue
@@ -817,12 +841,18 @@ func _colocar_casas_barrio() -> void:
 				if huella.intersects(zona):
 					choca = true
 					break
+			if not choca:
+				for otra: Rect2i in _huellas_casas_barrio:
+					if huella.intersects(otra):
+						choca = true
+						break
 			if choca:
 				continue
-			var textura: Texture2D = TEX_CASAS[posmod(h, TEX_CASAS.size())]
+			var textura: Texture2D = TEX_CASAS[indice]
 			_colocar_prop(textura, celda)
-			_colocar_overlay_plano(TEX_ENTRADA_CASA, celda + Vector2i(0, 2))
-			var celda_arbol := celda + Vector2i(3, -1)
+			_colocar_overlay_plano(TEX_ENTRADA_CASA, celda + Vector2i(0, radio))
+			var celda_arbol := celda + Vector2i(radio + 1, -1)
 			if not _celda_reservada(celda_arbol):
 				_colocar_prop(TEX_TREE_PEQUENO, celda_arbol)
+			_huellas_casas_barrio.append(huella)
 			colocadas += 1

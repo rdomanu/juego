@@ -20,6 +20,9 @@ extends "res://tools/render_mobiliario.gd"
 ## 4 para orientarse en su plaza/calle.
 
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
+## `const …Script` en vez del registro global de `class_name` -- convenio del proyecto (ver
+## `paredes_salas.gd`, cabecera de `ParedesSalasScript` en `npcs_flujo.gd`).
+const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 
 ## Mismo ancla de conversión que el resto de pipelines 3D->sprite del proyecto: muñeco `girl` 44px
 ## ~ 1,70m real.
@@ -74,10 +77,38 @@ const CARPETA_ROADS := "res://capturas/fuentes/kenney_roads/Models/GLB format/"
 ##    de `render_mobiliario.gd`) dan una huella de ~3,2-3,6 celdas de largo -- verificado en el motor
 ##    (intento 3 de 3, con el `--import` de por medio).
 ##
-## Las 5 casas (tipos a/d/g/k/o -- variedad de fachada dentro del abecedario a..u del pack) llevan
-## una altura ESCALONADA (6,0-8,0 m) a propósito: "elige 4-5 tipos variados" -- sin poder abrir cada
-## `.glb` a mano en el visor, escalonar la altura objetivo por tipo da variedad de silueta (una
-## planta baja / planta y media / dos plantas) sin arriesgar a que las 5 salgan idénticas de tamaño.
+## Las 5 casas (ids fijos casa_a/d/g/k/o -- el catálogo, la paleta del diseñador, `ANCHO_CASA_BARRIO`
+## de `entorno_exterior.gd` y los layouts guardados dependen de estos 5 ids y de sus anchos de
+## parcela EXACTOS: 6/6/7/7/8 -- NUNCA cambiar) -- 2026-08-08, RECALIBRADO por ANCHO DE PARCELA (ley
+## 12, feedback "las casas son muy pequeñas comparadas con coches/personas/comisaría" -- calibrar por
+## ALTURA daba casas de 1-2 plantas que seguían leyéndose como maquetas junto a un coche de 3+
+## celdas). Usan `ancho_objetivo_celdas` (el mismo modo que ya usaban camino/calzada/acera, ver la
+## cabecera de `MODELOS`): la silueta se fuerza a ocupar exactamente N celdas de ancho de rombo en
+## pantalla -- pequeña 6, mediana 7, grande 8.
+##
+## ⚠️ REHECHO 2026-08-08 (2ª vez, mismo día) -- LEY DEL PROYECTO "PROHIBIDA la escala NO uniforme en
+## sprites" (`technical-preferences.md`): el primer intento de este mismo día añadió un TECHO de
+## altura en metros que recortaba la escala Y por debajo de la X para que ninguna casa se "disparara"
+## -- deformaba la silueta (casa_k llegó a aplanarse ~3,8×, casa_a/d/g/o algo menos pero todas
+## estiradas). Se ELIMINA ese mecanismo por completo (`altura_techo_m`/`_escalar_xy`/`escala_pieza_y`
+## ya no existen en este fichero): las 5 casas usan ahora la MISMA escala uniforme (X=Y) que el resto
+## del catálogo -- la altura que salga de la proporción NATURAL de cada modelo, sin recortar nada.
+## Cuando un modelo del kit da una altura desproporcionada con escala uniforme (torre en vez de casa
+## baja), la corrección es SUSTITUIR el modelo por otra letra del abecedario (a..u) del mismo kit --
+## nunca deformar. Reparto final (medido con el modo `SOLO_MEDICION` de este fichero, ver más abajo,
+## contra la banda ~130-230px = ~2-3,5×`ParedesSalas.ALTO_PARED` que pide la tarea):
+## banda que pedía el encargo original resultó INALCANZABLE con escala uniforme -- el ANCHO ya está
+## fijo en 6-8 celdas (480-640px, la MISMA unidad que calibra coches/camino), y NINGUNA de las 21
+## letras baja de ratio(alto/ancho)=0,67 -- el mínimo posible con ese ancho da ~320px de alto, ya
+## 4,9x `ParedesSalas.ALTO_PARED` (que además es una pared "bajita" a propósito, ver su cabecera, no
+## una referencia de altura real). Criterio aplicado en su lugar: las 5 letras de MENOR ratio del kit
+## entero (las más "casa baja", menos "torre") -- confirmado a ojo con
+## `tools/_diag_escala_casas_20260808.gd` (ver el informe):
+##   casa_a (6 celdas) -> letra a (ratio 0,7475 -- sin cambio, ya era de las más bajas)
+##   casa_d (6 celdas) -> letra m (ratio 0,6697 -- sustituye a 'd'=0,8656, la más baja de las 21)
+##   casa_g (7 celdas) -> letra g (ratio 0,7175 -- sin cambio, 2ª más baja de las 21)
+##   casa_k (7 celdas) -> letra i (ratio 0,7318 -- sustituye a 'k'=1,2394, la peor "torre" del kit)
+##   casa_o (8 celdas) -> letra n (ratio 0,7526 -- sustituye a 'o'=0,9620)
 ##
 ## `valla_baja`/`valla_estandar`: las DOS candidatas para la tapia del recinto (`fence-low.glb` vs
 ## `fence.glb`) -- se renderizan las dos y se decide cuál se usa mirando el PNG (ver el informe),
@@ -86,6 +117,27 @@ const CARPETA_ROADS := "res://capturas/fuentes/kenney_roads/Models/GLB format/"
 ## `TEST_metro_corner`: pieza de EVALUACIÓN (candidato del usuario, `metro_street_corner.glb`,
 ## realista PBR) -- se renderiza para comparar su estilo contra el low-poly Kenney con evidencia,
 ## NO para usarla necesariamente en el juego (ver el informe, veredicto).
+## ⚠️ MODO TEMPORAL DE SOLO MEDICIÓN (2026-08-08, paso 3 de la receta de rehacer las 5 casas por
+## escala uniforme): con `SOLO_MEDICION = true`, `_ready()` NO monta ni renderiza el catálogo --
+## en su lugar mide la proporción bruta (alto/ancho de la silueta a 0°) de TODAS las letras
+## `building-type-*` del kit suburbano (ver `LETRAS_SUBURBAN`) y para cada una imprime la altura
+## final prevista con parcela de 6/7/8 celdas (misma fórmula que usa `_ejecutar` para
+## `ancho_objetivo_celdas`: `alto_final = ancho_celdas × Proyeccion.ANCHO_ROMBO × (alto_bruto /
+## ancho_bruto)`). NO escribe ningún PNG. Volver a `false` cuando se decida el reparto final --
+## no forma parte del pipeline normal, es una sonda de calibración de un solo uso.
+const SOLO_MEDICION: bool = false
+
+## Las 21 letras del kit "City Kit Suburban" (a..u) -- candidatas para las 5 casas cuando
+## `SOLO_MEDICION` está activo (ver `capturas/fuentes/kenney_suburban/Models/GLB format/`).
+const LETRAS_SUBURBAN: Array[String] = [
+	"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k",
+	"l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
+]
+
+## Los 3 anchos de parcela reales del catálogo (`MODELOS`, ids casa_a/d=6, casa_g/k=7, casa_o=8) --
+## la tabla de `SOLO_MEDICION` prueba los tres para cada letra candidata.
+const ANCHOS_PARCELA_A_PROBAR: Array[float] = [6.0, 7.0, 8.0]
+
 const MODELOS: Array[Dictionary] = [
 	{"id": "arbol_urbano", "ruta": CARPETA_SUMMER + "arbol_urbano.glb", "altura_objetivo_m": 4.5},
 	{"id": "seto", "ruta": CARPETA_SUMMER + "seto.glb", "altura_objetivo_m": 0.8},
@@ -93,11 +145,11 @@ const MODELOS: Array[Dictionary] = [
 	{"id": "coche_policia", "ruta": CARPETA_CARKIT + "police.glb", "longitud_objetivo_m": 4.8},
 	{"id": "coche_sedan", "ruta": CARPETA_CARKIT + "sedan.glb", "longitud_objetivo_m": 5.3},
 	{"id": "coche_suv", "ruta": CARPETA_CARKIT + "suv.glb", "longitud_objetivo_m": 5.6},
-	{"id": "casa_a", "ruta": CARPETA_SUBURBAN + "building-type-a.glb", "altura_objetivo_m": 6.0},
-	{"id": "casa_d", "ruta": CARPETA_SUBURBAN + "building-type-d.glb", "altura_objetivo_m": 6.5},
-	{"id": "casa_g", "ruta": CARPETA_SUBURBAN + "building-type-g.glb", "altura_objetivo_m": 7.0},
-	{"id": "casa_k", "ruta": CARPETA_SUBURBAN + "building-type-k.glb", "altura_objetivo_m": 7.5},
-	{"id": "casa_o", "ruta": CARPETA_SUBURBAN + "building-type-o.glb", "altura_objetivo_m": 8.0},
+	{"id": "casa_a", "ruta": CARPETA_SUBURBAN + "building-type-a.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "casa_d", "ruta": CARPETA_SUBURBAN + "building-type-m.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "casa_g", "ruta": CARPETA_SUBURBAN + "building-type-g.glb", "ancho_objetivo_celdas": 7.0},
+	{"id": "casa_k", "ruta": CARPETA_SUBURBAN + "building-type-i.glb", "ancho_objetivo_celdas": 7.0},
+	{"id": "casa_o", "ruta": CARPETA_SUBURBAN + "building-type-n.glb", "ancho_objetivo_celdas": 8.0},
 	{"id": "valla_baja", "ruta": CARPETA_SUBURBAN + "fence-low.glb", "altura_objetivo_m": 1.2},
 	{"id": "valla_estandar", "ruta": CARPETA_SUBURBAN + "fence.glb", "altura_objetivo_m": 1.5},
 	{"id": "camino_recinto", "ruta": CARPETA_SUBURBAN + "path-short.glb", "ancho_objetivo_celdas": 1.0},
@@ -114,8 +166,18 @@ const MODELOS: Array[Dictionary] = [
 ]
 
 
+## FILTRO PERMANENTE de ids a renderizar (2026-08-08, paso 5 de la receta de rehacer las casas):
+## vacío = todos (comportamiento de siempre); con ids dentro, `_ready()` solo carga/renderiza esos --
+## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
+## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
+const SOLO_IDS: Array[String] = ["casa_a", "casa_d", "casa_g", "casa_k", "casa_o"]
+
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SALIDA_ENTORNO))
+
+	if SOLO_MEDICION:
+		await _medir_candidatos_casa()
+		return
 
 	var contenedor := Node3D.new()
 	add_child(contenedor)
@@ -123,6 +185,8 @@ func _ready() -> void:
 
 	var todas: Dictionary = {}
 	for modelo: Dictionary in MODELOS:
+		if not SOLO_IDS.is_empty() and not SOLO_IDS.has(modelo["id"]):
+			continue
 		_cargar(contenedor, modelo, todas)
 
 	_ejecutar(todas)
@@ -203,6 +267,8 @@ func _ejecutar(todas: Dictionary) -> void:
 
 	for modelo: Dictionary in MODELOS:
 		var id: String = modelo["id"]
+		if not SOLO_IDS.is_empty() and not SOLO_IDS.has(id):
+			continue
 		var por_ancho: bool = modelo.has("ancho_objetivo_celdas")
 		var por_longitud: bool = modelo.has("longitud_objetivo_m")
 		var nombres: PackedStringArray = _nombres_de(todas, id)
@@ -230,9 +296,10 @@ func _ejecutar(todas: Dictionary) -> void:
 			objetivo_px = ancho_celdas * float(Proyeccion.ANCHO_ROMBO)
 			medido_bruto_px = _medir_ancho(imagen_0)
 			escala_pieza = objetivo_px / float(maxi(medido_bruto_px, 1))
-			print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2f celdas->%.1fpx -> factor=%.4f" % [
+			var alto_bruto_0: int = _medir_alto(imagen_0)
+			print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2f celdas->%.1fpx -> factor=%.4f (alto final previsto=%.1fpx)" % [
 				id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
-				ancho_celdas, objetivo_px, escala_pieza
+				ancho_celdas, objetivo_px, escala_pieza, float(alto_bruto_0) * escala_pieza
 			])
 		elif por_longitud:
 			# Ver la cabecera de `MODELOS`: mismo mecanismo que `ancho_objetivo_celdas` (mide el ANCHO
@@ -257,7 +324,8 @@ func _ejecutar(todas: Dictionary) -> void:
 				altura_objetivo_m, FACTOR_PRESENCIA, objetivo_px, escala_pieza
 			])
 
-		# 2) Las 4 rotaciones, MISMO factor.
+		# 2) Las 4 rotaciones, MISMO factor de escala UNIFORME (X=Y, ley del proyecto: PROHIBIDA la
+		# escala no uniforme) -- `_escalar` es de `render_mobiliario.gd`, el padre de este script.
 		var escalados: Array[Dictionary] = [_escalar(bruto_0, escala_pieza)]
 		for rot: int in [90, 180, 270]:
 			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
@@ -323,3 +391,104 @@ func _medir_ancho(imagen: Image) -> int:
 			max_x = px
 			break
 	return max_x - min_x + 1
+
+
+## Modo de SOLO MEDICIÓN (ver `SOLO_MEDICION`): carga cada letra de `LETRAS_SUBURBAN` una a una
+## (cámara recolocada por pieza, igual que el bucle real de `_ejecutar`), mide su silueta bruta a 0°
+## y calcula la altura final prevista con los 3 anchos de parcela reales -- SIN guardar ningún PNG.
+## `id_receta`/`_ancla_de`/`_radio_de`/`_montar_receta` se reutilizan tal cual (mismo mecanismo que
+## `_cargar`+`_ejecutar`, ver sus cabeceras) para no duplicar la lógica de encuadre/ancla.
+func _medir_candidatos_casa() -> void:
+	var contenedor := Node3D.new()
+	add_child(contenedor)
+	contenedor.visible = false
+
+	_sub = SubViewport.new()
+	_sub.size = Vector2i(TAM_RENDER, TAM_RENDER)
+	_sub.transparent_bg = true
+	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sub.own_world_3d = true
+	add_child(_sub)
+
+	var mundo := Node3D.new()
+	_sub.add_child(mundo)
+	var sol := DirectionalLight3D.new()
+	sol.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
+	sol.light_energy = 1.1
+	mundo.add_child(sol)
+	var entorno := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.75, 0.78, 0.85)
+	env.ambient_light_energy = 0.9
+	entorno.environment = env
+	mundo.add_child(entorno)
+
+	_camara = Camera3D.new()
+	_camara.projection = Camera3D.PROJECTION_ORTHOGONAL
+	mundo.add_child(_camara)
+
+	var grupo := Node3D.new()
+	mundo.add_child(grupo)
+
+	print("[MEDICION CASAS] ALTO_PARED=%.1fpx -- banda razonable ~2-3,5x (~%.0f-%.0fpx)" % [
+		ParedesSalasScript.ALTO_PARED, ParedesSalasScript.ALTO_PARED * 2.0, ParedesSalasScript.ALTO_PARED * 3.5
+	])
+	for letra: String in LETRAS_SUBURBAN:
+		var ruta: String = CARPETA_SUBURBAN + "building-type-%s.glb" % letra
+		var escena: PackedScene = load(ruta)
+		if escena == null:
+			push_warning("[MEDICION CASAS] no se pudo cargar %s" % ruta)
+			continue
+		var raiz: Node3D = escena.instantiate()
+		contenedor.add_child(raiz)
+
+		var todas: Dictionary = {}
+		var nombres := PackedStringArray()
+		for hijo: Node in raiz.find_children("*", "MeshInstance3D", true, false):
+			var mi := hijo as MeshInstance3D
+			if mi.mesh == null:
+				continue
+			var overrides: Array[Material] = []
+			for s: int in mi.mesh.get_surface_count():
+				overrides.append(mi.get_surface_override_material(s))
+			var nombre: String = "pieza__%s" % mi.name
+			todas[nombre] = {
+				"malla": mi.mesh, "transform": mi.global_transform,
+				"material_override": mi.material_override, "overrides": overrides,
+			}
+			nombres.append(nombre)
+		if nombres.is_empty():
+			push_warning("[MEDICION CASAS] %s: sin MeshInstance3D" % letra)
+			contenedor.remove_child(raiz)
+			raiz.free()
+			continue
+
+		var receta: Dictionary = {"id_salida": "medicion_%s" % letra, "nombres": nombres}
+		var ancla: Vector3 = _ancla_de(receta, todas)
+		var radio: float = _radio_de(receta, todas, ancla)
+		_montar_receta(grupo, receta, todas, ancla)
+		_colocar_camara(radio * 2.0 * MARGEN)
+		grupo.rotation = Vector3.ZERO
+		var bruto_0: Dictionary = await _renderizar_bruto()
+		var imagen_0: Image = bruto_0["imagen"]
+		var ancho_bruto: int = _medir_ancho(imagen_0)
+		var alto_bruto: int = _medir_alto(imagen_0)
+		var ratio: float = float(alto_bruto) / float(maxi(ancho_bruto, 1))
+
+		var linea: String = "[MEDICION CASAS] %s: bruto=%dx%dpx (silueta %dx%dpx), ratio(alto/ancho)=%.4f" % [
+			letra, imagen_0.get_width(), imagen_0.get_height(), ancho_bruto, alto_bruto, ratio
+		]
+		for ancho_celdas: float in ANCHOS_PARCELA_A_PROBAR:
+			var alto_final: float = ancho_celdas * float(Proyeccion.ANCHO_ROMBO) * ratio
+			linea += " | %.0fcel->%.1fpx(%.2fxALTO_PARED)" % [
+				ancho_celdas, alto_final, alto_final / ParedesSalasScript.ALTO_PARED
+			]
+		print(linea)
+
+		contenedor.remove_child(raiz)
+		raiz.free()
+
+	print("[MEDICION CASAS] hecho -- ningún PNG escrito.")
+	get_tree().quit()
