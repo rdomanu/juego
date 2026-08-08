@@ -576,7 +576,9 @@ func _boton_pildora(
 	boton.theme = KitUIComisarioScript.tema()
 	boton.theme_type_variation = variante
 	boton.focus_mode = Control.FOCUS_NONE
-	boton.custom_minimum_size = Vector2(0, 40)
+	# Ancho MINIMO por pildora (fix 2026-08-08, captura: el texto se recortaba sin el) -- la spec
+	# S2.2 da 105-150px por pildora; 130 generico cubre el rotulo mas largo con la fuente 12.
+	boton.custom_minimum_size = Vector2(130, 40)
 
 	var margen := MarginContainer.new()
 	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
