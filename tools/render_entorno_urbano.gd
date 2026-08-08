@@ -202,11 +202,15 @@ const MODELOS: Array[Dictionary] = [
 	## volumen) -- mismo modo `ancho_objetivo_celdas` que `calzada_recta`/`acera_recta`, ver la
 	## cabecera de `MODELOS`. Solo cablear a la paleta cuando otro lote lo pida (este render SOLO deja
 	## los PNG listos + el registro de textura en `entorno_exterior.gd`, ver su cabecera).
-	{"id": "carretera_recta", "ruta": CARPETA_ROADS + "road-straight.glb", "ancho_objetivo_celdas": 3.8},
-	{"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 3.8},
-	{"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb", "ancho_objetivo_celdas": 3.8},
-	{"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb", "ancho_objetivo_celdas": 3.8},
-	{"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb", "ancho_objetivo_celdas": 3.8},
+	## ANCHO 6.0 (decisión del usuario 2026-08-08, tras ver las opciones 4,4/4,8/5,2 con los coches
+	## encima: "ponlo en 6 celdas, así cuadra todo a celdas completas"): a 3,8 los coches pisaban el
+	## arcén (~20% del tile es arcén); a 6,0 la calle casa con la rejilla entera y las 5 piezas del
+	## kit comparten LA MISMA escala (regla del usuario: toda la familia en proporción).
+	{"id": "carretera_recta", "ruta": CARPETA_ROADS + "road-straight.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb", "ancho_objetivo_celdas": 6.0},
 	## Las 16 casas restantes del kit (ver la tabla de la cabecera, "LAS 16 CASAS RESTANTES DEL KIT").
 	{"id": "casa_kit_b", "ruta": CARPETA_SUBURBAN + "building-type-b.glb", "ancho_objetivo_celdas": 6.0},
 	{"id": "casa_kit_c", "ruta": CARPETA_SUBURBAN + "building-type-c.glb", "ancho_objetivo_celdas": 5.0},
@@ -232,9 +236,8 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"casa_kit_b", "casa_kit_c", "casa_kit_d", "casa_kit_e", "casa_kit_f", "casa_kit_h",
-	"casa_kit_j", "casa_kit_k", "casa_kit_l", "casa_kit_o", "casa_kit_p", "casa_kit_q",
-	"casa_kit_r", "casa_kit_s", "casa_kit_t", "casa_kit_u",
+	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
+	"carretera_paso_cebra",
 ]
 
 func _ready() -> void:
