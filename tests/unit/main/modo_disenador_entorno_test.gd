@@ -16,13 +16,24 @@ const ModoDisenadorEntornoScript := preload("res://src/main/modo_disenador_entor
 
 const RUTA_SCRATCH := "user://_test_entorno_disenado.json"
 
+## AISLAMIENTO (2026-08-08): `alternar()` al activar PAUSA el reloj GLOBAL (autoload `Tiempo`,
+## ver `modo_disenador_entorno.gd` — "el reloj no debe correr mientras se compone el entorno") y
+## esta suite no lo reanudaba: la pausa se filtraba al RESTO del batch y congelaba los NPCs de
+## las suites de navegación física (`flujo_muro_tras_ruta_test` e `impresora_papel_visible_test`
+## quedaban verdes en aislado y rojas en la suite completa — el muñeco quieto 600 frames en su
+## celda de spawn). Todo test que toque un autoload debe dejarlo como estaba: se captura la
+## velocidad en `before_test` y se restaura en `after_test` (mismo cast que `hud_comisario.gd`).
+var _velocidad_previa: int
+
 
 func before_test() -> void:
+	_velocidad_previa = Tiempo.velocidad_actual
 	_borrar_scratch()
 
 
 func after_test() -> void:
 	_borrar_scratch()
+	Tiempo.fijar_velocidad(_velocidad_previa as Tiempo.Velocidad)
 
 
 func _borrar_scratch() -> void:
