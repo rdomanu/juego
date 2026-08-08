@@ -267,6 +267,40 @@ static func construir(
 	return raiz
 
 
+## ── EL PAPEL (viaje de la impresora, GDD impresora-documentos-tramite.md) ────────────────────────
+## El documento que trae el funcionario al volver y con el que sale el ciudadano. Un rectángulo BLANCO
+## con un borde gris tenue — relleno plano tolerado, mismo criterio que las piezas `_caja` del resto
+## del muñeco (son formas de un color, no texturas; el detalle que se lee a este tamaño es la
+## SILUETA). El borde es OTRO rectángulo gris debajo, un pelo más grande por cada lado — el mismo
+## truco de "borde por capas" que ya usa el juego en vez de un `Line2D` aparte.
+const ANCHO_PAPEL: float = 7.0
+const ALTO_PAPEL: float = 9.0
+const COLOR_PAPEL := Color(0.96, 0.96, 0.94)
+const COLOR_BORDE_PAPEL := Color(0.55, 0.55, 0.52)
+## Dónde cuelga del muñeco (chest/mano, relativo a la raíz del visual — mismo sistema que la taza ☕
+## de `NPCsFlujo._poner_taza`, que se posiciona igual desde fuera).
+const POSICION_PAPEL := Vector2(-5.0, -22.0)
+
+
+## Un papel sostenido en la mano, listo para colgar de un muñeco. Quien lo cuelga (`NPCsFlujo.
+## _poner_papel` para el funcionario, `NPCCiudadano._refrescar_papel` para el ciudadano) lo añade
+## como ÚLTIMO hijo del visual — el orden del árbol ES el orden de dibujo, así que entra DELANTE de
+## todo, igual que la taza.
+static func papel() -> Node2D:
+	var raiz := Node2D.new()
+	raiz.name = "Papel"
+	raiz.position = POSICION_PAPEL
+	raiz.add_child(_caja(
+		"Borde", Vector2(-ANCHO_PAPEL * 0.5 - 1.0, -ALTO_PAPEL * 0.5 - 1.0),
+		Vector2(ANCHO_PAPEL + 2.0, ALTO_PAPEL + 2.0), COLOR_BORDE_PAPEL
+	))
+	raiz.add_child(_caja(
+		"Hoja", Vector2(-ANCHO_PAPEL * 0.5, -ALTO_PAPEL * 0.5), Vector2(ANCHO_PAPEL, ALTO_PAPEL),
+		COLOR_PAPEL
+	))
+	return raiz
+
+
 ## Una pierna: pantalón arriba y BOTA abajo, colgando de la cadera. `tono` desempata levemente la
 ## pierna de atrás para que no se confundan cuando se cruzan.
 static func _pierna(nombre: String, x: float, color_tela: Color, color_bota: Color, tono: float) -> Node2D:

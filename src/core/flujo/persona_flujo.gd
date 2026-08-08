@@ -23,6 +23,15 @@ const ESTADO_ABANDONANDO := &"abandonando"
 ## sobrevivir a guardar la partida.
 var colado: bool = false
 
+## ¿Sale con SU PAPEL en la mano? (GDD impresora-documentos-tramite.md). Lo fija Flujo en
+## `_completar_atencion`, leyendo `ImpresoraDocumentos.con_papel` ANTES de consumir el viaje — igual
+## que `colado`, es un dato COSMÉTICO que observa `NPCCiudadano` (FL5: la simulación nunca lo lee de
+## vuelta) para colgarle el documento visible hasta que despacha. `false` por defecto: sin impresora
+## inyectada, o para cualquier trámite sin papel, el ciudadano sale con las manos vacías, como
+## siempre. NO se serializa a propósito (a diferencia de `colado`): es un dato de UN SOLO frame de
+## vida útil —de la entrega al despawn—, nunca sobrevive a guardar la partida.
+var con_papel: bool = false
+
 ## La ficha de Demanda (Persona: servicio / tramite_id / minuto_llegada) — REFERENCIA compartida.
 var ficha: RefCounted = null
 ## Número de turno (FL2): único y creciente por servicio; lo asigna Flujo al admitir. Nunca se reusa.

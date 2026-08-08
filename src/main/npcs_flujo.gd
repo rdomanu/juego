@@ -321,6 +321,10 @@ const DISTANCIA_LLEGADA: float = 12.0
 ## (`hay_camino`) si ya hay puerta — nunca se da la ruta por imposible para siempre. Ver
 ## `_fijar_destino_caminante`.
 const FRAMES_RECHEQUEO_BLOQUEO: int = 180
+## Cuántos physics frames dura el GESTO DE ENTREGA (el funcionario le pasa el papel al ciudadano) al
+## llegar de vuelta a su puesto, antes de cerrar el viaje del todo. 24 ≈ 0,4 s a 60 fps: se lee como
+## un gesto, no como una pausa perceptible. Congelable en Pausa (mult 0), igual que `_mover_paso`.
+const FRAMES_ENTREGA_PAPEL: int = 24
 ## (El mostrador pasó a ser una MESA compuesta el 2026-07-31 — ver `mesa_atencion.gd`.)
 ## ISOMÉTRICO (2026-07-30): el plano lógico CUADRADO (oculto — navegación y cuerpos que andan) y la
 ## capa de escena ISOMÉTRICA (lo que se ve, ordenado por profundidad). Ver `configurar()`.
@@ -390,8 +394,15 @@ var _incorporacion_en_curso: Dictionary[StringName, bool] = {}
 ## Mismo patrón de sondeo por tick que `_camino_descanso`, pero indexado por PUESTO y no por agente:
 ## la API de `ImpresoraDocumentos` es por puesto (es la ventanilla la que tiene el viaje, sea quien
 ## sea su titular ese día). `puesto_id` → Dictionary del viaje EN CURSO, mismas claves que
-## `_camino_descanso` salvo "fase" (aquí: &"yendo" → &"en_impresora" → &"volviendo") y "celda_sala".
+## `_camino_descanso` salvo "fase" (aquí: &"yendo" → &"en_impresora" → &"volviendo" → &"entregando")
+## y "celda_sala". "frames_entrega" (solo en "entregando") cuenta la pausa del gesto de entrega.
 var _camino_impresora: Dictionary = {}
+## Puestos cuyo último intento de arrancar el viaje del papel NO encontró camino real (mostrador sin
+## salida, obra a medias…): frames transcurridos desde ese intento. SIN RUTA ⇒ SIN REINTENTO CADA
+## FRAME (mismo criterio que `FRAMES_RECHEQUEO_BLOQUEO` de los caminantes ya existentes) — mientras
+## tenga entrada aquí, `_refrescar_impresora` no vuelve a probar hasta pasado ese plazo. Un puesto
+## sin entrada = "puede intentarlo ahora mismo" (el caso normal).
+var _impresora_sin_ruta: Dictionary[StringName, int] = {}
 
 
 ## El objeto que esta persona está usando ahora (`&""` si ninguno) — lo LEE el NPC para saber si
@@ -1427,6 +1438,22 @@ func _punto_de_su_puesto(puesto_id: StringName) -> Vector2:
 	return _construccion.centro_de_celda(celda + Vector2i(0, 1))
 
 
+## El punto al lado del FUNCIONARIO — espejo de `_punto_de_su_puesto` (que es el lado del ciudadano,
+## celda SUR): esta es la celda NORTE, donde vive de verdad el funcionario (layout documentado en
+## `_iniciar_camino_incorporacion`/`_frente_del_puesto`: el ciudadano al sur, el funcionario al
+## norte). Lo usa el viaje del papel como origen/destino de la ida y la vuelta — usar el punto del
+## ciudadano ahí era la causa raíz del "salto de mesa" (bug reportado por el usuario 2026-08-08): el
+## muñeco nacía teletransportado al lado opuesto del mostrador. Mismo fallback que su espejo: sin
+## puesto o sin posición, un punto de calle.
+func _punto_puesto_funcionario(puesto_id: StringName) -> Vector2:
+	if puesto_id == &"":
+		return _punto_calle(0)
+	var celda: Vector2i = _construccion.posicion_de(puesto_id)
+	if celda == CELDA_NULA:
+		return _punto_calle(0)
+	return _construccion.centro_de_celda(celda + Vector2i(0, -1))
+
+
 ## Primera celda LIBRE de la sala de descanso (mismo barrido en lectura que usa `_hueco_de_pie_libre`
 ## para la sala de espera, pero en su propio dict — son salas distintas). Sin hueco no debería pasar
 ## nunca (`Personal.hay_sitio_para_descansar` ya limita el aforo antes de mandar a nadie aquí); si
@@ -1470,6 +1497,27 @@ func _quitar_taza(cuerpo: Node2D) -> void:
 	var taza: Node = muneco.get_node_or_null("Taza")
 	if taza != null:
 		taza.queue_free()
+
+
+## Cuelga el papel (`MunecoScript.papel`) del funcionario que vuelve CON documento — mismo patrón que
+## `_poner_taza`. Defensivo contra doble alta (no debería llamarse dos veces para el mismo viaje, pero
+## si pasara no se apilan dos papeles).
+func _poner_papel(cuerpo: Node2D) -> void:
+	var muneco: Node2D = _visual_caminante(cuerpo)
+	if muneco == null or muneco.get_node_or_null("Papel") != null:
+		return
+	muneco.add_child(MunecoScript.papel())
+
+
+## Quita el papel: al cerrar el gesto de entrega (`_avanzar_entrega`) o defensivamente al cerrar el
+## viaje si nunca llegó a soltarlo (viaje cortado a mitad de "volviendo"/"entregando").
+func _quitar_papel(cuerpo: Node2D) -> void:
+	var muneco: Node2D = _visual_caminante(cuerpo)
+	if muneco == null:
+		return
+	var papel: Node = muneco.get_node_or_null("Papel")
+	if papel != null:
+		papel.queue_free()
 
 
 ## ¿Hay que hacer que este agente ENTRE ANDANDO ahora mismo? Es la invariante "1 puesto = 1
@@ -1598,12 +1646,22 @@ func _cerrar_camino_incorporacion(viaje: Dictionary) -> void:
 func _refrescar_impresora() -> void:
 	if _impresora == null or _flujo == null or _construccion == null:
 		return
+	var vivos: Dictionary[StringName, bool] = {}
 	for puesto_id: StringName in _flujo.puestos_registrados():
+		vivos[puesto_id] = true
 		if (
-			_impresora.fase_de(puesto_id) == ImpresoraDocumentosScript.FASE_IDA
-			and not _camino_impresora.has(puesto_id)
+			_impresora.fase_de(puesto_id) != ImpresoraDocumentosScript.FASE_IDA
+			or _camino_impresora.has(puesto_id)
+			or not _listo_para_reintentar_impresora(puesto_id)
 		):
-			_iniciar_camino_impresora(puesto_id)
+			continue
+		if _iniciar_camino_impresora(puesto_id):
+			_impresora_sin_ruta.erase(puesto_id)
+		else:
+			_impresora_sin_ruta[puesto_id] = 0
+	for puesto_id: StringName in _impresora_sin_ruta.keys():
+		if not vivos.has(puesto_id):
+			_impresora_sin_ruta.erase(puesto_id)
 	for puesto_id: StringName in _camino_impresora:
 		var viaje: Dictionary = _camino_impresora[puesto_id]
 		var fase_modelo: StringName = _impresora.fase_de(puesto_id)
@@ -1611,7 +1669,11 @@ func _refrescar_impresora() -> void:
 			fase_modelo == ImpresoraDocumentosScript.FASE_VUELTA
 			or fase_modelo == ImpresoraDocumentosScript.FASE_SIN_VIAJE
 		)
-		if debe_volver and viaje["fase"] != &"volviendo":
+		# NI "volviendo" NI "entregando" se reinician: el gesto de entrega es cosmético puro y ya
+		# arrancó cuando el modelo dijo FASE_VUELTA — que el modelo avance de ahí a FASE_ENTREGADO o
+		# FASE_SIN_VIAJE mientras el muñeco todavía está con la mano tendida no debe teletransportarlo
+		# de vuelta a la impresora.
+		if debe_volver and viaje["fase"] != &"volviendo" and viaje["fase"] != &"entregando":
 			_iniciar_vuelta_impresora(viaje)
 	var terminados: Array[StringName] = []
 	for puesto_id: StringName in _camino_impresora:
@@ -1622,22 +1684,48 @@ func _refrescar_impresora() -> void:
 		_camino_impresora.erase(puesto_id)
 
 
+## SIN RUTA ⇒ SIN REINTENTO CADA FRAME. `true` si este puesto puede probar suerte AHORA (nunca lo
+## intentó, o ya pasó `FRAMES_RECHEQUEO_BLOQUEO` desde el último fallo); en ese caso libera la
+## entrada de `_impresora_sin_ruta` — si el intento vuelve a fallar, `_refrescar_impresora` la
+## reescribe a 0. Mientras el plazo no se cumpla, cuenta un frame más y dice que no.
+func _listo_para_reintentar_impresora(puesto_id: StringName) -> bool:
+	if not _impresora_sin_ruta.has(puesto_id):
+		return true
+	var frames: int = int(_impresora_sin_ruta[puesto_id]) + 1
+	if frames >= FRAMES_RECHEQUEO_BLOQUEO:
+		_impresora_sin_ruta.erase(puesto_id)
+		return true
+	_impresora_sin_ruta[puesto_id] = frames
+	return false
+
+
 ## Arranca el viaje de IDA: crea el muñeco caminante UNA vez (con el sprite de quien esté dotando el
 ## puesto ahora mismo, si lo hay) y lo manda a la celda de la impresora más cercana que ya decidió el
 ## modelo (`impresora_de`) — su propia celda es transitable (las comodidades NO se recortan como
 ## obstáculo en `_bakear_navegacion`, solo los puestos y los muros; mismo criterio que usa el café
 ## con `destino_de`/`comodidad_de`).
-func _iniciar_camino_impresora(puesto_id: StringName) -> void:
+##
+## NACE EN SU LADO (2026-08-08, bug reportado por el usuario — "salta la mesa hacia el ciudadano"):
+## el origen es `_punto_puesto_funcionario` (celda NORTE del puesto, el lado del funcionario), NUNCA
+## `_punto_de_su_puesto` (celda SUR, el lado del CIUDADANO) — usar ese último aquí era la causa raíz
+## del salto: el muñeco nacía teletransportado al otro lado del mostrador. Y antes de crear nada se
+## comprueba `hay_camino`: sin ruta real no se planta ningún muñeco (ni se reintenta cada frame —
+## ver `_impresora_sin_ruta` / `_listo_para_reintentar_impresora`), en vez del teletransporte de
+## siempre. Devuelve `true` si el viaje arrancó de verdad.
+func _iniciar_camino_impresora(puesto_id: StringName) -> bool:
+	var origen: Vector2 = _punto_puesto_funcionario(puesto_id)
+	var impresora_id: StringName = _impresora.impresora_de(puesto_id)
+	var destino: Vector2 = origen
+	if impresora_id != &"":
+		destino = _construccion.centro_de_celda(_construccion.posicion_de(impresora_id))
+	if not hay_camino(origen, destino):
+		return false
 	var agente: RefCounted = null
 	if _personal != null and _personal.puesto_dotado(puesto_id):
 		agente = _personal.agente_de(puesto_id)
 	var muneco: CharacterBody2D = _crear_muneco_caminante(agente)
-	muneco.position = _punto_de_su_puesto(puesto_id)
+	muneco.position = origen
 	_capa_descansos.add_child(muneco)
-	var impresora_id: StringName = _impresora.impresora_de(puesto_id)
-	var destino: Vector2 = _punto_de_su_puesto(puesto_id)
-	if impresora_id != &"":
-		destino = _construccion.centro_de_celda(_construccion.posicion_de(impresora_id))
 	_camino_impresora[puesto_id] = {
 		"muneco": muneco,
 		"nav": muneco.get_node("Nav") as NavigationAgent2D,
@@ -1646,35 +1734,82 @@ func _iniciar_camino_impresora(puesto_id: StringName) -> void:
 		"listo": false,
 		"destino_pendiente": destino,
 	}
+	return true
 
 
 ## Da la vuelta a un viaje YA EXISTENTE (nunca crea un muñeco nuevo), igual que `_iniciar_vuelta` del
 ## descanso: si aún iba "yendo" (p. ej. la impresora se demolió a mitad de camino), gira desde donde
-## esté — no hace falta que "llegue" primero.
+## esté — no hace falta que "llegue" primero. Vuelve a SU LADO (`_punto_puesto_funcionario`, el mismo
+## origen del viaje de ida — ver su comentario). Con papel de verdad (`ImpresoraDocumentos.con_papel`
+## ya decidido por el modelo al entrar en FASE_VUELTA) se lo cuelga encima para todo el trayecto de
+## vuelta: manos vacías si la impresora se demolió a mitad de camino (GDD §Edge Cases).
 func _iniciar_vuelta_impresora(viaje: Dictionary) -> void:
 	viaje["fase"] = &"volviendo"
-	viaje["destino_pendiente"] = _punto_de_su_puesto(viaje["puesto_id"])
+	viaje["destino_pendiente"] = _punto_puesto_funcionario(viaje["puesto_id"])
+	if _impresora.con_papel(viaje["puesto_id"]):
+		_poner_papel(viaje["muneco"])
 
 
 ## Avanza un viaje de IMPRESORA un paso (delega el movimiento en `_mover_paso`, compartido con
-## descanso e incorporación). Devuelve `true` solo cuando el viaje ha terminado del todo (vuelta
-## completa); "en_impresora" se queda quieto — es el modelo (`FASE_RECOGIDA`, con su `t_recogida_min`)
-## quien decide cuánto dura la pausa, no el muñeco.
+## descanso e incorporación). "en_impresora" se queda quieto — es el modelo (`FASE_RECOGIDA`, con su
+## `t_recogida_min`) quien decide cuánto dura la pausa, no el muñeco. Al LLEGAR de vuelta no se cierra
+## de golpe: pasa a "entregando" (gesto de entrega, `_avanzar_entrega`) y solo ESE devuelve `true`
+## cuando de verdad ha terminado.
 func _avanzar_camino_impresora(viaje: Dictionary) -> bool:
 	if viaje["fase"] == &"en_impresora":
 		return false
+	if viaje["fase"] == &"entregando":
+		return _avanzar_entrega(viaje)
 	if not _mover_paso(viaje):
 		return false
 	if viaje["fase"] == &"yendo":
 		viaje["fase"] = &"en_impresora"
 		return false
-	return true   # "volviendo" y ha llegado: viaje cosmético completo
+	# "volviendo" y ha llegado a su lado del mostrador: EL GESTO DE ENTREGA (GDD
+	# impresora-documentos-tramite.md) — se para, gira hacia el ciudadano y le tiende el papel un
+	# instante antes de que el viaje se dé por terminado del todo.
+	viaje["fase"] = &"entregando"
+	viaje["frames_entrega"] = 0
+	_orientar_entrega(viaje["muneco"])
+	return false
 
 
-## Cierra un viaje de impresora terminado: borra el muñeco. La supresión del mostrador la decide
-## `_refrescar_puestos` en caliente (`_camino_impresora.has(puesto_id)` + `retiene()`), así que aquí
-## no hay nada más que liberar (a diferencia del descanso, no hay asiento ni taza que soltar).
+## La pausa del gesto de entrega: congelable en Pausa (mismo criterio que `_mover_paso` — mult 0 no
+## cuenta frames) y con el papel puesto durante toda su duración. Al cumplirse `FRAMES_ENTREGA_PAPEL`
+## se quita el papel (ya "se lo dio" al ciudadano) y el viaje se cierra del todo.
+func _avanzar_entrega(viaje: Dictionary) -> bool:
+	if Tiempo.multiplicador_velocidad <= 0.0:
+		return false
+	var frames: int = int(viaje.get("frames_entrega", 0)) + 1
+	viaje["frames_entrega"] = frames
+	if frames < FRAMES_ENTREGA_PAPEL:
+		return false
+	_quitar_papel(viaje["muneco"])
+	return true
+
+
+## Gira al funcionario hacia el ciudadano para el gesto de entrega — reusa `DIRECCION_POLICIA_SENTADO`
+## (el mismo rumbo con el que el policía FIJO de su ventanilla ya mira al ciudadano) y el mismo
+## mecanismo de giro que `colocar_muneco` aplica cada frame al andar, aplicado UNA vez porque durante
+## "entregando" no hay movimiento que lo dispare solo.
+func _orientar_entrega(cuerpo: Node2D) -> void:
+	var visual: Node2D = _visual_caminante(cuerpo)
+	if visual == null:
+		return
+	if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
+		MunecoScript.orientar_sprite(visual.get_child(0) as Node2D, DIRECCION_POLICIA_SENTADO)
+	else:
+		var en_pantalla: Vector2 = Proyeccion.proyectar(DIRECCION_POLICIA_SENTADO)
+		MunecoScript.orientar(visual, en_pantalla.x < 0.0, en_pantalla.y < 0.0)
+
+
+## Cierra un viaje de impresora terminado: borra el muñeco (y, por si el viaje se cortó antes de
+## llegar a "entregando" — puesto demolido a mitad, por ejemplo — el papel que pudiera llevar puesto,
+## defensivo). La supresión del mostrador la decide `_refrescar_puestos` en caliente
+## (`_camino_impresora.has(puesto_id)` + `retiene()`), así que aquí no hay nada más que liberar (a
+## diferencia del descanso, no hay asiento ni taza que soltar).
 func _cerrar_camino_impresora(viaje: Dictionary) -> void:
+	_quitar_papel(viaje["muneco"])
 	_borrar_caminante(viaje["muneco"] as Node)
 
 

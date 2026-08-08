@@ -961,6 +961,11 @@ func _completar_atencion(puesto_id: StringName, persona: RefCounted) -> void:
 	_transicionar(persona, PersonaFlujoScript.ESTADO_RESUELTA)
 	puesto["persona"] = null
 	puesto["restante"] = 0.0
+	# ¿Sale con SU PAPEL? (GDD impresora-documentos-tramite.md) — se lee ANTES de `consumir_viaje`:
+	# esa llamada BORRA el registro del viaje, así que después ya no habría nada que preguntar.
+	# `NPCCiudadano` observa este campo para colgarle el documento visible en la salida (FL5: cosmético
+	# puro, la simulación no lo necesita para nada más).
+	persona.con_papel = _impresora != null and _impresora.con_papel(puesto_id)
 	# El documento se entregó con el trámite: la ventanilla queda limpia para el siguiente.
 	if _impresora != null:
 		_impresora.consumir_viaje(puesto_id)

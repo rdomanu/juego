@@ -68,6 +68,10 @@ var _animo: ColorRect = null
 var _animo_fondo: ColorRect = null
 var _animo_visto: StringName = &""
 var _ancho_visto: float = -1.0
+## El documento con el que sale (GDD impresora-documentos-tramite.md): `persona.con_papel` es la
+## VERDAD (la fija `Flujo._completar_atencion`), esto solo recuerda si YA se colgó el papel para
+## poder hacer DIFF — mismo criterio que `_animo_visto`.
+var _papel_visto: bool = false
 
 ## ISOMÉTRICO (2026-07-30) — el muñeco que SE VE. Este nodo (el CharacterBody2D) anda por el plano
 ## lógico CUADRADO, que es donde vive la navegación y donde están calibradas las velocidades; pero
@@ -246,6 +250,7 @@ func _physics_process(_delta: float) -> void:
 		_version_layout_visto = Construccion.version_layout
 		_actualizar_destino(_destino_deseado)
 	_refrescar_animo()
+	_refrescar_papel()
 	# El paseo escala con el reloj (2×/3× caminan más rápido); en Pausa (mult 0) se congela.
 	var mult: float = Tiempo.multiplicador_velocidad
 	if mult <= 0.0:
@@ -339,3 +344,23 @@ func _refrescar_animo() -> void:
 	_animo_fondo.visible = true
 	_animo.size = Vector2(ancho, ALTO_BARRA)
 	_animo.color = _manager.color_de_animo(animo)
+
+
+## El papel con el que sale (GDD impresora-documentos-tramite.md, viaje del papel): `persona.
+## con_papel` la fija `Flujo._completar_atencion` en el momento de resolver el trámite — aquí solo se
+## OBSERVA (FL5) y se cuelga/quita del muñeco por DIFF, mismo criterio que `_refrescar_animo`. El
+## despawn (`_exit_tree`) ya se lleva el muñeco entero, papel incluido, así que no hace falta
+## quitarlo a mano al despachar.
+func _refrescar_papel() -> void:
+	if muneco == null or persona == null:
+		return
+	var con_papel: bool = bool(persona.con_papel)
+	if con_papel == _papel_visto:
+		return
+	_papel_visto = con_papel
+	if con_papel:
+		muneco.add_child(MunecoScript.papel())
+	else:
+		var papel: Node = muneco.get_node_or_null("Papel")
+		if papel != null:
+			papel.queue_free()
