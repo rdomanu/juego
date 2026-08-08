@@ -64,6 +64,11 @@ const HERRAMIENTA_BORRAR := &"borrar"
 const ORIENTACIONES_CICLO: Array[int] = [0, 90, 180, 270]
 
 const RUTA_GUARDADO := "user://entorno_disenado.json"
+## Ruta EFECTIVA de guardado/carga — inyectable ANTES de `add_child` para que los tests apunten a
+## su scratch y no lean/pisen el `user://` real (2026-08-08: la partida guardada del USUARIO con F8
+## se colaba en la suite vía la autocarga de `_ready` — bug de aislamiento latente hasta que hubo
+## un archivo de verdad; regla del proyecto: los tests no dependen de estado externo).
+var ruta_guardado: String = RUTA_GUARDADO
 const VERSION_LAYOUT := 1
 
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
@@ -126,7 +131,7 @@ func _ready() -> void:
 	_crear_capas()
 	_crear_ui()
 	_crear_preview()
-	cargar_desde_disco()
+	cargar_desde_disco(ruta_guardado)
 	_actualizar_visibilidad()
 
 
@@ -323,7 +328,9 @@ func puntos_farolas() -> Array[Vector2]:
 ## `ruta` es un parámetro (por defecto `RUTA_GUARDADO`) para que los tests puedan apuntar a un
 ## archivo de scratch propio y no tocar `user://entorno_disenado.json` de verdad (aislamiento —
 ## `.claude/rules/test-standards.md`: "unit tests must not depend on external state").
-func guardar_en_disco(ruta: String = RUTA_GUARDADO) -> bool:
+func guardar_en_disco(ruta: String = "") -> bool:
+	if ruta == "":
+		ruta = ruta_guardado
 	var piezas_json: Array = []
 	for celda: Vector2i in _piezas:
 		var p: Dictionary = _piezas[celda]
@@ -365,7 +372,9 @@ func guardar_en_disco(ruta: String = RUTA_GUARDADO) -> bool:
 ## Carga `ruta` (por defecto `RUTA_GUARDADO`, `user://entorno_disenado.json`) si existe (llamado al
 ## entrar en el modo). `true` si había algo que cargar; `false` (silencioso, caso normal la primera
 ## vez) si el archivo no existe.
-func cargar_desde_disco(ruta: String = RUTA_GUARDADO) -> bool:
+func cargar_desde_disco(ruta: String = "") -> bool:
+	if ruta == "":
+		ruta = ruta_guardado
 	var datos: Dictionary = EntornoExteriorScript.leer_layout(ruta)
 	if datos.is_empty():
 		return false
@@ -515,29 +524,75 @@ func _crear_ui() -> void:
 	raiz.add_child(_lbl_estado)
 
 
+## Tamaño de la miniatura de pieza en la paleta (petición del usuario 2026-08-08, estilo tycoon:
+## "una imagen del objeto a elegir con el diseño que tiene... por ejemplo las diferentes casas").
+## Es un SUELO (`custom_minimum_size`), no el tamaño final: `STRETCH_KEEP_ASPECT_CENTERED` la
+## encoge/agranda con aspecto dentro de lo que le asigne el `HBoxContainer` — nunca deforma la pieza.
+const TAMANO_MINIATURA_PALETA := Vector2(40.0, 40.0)
+
 ## Botón de la paleta (pieza/superficie/goma): piel `TarjetaObjeto` del kit (2026-08-07, remate del
 ## reskin) con `toggle_mode` porque el estado "pressed" del tema ES el arte de "herramienta en mano"
 ## (contrato documentado en la cabecera de `KitUIComisario` -- ver `_fijar_herramienta`, la ÚNICA
 ## fuente de verdad de qué botón queda marcado). Tamaño mínimo ~48px de alto (petición del usuario:
 ## "me cuesta seleccionar las cosas") -- antes el botón se ajustaba solo al ancho del texto, una zona
 ## de clic tan fina como una línea de letra.
+##
+## MINIATURA DEL SPRITE REAL (2026-08-08): solo las PIEZAS de `CATALOGO_PIEZAS` (casas, vallas,
+## árboles, coches...) tienen arte propio que enseñar -- las brochas de `SUPERFICIES` y
+## `HERRAMIENTA_BORRAR` se quedan con el botón de texto de siempre (nunca tuvieron ni necesitan un
+## sprite único). Reutiliza `EntornoExterior.textura_de_pieza`, rotación 0 fija -- la MISMA fuente
+## que ya pinta el fantasma de colocación (`_process`) y las piezas ya colocadas
+## (`_refrescar_pieza_visual`): ningún dato nuevo, solo otro consumidor de la misma resolución. La
+## tarjeta enseña la PIEZA, no la orientación que el jugador vaya a elegir con R.
 func _boton_herramienta(id: StringName, texto: String) -> Button:
 	var boton := Button.new()
-	boton.text = texto
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.toggle_mode = true
 	boton.theme_type_variation = KitUIComisarioScript.VARIANTE_TARJETA
 	boton.custom_minimum_size = Vector2(112.0, 48.0)
-	# El texto desbordaba la tarjeta (auditoría 2026-08-08): `TarjetaObjeto` tiene un
-	# `content_margin` pequeño y fijo (ver `theme_comisario.tres`), pero un rótulo largo aun así
-	# puede no caber en 112px de ancho. `clip_text` corta en el borde en vez de derramarse fuera
-	# del boton. `TextServer.OVERRUN_TRIM_ELLIPSIS` daria un corte mas elegante ("Sillon...") pero
-	# no está confirmado en `docs/engine-reference/godot/` para 4.6 -- por la regla del proyecto
-	# (no adivinar API post-cutoff sin verificar) nos quedamos solo con `clip_text`.
-	boton.clip_text = true
-	boton.add_theme_font_size_override("font_size", 11)
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id))
 	_botones[id] = boton
+	var textura: Texture2D = null
+	if CATALOGO_PIEZAS.has(id):
+		textura = EntornoExteriorScript.textura_de_pieza(String(id), 0)
+	if textura == null:
+		# Sin arte (superficies/goma, o una pieza a la que le falte el PNG -- fallback honesto): el
+		# botón de texto de siempre. El texto desbordaba la tarjeta (auditoría 2026-08-08):
+		# `TarjetaObjeto` tiene un `content_margin` pequeño y fijo (ver `theme_comisario.tres`), pero
+		# un rótulo largo aun así puede no caber en 112px de ancho. `clip_text` corta en el borde en
+		# vez de derramarse fuera del botón. `TextServer.OVERRUN_TRIM_ELLIPSIS` daría un corte más
+		# elegante ("Sillón...") pero no está confirmado en `docs/engine-reference/godot/` para 4.6 --
+		# por la regla del proyecto (no adivinar API post-cutoff sin verificar) nos quedamos solo con
+		# `clip_text`.
+		boton.text = texto
+		boton.clip_text = true
+		boton.add_theme_font_size_override("font_size", 11)
+		return boton
+	boton.text = ""
+	boton.tooltip_text = texto   # nombre completo siempre disponible, aunque el rótulo se recorte
+	var contenido := HBoxContainer.new()
+	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contenido.clip_contents = true   # cinturón de seguridad: nada se dibuja fuera de la tarjeta
+	contenido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	contenido.alignment = BoxContainer.ALIGNMENT_CENTER
+	contenido.add_theme_constant_override("separation", 6)
+	boton.add_child(contenido)
+	var rect := TextureRect.new()
+	rect.texture = textura
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.custom_minimum_size = TAMANO_MINIATURA_PALETA
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contenido.add_child(rect)
+	var etiqueta := Label.new()
+	etiqueta.text = texto
+	etiqueta.add_theme_font_size_override("font_size", 10)
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	etiqueta.clip_contents = true
+	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	etiqueta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contenido.add_child(etiqueta)
 	return boton
 
 

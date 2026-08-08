@@ -35,6 +35,10 @@ func _modo() -> ModoDisenadorEntorno:
 	# `configurar()` ANTES de `add_child()` -- mismo contrato que `Main` (ver su comentario): `_ready()`
 	# construye las capas con los datos que deja `configurar()`.
 	nodo.configurar(40, Vector2.ZERO, null)
+	# AISLAMIENTO (2026-08-08): `_ready()` autocarga de `ruta_guardado` -- sin esto, una partida REAL
+	# guardada por el usuario en `user://entorno_disenado.json` se cuela en el test (pasó: sus 3
+	# piezas + 1 del test = "expected 1 but was 4"). Los tests solo miran su scratch.
+	nodo.ruta_guardado = RUTA_SCRATCH
 	add_child(nodo)
 	return nodo
 

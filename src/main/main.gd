@@ -13,6 +13,13 @@ extends Node2D
 ##
 ## Story: production/epics/tiempo/story-009-esqueleto-visible.md · ADR-0001 / ADR-0004 (TileMapLayer)
 
+## ⛔ HERRAMIENTA TEMPORAL DE DEPURACIÓN (petición literal del usuario, 2026-08-08): "una brújula
+## para saber qué orientación tiene un objeto y cuál debería... esa brújula debería quitarse en el
+## futuro cuando te diga". Overlay de 4 cardinales + los 4 grados de la tecla R (ver
+## `BrujulaOrientacion` más abajo, montada en `_crear_brujula_orientacion`). SE QUITA poniendo esta
+## constante a `false` o borrando el bloque entero cuando el usuario lo pida — no antes.
+const BRUJULA_ORIENTACION_VISIBLE := true
+
 ## Lado de cada celda de la rejilla, en píxeles (misma escala 40 px que validó el prototipo).
 const TAM_CELDA: int = 40
 ## Dimensiones del suelo visible, en celdas (24×13 ≈ ventana por defecto 1152×648 con margen).
@@ -236,6 +243,96 @@ var _modo_disenador_entorno: Node2D = null
 var _capa_hud: CanvasLayer = null
 
 
+## ── BRÚJULA DE ORIENTACIÓN (herramienta DEV temporal, 2026-08-08) ────────────────────────────────
+## Ver `BRUJULA_ORIENTACION_VISIBLE` (arriba del todo del archivo): overlay de depuración pedido
+## literalmente por el usuario -- "una brújula para saber qué orientación tiene un objeto y cuál
+## debería" -- para leer a ojo, mientras se coloca/rota algo con R, hacia dónde cae cada cardinal en
+## la vista isométrica y qué grado del ciclo de R le corresponde.
+##
+## Los 4 cardinales NO son ángulos inventados a mano: se derivan proyectando un paso de una celda en
+## cada eje del plano LÓGICO con `Proyeccion` (la ÚNICA traducción lógico↔pantalla del proyecto,
+## `src/foundation/proyeccion/proyeccion.gd`) -- Norte=y-1, Sur=y+1, Oeste=x-1, Este=x+1, exactamente
+## el mismo criterio que ya usa `ModoConstruccion._frente_de_orientacion`.
+##
+## Los grados junto a cada letra son la convención REAL del ciclo de rotación de la tecla R
+## (`Construccion.ORIENTACIONES_CICLO`: `HORIZONTAL`=0°, `VERTICAL`=90°, `HORIZONTAL_GIRADO`=180°,
+## `VERTICAL_GIRADO`=270°) documentada en los comentarios de esas constantes
+## (`src/core/construccion/construccion.gd`, líneas ~954-957: "SUR"/"OESTE"/"NORTE"/"ESTE") y
+## formalizada en `design/art/lado-de-accion.md` §3 ("Convención de vistas"): **0°=SUR, 90°=OESTE,
+## 180°=NORTE, 270°=ESTE**.
+class BrujulaOrientacion extends Control:
+	const LADO: float = 140.0
+	const LARGO_FLECHA: float = 44.0
+	const COLOR_LINEA := Color(1.0, 1.0, 1.0, 0.85)
+	const COLOR_FONDO := Color(0.0, 0.0, 0.0, 0.35)
+	## Cada entrada: la letra del cardinal, su paso de UNA celda en el plano lógico (mismo criterio
+	## que `_frente_de_orientacion`) y el grado REAL del ciclo de R que le corresponde (ver la
+	## cabecera de arriba para la fuente de esta convención).
+	const CARDINALES: Array[Dictionary] = [
+		{"letra": "N", "vector": Vector2i(0, -1), "grados": 180},
+		{"letra": "S", "vector": Vector2i(0, 1), "grados": 0},
+		{"letra": "E", "vector": Vector2i(1, 0), "grados": 270},
+		{"letra": "O", "vector": Vector2i(-1, 0), "grados": 90},
+	]
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(LADO, LADO)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for cardinal: Dictionary in CARDINALES:
+			var etiqueta := Label.new()
+			etiqueta.text = "%s %d°" % [cardinal["letra"], cardinal["grados"]]
+			etiqueta.add_theme_font_size_override("font_size", 12)
+			etiqueta.add_theme_color_override("font_color", Color.WHITE)
+			etiqueta.add_theme_color_override("font_outline_color", Color.BLACK)
+			etiqueta.add_theme_constant_override("outline_size", 3)
+			etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var punto: Vector2 = _centro() + _direccion_pantalla(cardinal["vector"]) * (LARGO_FLECHA + 12.0)
+			etiqueta.position = punto - Vector2(14.0, 8.0)   # centrado a ojo -- herramienta DEV
+			add_child(etiqueta)
+		queue_redraw()
+
+	func _centro() -> Vector2:
+		return Vector2(LADO, LADO) * 0.5
+
+	## Dirección unitaria EN PANTALLA de un paso `vector_logico` del plano lógico -- derivada de
+	## `Proyeccion.centro_iso`, nunca un ángulo puesto a mano (orden explícita de la tarea).
+	static func _direccion_pantalla(vector_logico: Vector2i) -> Vector2:
+		return (Proyeccion.centro_iso(vector_logico) - Proyeccion.centro_iso(Vector2i.ZERO)).normalized()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, Vector2(LADO, LADO)), COLOR_FONDO)
+		var centro: Vector2 = _centro()
+		for cardinal: Dictionary in CARDINALES:
+			var direccion: Vector2 = _direccion_pantalla(cardinal["vector"])
+			draw_line(centro, centro + direccion * LARGO_FLECHA, COLOR_LINEA, 2.0, true)
+		draw_circle(centro, 3.0, COLOR_LINEA)
+
+
+## Monta el overlay de `BrujulaOrientacion` en su PROPIA `CanvasLayer` (layer 10 -- por encima de
+## `HUD`/`UIConstruccion`/`UIDisenadorEntorno`, todas en layer 1 o 2 por defecto): tiene que seguir
+## viéndose CON el modo construcción o el diseñador de entorno activos, que es justo cuando más
+## falta hace comprobar una orientación. Semitransparente y anclada arriba-derecha, pequeña (140px)
+## para no tapar datos del HUD real (que vive abajo).
+func _crear_brujula_orientacion() -> void:
+	if not BRUJULA_ORIENTACION_VISIBLE:
+		return
+	var capa := CanvasLayer.new()
+	capa.name = "BrujulaOrientacion"
+	capa.layer = 10
+	add_child(capa)
+	var brujula := BrujulaOrientacion.new()
+	brujula.name = "Brujula"
+	brujula.anchor_left = 1.0
+	brujula.anchor_right = 1.0
+	brujula.anchor_top = 0.0
+	brujula.anchor_bottom = 0.0
+	brujula.offset_left = -(BrujulaOrientacion.LADO + 12.0)
+	brujula.offset_right = -12.0
+	brujula.offset_top = 12.0
+	brujula.offset_bottom = BrujulaOrientacion.LADO + 12.0
+	capa.add_child(brujula)
+
+
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(COLOR_FONDO)
 	_crear_camara()
@@ -253,6 +350,9 @@ func _ready() -> void:
 	_crear_suelo()
 	_instanciar_mundo()
 	_crear_hud()
+	# Brújula de orientación (herramienta DEV, 2026-08-08): capa propia, independiente del HUD --
+	# ver `BRUJULA_ORIENTACION_VISIBLE` y la cabecera de `BrujulaOrientacion`.
+	_crear_brujula_orientacion()
 	_crear_capa_etiquetas_sala()
 	# Modo construcción (story const-007): andamio de ratón sobre la API de Construcción.
 	_modo_construccion = ModoConstruccionScript.new()

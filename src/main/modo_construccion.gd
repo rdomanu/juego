@@ -1987,13 +1987,20 @@ func _crear_ui() -> void:
 	for tipo_puesto: Resource in Datos.obtener_todos(&"TipoPuesto"):
 		if tipo_puesto.servicio == "Seguridad":
 			continue   # la entrada/seguridad es fija (CO11) — no construible en el MVP
+		# MINIATURA DEL SPRITE REAL (2026-08-08, petición del usuario, estilo tycoon): reutiliza
+		# `_sprite_de_herramienta` — la MISMA resolución que ya pinta el fantasma de colocación — en
+		# vez de duplicar la lógica de qué PNG toca. Orientación 0 fija (la tarjeta enseña el mueble,
+		# no la rotación que el jugador vaya a elegir con R); `celdas`=1 no afecta a qué textura sale,
+		# solo al `paso` del ancla que aquí no se usa. `icono_id` "sillon" se conserva como FALLBACK
+		# (ver `_anadir_herramienta`) para el caso sin sprite propio.
 		_anadir_herramienta(
 			"%s (%d €)" % [tipo_puesto.nombre, tipo_puesto.coste_construccion_eur], tipo_puesto.id,
-			false, &"muebles", &"sillon"
+			false, &"muebles", &"sillon", _sprite_de_herramienta(tipo_puesto.id, 0, 1).get("textura")
 		)
 	_anadir_herramienta(
 		"Asiento (%.0f €)" % _construccion.coste_asiento_basico, _construccion.ASIENTO_BASICO,
-		false, &"muebles", &"sillon"
+		false, &"muebles", &"sillon",
+		_sprite_de_herramienta(_construccion.ASIENTO_BASICO, 0, 1).get("textura")
 	)
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
@@ -2072,16 +2079,21 @@ func _crear_ui() -> void:
 ## Registra una herramienta seleccionable. `categoria` la cuelga de esa pestaña (vacía = no entra en
 ## ninguna fila de tarjetas — hoy solo Demoler, que vive anclada fuera de las pestañas). `icono_id`
 ## es una clave de `KitUIComisario.ICONOS`; `&""` = sin icono (fila de texto solo, fallback honesto
-## si algún día se añade una herramienta sin pictograma todavía).
+## si algún día se añade una herramienta sin pictograma todavía). `textura_miniatura` (2026-08-08):
+## un sprite REAL (`Texture2D`) que sustituye al pictograma de `icono_id` — usada por los MUEBLES
+## (ver el bucle de `TipoPuesto`/`ASIENTO_BASICO` en `_crear_ui`, resuelta con `_sprite_de_herramienta`,
+## la MISMA función que ya pinta el fantasma de colocación). `icono_id` se conserva como FALLBACK si
+## `textura_miniatura` es `null` (una herramienta sin arte propio, p.ej. `ASIENTO_BASICO`) — nunca al
+## revés: si hay sprite real, manda sobre el pictograma genérico.
 func _anadir_herramienta(
 	texto: String, id: StringName, es_sala: bool, categoria: StringName = &"",
-	icono_id: StringName = &""
+	icono_id: StringName = &"", textura_miniatura: Texture2D = null
 ) -> void:
 	var variante: StringName = (
 		KitUIComisarioScript.VARIANTE_BOTON_DEMOLER if id == &"demoler"
 		else KitUIComisarioScript.VARIANTE_TARJETA
 	)
-	var boton := _construir_boton_con_icono(texto, icono_id, variante)
+	var boton := _construir_boton_con_icono(texto, icono_id, variante, textura_miniatura)
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id, es_sala))
 	_botones_herramienta[id] = boton
 	if categoria != &"":
@@ -2095,36 +2107,81 @@ func _anadir_herramienta(
 		_fila_tarjetas.add_child(boton)
 
 
+## Fracción de la altura del botón que ocupa la BANDA INFERIOR clara del arte (`tarjeta_normal.png`/
+## `pestana_normal.png`, `assets/ui/kit/` — medida a ojo sobre el PNG fuente por el usuario 2026-08-08:
+## "la banda ocupa el ~22% inferior"). Repartida como `size_flags_stretch_ratio` de un `VBoxContainer`
+## (proporción, NO píxeles fijos): vale igual a 84×84 (tarjeta) que a 112×74 (pestaña) — las dos
+## formas que usa este mismo botón — y sigue valiendo si el kit cambia de tamaño en disco otra vez.
+const FRACCION_BANDA_INFERIOR: float = 0.22
+
 ## Un botón "en blanco" (sin `text`/`icon` propios de `Button` — ver la nota de la cabecera del
 ## archivo sobre por qué NO se usa `Button.icon`/alineación vertical nativa: la referencia de motor
 ## de esta versión no confirma esa API en 4.6, así que el icono+rótulo se dibuja a mano encima con
 ## un `VBoxContainer` hijo, `mouse_filter = IGNORE` para que el clic siga siendo del `Button`).
-func _construir_boton_con_icono(texto: String, icono_id: StringName, variante: StringName) -> Button:
+##
+## RÓTULOS EN LA BANDA INFERIOR (auditoría 2026-08-08): antes icono+rótulo compartían un único
+## `VBoxContainer` centrado en TODO el contenido — con un nombre largo, el rótulo crecía hacia arriba
+## y pisaba el icono/pestaña (los dos flecos cazados en la captura del usuario). Ahora el contenido se
+## reparte en DOS zonas de altura proporcional (`FRACCION_BANDA_INFERIOR`): la zona CUADRADA superior
+## para el icono/miniatura, la banda clara inferior para el rótulo — cada una la porción del arte que
+## ya trae dibujada para eso. `textura_miniatura` (sprite real, p.ej. el mueble en mano) manda sobre
+## `icono_id` (pictograma de `KitUIComisario`) cuando ambos llegan — ver la cabecera de
+## `_anadir_herramienta`.
+func _construir_boton_con_icono(
+	texto: String, icono_id: StringName, variante: StringName, textura_miniatura: Texture2D = null
+) -> Button:
 	var boton := Button.new()
 	boton.text = ""
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.toggle_mode = true   # el estado "pressed" del tema ES el arte de "seleccionada/activa"
 	boton.theme_type_variation = variante
 	boton.custom_minimum_size = Vector2(84.0, 84.0)
+	boton.tooltip_text = texto   # nombre completo siempre disponible, aunque el rótulo se recorte
 	var contenido := VBoxContainer.new()
 	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contenido.clip_contents = true   # cinturón de seguridad: nada se dibuja fuera de la tarjeta
 	contenido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	contenido.alignment = BoxContainer.ALIGNMENT_CENTER
+	contenido.add_theme_constant_override("separation", 2)
 	boton.add_child(contenido)
-	if icono_id != &"":
-		var textura: Texture2D = KitUIComisarioScript.icono(icono_id)
-		if textura != null:
-			var rect := TextureRect.new()
-			rect.texture = textura
-			rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-			rect.custom_minimum_size = Vector2(28.0, 28.0)
-			rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			contenido.add_child(rect)
+
+	# ZONA CUADRADA superior: icono/miniatura, centrada y con aspecto preservado (nunca deformada).
+	var textura: Texture2D = textura_miniatura
+	if textura == null and icono_id != &"":
+		textura = KitUIComisarioScript.icono(icono_id)
+	if textura != null:
+		var rect := TextureRect.new()
+		rect.texture = textura
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.custom_minimum_size = Vector2(24.0, 24.0)
+		rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		rect.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		contenido.add_child(rect)
+	else:
+		# Sin icono ni miniatura (hoy no ocurre — ver la cabecera de `_anadir_herramienta` — pero deja
+		# el rótulo cayendo en la banda de todos modos, no centrado en todo el botón).
+		var hueco := Control.new()
+		hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hueco.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		hueco.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
+		contenido.add_child(hueco)
+
+	# LA BANDA INFERIOR clara del arte: el rótulo, SOLO ahí. `autowrap` OFF + `clip_contents` (no
+	# `TextServer.OVERRUN_TRIM_ELLIPSIS`: no está confirmado en `docs/engine-reference/godot/` para
+	# 4.6 — regla del proyecto de no adivinar API post-cutoff sin verificar, así que el corte es
+	# plano, sin puntos suspensivos) en vez de dejarlo desbordar sobre el icono o fuera de la tarjeta.
 	var etiqueta := Label.new()
 	etiqueta.text = texto
-	etiqueta.add_theme_font_size_override("font_size", 11)
+	etiqueta.add_theme_font_size_override("font_size", 10)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	etiqueta.clip_contents = true
+	etiqueta.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	etiqueta.size_flags_stretch_ratio = FRACCION_BANDA_INFERIOR
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	contenido.add_child(etiqueta)
 	return boton
 
