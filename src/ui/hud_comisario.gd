@@ -109,10 +109,10 @@ const MARGEN_IZQ_SALDO: int = 88
 const MARGEN_IZQ_VELOCIDAD: int = 12
 ## Los 4 chips de fondo plano (spec §1.2, tabla, filas 4-7) -- sin módulo de arte, viven encima del
 ## fondo de la propia `BarraSuperior`.
-const ANCHO_CHIP_SATISFACCION: float = 155.0
-const ANCHO_CHIP_DEMANDA: float = 140.0
-const ANCHO_CHIP_PLANTILLA: float = 140.0
-const ANCHO_CHIP_DOCUMENTACION: float = 155.0
+const ANCHO_CHIP_SATISFACCION: float = 175.0
+const ANCHO_CHIP_DEMANDA: float = 172.0
+const ANCHO_CHIP_PLANTILLA: float = 166.0
+const ANCHO_CHIP_DOCUMENTACION: float = 168.0
 ## Reserva a la derecha para la brújula de depuración (spec §0/§1.2) -- Main la monta en su PROPIA
 ## `CanvasLayer` (layer 10), este hueco solo evita que el HUD la invada visualmente.
 const ANCHO_RESERVA_BRUJULA: float = 140.0
@@ -328,10 +328,20 @@ func _construir_modulo_reloj(fila: HBoxContainer) -> void:
 ## actualmente activo -- NUNCA se recolorea el botón (serían transparentes sobre el mismo PNG
 ## estático, sin estado "pulsado" propio, spec dixit), el triángulo ES el respaldo no-color.
 func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
-	var contenido := _crear_modulo_9slice(
-		fila, KitUIComisarioScript.VARIANTE_MODULO_VELOCIDAD, ANCHO_MODULO_VELOCIDAD,
-		MARGEN_IZQ_VELOCIDAD
-	)
+	# SIN el PNG del modulo (fix 2026-08-08, veredicto del usuario "botones encima de otros"): el
+	# arte trae 3 circulos HORNEADOS y los botones reales encima daban vision doble. Panel limpio
+	# transparente; los botones son los unicos circulos que se ven.
+	var panel := Panel.new()
+	panel.name = "ModuloVelocidad"
+	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	panel.custom_minimum_size = Vector2(ANCHO_MODULO_VELOCIDAD, ALTO_MODULO)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	fila.add_child(panel)
+	var margen_v := MarginContainer.new()
+	margen_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(margen_v)
+	var contenido := CenterContainer.new()
+	margen_v.add_child(contenido)
 	var fila_botones := HBoxContainer.new()
 	fila_botones.add_theme_constant_override("separation", 3)
 	contenido.add_child(fila_botones)
@@ -675,7 +685,7 @@ func _refrescar_satisfaccion() -> void:
 		"🟢" if sat > _paciencia.umbral_animo_alto
 		else ("🔴" if sat < _paciencia.umbral_animo_bajo else "🟡")
 	)
-	_lbl_satisfaccion.text = "%s Satisfacción %d%%" % [banda, roundi(sat)]
+	_lbl_satisfaccion.text = "%s Satisf. %d%%" % [banda, roundi(sat)]
 	var graves: int = _paciencia.reclamaciones_graves_jornada
 	var texto := "Reclamaciones: %d" % _paciencia.reclamaciones_jornada
 	if graves > 0:
