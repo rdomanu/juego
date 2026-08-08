@@ -432,6 +432,10 @@ func _crear_chip_plano(fila: HBoxContainer, icono_id: StringName, ancho: float) 
 
 	var icono := TextureRect.new()
 	icono.texture = KitUIComisarioScript.icono(icono_id)
+	# EXPAND_IGNORE_SIZE (fix 2026-08-08, cazado en captura): sin él, el mínimo del TextureRect es
+	# el tamaño NATIVO del PNG (~512px) y el icono revienta la barra — el mismo bug ya resuelto en
+	# las miniaturas de tarjetas. El custom_minimum_size de 28px solo manda con este expand_mode.
+	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icono.custom_minimum_size = Vector2(28, 28)
 	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -590,6 +594,9 @@ func _boton_pildora(
 
 	var icono := TextureRect.new()
 	icono.texture = KitUIComisarioScript.icono(icono_id)
+	# Mismo fix EXPAND_IGNORE_SIZE que el chip (sin él, el icono nativo de ~512px aplastaba el
+	# layout de la píldora y el rótulo quedaba invisible fuera del botón).
+	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icono.custom_minimum_size = Vector2(18, 18)
 	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
