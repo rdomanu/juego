@@ -207,7 +207,7 @@ const MODELOS: Array[Dictionary] = [
 	## arcén (~20% del tile es arcén); a 6,0 la calle casa con la rejilla entera y las 5 piezas del
 	## kit comparten LA MISMA escala (regla del usuario: toda la familia en proporción).
 	##
-	## ⚠️ BUG DE PLAYTEST 1/2 (usuario, 2026-08-08, mismo día): "la curva sobresale ~1 celda por
+	## ⚠️ BUG DE PLAYTEST 1/3 (usuario, 2026-08-08, mismo día): "la curva sobresale ~1 celda por
 	## lado respecto a la recta" -- CAUSA verificada en el log: `carretera_recta` mide 446px de
 	## silueta EN BRUTO y `carretera_curva` 315px; al forzar cada pieza a los MISMOS 480px con su
 	## PROPIO factor (`objetivo_px / medido_bruto_px`, el modo `ancho_objetivo_celdas` normal, ver la
@@ -222,7 +222,7 @@ const MODELOS: Array[Dictionary] = [
 	## salen a lo que dé su propia silueta con ESE factor (curva más estrecha que 6 celdas de ancho
 	## bruto) -- es la huella REAL de esa pieza a la escala común, no un objetivo propio.
 	##
-	## ⚠️ BUG DE PLAYTEST 2/2: "varios módulos de recta seguidos no se acoplan, se ven los bordes" --
+	## ⚠️ BUG DE PLAYTEST 2/3: "varios módulos de recta seguidos no se acoplan, se ven los bordes" --
 	## INVESTIGADO con `tools/_diag_carretera_estructura.gd` (desechable, en el repo): las 5 mallas de
 	## origen son la MISMA losa plana `AABB size=(1.0, 0.02, 1.0)` -- un grosor real de 0,02 m, nada
 	## de textura. Ese grosor asoma como un "canto" (cara lateral) que sobresale unos pocos px MÁS
@@ -236,12 +236,29 @@ const MODELOS: Array[Dictionary] = [
 	## perfecta (ver su cabecera) -- con el canto, `max_y` cae unos px más abajo del vértice sur REAL
 	## y el ancla reconstruido queda descuadrado esos mismos px -- exactamente la clase de error que,
 	## acumulado tramo a tramo, se ve como "no se acopla". FIX: recortar (alfa=0) todo lo que quede
-	## FUERA del rombo IDEAL 2:1 de cada sprite YA escalado -- `_centro_rombo`/`_recortar_a_rombo`,
-	## llamado desde `_ejecutar` solo para `RECORTAR_CANTOS_VIA`. El centro del rombo se MIDE (no a
-	## ojo) de las dos columnas MÁS EXTREMAS (izquierda/derecha) de la propia silueta -- esas puntas
-	## son el arcén LATERAL, ajeno al canto (que vive en el eje perpendicular), así que su Y media es
-	## el centro real sin contaminar. Las caras de los arcenes (blancas, DENTRO del rombo) no se tocan
-	## -- son arte, se quedan.
+	## FUERA del rombo IDEAL 2:1 de cada sprite YA escalado -- `_recortar_a_rombo`, llamado desde
+	## `_ejecutar` solo para `RECORTAR_CANTOS_VIA`.
+	##
+	## ⚠️ BUG DE PLAYTEST 3/3 (veredicto del usuario sobre `carreteras_v2.png`, tras 1/3+2/3 ya
+	## corregidos): "la curva sigue mal: la línea tiene que continuar la línea siguiente, el arcén
+	## tiene que seguir igual y la calzada lo mismo, tiene que ser una prolongación". CAUSA
+	## (diagnóstico del coordinador, confirmado): el fix de 2/3 medía el centro del rombo de LAS DOS
+	## COLUMNAS MÁS EXTREMAS DEL CONTENIDO de cada sprite -- válido para `carretera_recta` (su asfalto
+	## llena casi toda la loseta 1×1) pero NO para `carretera_curva` (su malla es una cuña/arco que
+	## solo cubre PARTE de la loseta, ver `capturas/fuentes/kenney_roads/Previews/road-bend.png`): el
+	## centro de SU CONTENIDO no coincide con el centro de la LOSETA que comparte con las demás piezas
+	## de la familia, así que al colocarla en rejilla (ancla = centro de la loseta, no del dibujo) su
+	## asfalto quedaba desplazado -- línea/arcén/calzada no continuaban de un tramo al siguiente. FIX:
+	## `region_familia` (ver `_ejecutar`) -- las 5 piezas recortan su frame RAW (antes de escalar) al
+	## MISMO rectángulo, fijado por `carretera_recta` en rotación 0 (su recorte automático -- llena
+	## casi toda la loseta -- YA es, de hecho, el recorte de la loseta 1×1 completa); el ancla de cada
+	## rotación sale del PIPELINE (dónde proyecta el punto (0,0,0), SIEMPRE el mismo para las 5 --
+	## mismo AABB, misma cámara), NUNCA remedida del contenido -- `_recortar_a_rombo` (bug 2/3) ahora
+	## recibe ese ancla como centro, no la remide. Resultado: las 5 comparten exactamente el mismo
+	## lienzo y el mismo punto de anclaje -- intercambiables celda a celda; el asfalto de la curva
+	## queda en su posición REAL dentro de la loseta (no recentrado en su propio dibujo), así que casa
+	## con la recta contigua. Las caras de los arcenes (blancas, DENTRO del rombo) no se tocan -- son
+	## arte, se quedan.
 	{"id": "carretera_recta", "ruta": CARPETA_ROADS + "road-straight.glb", "ancho_objetivo_celdas": 6.0},
 	{
 		"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 6.0,
@@ -390,11 +407,24 @@ func _ejecutar(todas: Dictionary) -> void:
 		PX_POR_METRO, ALTO_MUNECO_PX, ALTO_MUNECO_M, FACTOR_PRESENCIA
 	])
 
-	# FACTOR ÚNICO DE FAMILIA (bug 1/2 del playtest 2026-08-08, ver la cabecera de `MODELOS`): las
+	# FACTOR ÚNICO DE FAMILIA (bug 1/3 del playtest 2026-08-08, ver la cabecera de `MODELOS`): las
 	# piezas que declaran "factor_de" NO se autocalibran -- heredan aquí el `escala_pieza` YA
 	# calculado de la pieza referenciada (procesada antes en `MODELOS`, siempre -- `carretera_recta`
 	# va primero en la lista). Se rellena SOLO con el factor de las piezas que SÍ se autocalibran.
 	var escalas_familia: Dictionary = {}
+
+	# RECORTE CRUDO COMPARTIDO (bug 3/3, veredicto del usuario sobre `carreteras_v2.png`: "la curva
+	# no prolonga la línea/el arcén/la calzada" -- ver la cabecera de `MODELOS`): las 5 piezas roads
+	# usan el MISMO rectángulo de recorte en el frame RAW (antes de escalar), fijado por
+	# `carretera_recta` en rotación 0 (la primera de la familia -- su contenido llena casi toda la
+	# loseta 1x1, así que su recorte automático YA es, de hecho, el recorte de la loseta completa).
+	# Antes de esto, cada pieza se recortaba (`_renderizar_bruto` -> `get_used_rect()`) a SU PROPIO
+	# contenido opaco: para la curva (cuyo asfalto solo cubre parte de la loseta, ver el informe
+	# anterior) eso descentraba su ancla respecto al centro REAL de la loseta que comparten las 5 --
+	# el motivo de que la línea/el arcén/la calzada no continuaran de un tramo al siguiente. Con un
+	# recorte FIJO compartido, las 5 quedan en el MISMO lienzo, con su contenido en su posición REAL
+	# dentro de la loseta -- intercambiables celda a celda.
+	var region_familia := Rect2i()
 
 	for modelo: Dictionary in MODELOS:
 		var id: String = modelo["id"]
@@ -472,26 +502,71 @@ func _ejecutar(todas: Dictionary) -> void:
 
 		# 2) Las 4 rotaciones, MISMO factor de escala UNIFORME (X=Y, ley del proyecto: PROHIBIDA la
 		# escala no uniforme) -- `_escalar` es de `render_mobiliario.gd`, el padre de este script.
-		var escalados: Array[Dictionary] = [_escalar(bruto_0, escala_pieza)]
-		for rot: int in [90, 180, 270]:
-			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
-			var bruto: Dictionary = await _renderizar_bruto()
-			escalados.append(_escalar(bruto, escala_pieza))
+		# Piezas de la familia roads (bug 3/3, ver `region_familia` arriba): las 4 rotaciones se
+		# recortan al MISMO rectángulo crudo compartido (`_renderizar_bruto_recorte_fijo`) en vez de
+		# auto-detectar el contenido de cada una -- conserva la posición real dentro de la loseta.
+		var escalados: Array[Dictionary] = []
+		if RECORTAR_CANTOS_VIA.has(id):
+			for rot: int in [0, 90, 180, 270]:
+				grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
+				var bruto_familia: Dictionary
+				if region_familia.size.x <= 0:
+					# Solo la primera vez (carretera_recta, rot=0): su recorte automático fija la
+					# región de TODA la familia -- ver la cabecera de `region_familia`.
+					bruto_familia = await _renderizar_bruto()
+					var centro_raw := Vector2(TAM_RENDER / 2.0, TAM_RENDER / 2.0)
+					region_familia = Rect2i(
+						Vector2i(centro_raw - (bruto_familia["ancla"] as Vector2)),
+						(bruto_familia["imagen"] as Image).get_size()
+					)
+				else:
+					bruto_familia = await _renderizar_bruto_recorte_fijo(region_familia)
+				escalados.append(_escalar(bruto_familia, escala_pieza))
+		else:
+			escalados.append(_escalar(bruto_0, escala_pieza))
+			for rot: int in [90, 180, 270]:
+				grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
+				var bruto: Dictionary = await _renderizar_bruto()
+				escalados.append(_escalar(bruto, escala_pieza))
 
-		# 1.5) RECORTE DEL CANTO (bug 2/2 del playtest 2026-08-08, ver la cabecera de `MODELOS` y
+		# 1.5) RECORTE DEL CANTO (bug 2/3 del playtest 2026-08-08, ver la cabecera de `MODELOS` y
 		# `RECORTAR_CANTOS_VIA`): las 5 mallas del kit roads son una losa con grosor real (0,02 m) que
 		# asoma como canto más allá del rombo IDEAL 2:1 de la cara de arriba -- se recorta (alfa=0)
-		# aquí, en las 4 rotaciones YA escaladas, ANTES de componer sobre el lienzo común.
+		# aquí, en las 4 rotaciones YA escaladas, ANTES de componer sobre el lienzo común. El centro
+		# del rombo es el ANCLA YA CONOCIDA de cada rotación (propagada por el pipeline, NUNCA
+		# remedida del contenido -- bug 3/3: el centro del CONTENIDO de la curva no es el centro de
+		# la loseta) y el ancho es el de la FAMILIA (`objetivo_px`, la loseta completa de
+		# `carretera_recta` -- 480px -- no el contenido de cada pieza).
 		if por_ancho and RECORTAR_CANTOS_VIA.has(id):
 			for k: int in escalados.size():
 				var img: Image = escalados[k]["imagen"]
-				var ancho_medido: float = float(_medir_ancho(img))
-				escalados[k]["imagen"] = _recortar_a_rombo(img, ancho_medido)
-			print("[ENTORNO URBANO]   %s: cantos recortados al rombo ideal 2:1 en las 4 rotaciones" % id)
+				var centro_ancla: Vector2 = escalados[k]["ancla"]
+				escalados[k]["imagen"] = _recortar_a_rombo(img, centro_ancla, objetivo_px)
+			print("[ENTORNO URBANO]   %s: cantos recortados al rombo ideal 2:1 (loseta completa, ancla de familia) en las 4 rotaciones" % id)
 
 		var compuesto: Dictionary = _componer(escalados)
 		var imagenes: Array[Image] = compuesto["imagenes"]
 		var ancla_final: Vector2 = compuesto["ancla"]
+
+		# 1.75) ANCLA INVISIBLE (bug 3/3, 2º hallazgo -- compartir lienzo+ancla en el PIPELINE del
+		# render (1.5, arriba) NO basta: el JUEGO no lee ese ancla, la RECONSTRUYE del PNG con
+		# `AnclajeSprite._medir_centro_base` (min_x/max_x/max_y de los píxeles opacos, asumiendo que
+		# ESA silueta ES el rombo 2:1 completo -- así ancla CUALQUIER prop del juego, sin excepción
+		# para esta familia). Para la curva (su malla es una cuña/arco que NO llena la loseta, ver
+		# `capturas/fuentes/kenney_roads/Previews/road-bend.png`) esa reconstrucción mide otro centro
+		# -- verificado con Python: `carretera_curva_180` da min_x=141 contra min_x=1 de la recta, un
+		# descuadre de 70px que es EXACTAMENTE el cruce/salto que se veía en la 2ª verificación de
+		# esta tarea. FIX: 3 píxeles casi invisibles (alfa justo por encima de
+		# `AnclajeSprite.UMBRAL_ALFA`=0,05 -- imperceptibles en juego) en los 3 puntos EXACTOS que
+		# esa fórmula usa (izquierda/derecha/abajo del rombo IDEAL de la loseta completa, sacados del
+		# ancla YA CONOCIDA -- `ancla_final`/`objetivo_px` -- no remedidos) para las 5 piezas de
+		# `RECORTAR_CANTOS_VIA` -- así `_medir_centro_base` reconstruye el MISMO centro real para las
+		# 5, sea cual sea su contenido visible.
+		if por_ancho and RECORTAR_CANTOS_VIA.has(id):
+			for imagen: Image in imagenes:
+				_marcar_ancla_invisible(imagen, ancla_final, objetivo_px)
+			print("[ENTORNO URBANO]   %s: ancla invisible marcada (izq/dcha/abajo del rombo de familia)" % id)
+
 		for i: int in ROTACIONES.size():
 			var ruta: String = "%s%s_%d.png" % [SALIDA_ENTORNO, id, ROTACIONES[i]]
 			var err: Error = (imagenes[i] as Image).save_png(ProjectSettings.globalize_path(ruta))
@@ -550,50 +625,29 @@ func _medir_ancho(imagen: Image) -> int:
 	return max_x - min_x + 1
 
 
-## El centro (X, Y) del rombo IDEAL 2:1 de una pieza CASI PLANA -- ver el bug 2/2 documentado en la
-## cabecera de `MODELOS` (`RECORTAR_CANTOS_VIA`). X sale de las columnas extremas de la silueta
-## (min_x/max_x, la misma cuenta que `AnclajeSprite._medir_centro_base`). Y se MIDE (no a ojo) como
-## la Y media de ESAS DOS columnas extremas: son la punta del arcén LATERAL (eje perpendicular a la
-## vía), ajena al canto -- que vive en el eje de la vía, ver la cabecera -- así que su media da el
-## centro real del rombo sin que el canto lo desplace hacia una punta.
-func _centro_rombo(imagen: Image) -> Vector2:
-	var ancho: int = imagen.get_width()
-	var alto: int = imagen.get_height()
-	var min_x := -1
-	var max_x := -1
-	for px: int in range(ancho):
-		if AnclajeSpriteScript._columna_opaca(imagen, px, alto):
-			min_x = px
-			break
-	for px: int in range(ancho - 1, -1, -1):
-		if AnclajeSpriteScript._columna_opaca(imagen, px, alto):
-			max_x = px
-			break
-	if min_x < 0 or max_x < 0:
-		push_warning("[ENTORNO URBANO] silueta totalmente transparente al medir el centro del rombo")
-		return Vector2(float(ancho) * 0.5, float(alto) * 0.5)
-	var y_medio_de_columna := func(px: int) -> float:
-		var y0 := -1
-		var y1 := -1
-		for py: int in range(alto):
-			if imagen.get_pixel(px, py).a > AnclajeSpriteScript.UMBRAL_ALFA:
-				if y0 < 0:
-					y0 = py
-				y1 = py
-		return float(y0 + y1 + 1) * 0.5
-	var centro_x: float = float(min_x + max_x + 1) * 0.5
-	var centro_y: float = (y_medio_de_columna.call(min_x) + y_medio_de_columna.call(max_x)) * 0.5
-	return Vector2(centro_x, centro_y)
+## Como `_renderizar_bruto` (`render_mobiliario.gd`) pero recortando SIEMPRE al `recorte` dado en
+## vez de auto-detectar el contenido opaco (`get_used_rect()`) -- ver `region_familia` en
+## `_ejecutar` (bug 3/3): las piezas cuyo contenido NO llena la loseta entera (la curva) perderían
+## su posición real dentro de ella si cada una se recortara a su propio dibujo.
+func _renderizar_bruto_recorte_fijo(recorte: Rect2i) -> Dictionary:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var cruda: Image = _sub.get_texture().get_image()
+	var centro := Vector2(TAM_RENDER / 2.0, TAM_RENDER / 2.0)
+	var recortada: Image = cruda.get_region(recorte)
+	var ancla: Vector2 = centro - Vector2(recorte.position)
+	return {"imagen": recortada, "ancla": ancla}
 
 
 ## Recorta (alfa=0) todo píxel de `imagen` que quede FUERA del rombo IDEAL 2:1 centrado en
-## `_centro_rombo(imagen)`, de ancho EXACTO `ancho_ideal` (el ya medido de esta silueta -- ver la
-## llamada en `_ejecutar`) y alto `ancho_ideal / 2` (ley 2:1 de `Proyeccion.ANCHO_ROMBO`/
-## `ALTO_ROMBO`, la misma que valida el cubo de calibración de `render_mobiliario.gd`). Ver el bug
-## 2/2 en la cabecera de `MODELOS`: esto elimina el canto (grosor real de 0,02 m de la losa) que
-## sobresale del rombo puro de la cara de arriba.
-func _recortar_a_rombo(imagen: Image, ancho_ideal: float) -> Image:
-	var centro: Vector2 = _centro_rombo(imagen)
+## `centro` (el ANCLA ya conocida de esta rotación, propagada por el pipeline -- ver la llamada en
+## `_ejecutar`, bug 3/3: NUNCA remedida del contenido, que para piezas como la curva no está
+## centrado en la loseta), de ancho EXACTO `ancho_ideal` (el de la FAMILIA -- `objetivo_px`, la
+## loseta completa de `carretera_recta` -- no el contenido de cada pieza) y alto `ancho_ideal / 2`
+## (ley 2:1 de `Proyeccion.ANCHO_ROMBO`/`ALTO_ROMBO`, la misma que valida el cubo de calibración de
+## `render_mobiliario.gd`). Ver el bug 2/3 en la cabecera de `MODELOS`: esto elimina el canto
+## (grosor real de 0,02 m de la losa) que sobresale del rombo puro de la cara de arriba.
+func _recortar_a_rombo(imagen: Image, centro: Vector2, ancho_ideal: float) -> Image:
 	var semiancho: float = ancho_ideal * 0.5
 	var semialto: float = ancho_ideal * 0.25
 	var copia: Image = imagen.duplicate()
@@ -614,6 +668,30 @@ func _recortar_a_rombo(imagen: Image, ancho_ideal: float) -> Image:
 				if c.a > 0.0:
 					copia.set_pixel(px, py, Color(c.r, c.g, c.b, 0.0))
 	return copia
+
+
+## Estampa 3 píxeles casi invisibles (alfa justo por encima de `AnclajeSprite.UMBRAL_ALFA`) en los
+## puntos izquierdo/derecho/abajo del rombo IDEAL de la loseta completa (centrado en `ancla`, ancho
+## `ancho_ideal`) -- ver el bug 3/3 (2º hallazgo) en `_ejecutar`: hace que
+## `AnclajeSprite._medir_centro_base` (el juego) reconstruya el centro REAL de la loseta para
+## piezas cuyo contenido visible no llega a esos puntos (la curva). No pisa un píxel YA opaco (si
+## el contenido real ya llega ahí -- caso de `carretera_recta` -- no cambia nada visible).
+func _marcar_ancla_invisible(imagen: Image, ancla: Vector2, ancho_ideal: float) -> void:
+	var alfa_marca := 0.06
+	var semiancho: float = ancho_ideal * 0.5
+	var semialto: float = ancho_ideal * 0.25
+	var ancho_img: int = imagen.get_width()
+	var alto_img: int = imagen.get_height()
+	var puntos: Array[Vector2i] = [
+		Vector2i(clampi(roundi(ancla.x - semiancho), 0, ancho_img - 1), clampi(roundi(ancla.y), 0, alto_img - 1)),
+		Vector2i(clampi(roundi(ancla.x + semiancho - 1.0), 0, ancho_img - 1), clampi(roundi(ancla.y), 0, alto_img - 1)),
+		Vector2i(clampi(roundi(ancla.x), 0, ancho_img - 1), clampi(roundi(ancla.y + semialto - 1.0), 0, alto_img - 1)),
+	]
+	for p: Vector2i in puntos:
+		var c: Color = imagen.get_pixel(p.x, p.y)
+		if c.a <= AnclajeSpriteScript.UMBRAL_ALFA:
+			c.a = alfa_marca
+			imagen.set_pixel(p.x, p.y, c)
 
 
 ## Modo de SOLO MEDICIÓN (ver `SOLO_MEDICION`): carga cada letra de `LETRAS_SUBURBAN` una a una
