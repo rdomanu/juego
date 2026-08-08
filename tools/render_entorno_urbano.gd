@@ -206,11 +206,59 @@ const MODELOS: Array[Dictionary] = [
 	## encima: "ponlo en 6 celdas, así cuadra todo a celdas completas"): a 3,8 los coches pisaban el
 	## arcén (~20% del tile es arcén); a 6,0 la calle casa con la rejilla entera y las 5 piezas del
 	## kit comparten LA MISMA escala (regla del usuario: toda la familia en proporción).
+	##
+	## ⚠️ BUG DE PLAYTEST 1/2 (usuario, 2026-08-08, mismo día): "la curva sobresale ~1 celda por
+	## lado respecto a la recta" -- CAUSA verificada en el log: `carretera_recta` mide 446px de
+	## silueta EN BRUTO y `carretera_curva` 315px; al forzar cada pieza a los MISMOS 480px con su
+	## PROPIO factor (`objetivo_px / medido_bruto_px`, el modo `ancho_objetivo_celdas` normal, ver la
+	## cabecera de `MODELOS`), la curva salía con un factor 1,52 contra el 1,08 de la recta -- el
+	## asfalto de la curva quedaba un 40% más "gordo" que el de la recta aunque las dos declaren
+	## `ancho_objetivo_celdas=6.0`. FIX -- "factor_de": SOLO `carretera_recta` se autocalibra (mide su
+	## propio bruto contra `ancho_objetivo_celdas`); las otras 4 declaran `"factor_de":
+	## "carretera_recta"` y en `_ejecutar` HEREDAN ese mismo factor ya calculado (`escalas_familia`,
+	## ver ahí) en vez de recalcular el suyo -- así las 5 comparten EXACTAMENTE el mismo px/unidad-de-
+	## mundo, la regla del usuario ("todo el kit en la misma proporción") aplicada de verdad. Efecto
+	## secundario ACEPTADO: solo `carretera_recta` llena los 480px (6,0 celdas) exactos; las otras 4
+	## salen a lo que dé su propia silueta con ESE factor (curva más estrecha que 6 celdas de ancho
+	## bruto) -- es la huella REAL de esa pieza a la escala común, no un objetivo propio.
+	##
+	## ⚠️ BUG DE PLAYTEST 2/2: "varios módulos de recta seguidos no se acoplan, se ven los bordes" --
+	## INVESTIGADO con `tools/_diag_carretera_estructura.gd` (desechable, en el repo): las 5 mallas de
+	## origen son la MISMA losa plana `AABB size=(1.0, 0.02, 1.0)` -- un grosor real de 0,02 m, nada
+	## de textura. Ese grosor asoma como un "canto" (cara lateral) que sobresale unos pocos px MÁS
+	## ALLÁ de la silueta IDEAL de la cara de arriba (que, siendo plana, tiene que proyectar un rombo
+	## PERFECTO 2:1 -- la misma ley de `Proyeccion.ANCHO_ROMBO`/`ALTO_ROMBO` que ya valida el "cubo de
+	## calibración" de `render_mobiliario.gd`) -- medido en `carretera_recta_0.png`: bbox 480×244px
+	## contra el 480×240px ideal, 4px de sobra repartidos en las DOS puntas del EJE DE LA VÍA (no en
+	## las puntas laterales/arcén, que miden exactas). Ese sobrante no es solo estética: el juego NO
+	## usa el ancla que este render calcula en 3D -- `AnclajeSprite._medir_centro_base` (motor)
+	## RECONSTRUYE el ancla puramente del PNG (min_x/max_x/max_y), asumiendo esa misma silueta 2:1
+	## perfecta (ver su cabecera) -- con el canto, `max_y` cae unos px más abajo del vértice sur REAL
+	## y el ancla reconstruido queda descuadrado esos mismos px -- exactamente la clase de error que,
+	## acumulado tramo a tramo, se ve como "no se acopla". FIX: recortar (alfa=0) todo lo que quede
+	## FUERA del rombo IDEAL 2:1 de cada sprite YA escalado -- `_centro_rombo`/`_recortar_a_rombo`,
+	## llamado desde `_ejecutar` solo para `RECORTAR_CANTOS_VIA`. El centro del rombo se MIDE (no a
+	## ojo) de las dos columnas MÁS EXTREMAS (izquierda/derecha) de la propia silueta -- esas puntas
+	## son el arcén LATERAL, ajeno al canto (que vive en el eje perpendicular), así que su Y media es
+	## el centro real sin contaminar. Las caras de los arcenes (blancas, DENTRO del rombo) no se tocan
+	## -- son arte, se quedan.
 	{"id": "carretera_recta", "ruta": CARPETA_ROADS + "road-straight.glb", "ancho_objetivo_celdas": 6.0},
-	{"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 6.0},
-	{"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb", "ancho_objetivo_celdas": 6.0},
-	{"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb", "ancho_objetivo_celdas": 6.0},
-	{"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb", "ancho_objetivo_celdas": 6.0},
+	{
+		"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 6.0,
+		"factor_de": "carretera_recta",
+	},
+	{
+		"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb",
+		"ancho_objetivo_celdas": 6.0, "factor_de": "carretera_recta",
+	},
+	{
+		"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb",
+		"ancho_objetivo_celdas": 6.0, "factor_de": "carretera_recta",
+	},
+	{
+		"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb",
+		"ancho_objetivo_celdas": 6.0, "factor_de": "carretera_recta",
+	},
 	## Las 16 casas restantes del kit (ver la tabla de la cabecera, "LAS 16 CASAS RESTANTES DEL KIT").
 	{"id": "casa_kit_b", "ruta": CARPETA_SUBURBAN + "building-type-b.glb", "ancho_objetivo_celdas": 6.0},
 	{"id": "casa_kit_c", "ruta": CARPETA_SUBURBAN + "building-type-c.glb", "ancho_objetivo_celdas": 5.0},
@@ -236,6 +284,15 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
+	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
+	"carretera_paso_cebra",
+]
+
+## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
+## cabecera de `MODELOS` (nota del kit roads). Deliberadamente NO incluye `calzada_recta`/
+## `acera_recta` (mismas mallas, mismo canto, pero fuera del encargo de esta tarea -- quedan para un
+## lote aparte si se retoman, ver `entorno_exterior.gd::_pintar_overlay_calle`, hoy sin llamar).
+const RECORTAR_CANTOS_VIA: Array[String] = [
 	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
 	"carretera_paso_cebra",
 ]
@@ -333,6 +390,12 @@ func _ejecutar(todas: Dictionary) -> void:
 		PX_POR_METRO, ALTO_MUNECO_PX, ALTO_MUNECO_M, FACTOR_PRESENCIA
 	])
 
+	# FACTOR ÚNICO DE FAMILIA (bug 1/2 del playtest 2026-08-08, ver la cabecera de `MODELOS`): las
+	# piezas que declaran "factor_de" NO se autocalibran -- heredan aquí el `escala_pieza` YA
+	# calculado de la pieza referenciada (procesada antes en `MODELOS`, siempre -- `carretera_recta`
+	# va primero en la lista). Se rellena SOLO con el factor de las piezas que SÍ se autocalibran.
+	var escalas_familia: Dictionary = {}
+
 	for modelo: Dictionary in MODELOS:
 		var id: String = modelo["id"]
 		if not SOLO_IDS.is_empty() and not SOLO_IDS.has(id):
@@ -363,12 +426,27 @@ func _ejecutar(todas: Dictionary) -> void:
 			var ancho_celdas: float = modelo["ancho_objetivo_celdas"]
 			objetivo_px = ancho_celdas * float(Proyeccion.ANCHO_ROMBO)
 			medido_bruto_px = _medir_ancho(imagen_0)
-			escala_pieza = objetivo_px / float(maxi(medido_bruto_px, 1))
-			var alto_bruto_0: int = _medir_alto(imagen_0)
-			print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2f celdas->%.1fpx -> factor=%.4f (alto final previsto=%.1fpx)" % [
-				id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
-				ancho_celdas, objetivo_px, escala_pieza, float(alto_bruto_0) * escala_pieza
-			])
+			var factor_de: String = String(modelo.get("factor_de", ""))
+			if factor_de != "" and escalas_familia.has(factor_de):
+				# Hereda el factor de la pieza de referencia -- ver `escalas_familia` arriba y la
+				# cabecera de `MODELOS` (bug 1/2). NO se recalcula el propio -- por diseño, esta
+				# pieza puede salir con menos/más de `ancho_celdas` celdas de ancho real: comparte
+				# escala mundo->px con el resto de la familia en vez de forzar su propio objetivo.
+				escala_pieza = escalas_familia[factor_de]
+				var alto_bruto_0h: int = _medir_alto(imagen_0)
+				print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx) -> FACTOR DE FAMILIA heredado de '%s'=%.4f (ancho final=%.1fpx, alto final=%.1fpx)" % [
+					id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
+					factor_de, escala_pieza, float(medido_bruto_px) * escala_pieza,
+					float(alto_bruto_0h) * escala_pieza
+				])
+			else:
+				escala_pieza = objetivo_px / float(maxi(medido_bruto_px, 1))
+				escalas_familia[id] = escala_pieza
+				var alto_bruto_0: int = _medir_alto(imagen_0)
+				print("[ENTORNO URBANO] %s: radio=%.3f m, bruto 0°=%dx%dpx (ancho silueta=%dpx), objetivo=%.2f celdas->%.1fpx -> factor=%.4f (alto final previsto=%.1fpx)" % [
+					id, radio, imagen_0.get_width(), imagen_0.get_height(), medido_bruto_px,
+					ancho_celdas, objetivo_px, escala_pieza, float(alto_bruto_0) * escala_pieza
+				])
 		elif por_longitud:
 			# Ver la cabecera de `MODELOS`: mismo mecanismo que `ancho_objetivo_celdas` (mide el ANCHO
 			# de la silueta en bruto), pero el objetivo sale de METROS REALES x la conversión
@@ -399,6 +477,17 @@ func _ejecutar(todas: Dictionary) -> void:
 			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
 			var bruto: Dictionary = await _renderizar_bruto()
 			escalados.append(_escalar(bruto, escala_pieza))
+
+		# 1.5) RECORTE DEL CANTO (bug 2/2 del playtest 2026-08-08, ver la cabecera de `MODELOS` y
+		# `RECORTAR_CANTOS_VIA`): las 5 mallas del kit roads son una losa con grosor real (0,02 m) que
+		# asoma como canto más allá del rombo IDEAL 2:1 de la cara de arriba -- se recorta (alfa=0)
+		# aquí, en las 4 rotaciones YA escaladas, ANTES de componer sobre el lienzo común.
+		if por_ancho and RECORTAR_CANTOS_VIA.has(id):
+			for k: int in escalados.size():
+				var img: Image = escalados[k]["imagen"]
+				var ancho_medido: float = float(_medir_ancho(img))
+				escalados[k]["imagen"] = _recortar_a_rombo(img, ancho_medido)
+			print("[ENTORNO URBANO]   %s: cantos recortados al rombo ideal 2:1 en las 4 rotaciones" % id)
 
 		var compuesto: Dictionary = _componer(escalados)
 		var imagenes: Array[Image] = compuesto["imagenes"]
@@ -459,6 +548,72 @@ func _medir_ancho(imagen: Image) -> int:
 			max_x = px
 			break
 	return max_x - min_x + 1
+
+
+## El centro (X, Y) del rombo IDEAL 2:1 de una pieza CASI PLANA -- ver el bug 2/2 documentado en la
+## cabecera de `MODELOS` (`RECORTAR_CANTOS_VIA`). X sale de las columnas extremas de la silueta
+## (min_x/max_x, la misma cuenta que `AnclajeSprite._medir_centro_base`). Y se MIDE (no a ojo) como
+## la Y media de ESAS DOS columnas extremas: son la punta del arcén LATERAL (eje perpendicular a la
+## vía), ajena al canto -- que vive en el eje de la vía, ver la cabecera -- así que su media da el
+## centro real del rombo sin que el canto lo desplace hacia una punta.
+func _centro_rombo(imagen: Image) -> Vector2:
+	var ancho: int = imagen.get_width()
+	var alto: int = imagen.get_height()
+	var min_x := -1
+	var max_x := -1
+	for px: int in range(ancho):
+		if AnclajeSpriteScript._columna_opaca(imagen, px, alto):
+			min_x = px
+			break
+	for px: int in range(ancho - 1, -1, -1):
+		if AnclajeSpriteScript._columna_opaca(imagen, px, alto):
+			max_x = px
+			break
+	if min_x < 0 or max_x < 0:
+		push_warning("[ENTORNO URBANO] silueta totalmente transparente al medir el centro del rombo")
+		return Vector2(float(ancho) * 0.5, float(alto) * 0.5)
+	var y_medio_de_columna := func(px: int) -> float:
+		var y0 := -1
+		var y1 := -1
+		for py: int in range(alto):
+			if imagen.get_pixel(px, py).a > AnclajeSpriteScript.UMBRAL_ALFA:
+				if y0 < 0:
+					y0 = py
+				y1 = py
+		return float(y0 + y1 + 1) * 0.5
+	var centro_x: float = float(min_x + max_x + 1) * 0.5
+	var centro_y: float = (y_medio_de_columna.call(min_x) + y_medio_de_columna.call(max_x)) * 0.5
+	return Vector2(centro_x, centro_y)
+
+
+## Recorta (alfa=0) todo píxel de `imagen` que quede FUERA del rombo IDEAL 2:1 centrado en
+## `_centro_rombo(imagen)`, de ancho EXACTO `ancho_ideal` (el ya medido de esta silueta -- ver la
+## llamada en `_ejecutar`) y alto `ancho_ideal / 2` (ley 2:1 de `Proyeccion.ANCHO_ROMBO`/
+## `ALTO_ROMBO`, la misma que valida el cubo de calibración de `render_mobiliario.gd`). Ver el bug
+## 2/2 en la cabecera de `MODELOS`: esto elimina el canto (grosor real de 0,02 m de la losa) que
+## sobresale del rombo puro de la cara de arriba.
+func _recortar_a_rombo(imagen: Image, ancho_ideal: float) -> Image:
+	var centro: Vector2 = _centro_rombo(imagen)
+	var semiancho: float = ancho_ideal * 0.5
+	var semialto: float = ancho_ideal * 0.25
+	var copia: Image = imagen.duplicate()
+	var ancho_img: int = copia.get_width()
+	var alto_img: int = copia.get_height()
+	for py: int in range(alto_img):
+		var dy: float = (float(py) + 0.5) - centro.y
+		if absf(dy) >= semialto:
+			for px: int in range(ancho_img):
+				var c: Color = copia.get_pixel(px, py)
+				if c.a > 0.0:
+					copia.set_pixel(px, py, Color(c.r, c.g, c.b, 0.0))
+			continue
+		for px: int in range(ancho_img):
+			var dx: float = (float(px) + 0.5) - centro.x
+			if absf(dx) / semiancho + absf(dy) / semialto > 1.0:
+				var c: Color = copia.get_pixel(px, py)
+				if c.a > 0.0:
+					copia.set_pixel(px, py, Color(c.r, c.g, c.b, 0.0))
+	return copia
 
 
 ## Modo de SOLO MEDICIÓN (ver `SOLO_MEDICION`): carga cada letra de `LETRAS_SUBURBAN` una a una
