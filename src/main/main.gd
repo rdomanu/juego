@@ -228,6 +228,12 @@ var _luces_objetos: Node2D = null
 ## El modo diseñador de entorno (2026-08-07): herramienta DEV, SOLO existe si el proceso arrancó con
 ## `--disenador` (ver `_ready`) — en juego normal esta variable se queda `null` para siempre.
 var _modo_disenador_entorno: Node2D = null
+## La capa del HUD del juego (reloj/velocidad/saldo/demanda/personal/flujo/acciones/satisfacción,
+## `_crear_hud`). Guardada para poder OCULTARLA mientras el diseñador de entorno está activo (fix del
+## solape: bug reportado "me cuesta seleccionar, se solapan con los datos del juego" — las dos son
+## paneles `PRESET_BOTTOM_WIDE` y se dibujaban una encima de otra). Solo existe con `--disenador`
+## conectada (ver `_ready`); en juego normal nadie la toca y el HUD se comporta igual que siempre.
+var _capa_hud: CanvasLayer = null
 
 
 func _ready() -> void:
@@ -253,6 +259,11 @@ func _ready() -> void:
 	_modo_construccion.name = "ModoConstruccion"
 	_modo_construccion.configurar(_construccion, TAM_CELDA, _paredes_salas)
 	add_child(_modo_construccion)
+	# Mismo fix de solape que el diseñador de entorno (2026-08-08): mientras la barra de
+	# construcción está abierta, oculta el HUD inferior de Main (que si no, queda tapado debajo).
+	# Gemelo exacto de `_modo_disenador_entorno.activado_cambiado.connect(_al_activar_disenador)`
+	# más abajo — ver esa nota para el porqué de "solo visibilidad, el HUD sigue vivo debajo".
+	_modo_construccion.activado_cambiado.connect(_al_activar_construccion)
 	# Modo diseñador de entorno (2026-08-07): herramienta DEV, invisible en juego normal — SOLO se
 	# instancia si el proceso arrancó con `--disenador` (`OS.get_cmdline_user_args`, mismo patrón que
 	# `--pausa`). Sin el flag esta variable se queda `null` y F12 no hace nada (ver
@@ -266,6 +277,11 @@ func _ready() -> void:
 		_modo_disenador_entorno.configurar(TAM_CELDA, pos_suelo, _mundo_profundo)
 		add_child(_modo_disenador_entorno)
 		_modo_disenador_entorno.layout_cambiado.connect(_al_cambiar_layout_disenador)
+		# Fix del solape (petición del usuario): mientras el diseñador está activo, el HUD del juego se
+		# OCULTA (y reaparece al salir, con los datos al día — el HUD sigue vivo debajo, `_process` lo
+		# sigue refrescando aunque no se vea). Solo se conecta con el flag puesto: en juego normal esta
+		# señal no tiene a nadie escuchando y el HUD no cambia de comportamiento.
+		_modo_disenador_entorno.activado_cambiado.connect(_al_activar_disenador)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
 	_panel_personal = PanelPersonalScript.new()
@@ -1426,6 +1442,9 @@ func _crear_hud() -> void:
 	var capa := CanvasLayer.new()
 	capa.name = "HUD"
 	add_child(capa)
+	# Guardada para poder ocultarla desde `_al_activar_disenador` (fix del solape con la paleta del
+	# diseñador de entorno) — ver la cabecera larga de `_capa_hud`.
+	_capa_hud = capa
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -1595,6 +1614,26 @@ func _alternar_modo_paredes() -> void:
 func _al_cambiar_layout_disenador() -> void:
 	if _luces_objetos != null and _modo_disenador_entorno != null:
 		_luces_objetos.usar_farolas(_modo_disenador_entorno.puntos_farolas())
+
+
+## Fix del solape (petición del usuario 2026-08-07: "me cuesta seleccionar, se solapan con los datos
+## del juego"): `ModoDisenadorEntorno` y el HUD del juego son dos paneles `PRESET_BOTTOM_WIDE` que se
+## dibujaban uno encima del otro. Solo VISIBILIDAD — el HUD sigue vivo debajo (`_process` lo sigue
+## refrescando), así que al salir del diseñador reaparece con los datos al día, sin reconstruir nada.
+func _al_activar_disenador(activo: bool) -> void:
+	if _capa_hud != null:
+		_capa_hud.visible = not activo
+
+
+## Gemelo de `_al_activar_disenador` para `ModoConstruccion` (fix del solape 2026-08-08: la barra de
+## construcción, anclada abajo igual que el HUD, lo tapaba). Puente hasta que la fase 2 mueva la
+## información del HUD a la barra superior nueva (decisión del usuario: "información ARRIBA,
+## herramientas ABAJO") — sin combinar con el diseñador de entorno a propósito: son modos que hoy no
+## se solapan en la práctica (uno es --disenador, el otro el juego normal), así que cada señal pisa
+## la visibilidad del HUD de forma independiente, como ya hacía `_al_activar_disenador`.
+func _al_activar_construccion(activo: bool) -> void:
+	if _capa_hud != null:
+		_capa_hud.visible = not activo
 
 
 ## Guarda la partida. El resultado se dice EN PANTALLA: un guardado que falla en silencio es peor que

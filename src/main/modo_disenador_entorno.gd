@@ -22,6 +22,14 @@ class_name ModoDisenadorEntorno extends Node2D
 ## jugable 24×13 — el interior es del juego, esta herramienta no lo toca.
 
 signal layout_cambiado()
+## Se emite cada vez que `alternar()` cambia el modo on/off (2026-08-07 — fix del solape con el HUD
+## del juego). `Main` escucha esta señal para OCULTAR su propia barra inferior mientras el
+## diseñador está activo: las dos son paneles anclados `PRESET_BOTTOM_WIDE` de altura dinámica —
+## sin esto, la paleta de esta herramienta se dibuja ENCIMA de reloj/saldo/velocidad/personal del
+## HUD de verdad y son indistinguibles (bug reportado: "me cuesta seleccionar, se solapan con los
+## datos del juego"). Puramente de presentación — este nodo no conoce ni le importa qué hace `Main`
+## con la señal (ADR-0001: la UI ordena, no asume quién escucha).
+signal activado_cambiado(activo: bool)
 
 ## Catálogo de piezas colocables — mismos ids que los PNG de `assets/sprites/entorno/`
 ## (`tools/render_entorno_urbano.gd`), las 4 rotaciones ya renderizadas para cada una.
@@ -60,11 +68,19 @@ const VERSION_LAYOUT := 1
 
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
 const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
+## El kit de UI (2026-08-07, remate del reskin — piloto Summer): mismo punto único de acceso que usa
+## `ModoConstruccion` para tema/iconos/variantes. Ver la cabecera de `KitUIComisario`.
+const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
 
-const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 const ALFA_FANTASMA: float = 0.55
 const COLOR_FANTASMA_PIEZA := Color(0.6, 0.85, 1.0, ALFA_FANTASMA)
 const COLOR_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, 0.5)
+## Alto de la barra inferior (2026-08-07, remate del reskin): antes 190px alcanzaba con botones de
+## una línea de texto; con las tarjetas AGRANDADAS a ~48px de alto (petición del usuario: "me cuesta
+## seleccionar las cosas") la paleta necesita más sitio. `grow_vertical = GROW_DIRECTION_BEGIN` (en
+## `_crear_ui`) hace que ese sobrante crezca HACIA ARRIBA, nunca fuera de la pantalla por abajo —
+## mismo gotcha que ya resolvió `ModoConstruccion._crear_ui` (ver su comentario del panel).
+const ALTO_BARRA: float = 260.0
 
 var _tam_celda: int = 40
 var _origen: Vector2 = Vector2.ZERO
@@ -395,6 +411,7 @@ func alternar() -> void:
 	else:
 		_fijar_herramienta(&"")
 	_actualizar_visibilidad()
+	activado_cambiado.emit(_activo)
 
 
 func _actualizar_visibilidad() -> void:
@@ -414,10 +431,12 @@ func _fijar_herramienta(id: StringName) -> void:
 	# y el segundo clic no hacía NADA -- cazado por
 	# `modo_disenador_entorno_test.gd::test_borrar_quita_pieza_y_superficie_de_la_celda`.
 	_celda_pintada_anterior = Vector2i(-999, -999)
+	# EL SELECCIONADO SE MARCA CON EL ESTADO "PRESSED" DEL KIT (2026-08-07, remate del reskin), no con
+	# un tinte de `modulate` -- mismo contrato que `ModoConstruccion._fijar_herramienta`: `TarjetaObjeto`
+	# trae su propio arte de "seleccionada" y un tinte por encima lo desharía. Este bucle es la ÚNICA
+	# fuente de verdad de qué botón está `button_pressed`.
 	for herramienta_id: StringName in _botones:
-		(_botones[herramienta_id] as Button).modulate = (
-			COLOR_BOTON_ACTIVO if herramienta_id == id else Color.WHITE
-		)
+		(_botones[herramienta_id] as Button).button_pressed = herramienta_id == id
 
 
 func _avisar(texto: String) -> void:
@@ -436,15 +455,24 @@ func _crear_ui() -> void:
 	fondo.color = Color(0.08, 0.09, 0.10, 0.88)
 	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fondo.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	fondo.custom_minimum_size = Vector2(0.0, 190.0)
-	fondo.position.y = -190.0
-	fondo.size = Vector2(2000.0, 190.0)
+	fondo.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	fondo.custom_minimum_size = Vector2(0.0, ALTO_BARRA)
+	fondo.position.y = -ALTO_BARRA
+	fondo.size = Vector2(2000.0, ALTO_BARRA)
 	_capa_ui.add_child(fondo)
 
 	var raiz := VBoxContainer.new()
 	raiz.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	raiz.position.y = -186.0
-	raiz.custom_minimum_size = Vector2(0.0, 186.0)
+	# Gotcha de anclas (mismo que `ModoConstruccion._crear_ui`): anclada abajo, la barra debe CRECER
+	# HACIA ARRIBA -- si no, el sobrante de las tarjetas agrandadas se saldría por debajo de la pantalla.
+	raiz.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	raiz.position.y = -(ALTO_BARRA - 4.0)
+	raiz.custom_minimum_size = Vector2(0.0, ALTO_BARRA - 4.0)
+	# El TEMA del kit (2026-08-07, remate del reskin -- mismo patrón que `ModoConstruccion`): se
+	# aplica UNA vez al contenedor raíz y baja por herencia (fuente Kenney Future, tamaños de letra) a
+	# todo lo que cuelgue de aquí. Las piezas con arte propio piden ADEMÁS su `theme_type_variation`
+	# explícita (ver `_boton_herramienta` y los botones de guardar/cargar, más abajo).
+	raiz.theme = KitUIComisarioScript.tema()
 	_capa_ui.add_child(raiz)
 
 	var titulo := Label.new()
@@ -452,6 +480,11 @@ func _crear_ui() -> void:
 	raiz.add_child(titulo)
 
 	var fila: HFlowContainer = HFlowContainer.new()
+	# Separación entre tarjetas (petición del usuario: "me cuesta seleccionar las cosas") -- un botón
+	# grande pegado a su vecino sigue invitando al clic fallido (Fitts's Law); el hueco es tan parte
+	# del objetivo como el tamaño del propio botón.
+	fila.add_theme_constant_override("h_separation", 8)
+	fila.add_theme_constant_override("v_separation", 8)
 	raiz.add_child(fila)
 	for id: StringName in CATALOGO_PIEZAS:
 		fila.add_child(_boton_herramienta(id, NOMBRES_PIEZA[id]))
@@ -460,13 +493,20 @@ func _crear_ui() -> void:
 	fila.add_child(_boton_herramienta(HERRAMIENTA_BORRAR, "🧹 Borrar"))
 
 	var fila_acciones := HBoxContainer.new()
+	fila_acciones.add_theme_constant_override("separation", 8)
 	raiz.add_child(fila_acciones)
 	var btn_guardar := Button.new()
 	btn_guardar.text = "💾 Guardar (F8)"
+	btn_guardar.focus_mode = Control.FOCUS_NONE
+	btn_guardar.theme_type_variation = KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA
+	btn_guardar.custom_minimum_size = Vector2(140.0, 48.0)
 	btn_guardar.pressed.connect(guardar_en_disco)
 	fila_acciones.add_child(btn_guardar)
 	var btn_cargar := Button.new()
 	btn_cargar.text = "🔄 Recargar del disco"
+	btn_cargar.focus_mode = Control.FOCUS_NONE
+	btn_cargar.theme_type_variation = KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA
+	btn_cargar.custom_minimum_size = Vector2(160.0, 48.0)
 	btn_cargar.pressed.connect(cargar_desde_disco)
 	fila_acciones.add_child(btn_cargar)
 
@@ -475,10 +515,27 @@ func _crear_ui() -> void:
 	raiz.add_child(_lbl_estado)
 
 
+## Botón de la paleta (pieza/superficie/goma): piel `TarjetaObjeto` del kit (2026-08-07, remate del
+## reskin) con `toggle_mode` porque el estado "pressed" del tema ES el arte de "herramienta en mano"
+## (contrato documentado en la cabecera de `KitUIComisario` -- ver `_fijar_herramienta`, la ÚNICA
+## fuente de verdad de qué botón queda marcado). Tamaño mínimo ~48px de alto (petición del usuario:
+## "me cuesta seleccionar las cosas") -- antes el botón se ajustaba solo al ancho del texto, una zona
+## de clic tan fina como una línea de letra.
 func _boton_herramienta(id: StringName, texto: String) -> Button:
 	var boton := Button.new()
 	boton.text = texto
-	boton.toggle_mode = false
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.toggle_mode = true
+	boton.theme_type_variation = KitUIComisarioScript.VARIANTE_TARJETA
+	boton.custom_minimum_size = Vector2(112.0, 48.0)
+	# El texto desbordaba la tarjeta (auditoría 2026-08-08): `TarjetaObjeto` tiene un
+	# `content_margin` pequeño y fijo (ver `theme_comisario.tres`), pero un rótulo largo aun así
+	# puede no caber en 112px de ancho. `clip_text` corta en el borde en vez de derramarse fuera
+	# del boton. `TextServer.OVERRUN_TRIM_ELLIPSIS` daria un corte mas elegante ("Sillon...") pero
+	# no está confirmado en `docs/engine-reference/godot/` para 4.6 -- por la regla del proyecto
+	# (no adivinar API post-cutoff sin verificar) nos quedamos solo con `clip_text`.
+	boton.clip_text = true
+	boton.add_theme_font_size_override("font_size", 11)
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id))
 	_botones[id] = boton
 	return boton

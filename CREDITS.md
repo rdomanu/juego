@@ -51,6 +51,18 @@ permiten usar el material —incluso comercialmente— **a cambio de citar al au
 | "City Kit Suburban" (Kenney, www.kenney.nl) | Kenney | [CC0 1.0](http://creativecommons.org/publicdomain/zero/1.0/) (sin atribución exigible; se cita por cortesía) | Barrio disperso de `EntornoExterior`: 5 casas (`casa_a/d/g/k/o_*.png`), tapia (`valla_baja_*.png`), camino del recinto (`camino_recinto_*.png`), entrada de casa (`entrada_casa_*.png`), parterre (`planter_*.png`), árboles a juego (`tree_grande_*.png`, `tree_pequeno_*.png`) | **En uso** (2026-08-07) |
 | "Road Tiles" (Kenney, www.kenney.nl) | Kenney | [CC0 1.0](http://creativecommons.org/publicdomain/zero/1.0/) (sin atribución exigible; se cita por cortesía) | Calzada/acera de la calle de acceso (`calzada_recta_*.png`, `acera_recta_*.png`) | **Renderizado, sin colocar** (2026-08-07: la orientación de las piezas en la rejilla no cuadraba en el tiempo disponible de esta sesión — la calle se queda con el relleno plano de color; ver `entorno_exterior.gd::_pintar_overlay_calle`) |
 
+## Fuentes
+
+| Asset | Autor | Licencia | Uso en el juego | Estado |
+|---|---|---|---|---|
+| "Kenney Future" (www.kenney.nl/assets/kenney-fonts) | Kenney | [CC0 1.0](http://creativecommons.org/publicdomain/zero/1.0/) (sin atribución exigible; se cita por cortesía) | Fuente por defecto del kit de UI (`assets/fonts/kenney_future.ttf`, `default_font` de `assets/ui/theme_comisario.tres`) | **En uso** (2026-08-07) |
+
+## Kit de UI
+
+| Asset | Autor | Licencia | Uso en el juego | Estado |
+|---|---|---|---|---|
+| Kit de UI "Comisario" (piloto Summer, `design/ux/prompt-summer-ui.md`) | Generación propia vía Summer Engine, encargo del proyecto | Generación propia (términos de Summer Engine; sin atribución CC exigible) | Piezas de interfaz (marcos, pestañas, tarjetas, píldoras, toasts, iconos), `assets/ui/kit/` + `assets/ui/theme_comisario.tres`, servidas por `src/ui/kit_ui_comisario.gd` | **En uso** (2026-08-07) |
+
 ### Texto de atribución a incluir en los créditos del juego
 
 ```

@@ -1,0 +1,274 @@
+[gd_resource type="Theme" load_steps=27 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/kenney_future.ttf" id="1_font"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/pestana_normal.png" id="2_pest_n"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/pestana_hover.png" id="3_pest_h"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/pestana_activa.png" id="4_pest_a"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/pestana_bloqueada.png" id="5_pest_b"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/tarjeta_normal.png" id="6_tarj_n"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/tarjeta_hover.png" id="7_tarj_h"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/tarjeta_seleccionada.png" id="8_tarj_s"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/tarjeta_bloqueada.png" id="9_tarj_b"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_demoler_normal.png" id="10_dem_n"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_demoler_pulsado.png" id="11_dem_p"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/ventana_marco.png" id="12_ven_m"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_pildora_primario_normal.png" id="13_pil_pn"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_pildora_primario_hover.png" id="14_pil_ph"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_pildora_secundario_normal.png" id="15_pil_sn"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/boton_pildora_secundario_hover.png" id="16_pil_sh"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/toast_info.png" id="17_toa_i"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/toast_aviso.png" id="18_toa_a"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/toast_critico.png" id="19_toa_c"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/toast_queja.png" id="20_toa_q"]
+[ext_resource type="Texture2D" path="res://assets/ui/kit/barra_superior_fondo.png" id="21_barra"]
+
+[sub_resource type="StyleBoxTexture" id="sb_pest_n"]
+texture = ExtResource("2_pest_n")
+texture_margin_left = 23.0
+texture_margin_top = 23.0
+texture_margin_right = 29.0
+texture_margin_bottom = 22.0
+# content_margin_* SEPARADO de texture_margin_* (2026-08-08): texture_margin protege el arte de la
+# esquina/halo del 9-slice (grande a propósito, hasta 45px en el estado hover con glow) pero estos
+# botones se usan a tamaño FIJO y pequeño (112×74 en `modo_construccion._construir_pestana_categoria`).
+# Sin este override, Godot usa texture_margin también como margen de contenido y el icono+rótulo
+# quedaban sin sitio (hasta con área NEGATIVA en el estado hover) -- de ahí el texto desbordado.
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pest_h"]
+texture = ExtResource("3_pest_h")
+texture_margin_left = 45.0
+texture_margin_top = 37.0
+texture_margin_right = 37.0
+texture_margin_bottom = 36.0
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pest_a"]
+texture = ExtResource("4_pest_a")
+texture_margin_left = 35.0
+texture_margin_top = 21.0
+texture_margin_right = 26.0
+texture_margin_bottom = 47.0
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pest_b"]
+texture = ExtResource("5_pest_b")
+texture_margin_left = 20.0
+texture_margin_top = 20.0
+texture_margin_right = 23.0
+texture_margin_bottom = 19.0
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_tarj_n"]
+texture = ExtResource("6_tarj_n")
+texture_margin_left = 20.0
+texture_margin_top = 26.0
+texture_margin_right = 34.0
+texture_margin_bottom = 24.0
+# Mismo motivo que PestanaConstruccion: `TarjetaObjeto` se usa a 84×84 fijos
+# (`modo_construccion._construir_boton_con_icono`) y también a 112×48
+# (`modo_disenador_entorno._boton_herramienta`) -- el margen de contenido tiene que caber en el más
+# pequeño de los dos SIN depender del texture_margin (que en `sb_tarj_h`/`sb_tarj_s` supera los 84px
+# de alto sumando ambos lados). Este es el defecto reportado ("el texto desborda las tarjetas").
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_tarj_h"]
+texture = ExtResource("7_tarj_h")
+texture_margin_left = 40.0
+texture_margin_top = 49.0
+texture_margin_right = 49.0
+texture_margin_bottom = 46.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_tarj_s"]
+texture = ExtResource("8_tarj_s")
+texture_margin_left = 42.0
+texture_margin_top = 36.0
+texture_margin_right = 37.0
+texture_margin_bottom = 35.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_tarj_b"]
+texture = ExtResource("9_tarj_b")
+texture_margin_left = 24.0
+texture_margin_top = 19.0
+texture_margin_right = 23.0
+texture_margin_bottom = 13.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_dem_n"]
+texture = ExtResource("10_dem_n")
+texture_margin_left = 23.0
+texture_margin_top = 24.0
+texture_margin_right = 23.0
+texture_margin_bottom = 23.0
+# `BotonDemoler` también se instancia a 84×84 fijos (misma fábrica `_construir_boton_con_icono`
+# que `TarjetaObjeto` -- ver `_anadir_herramienta`); mismo motivo de separar contenido de estirado.
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_dem_p"]
+texture = ExtResource("11_dem_p")
+texture_margin_left = 23.0
+texture_margin_top = 23.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="sb_ven_m"]
+texture = ExtResource("12_ven_m")
+texture_margin_left = 36.0
+texture_margin_top = 126.0
+texture_margin_right = 31.0
+texture_margin_bottom = 92.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pil_pn"]
+texture = ExtResource("13_pil_pn")
+texture_margin_left = 42.0
+texture_margin_top = 5.0
+texture_margin_right = 43.0
+texture_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pil_ph"]
+texture = ExtResource("14_pil_ph")
+texture_margin_left = 47.0
+texture_margin_top = 5.0
+texture_margin_right = 47.0
+texture_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pil_sn"]
+texture = ExtResource("15_pil_sn")
+texture_margin_left = 40.0
+texture_margin_top = 5.0
+texture_margin_right = 41.0
+texture_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxTexture" id="sb_pil_sh"]
+texture = ExtResource("16_pil_sh")
+texture_margin_left = 42.0
+texture_margin_top = 5.0
+texture_margin_right = 43.0
+texture_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxTexture" id="sb_toa_i"]
+texture = ExtResource("17_toa_i")
+texture_margin_left = 46.0
+texture_margin_top = 20.0
+texture_margin_right = 21.0
+texture_margin_bottom = 22.0
+
+[sub_resource type="StyleBoxTexture" id="sb_toa_a"]
+texture = ExtResource("18_toa_a")
+texture_margin_left = 46.0
+texture_margin_top = 20.0
+texture_margin_right = 20.0
+texture_margin_bottom = 23.0
+
+[sub_resource type="StyleBoxTexture" id="sb_toa_c"]
+texture = ExtResource("19_toa_c")
+texture_margin_left = 46.0
+texture_margin_top = 21.0
+texture_margin_right = 21.0
+texture_margin_bottom = 23.0
+
+[sub_resource type="StyleBoxTexture" id="sb_toa_q"]
+texture = ExtResource("20_toa_q")
+texture_margin_left = 21.0
+texture_margin_top = 20.0
+texture_margin_right = 21.0
+texture_margin_bottom = 24.0
+
+[sub_resource type="StyleBoxTexture" id="sb_barra"]
+texture = ExtResource("21_barra")
+texture_margin_left = 19.0
+texture_margin_top = 22.0
+texture_margin_right = 20.0
+texture_margin_bottom = 44.0
+
+[sub_resource type="StyleBoxEmpty" id="sb_vacio"]
+
+[resource]
+default_font = ExtResource("1_font")
+default_font_size = 16
+
+PestanaConstruccion/base_type = &"Button"
+PestanaConstruccion/styles/normal = SubResource("sb_pest_n")
+PestanaConstruccion/styles/hover = SubResource("sb_pest_h")
+PestanaConstruccion/styles/pressed = SubResource("sb_pest_a")
+PestanaConstruccion/styles/disabled = SubResource("sb_pest_b")
+PestanaConstruccion/styles/focus = SubResource("sb_vacio")
+PestanaConstruccion/colors/font_color = Color(0.11, 0.2, 0.32, 1)
+PestanaConstruccion/colors/font_hover_color = Color(0.11, 0.2, 0.32, 1)
+PestanaConstruccion/colors/font_pressed_color = Color(1, 1, 1, 1)
+PestanaConstruccion/colors/font_disabled_color = Color(0.35, 0.38, 0.42, 1)
+PestanaConstruccion/font_sizes/font_size = 13
+
+TarjetaObjeto/base_type = &"Button"
+TarjetaObjeto/styles/normal = SubResource("sb_tarj_n")
+TarjetaObjeto/styles/hover = SubResource("sb_tarj_h")
+TarjetaObjeto/styles/pressed = SubResource("sb_tarj_s")
+TarjetaObjeto/styles/disabled = SubResource("sb_tarj_b")
+TarjetaObjeto/styles/focus = SubResource("sb_vacio")
+TarjetaObjeto/colors/font_color = Color(0.11, 0.2, 0.32, 1)
+TarjetaObjeto/colors/font_disabled_color = Color(0.75, 0.2, 0.18, 1)
+TarjetaObjeto/font_sizes/font_size = 12
+
+BotonDemoler/base_type = &"Button"
+BotonDemoler/styles/normal = SubResource("sb_dem_n")
+BotonDemoler/styles/hover = SubResource("sb_dem_p")
+BotonDemoler/styles/pressed = SubResource("sb_dem_p")
+BotonDemoler/styles/focus = SubResource("sb_vacio")
+BotonDemoler/colors/font_color = Color(1, 1, 1, 1)
+BotonDemoler/font_sizes/font_size = 13
+
+PildoraPrimaria/base_type = &"Button"
+PildoraPrimaria/styles/normal = SubResource("sb_pil_pn")
+PildoraPrimaria/styles/hover = SubResource("sb_pil_ph")
+PildoraPrimaria/styles/pressed = SubResource("sb_pil_ph")
+PildoraPrimaria/styles/focus = SubResource("sb_vacio")
+PildoraPrimaria/colors/font_color = Color(1, 1, 1, 1)
+
+PildoraSecundaria/base_type = &"Button"
+PildoraSecundaria/styles/normal = SubResource("sb_pil_sn")
+PildoraSecundaria/styles/hover = SubResource("sb_pil_sh")
+PildoraSecundaria/styles/pressed = SubResource("sb_pil_sh")
+PildoraSecundaria/styles/focus = SubResource("sb_vacio")
+PildoraSecundaria/colors/font_color = Color(0.11, 0.2, 0.32, 1)
+
+VentanaModal/styles/panel = SubResource("sb_ven_m")
+
+BarraSuperior/styles/panel = SubResource("sb_barra")
+
+ToastInfo/styles/panel = SubResource("sb_toa_i")
+ToastAviso/styles/panel = SubResource("sb_toa_a")
+ToastCritico/styles/panel = SubResource("sb_toa_c")
+ToastQueja/styles/panel = SubResource("sb_toa_q")

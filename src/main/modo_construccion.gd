@@ -13,6 +13,12 @@ class_name ModoConstruccion extends Node2D
 ##
 ## Story: production/epics/construccion/story-007-modo-construccion-raton.md · TR-construction-002 · ADR-0004/0001
 
+## Gemelo de `ModoDisenadorEntorno.activado_cambiado` (mismo contrato exacto): Main la escucha para
+## ocultar su HUD inferior mientras este modo está activo (evita el solape barra-de-construcción ↔
+## HUD, 2026-08-08). Puente hasta que la fase 2 mueva esa información arriba (decisión del usuario:
+## "información ARRIBA, herramientas ABAJO") — cuando eso pase, esta señal deja de hacer falta.
+signal activado_cambiado(activo: bool)
+
 const COLOR_VALIDO := Color(0.4, 1.0, 0.4, 0.4)
 const COLOR_INVALIDO := Color(1.0, 0.35, 0.35, 0.4)
 const COLOR_DEMOLER := Color(1.0, 0.6, 0.2, 0.4)
@@ -59,6 +65,23 @@ const TEXTO_PEDIR_PUERTA := "Coloca la puerta de la sala: clic en el tramo de pa
 ## tabique aislado.
 const HERRAMIENTA_PINTAR_PARED := &"pintar_pared"
 const HERRAMIENTA_PINTAR_SUELO := &"pintar_suelo"
+
+## ── LAS 5 CATEGORÍAS DE LA BARRA (2026-08-07 · kit de Summer, `plan-maestro-ui.md` Apéndice B) ──
+## Progressive disclosure (Hick's Law, principio 3 de `plan-maestro-ui.md`): 20+ botones sueltos →
+## 5 pestañas + tarjetas contextuales. `KitUIComisario.ICONO_POR_CATEGORIA` trae el pictograma de
+## cada una — este array es el ÚNICO sitio que fija el ORDEN y el rótulo (data-driven: añadir una
+## categoría el día de mañana es añadir una fila aquí, no tocar el layout).
+const CATEGORIAS: Array[Dictionary] = [
+	{"id": &"salas", "nombre": "Salas"},
+	{"id": &"muebles", "nombre": "Muebles"},
+	{"id": &"muros_suelos", "nombre": "Muros y suelos"},
+	{"id": &"zonas", "nombre": "Zonas"},
+	{"id": &"herramientas", "nombre": "Herramientas"},
+]
+## Cuánto se desplaza la fila de tarjetas por cada clic en ◀/▶ (Apéndice B: "paginación por flechas
+## visibles, no solo scroll de rueda").
+const PASO_PAGINACION_TARJETAS: float = 260.0
+const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
 ## Lado (en píxeles) de cada muestra de color de la rejilla de la paleta.
 const LADO_MUESTRA := Vector2(26.0, 20.0)
 
@@ -144,12 +167,50 @@ var _atenuador: ColorRect
 ## el comentario largo en `_crear_ui`. La barra/atenuador se quedan SIN esta transformada a
 ## propósito (overlay de pantalla fija).
 var _capa_preview: CanvasLayer
-## HFlowContainer (no HBox): con los nombres del catálogo la fila supera el ancho de la ventana y
-## los últimos botones (Asiento, Demoler) quedaban FUERA de pantalla — el flow envuelve en filas.
-var _fila_herramientas: HFlowContainer
+## Contenedor MADRE de toda la barra de construcción (pestañas + fila de tarjetas + submenús de
+## pincel): UN solo nodo que `_actualizar_visibilidad` enciende/apaga entero, igual que hacía la
+## `HFlowContainer` de antes — el nombre se conserva por eso, aunque ya no es un flow (2026-08-07,
+## rediseño con el kit de Summer: `design/ux/plan-maestro-ui.md` §2 y Apéndice B).
+var _fila_herramientas: Control
+## La fila de PESTAÑAS de categoría (Salas·Muebles·Muros y suelos·Zonas·Herramientas) + el hueco
+## elástico + el botón Demoler anclado al borde derecho (Apéndice B: "ancla el borde de pantalla,
+## Fitts's Law" — aquí el borde derecho DEL PANEL, que es lo que el wireframe pedía).
+var _fila_pestanas: HBoxContainer
+## La fila de tarjetas de la categoría ACTIVA, dentro de un `ScrollContainer` con flechas propias
+## (Apéndice B: "paginación por flechas visibles, no solo scroll de rueda" — regla del proyecto de
+## no depender solo de hover/rueda). TODAS las tarjetas viven SIEMPRE colgadas de aquí; las de las
+## categorías no activas van OCULTAS (`_mostrar_categoria` solo alterna `visible` — un `BoxContainer`
+## ignora a los hijos ocultos en el layout). Nada de descolgar nodos: una tarjeta sin padre no se
+## libera al morir el modo (eran los 56 huérfanos por instancia que cazó gdUnit en la suite).
+var _scroll_tarjetas: ScrollContainer
+var _fila_tarjetas: HBoxContainer
+var _boton_pagina_izq: Button
+var _boton_pagina_der: Button
+## La casilla "Con paredes" (2026-07-30) vive dentro de la categoría "Muros y suelos" — un control
+## que no es una herramienta seleccionable, así que no pasa por `_anadir_herramienta`.
+var _casilla_con_paredes: CheckBox
+## Lo que se lee en una categoría sin tarjetas todavía (hoy, "Herramientas": el hueco ya existe en
+## el layout para cuando llegue algo que meter ahí — Sección 2 de `plan-maestro-ui.md`, "escala sin
+## rediseño"). Mejor un aviso honesto que una pestaña que parece rota.
+var _lbl_categoria_vacia: Label
 var _lbl_estado: Label
 var _boton_modo: Button
+## Los botones de HERRAMIENTA de verdad (tarjetas + Demoler) — id → `Button`. Las 5 PESTAÑAS de
+## categoría NO viven aquí (no son una `_herramienta`, cambian qué tarjetas se ven): esas están en
+## `_pestanas_categoria`.
 var _botones_herramienta: Dictionary = {}
+## categoría (StringName) → Array[Button] de sus tarjetas, en el orden en que se registraron. La
+## fuente de verdad de "qué tarjetas tiene cada pestaña" — `_mostrar_categoria` solo alterna `visible`.
+var _tarjetas_por_categoria: Dictionary = {}
+## categoría (StringName) → su botón de pestaña, para poder marcar cuál está activa.
+var _pestanas_categoria: Dictionary = {}
+## herramienta (StringName) → su categoría, la vuelta de `_tarjetas_por_categoria` — para que
+## `activar_con_herramienta` (menú contextual de una sala, atajo de "pedir puerta"…) pueda saltar a
+## la pestaña correcta en vez de dejar la tarjeta resaltada en una fila que no se está viendo.
+var _categoria_de_herramienta: Dictionary = {}
+## La categoría que se ve ahora mismo en la fila de tarjetas. Arranca en "salas" (la primera del
+## wireframe): es la que más se usa nada más entrar en el modo.
+var _categoria_activa: StringName = &"salas"
 var _preview_caja: PreviewIso
 ## El fantasma de MAYÚS del pincel de pintura (quick-spec §3d, tarea 2): todos los tramos/celdas que
 ## se van a teñir de un vistazo, antes de soltar el clic. Ver `PreviewMayusPintura`.
@@ -877,6 +938,7 @@ func _alternar_modo() -> void:
 	_descartar_trazo_muro()
 	_fijar_herramienta(&"", false)
 	_actualizar_visibilidad()
+	activado_cambiado.emit(_activo)
 
 
 ## **Entra en modo construcción con una herramienta YA en la mano** (menú contextual de la sala,
@@ -888,6 +950,7 @@ func activar_con_herramienta(id: StringName, es_sala: bool) -> void:
 	_activo = true
 	_arrastrando = false
 	_actualizar_visibilidad()
+	activado_cambiado.emit(_activo)
 	_fijar_herramienta(id, es_sala)
 
 
@@ -932,10 +995,19 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 	# SUELO tiene acabado — un muro no lo tiene.
 	if _boton_acabado != null:
 		_boton_acabado.visible = _activo and id == HERRAMIENTA_PINTAR_SUELO
+	# Si la herramienta que se acaba de poner en la mano vive en OTRA pestaña (p. ej.
+	# `activar_con_herramienta` desde el menú contextual de una sala, o `pedir_puerta_de_sala`), la
+	# barra SALTA a esa categoría — si no, la tarjeta se resalta en una fila que no se está viendo,
+	# y el jugador no entiende por qué "no pasa nada" al mirar la barra.
+	if _categoria_de_herramienta.has(id) and _categoria_de_herramienta[id] != _categoria_activa:
+		_mostrar_categoria(_categoria_de_herramienta[id])
+	# EL SELECCIONADO SE MARCA CON EL ESTADO "PRESSED" DEL KIT (2026-08-07), no con un tinte de
+	# `modulate`: `TarjetaObjeto`/`BotonDemoler` traen su propio arte de "seleccionada" (anillo azul
+	# marino + badge de check, `tarjeta_seleccionada.png`) — un tinte por encima lo desharía. Este
+	# bucle es la ÚNICA fuente de verdad de qué botón está `button_pressed`: si Godot autoalternó
+	# alguno al hacer clic (comportamiento nativo de `toggle_mode`), aquí se sobrescribe siempre.
 	for boton_id: StringName in _botones_herramienta:
-		(_botones_herramienta[boton_id] as Button).modulate = (
-			COLOR_BOTON_ACTIVO if boton_id == id else Color.WHITE
-		)
+		(_botones_herramienta[boton_id] as Button).button_pressed = boton_id == id
 
 
 # ── Preview fantasma (dibujo en _process con guarda de celda — ADR-0001) ─────────────────────
@@ -1835,6 +1907,11 @@ func _crear_ui() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	panel.offset_top = -HUECO_BARRA_INFO
 	panel.offset_bottom = -HUECO_BARRA_INFO
+	# El TEMA del kit (2026-08-07): se aplica al PANEL, no a cada botón suelto — así hereda el
+	# `default_font`/`default_font_size` (Kenney Future) TODO lo que cuelgue de aquí sin tocarlo
+	# nodo a nodo. Las piezas con arte propio (pestañas/tarjetas/demoler) piden ADEMÁS su
+	# `theme_type_variation` explícita (ver `_construir_pestana_categoria`/`_construir_tarjeta`).
+	panel.theme = KitUIComisarioScript.tema()
 	capa.add_child(panel)
 	var caja := VBoxContainer.new()
 	panel.add_child(caja)
@@ -1851,48 +1928,108 @@ func _crear_ui() -> void:
 	_lbl_estado.modulate = Color(1, 1, 1, 0.7)
 	fila_superior.add_child(_lbl_estado)
 
-	_fila_herramientas = HFlowContainer.new()
-	_fila_herramientas.add_theme_constant_override("h_separation", 6)
-	_fila_herramientas.add_theme_constant_override("v_separation", 4)
+	# ── LA BARRA NUEVA: PESTAÑAS DE CATEGORÍA + TARJETAS (2026-08-07) ────────────────────────────
+	_fila_herramientas = VBoxContainer.new()
 	caja.add_child(_fila_herramientas)
+
+	_fila_pestanas = HBoxContainer.new()
+	_fila_pestanas.add_theme_constant_override("separation", 6)
+	_fila_herramientas.add_child(_fila_pestanas)
+	for categoria: Dictionary in CATEGORIAS:
+		_fila_pestanas.add_child(
+			_construir_pestana_categoria(categoria["id"], categoria["nombre"])
+		)
+	var hueco_elastico := Control.new()
+	hueco_elastico.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hueco_elastico.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fila_pestanas.add_child(hueco_elastico)
+	# DEMOLER anclado al borde derecho, FUERA de las pestañas (Apéndice B, Fitts's Law): acción
+	# destructiva de alta frecuencia, siempre en el mismo sitio pase lo que pase la categoría activa.
+	_anadir_herramienta("Demoler", &"demoler", false, &"", &"papelera")
+	_fila_pestanas.add_child(_botones_herramienta[&"demoler"])
+
+	var fila_tarjetas_paginada := HBoxContainer.new()
+	fila_tarjetas_paginada.add_theme_constant_override("separation", 4)
+	_fila_herramientas.add_child(fila_tarjetas_paginada)
+	_boton_pagina_izq = Button.new()
+	_boton_pagina_izq.text = "◀"
+	_boton_pagina_izq.focus_mode = Control.FOCUS_NONE
+	_boton_pagina_izq.pressed.connect(
+		func() -> void: _paginar_tarjetas(-PASO_PAGINACION_TARJETAS)
+	)
+	fila_tarjetas_paginada.add_child(_boton_pagina_izq)
+	_scroll_tarjetas = ScrollContainer.new()
+	_scroll_tarjetas.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll_tarjetas.custom_minimum_size = Vector2(0.0, 96.0)
+	_scroll_tarjetas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fila_tarjetas_paginada.add_child(_scroll_tarjetas)
+	_fila_tarjetas = HBoxContainer.new()
+	_fila_tarjetas.add_theme_constant_override("separation", 6)
+	_scroll_tarjetas.add_child(_fila_tarjetas)
+	_boton_pagina_der = Button.new()
+	_boton_pagina_der.text = "▶"
+	_boton_pagina_der.focus_mode = Control.FOCUS_NONE
+	_boton_pagina_der.pressed.connect(
+		func() -> void: _paginar_tarjetas(PASO_PAGINACION_TARJETAS)
+	)
+	fila_tarjetas_paginada.add_child(_boton_pagina_der)
+
+	_lbl_categoria_vacia = Label.new()
+	_lbl_categoria_vacia.text = "Todavía no hay nada aquí — vuelve pronto"
+	_lbl_categoria_vacia.add_theme_font_size_override("font_size", 12)
+	_lbl_categoria_vacia.modulate = Color(1, 1, 1, 0.6)
+	_lbl_categoria_vacia.visible = false
+	_fila_herramientas.add_child(_lbl_categoria_vacia)
+
 	# Los tipos se LEEN del catálogo — la UI nunca hardcodea costes/nombres (regla del GDD).
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
-		_anadir_herramienta("▦ %s" % tipo_sala.nombre, tipo_sala.id, true)
+		_anadir_herramienta(tipo_sala.nombre, tipo_sala.id, true, &"salas", &"plano")
 	for tipo_puesto: Resource in Datos.obtener_todos(&"TipoPuesto"):
 		if tipo_puesto.servicio == "Seguridad":
 			continue   # la entrada/seguridad es fija (CO11) — no construible en el MVP
 		_anadir_herramienta(
-			"%s (%d €)" % [tipo_puesto.nombre, tipo_puesto.coste_construccion_eur], tipo_puesto.id, false
+			"%s (%d €)" % [tipo_puesto.nombre, tipo_puesto.coste_construccion_eur], tipo_puesto.id,
+			false, &"muebles", &"sillon"
 		)
 	_anadir_herramienta(
-		"Asiento (%.0f €)" % _construccion.coste_asiento_basico, _construccion.ASIENTO_BASICO, false
+		"Asiento (%.0f €)" % _construccion.coste_asiento_basico, _construccion.ASIENTO_BASICO,
+		false, &"muebles", &"sillon"
 	)
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
-	_anadir_herramienta("🧱 Muro (%.0f €)" % _construccion.coste_muro, &"muro", false)
+	_anadir_herramienta(
+		"Muro (%.0f €)" % _construccion.coste_muro, &"muro", false, &"muros_suelos", &"muro"
+	)
 	# PUERTA y VENTANA (FASE D, 2026-07-30): no levantan tabique nuevo, CONVIERTEN uno ya construido
 	# — por eso no llevan un coste propio en el rótulo (el gasto fue el muro; abrir el hueco es
 	# gratis, ver `Construccion.fijar_tipo_de_muro`).
-	_anadir_herramienta("🚪 Puerta", &"puerta", false)
-	_anadir_herramienta("🪟 Ventana", &"ventana", false)
+	_anadir_herramienta("Puerta", &"puerta", false, &"muros_suelos", &"muro")
+	_anadir_herramienta("Ventana", &"ventana", false, &"muros_suelos", &"muro")
 	# PINCEL DE PINTURA (2026-08-04): gratis, como abrir un hueco — pintar no es obra, es acabado.
 	# Dos botones (pared / suelo) porque el gesto es distinto: arista contra celda (ver la cabecera).
-	_anadir_herramienta("🖌 Pintar pared", HERRAMIENTA_PINTAR_PARED, false)
-	_anadir_herramienta("🖌 Pintar suelo", HERRAMIENTA_PINTAR_SUELO, false)
+	_anadir_herramienta(
+		"Pintar pared", HERRAMIENTA_PINTAR_PARED, false, &"muros_suelos", &"rodillo"
+	)
+	_anadir_herramienta(
+		"Pintar suelo", HERRAMIENTA_PINTAR_SUELO, false, &"muros_suelos", &"rodillo"
+	)
 	# FASE C (2026-07-30): marcar ZONAS dentro de lo que has cerrado con muros. Un boton por tipo de
 	# sala del catalogo, con el prefijo "zona:" en el id para distinguirlo del pincel que DIBUJA la
 	# sala como rectangulo (que sigue existiendo: son dos formas validas de construir).
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
 		_anadir_herramienta(
-			"📍 Zona: %s" % tipo_sala.nombre, StringName("zona:" + String(tipo_sala.id)), false
+			"Zona: %s" % tipo_sala.nombre, StringName("zona:" + String(tipo_sala.id)), false,
+			&"zonas", &"pin"
 		)
-	var casilla := CheckBox.new()
-	casilla.text = "Con paredes"
-	casilla.focus_mode = Control.FOCUS_NONE
-	casilla.tooltip_text = "Si esta marcado, la sala que dibujes nacera cerrada con muros"
-	casilla.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
-	_fila_herramientas.add_child(casilla)
-	_anadir_herramienta("❌ Demoler", &"demoler", false)
+	_casilla_con_paredes = CheckBox.new()
+	_casilla_con_paredes.text = "Con paredes"
+	_casilla_con_paredes.focus_mode = Control.FOCUS_NONE
+	_casilla_con_paredes.tooltip_text = "Si esta marcado, la sala que dibujes nacera cerrada con muros"
+	_casilla_con_paredes.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
+	_fila_herramientas.add_child(_casilla_con_paredes)
+	# "Herramientas" nace vacía a propósito (Sección 2 de `plan-maestro-ui.md`: el hueco ya existe
+	# en el layout para cuando llegue algo que meter ahí) — no se registra ninguna tarjeta aquí.
+	_mostrar_categoria(&"salas")
 
 	# ── SUBMENÚ DEL PINCEL: la rejilla de 30 muestras ─────────────────────────────────────────
 	# Va en una fila PROPIA debajo de las herramientas (no mezclada entre los botones): es el menú
@@ -1932,13 +2069,100 @@ func _crear_ui() -> void:
 	capa.add_child(_dialogo_cascada)
 
 
-func _anadir_herramienta(texto: String, id: StringName, es_sala: bool) -> void:
-	var boton := Button.new()
-	boton.text = texto
-	boton.focus_mode = Control.FOCUS_NONE
+## Registra una herramienta seleccionable. `categoria` la cuelga de esa pestaña (vacía = no entra en
+## ninguna fila de tarjetas — hoy solo Demoler, que vive anclada fuera de las pestañas). `icono_id`
+## es una clave de `KitUIComisario.ICONOS`; `&""` = sin icono (fila de texto solo, fallback honesto
+## si algún día se añade una herramienta sin pictograma todavía).
+func _anadir_herramienta(
+	texto: String, id: StringName, es_sala: bool, categoria: StringName = &"",
+	icono_id: StringName = &""
+) -> void:
+	var variante: StringName = (
+		KitUIComisarioScript.VARIANTE_BOTON_DEMOLER if id == &"demoler"
+		else KitUIComisarioScript.VARIANTE_TARJETA
+	)
+	var boton := _construir_boton_con_icono(texto, icono_id, variante)
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id, es_sala))
-	_fila_herramientas.add_child(boton)
 	_botones_herramienta[id] = boton
+	if categoria != &"":
+		if not _tarjetas_por_categoria.has(categoria):
+			_tarjetas_por_categoria[categoria] = []
+		(_tarjetas_por_categoria[categoria] as Array).append(boton)
+		_categoria_de_herramienta[id] = categoria
+		# La tarjeta se cuelga YA de la fila (oculta hasta que `_mostrar_categoria` active su
+		# pestaña) — ver la nota de `_scroll_tarjetas`: sin nodos sueltos no hay huérfanos.
+		boton.visible = false
+		_fila_tarjetas.add_child(boton)
+
+
+## Un botón "en blanco" (sin `text`/`icon` propios de `Button` — ver la nota de la cabecera del
+## archivo sobre por qué NO se usa `Button.icon`/alineación vertical nativa: la referencia de motor
+## de esta versión no confirma esa API en 4.6, así que el icono+rótulo se dibuja a mano encima con
+## un `VBoxContainer` hijo, `mouse_filter = IGNORE` para que el clic siga siendo del `Button`).
+func _construir_boton_con_icono(texto: String, icono_id: StringName, variante: StringName) -> Button:
+	var boton := Button.new()
+	boton.text = ""
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.toggle_mode = true   # el estado "pressed" del tema ES el arte de "seleccionada/activa"
+	boton.theme_type_variation = variante
+	boton.custom_minimum_size = Vector2(84.0, 84.0)
+	var contenido := VBoxContainer.new()
+	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contenido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	contenido.alignment = BoxContainer.ALIGNMENT_CENTER
+	boton.add_child(contenido)
+	if icono_id != &"":
+		var textura: Texture2D = KitUIComisarioScript.icono(icono_id)
+		if textura != null:
+			var rect := TextureRect.new()
+			rect.texture = textura
+			rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			rect.custom_minimum_size = Vector2(28.0, 28.0)
+			rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			contenido.add_child(rect)
+	var etiqueta := Label.new()
+	etiqueta.text = texto
+	etiqueta.add_theme_font_size_override("font_size", 11)
+	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	contenido.add_child(etiqueta)
+	return boton
+
+
+## El botón de una PESTAÑA de categoría (no es una `_herramienta`: cambia qué tarjetas se ven).
+func _construir_pestana_categoria(id: StringName, nombre: String) -> Button:
+	var icono_id: StringName = KitUIComisarioScript.ICONO_POR_CATEGORIA.get(id, &"")
+	var boton := _construir_boton_con_icono(nombre, icono_id, KitUIComisarioScript.VARIANTE_PESTANA)
+	boton.custom_minimum_size = Vector2(112.0, 74.0)
+	boton.pressed.connect(func() -> void: _mostrar_categoria(id))
+	_pestanas_categoria[id] = boton
+	return boton
+
+
+## Cambia qué fila de tarjetas se ve. NO reinstancia ni descuelga nada: todas las tarjetas son
+## hijas fijas de `_fila_tarjetas` (ver `_anadir_herramienta`) y aquí solo se alterna su `visible`
+## (los `BoxContainer` ignoran a los hijos ocultos, así que el layout queda igual que recolgando).
+func _mostrar_categoria(categoria: StringName) -> void:
+	_categoria_activa = categoria
+	var tarjetas: Array = _tarjetas_por_categoria.get(categoria, [])
+	for hijo: Node in _fila_tarjetas.get_children():
+		hijo.visible = tarjetas.has(hijo)
+	_lbl_categoria_vacia.visible = tarjetas.is_empty()
+	_scroll_tarjetas.visible = not tarjetas.is_empty()
+	_scroll_tarjetas.scroll_horizontal = 0
+	# La casilla "Con paredes" es del MISMO sitio que el pincel de muro/puerta/ventana: solo tiene
+	# sentido con la categoría "Muros y suelos" activa (2026-08-07 — antes vivía suelta en la barra
+	# entera, sin relación visible con lo que decide).
+	if _casilla_con_paredes != null:
+		_casilla_con_paredes.visible = categoria == &"muros_suelos"
+	for id: StringName in _pestanas_categoria:
+		(_pestanas_categoria[id] as Button).button_pressed = id == categoria
+
+
+func _paginar_tarjetas(delta: float) -> void:
+	_scroll_tarjetas.scroll_horizontal = int(
+		clampf(_scroll_tarjetas.scroll_horizontal + delta, 0.0, 100000.0)
+	)
 
 
 func _actualizar_visibilidad() -> void:
