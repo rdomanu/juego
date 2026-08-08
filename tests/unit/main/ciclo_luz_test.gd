@@ -4,6 +4,7 @@
 extends GdUnitTestSuite
 
 const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
+const PaletaPinturaScript := preload("res://src/core/construccion/paleta_pintura.gd")
 
 
 ## Cuánto tira un color al azul frente al ámbar: >0 es noche, <0 es luz cálida. Es la medida que de
@@ -133,6 +134,43 @@ func test_las_tres_lamparas_emiten_luz_y_no_dan_confort_ni_rendimiento() -> void
 		assert_bool(lampara.emite_luz).is_true()
 		# Lo que compra el jugador es VER, no un multiplicador (comentario de clase en comodidad.gd).
 		assert_float(lampara.aporte).is_equal(0.0)
+
+
+# ══ EL BLANCO DE LA PALETA BAJO EL TINTE (2026-08-08 — playtest: "el color blanco es como
+# crema") ══════════════════════════════════════════════════════════════════════════════════════
+# Causa raíz: `CanvasModulate` es MULTIPLICATIVO, así que un blanco puro (1,1,1) se convertía
+# literalmente en el color de la parada del reloj — ambarino en horario de apertura. El fix vive en
+# `PaletaPintura.HEX_POR_DEFECTO` (dato, no arte): un hex sesgado en frío para que el PRODUCTO
+# `blanco_de_la_paleta × tinte` vuelva a leerse neutro. Aquí se comprueba el contrato de verdad —
+# multiplicando los dos colores, como hace `CanvasModulate` en pantalla — para las tres horas de
+# servicio (`CicloLuz.PARADAS`: 08:00 apertura, 13:00 mediodía, 18:00 la más cálida de las tres).
+
+## Cuánto se separan los canales de un color ya pintado en pantalla — la medida de "se nota el
+## tinte" (cuanto más alto, más se lee un color en vez de gris/blanco neutro).
+func _dispersion_de_canales(color: Color) -> float:
+	var canales: Array[float] = [color.r, color.g, color.b]
+	return canales.max() - canales.min()
+
+
+func test_el_blanco_de_la_paleta_lee_neutro_bajo_el_tinte_de_apertura() -> void:
+	var blanco_paleta: Color = PaletaPinturaScript.por_defecto()
+	for minuto: float in [480.0, 780.0, 1080.0]:   # 08:00 / 13:00 / 18:00
+		var pintado_en_pantalla: Color = blanco_paleta * CicloLuzScript.color_a_las(minuto)
+		assert_float(_dispersion_de_canales(pintado_en_pantalla)) \
+			.override_failure_message(
+				"a los %d minutos el blanco de la paleta tiene que leerse neutro (poco separado " +
+				"entre canales), no ambarino/crema" % int(minuto)
+			).is_less(0.1)
+
+
+func test_el_blanco_de_la_paleta_ya_no_es_rgb_puro() -> void:
+	# El hex compensado es a propósito distinto de "ffffff" — si algún día alguien lo "arregla" de
+	# vuelta a blanco puro sin leer la cabecera de `HEX_POR_DEFECTO`, este test lo avisa.
+	assert_bool(PaletaPinturaScript.por_defecto().is_equal_approx(Color.WHITE)) \
+		.override_failure_message(
+			"el blanco de la paleta tiene que seguir COMPENSADO (mas frio), no RGB puro -- " +
+			"si esto falla, revisa la cabecera de PaletaPintura.HEX_POR_DEFECTO antes de tocarlo"
+		).is_false()
 
 
 func test_el_foco_led_es_el_unico_sin_mantenimiento_diario() -> void:

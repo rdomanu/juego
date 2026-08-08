@@ -1114,6 +1114,34 @@ func _cara_interior_de_fachada(clave: String) -> String:
 	return clave + SUFIJO_CARA_A
 
 
+## La CELDA INTERIOR de una arista — la que cae DENTRO del edificio (`_celda_en_edificio`), sea cual
+## sea la orientación de la arista. Mismo criterio que `_cara_interior_de_fachada` (norte/oeste: la
+## literal "b" ya es la de dentro; sur/este: la de dentro es la vecina, un paso hacia el edificio),
+## pero devuelve la CELDA en vez de la clave de cara — lo que necesita `sala_en()` para saber en qué
+## sala cae un clic, no un color.
+##
+## ⚠️ BUG DE LA FACHADA SUR/ESTE (2026-08-08): el picking de un clic sobre un tramo ya construido
+## (`ModoConstruccion._celda_lado_de_muro_en` → `celda_y_lado_de_clave`) SIEMPRE devuelve la celda
+## literal "b" de la arista (documentado en la cabecera de `celda_y_lado_de_clave`: "estable" no
+## "la que se clicó de verdad"). Para la fachada norte/oeste esa celda YA es la de dentro, así que
+## `sala_en(celda)` encontraba la sala sin este método. Para la sur/este la celda "b" es la CALLE
+## (fuera del edificio): `sala_en(celda)` devolvía "" aunque el jugador estuviera pintando la pared
+## de una sala real, y `ModoConstruccion._pintar_pared_en` con MAYÚS pulsada caía al otro caso —
+## "sala_id vacío y es fachada" — pintando el EDIFICIO ENTERO (todas las caras de todos los tabiques)
+## en vez de solo la sala señalada. Con esto `sala_en(celda_interior_de_arista(clave))` encuentra
+## siempre la sala correcta, sea cual sea el lado de la fachada.
+##
+## Para una arista que NO es de fachada (un tabique suelto o de sala, con las DOS celdas dentro del
+## edificio) da exactamente la misma celda que ya devolvía el picking: no cambia nada ahí.
+func celda_interior_de_arista(clave: String) -> Vector2i:
+	var celda_b: Vector2i = _celda_b_de_arista(clave)
+	if _celda_en_edificio(celda_b):
+		return celda_b
+	if clave.begins_with("h"):
+		return celda_b + Vector2i(0, -1)
+	return celda_b + Vector2i(-1, 0)
+
+
 ## ¿Hay muro en esa arista?
 func hay_muro(celda: Vector2i, lado: StringName) -> bool:
 	return _muros.has(clave_de_muro(celda, lado))

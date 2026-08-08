@@ -1977,8 +1977,17 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	_insertar_en_capa(contenedor, silla_funcionario, CAPA_FONDO)
 	# `es_huella_legado`: un puesto de save viejo que no cabe en 2 celdas hoy usa el mostrador de 1
 	# celda (ver `MesaAtencion.construir` y la cabecera "LA HUELLA DEL PUESTO" en `Construccion`).
+	#
+	# TIER VISUAL (2026-08-08 — catálogo incompleto: "no puedo elegir los puestos medio o pro"): el
+	# id de CATÁLOGO del puesto (`ventanilla_media`/`ventanilla_pro`, si ese es el `TipoPuesto` con el
+	# que se construyó) se pasa tal cual como tier — `MesaAtencion.construir` ya sabe caer al básico
+	# si no hay PNG con ese nombre (`puesto_doc_general`/`puesto_tie`/`puesto_odac`, que siguen sin
+	# tener uno propio, se quedan en "ventanilla_basica" exactamente como hasta hoy).
 	_insertar_en_capa(
-		contenedor, MesaAtencionScript.construir(_construccion.es_huella_legado(puesto_id)),
+		contenedor, MesaAtencionScript.construir(
+			_construccion.es_huella_legado(puesto_id),
+			String(_construccion.catalogo_de_elemento(puesto_id))
+		),
 		CAPA_PERSONAJE
 	)
 	policia.position = MesaAtencionScript.CELDA_FUNCIONARIO

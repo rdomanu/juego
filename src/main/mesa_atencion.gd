@@ -286,7 +286,33 @@ const ROT_SILLA_FUNCIONARIO: int = 0
 const ROT_SILLA_ESPERA: int = 180
 
 
-## ── VISTA "ACCIÓN AL NORTE" PARA LA VENTANILLA (2026-08-07, bug cazado 2 veces en el juego) ────
+## ── VISTA "ACCIÓN AL NORTE" PARA LA VENTANILLA — SUPERADA (2026-08-08, playtest: "las sillas de
+## las ventanillas tienen orientación noroeste") ──────────────────────────────────────────────────
+## `silla_ciudadano()` YA NO usa `ID_SPRITE_SILLA_ESPERA_VENTANILLA`/`ROT_SILLA_ESPERA_VENTANILLA`
+## (las dos constantes de abajo, que se dejan SIN BORRAR solo como registro de lo que se intentó):
+## el 225° que el lote de 2026-08-07 verificó "de espaldas, sin patas ni respaldo asomando" con la
+## ENTRADA NORTE/OESTE de entonces resultó, jugado de verdad con la entrada YA en el SUR
+## (migración 29ac6a0, el mismo cambio de geometría que motivó el bug de pintura de fachada de esta
+## misma pasada), en un asiento leído como NOROESTE, no NORTE — pedido explícito del usuario: *"debe
+## tener el asiento orientado al norte, como en la sala de espera"*.
+##
+## LA CORRECCIÓN (2026-08-08): en vez de perseguir un CUARTO ángulo a ojo, `silla_ciudadano()` pasa
+## a usar LA MISMA silla, el MISMO sprite y la MISMA rotación que ya usa la sala de espera
+## (`ID_SPRITE_SILLA_ESPERA`/`ROT_SILLA_ESPERA` = 180°, vía `silla_espera_o_defecto`) — el usuario la
+## da por buena ("como en la sala de espera") y así las DOS vistas quedan ancladas a la MISMA fuente
+## de verdad: si algún día se recalibra la vista de la espera, la ventanilla la hereda sola, sin un
+## segundo ángulo que sincronizar a mano (el propio origen de este bug: dos constantes para la misma
+## pregunta — "¿cómo se sienta un ciudadano mirando al norte?" — que divergieron).
+##
+## ⚠️ PENDIENTE DE MOTOR (ley 11, `lado-de-accion.md` — el veredicto final es SIEMPRE con el muñeco
+## SENTADO, nunca la silla vacía): esta pasada NO abre el motor (prohibido en esta tarea). El
+## coordinador tiene que confirmar con captura que el ciudadano sentado en la ventanilla, con la
+## entrada sur, se lee igual de bien que en la sala de espera — si 180° tampoco bastara ahí (el
+## AVISO TEÓRICO que ya dejó el propio lote de 2026-08-07, ver el comentario de `ID_SPRITE_SILLA_
+## ESPERA_VENTANILLA` más abajo), el defecto sería COMPARTIDO por las dos sillas, no exclusivo de la
+## ventanilla, y habría que revisar `ROT_SILLA_ESPERA` en sí — no un tercer ángulo solo para aquí.
+##
+## ── HISTORIAL (2026-08-07, bug cazado 2 veces en el juego) ─────────────────────────────────────
 ## `design/art/lado-de-accion.md`: el ciudadano de la ventanilla se sienta mirando al NORTE, hacia
 ## la mesa (de espaldas a cámara) -- para que el respaldo caiga DETRÁS de él (acción-al-norte) hace
 ## falta un giro que NO es ninguno de los 4 cardinales que da el modelo de origen (`chair_A_wood`
@@ -486,7 +512,14 @@ const DESVIO_CENTRADO_MESA_LARGO := Vector2.ZERO
 ## `CELDA_FUNCIONARIO`/`CELDA_CIUDADANO`, sin tocar); con 1 celda el delta es cero, así que el
 ## camino legado no necesita su propio `if` de posición. Al de 2 celdas, además, se le suma
 ## `DESVIO_CENTRADO_MESA` (ver esa constante) para centrarlo entre los dos asientos.
-static func construir(es_legado: bool = false) -> Node2D:
+## `id_sprite_tier` (2026-08-08 — catálogo incompleto: "no puedo elegir los puestos medio o pro"):
+## el tier VISUAL del mostrador, cuando lo hay. `""` (por defecto) es el camino de SIEMPRE —
+## `ID_SPRITE_MOSTRADOR_2` ("ventanilla_basica"), sin cambiar nada para quien no pasa este
+## parámetro. Si se pasa un id (p. ej. "ventanilla_media"/"ventanilla_pro") Y existe su PNG
+## (`hay_sprite_mostrador`), se usa ESE en vez del básico; si no existe el arte todavía, cae al
+## básico de siempre — nunca revienta por un tier sin render. `es_legado` sigue mandando sobre el
+## tier: una huella legado es SIEMPRE el mostrador de 1 celda, no hay tier que valga ahí.
+static func construir(es_legado: bool = false, id_sprite_tier: String = "") -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Mesa"
 	# Superficie del cuerpo en celdas: 2 el caso normal (catálogo, `TipoPuesto.superficie`), 1 la
@@ -494,6 +527,8 @@ static func construir(es_legado: bool = false) -> Node2D:
 	# la constante para no acoplar este script de piezas visuales al core.
 	var superficie: int = 1 if es_legado else 2
 	var id_sprite: String = ID_SPRITE_MOSTRADOR if es_legado else ID_SPRITE_MOSTRADOR_2
+	if not es_legado and id_sprite_tier != "" and hay_sprite_mostrador(id_sprite_tier):
+		id_sprite = id_sprite_tier
 	if hay_sprite_mostrador(id_sprite):
 		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, superficie)
 		# LA POSICIÓN DEL NODO ES SOLO REJILLA: el centro de la ÚLTIMA celda del cuerpo, ni un píxel
@@ -544,15 +579,10 @@ static func construir(es_legado: bool = false) -> Node2D:
 ## LA POSICIÓN usa `CELDA_CIUDADANO` (arrime de medio paso, ver la constante): el mismo punto al que
 ## mira el ciudadano cuando le atienden.
 static func silla_ciudadano() -> Node2D:
-	var del_ciudadano: Node2D
-	if ResourceLoader.exists(
-		_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA_VENTANILLA, ROT_SILLA_ESPERA_VENTANILLA)
-	):
-		del_ciudadano = _pieza_sprite_silla_anclada(
-			ID_SPRITE_SILLA_ESPERA_VENTANILLA, ROT_SILLA_ESPERA_VENTANILLA
-		)
-	else:
-		del_ciudadano = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
+	# 2026-08-08: LA MISMA silla, el MISMO sprite y la MISMA rotación que la sala de espera — ver la
+	# cabecera "VISTA ACCIÓN AL NORTE PARA LA VENTANILLA — SUPERADA" más arriba. Ya no hay un ángulo
+	# aparte para la ventanilla que se pueda desincronizar del de la espera.
+	var del_ciudadano: Node2D = silla_espera_o_defecto(CELDA_CIUDADANO.normalized() * 20.0)
 	del_ciudadano.name = "SillaCiudadano"
 	del_ciudadano.position = CELDA_CIUDADANO
 	return del_ciudadano

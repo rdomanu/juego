@@ -604,11 +604,118 @@ func _rodapie_dibujado_en(paredes: Node2D, punto: Vector2) -> Color:
 	return Color.TRANSPARENT
 
 
+# ── 11. LA FACHADA SUR/ESTE Y EL PICKING (2026-08-08 — bug de playtest: "pinto la pared exterior
+#      de la comisaría y también se pinta el interior") ──────────────────────────────────────────
+# Causa raíz: el picking de un clic sobre un tramo YA CONSTRUIDO (`ModoConstruccion.
+# _celda_lado_de_muro_en` -> `Construccion.celda_y_lado_de_clave`) SIEMPRE resuelve la celda LITERAL
+# "b" de la arista, no la que el jugador clicó de verdad (documentado ahí como "estable", no "la
+# clicada"). Para la fachada norte/oeste esa celda YA cae dentro de la sala, así que
+# `Construccion.sala_en(celda)` la encontraba. Para la sur/este esa celda es la CALLE: `sala_en`
+# devolvía "" aunque hubiera una sala de verdad pegada a esa fachada, y `ModoConstruccion.
+# _pintar_pared_en` con MAYÚS caía al otro `if` — "sin sala y es fachada" — pintando el EDIFICIO
+# ENTERO (todos los tabiques, las DOS caras) en vez de solo la sala señalada. Fix:
+# `Construccion.celda_interior_de_arista` resuelve la celda de DENTRO sea cual sea la orientación, y
+# `ModoConstruccion` la usa para buscar la sala antes de decidir MAYÚS.
+
+## 11a. La celda interior de una arista de fachada, en los cuatro lados. Norte/oeste: la celda
+## literal de la clave ya es la de dentro (no cambia). Sur/este: la de dentro es la vecina.
+func test_celda_interior_de_arista_encuentra_la_celda_de_dentro_en_los_cuatro_lados() -> void:
+	var construccion: Node = _construccion()
+	construccion.levantar_fachada()
+	var fila_sur: int = construccion.edificio_filas
+	var columna_este: int = construccion.edificio_columnas
+
+	assert_that(construccion.celda_interior_de_arista("h:5:0")) \
+		.override_failure_message("fachada norte: la celda literal YA es la de dentro") \
+		.is_equal(Vector2i(5, 0))
+	assert_that(construccion.celda_interior_de_arista("v:0:5")) \
+		.override_failure_message("fachada oeste: la celda literal YA es la de dentro") \
+		.is_equal(Vector2i(0, 5))
+	assert_that(construccion.celda_interior_de_arista("h:5:%d" % fila_sur)) \
+		.override_failure_message("fachada sur: la de dentro es la celda de encima, no la calle") \
+		.is_equal(Vector2i(5, fila_sur - 1))
+	assert_that(construccion.celda_interior_de_arista("v:%d:5" % columna_este)) \
+		.override_failure_message("fachada este: la de dentro es la celda de la izquierda, no la calle") \
+		.is_equal(Vector2i(columna_este - 1, 5))
+	# Un tabique suelto (las dos celdas caen dentro del edificio) no cambia: sigue dando la "b".
+	assert_that(construccion.celda_interior_de_arista("h:4:4")).is_equal(Vector2i(4, 4))
+
+
+## 11b. EL BUG REPRODUCIDO: una sala pegada a la fachada SUR. La celda que el picking de la UI
+## resuelve de verdad (la "b" literal, la calle) no encuentra sala — sería el síntoma del bug, MAYÚS
+## se habría escapado a "pintar todo el edificio". Con `celda_interior_de_arista` sí se encuentra, y
+## pintando por ESE camino (`pintar_sala_muros`, el que ahora usa `ModoConstruccion`) solo se tiñe la
+## sala señalada — un tabique de OTRA sala, en el otro extremo del edificio, queda intacto.
+func test_sala_pegada_a_fachada_sur_se_encuentra_por_la_celda_interior_y_solo_se_pinta_ella() -> void:
+	# Arrange — dos salas: una pegada a la fachada SUR (la que dispara el bug) y otra lejos, para
+	# comprobar que "pintar solo esta sala" no alcanza a la otra (lo que sí haría pintar el edificio).
+	var construccion: Node = _construccion()
+	construccion.levantar_fachada()
+	var fila_sur: int = construccion.edificio_filas
+	var sala_sur: StringName = construccion.construir_de_oficio_sala(
+		&"sala_documentacion", Rect2i(4, fila_sur - 3, 4, 3)
+	)
+	construccion.fijar_paredes_de_sala(sala_sur, true)
+	var sala_lejana: StringName = construccion.construir_de_oficio_sala(
+		&"sala_odac", Rect2i(1, 1, 3, 3)
+	)
+	construccion.fijar_paredes_de_sala(sala_lejana, true)
+	var clave_fachada: String = construccion.clave_de_muro(Vector2i(5, fila_sur - 1), &"abajo")
+	assert_bool(construccion.es_muro_fijo(clave_fachada)) \
+		.override_failure_message("el fixture necesita que ese tramo SEA fachada sur") \
+		.is_true()
+
+	# Assert — el picking real (`celda_y_lado_de_clave`, el mismo que usa `ModoConstruccion.
+	# _celda_lado_de_muro_en`) resuelve la celda "b" literal = la calle. Con esa celda a pelo, NO se
+	# encuentra sala: es el síntoma del bug.
+	var celda_picking: Vector2i = construccion.celda_y_lado_de_clave(clave_fachada)[0]
+	assert_str(String(construccion.sala_en(celda_picking))) \
+		.override_failure_message("la celda que resuelve el picking en la fachada sur es la calle") \
+		.is_equal("")
+	# ...pero la celda INTERIOR (el fix) sí encuentra la sala de verdad.
+	var sala_encontrada: StringName = construccion.sala_en(
+		construccion.celda_interior_de_arista(clave_fachada)
+	)
+	assert_str(String(sala_encontrada)) \
+		.override_failure_message("celda_interior_de_arista tiene que encontrar la sala pegada a la fachada sur") \
+		.is_equal(String(sala_sur))
+
+	# Act — se pinta por el camino que ahora toma la UI para MAYÚS: solo la sala encontrada.
+	var azul: Color = PaletaPinturaScript.color_de(&"azul_institucional")
+	construccion.pintar_sala_muros(sala_encontrada, azul)
+
+	# Assert — la cara interior de la fachada sur de ESA sala queda pintada...
+	assert_bool(_igual(construccion.color_cara_de(Vector2i(5, fila_sur - 1), &"abajo"), azul)) \
+		.override_failure_message("la cara interior de la fachada sur de la sala señalada tiene que quedar pintada") \
+		.is_true()
+	# ...pero un tabique de la sala LEJANA sigue con el color por defecto: si el bug siguiera vivo,
+	# MAYÚS habría pintado el edificio entero y este tramo también habría cambiado.
+	var clave_lejana: String = construccion.clave_de_muro(Vector2i(2, 1), &"arriba")
+	assert_bool(_igual(construccion.color_muro_de(clave_lejana), construccion.COLOR_PARED_POR_DEFECTO)) \
+		.override_failure_message(
+			"pintar la sala pegada a la fachada sur NO puede pintar de propina una sala lejana " +
+			"(eso pasaba cuando el bug escapaba a pintar_edificio_muros)"
+		).is_true()
+
+
 # ── 9. La PALETA: 30 colores, blanco el primero, todos válidos y sin ids repetidos ────────
+# ⚠️ 2026-08-08 (playtest "el color blanco es como crema"): el primero de la paleta YA NO es RGB
+# puro (1,1,1) — ver la cabecera de `PaletaPintura.HEX_POR_DEFECTO` para el porqué (`CicloLuz` tiñe
+# la pantalla y un blanco puro se leía ambarino en horario de apertura). Sigue siendo "el blanco":
+# la MUESTRA y el color POR DEFECTO tienen que seguir siendo el MISMO valor exacto entre sí (eso no
+# cambia), solo que ese valor ya no es necesariamente `Color.WHITE` literal.
 func test_la_paleta_tiene_30_colores_con_el_blanco_el_primero() -> void:
 	assert_int(PaletaPinturaScript.COLORES.size()).is_equal(30)
-	assert_bool(_igual(PaletaPinturaScript.por_defecto(), Color.WHITE)).is_true()
-	assert_bool(_igual(PaletaPinturaScript.colores()[0], Color.WHITE)).is_true()
+	assert_bool(_igual(PaletaPinturaScript.por_defecto(), PaletaPinturaScript.color_de(&"blanco_puro"))) \
+		.override_failure_message("el color por defecto tiene que ser el mismo que el primero de la paleta") \
+		.is_true()
+	assert_bool(_igual(PaletaPinturaScript.colores()[0], PaletaPinturaScript.por_defecto())) \
+		.override_failure_message("la primera muestra de la rejilla tiene que ser el color por defecto") \
+		.is_true()
+	# Y tiene que seguir leyéndose blanco EN PANTALLA en horario de apertura, no ambarino: los tres
+	# canales, tras el tinte de `CicloLuz`, quedan lo bastante juntos como para no distinguirse de un
+	# gris/blanco neutro a simple vista (ver `test_el_blanco_de_la_paleta_lee_neutro_bajo_el_tinte_de_apertura`
+	# en `ciclo_luz_test.gd` para la comprobación completa contra las tres horas de servicio).
 	var ids: Dictionary = {}
 	for entrada: Dictionary in PaletaPinturaScript.COLORES:
 		var id: StringName = entrada["id"]
@@ -629,8 +736,10 @@ func test_hex_ida_y_vuelta_devuelve_el_mismo_color() -> void:
 	for color: Color in PaletaPinturaScript.colores():
 		assert_bool(_igual(PaletaPinturaScript.desde_hex(PaletaPinturaScript.a_hex(color)), color)) \
 			.is_true()
-	# Y un hex corrupto NO revienta la carga: cae al blanco por defecto (ADR-0002).
-	assert_bool(_igual(PaletaPinturaScript.desde_hex("no-es-un-color"), Color.WHITE)).is_true()
+	# Y un hex corrupto NO revienta la carga: cae al color por defecto (ADR-0002) — el "blanco" de la
+	# paleta, que desde 2026-08-08 ya no es RGB puro (ver `HEX_POR_DEFECTO`).
+	assert_bool(_igual(PaletaPinturaScript.desde_hex("no-es-un-color"), PaletaPinturaScript.por_defecto())) \
+		.is_true()
 
 
 # ── 10. PINTURA POR CARA (2026-08-06 · quick-spec §3f) ────────────────────────────────────

@@ -787,8 +787,15 @@ func _pintar_pared_en(punto_mundo: Vector2, con_mayus: bool) -> void:
 	var par: Array = _celda_lado_de_muro_en(punto_mundo)
 	var celda: Vector2i = par[0]
 	var lado: StringName = par[1]
-	var sala_id: StringName = _construccion.sala_en(celda)
 	var clave: String = _construccion.clave_de_muro(celda, lado)
+	# BUG DE LA FACHADA SUR/ESTE (2026-08-08): el picking siempre resuelve la celda LITERAL "b" de la
+	# arista (`_celda_lado_de_muro_en` -> `celda_y_lado_de_clave`), que para la fachada norte/oeste
+	# cae DENTRO de la sala pero para la sur/este cae en la CALLE. Buscar la sala con esa celda a
+	# pelo devolvía "" en la fachada sur/este aunque el clic sí cayera en la pared de una sala real, y
+	# el MAYÚS se escapaba al caso "sin sala" -> pintaba el EDIFICIO ENTERO en vez de solo esa sala
+	# (ver la cabecera de `Construccion.celda_interior_de_arista`). Con la celda interior, la sala se
+	# encuentra igual en los cuatro lados.
+	var sala_id: StringName = _construccion.sala_en(_construccion.celda_interior_de_arista(clave))
 	if con_mayus and sala_id != &"":
 		var pintados: int = _construccion.pintar_sala_muros(sala_id, _color_pincel)
 		var texto: String = (
@@ -1178,14 +1185,19 @@ func _refrescar_preview_pintar_pared(celda: Vector2i, lado: StringName, mayus: b
 	var clave: String = _construccion.clave_de_muro(celda, lado)
 	var hay_pared: bool = _construccion.tipo_de_muro(celda, lado) != &""
 	var es_fachada: bool = _construccion.es_muro_fijo(clave)
-	var sala_id: StringName = _construccion.sala_en(celda)
+	# Misma celda INTERIOR que usa `_pintar_pared_en` (ver su comentario del 2026-08-08): sin esto el
+	# texto decía "MAYÚS pinta TODO el edificio" en la fachada sur/este aunque el gesto real (y el
+	# fantasma de abajo, que YA usaba esta prioridad sala-primero) fuera a pintar solo la sala.
+	var sala_id: StringName = _construccion.sala_en(_construccion.celda_interior_de_arista(clave))
 	_colocar_caja_arista(celda, lado, _color_pincel if hay_pared else COLOR_INVALIDO)
 	var motivo: String = "Clic pinta el tramo · MAYÚS pinta la sala"
 	if not hay_pared:
 		motivo = "Ahí no hay pared que pintar"
+	elif sala_id != &"":
+		motivo = "Clic pinta el tramo · MAYÚS pinta la sala"
 	elif es_fachada:
 		motivo = "Clic pinta el tramo · MAYÚS pinta TODO el edificio"
-	elif sala_id == &"":
+	else:
 		motivo = "Clic pinta el tramo (muro suelto: MAYÚS no amplía)"
 	_preview_texto.text = "🖌 Pared · " + motivo
 	if not (mayus and hay_pared):
@@ -1604,6 +1616,17 @@ const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [
 	&"silla_espera_comoda", &"vending",
 ]
 
+## LOS ASIENTOS DE ESPERA POR TIER, COMO TARJETAS (2026-08-08 — playtest: "no puedo elegir... los
+## distintos asientos"). Hasta hoy `silla_espera_azul`/`silla_espera_comoda` eran `Comodidad`s del
+## catálogo, correctas y con sprite (`COMODIDADES_ROTACION_DIRECTA`, arriba), pero SOLO se podían
+## comprar desde el menú contextual de una sala YA construida (`Main._anadir_comodidades_al_menu`)
+## — nunca aparecían aquí, en la barra de construcción, que es donde el jugador esperaba encontrar
+## "los distintos asientos" (el único asiento en la barra era el genérico `ASIENTO_BASICO`, un
+## mueble DISTINTO — ni el mismo id ni el mismo arte). `silla_espera_madera` NO entra en esta lista
+## a propósito: no la pidió el usuario y ya hay un asiento barato en la barra (`ASIENTO_BASICO`,
+## 25 €) que cubre ese hueco de precio.
+const ASIENTOS_ESPERA_EN_BARRA: Array[StringName] = [&"silla_espera_azul", &"silla_espera_comoda"]
+
 
 ## Los datos para pintar el fantasma como sprite (`{"textura", "paso", "celdas"}`) o vacío
 ## (`textura == null`) si `herramienta` no tiene arte propio — entonces manda la caja de siempre.
@@ -1665,9 +1688,20 @@ func _sprite_de_herramienta(herramienta: StringName, orientacion: int, celdas: i
 	# duplicar sillas/arrimes/anclas de otro fichero entero para una vista previa — el mostrador solo
 	# ya cumple la promesa del spec ("como quedaría el objeto real") sin ese acoplamiento.
 	if Datos.obtener_silencioso(&"TipoPuesto", herramienta) != null:
+		# TIER VISUAL (2026-08-08 — catálogo incompleto: "no puedo elegir los puestos medio o pro"):
+		# si el id del propio `TipoPuesto` (p. ej. "ventanilla_media"/"ventanilla_pro") tiene su
+		# PROPIO PNG de mostrador, la tarjeta y el fantasma lo usan; si no (los tres puestos de
+		# siempre — doc general, TIE, ODAC — que se llaman por su SERVICIO, no por tier), cae al
+		# básico de SIEMPRE (`ID_SPRITE_MOSTRADOR_2`) — cero cambio para ellos. Mismo criterio, y a
+		# propósito espejado, que `MesaAtencion.construir(es_legado, id_sprite_tier)`.
+		var id_sprite: String = MesaAtencionScript.ID_SPRITE_MOSTRADOR_2
+		var ruta_tier: String = "%s%s_%d.png" % [
+			MesaAtencionScript.RUTA_SPRITES_MOBILIARIO, String(herramienta), MesaAtencionScript.ROT_MOSTRADOR,
+		]
+		if ResourceLoader.exists(ruta_tier):
+			id_sprite = String(herramienta)
 		var ruta3: String = "%s%s_%d.png" % [
-			MesaAtencionScript.RUTA_SPRITES_MOBILIARIO, MesaAtencionScript.ID_SPRITE_MOSTRADOR_2,
-			MesaAtencionScript.ROT_MOSTRADOR,
+			MesaAtencionScript.RUTA_SPRITES_MOBILIARIO, id_sprite, MesaAtencionScript.ROT_MOSTRADOR,
 		]
 		if ResourceLoader.exists(ruta3):
 			return {"textura": _textura_cacheada(ruta3), "paso": Vector2i(1, 0), "celdas": celdas}
@@ -2002,6 +2036,21 @@ func _crear_ui() -> void:
 		false, &"muebles", &"sillon",
 		_sprite_de_herramienta(_construccion.ASIENTO_BASICO, 0, 1).get("textura")
 	)
+	# LOS ASIENTOS DE ESPERA POR TIER (2026-08-08, ver la cabecera de `ASIENTOS_ESPERA_EN_BARRA`):
+	# el catálogo manda el nombre y el precio (misma regla que el bucle de `TipoPuesto` de arriba),
+	# la miniatura sale del mismo `_sprite_de_herramienta` que ya pinta el fantasma de colocación —
+	# el mismo camino que YA usa `Main._al_elegir_del_menu_sala` para colocar estas comodidades
+	# (`activar_con_herramienta` con un id de `Comodidad`), así que construirlas desde aquí no es un
+	# camino nuevo, es la MISMA acción con una segunda puerta de entrada.
+	for id_asiento: StringName in ASIENTOS_ESPERA_EN_BARRA:
+		var comodidad_asiento: Resource = Datos.obtener_silencioso(&"Comodidad", id_asiento)
+		if comodidad_asiento == null:
+			continue   # red de seguridad: un id de la lista sin `.tres` en el catálogo no rompe la UI
+		_anadir_herramienta(
+			"%s (%d €)" % [comodidad_asiento.nombre, comodidad_asiento.coste_construccion_eur],
+			id_asiento, false, &"muebles", &"sillon",
+			_sprite_de_herramienta(id_asiento, 0, 1).get("textura")
+		)
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
 	_anadir_herramienta(

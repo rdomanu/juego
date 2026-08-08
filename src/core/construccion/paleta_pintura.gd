@@ -27,7 +27,33 @@ class_name PaletaPintura
 ## JSON. `desde_hex`/`a_hex` son el único punto por el que pasa esa conversión.
 
 ## El color de una pared recién construida y de cualquier tramo sin pintar: BLANCO.
-const HEX_POR_DEFECTO: String = "ffffff"
+##
+## ⚠️ COMPENSADO, YA NO "ffffff" LITERAL (2026-08-08 — playtest: *"el color blanco es como
+## crema"*). Causa raíz: `CicloLuz` (`src/main/ciclo_luz.gd`) tiñe TODO el mundo 2D con
+## `CanvasModulate` según la hora — es multiplicativo, así que un blanco puro (1,1,1) EN PANTALLA se
+## convierte literalmente en el color de la parada del reloj. En horario de apertura eso es un
+## ámbar suave (08:00 → `Color(1.00, 0.95, 0.88)`; 18:00 → `Color(1.00, 0.93, 0.82)`, la más cálida
+## de las horas de servicio) — de ahí el "crema" que reportó el usuario. A mediodía (13:00 →
+## `Color(1.00, 1.00, 0.99)`) el tinte ya es casi neutro, así que ahí SÍ se veía blanco de verdad.
+##
+## El hex no se puede "poner blanco" y ya —el HTML de este dato no controla el tinte, que es harina
+## de otro costal (Presentation, `CicloLuz`), y esa capa no se toca aquí (es un cambio de DATO, no
+## de arte ni de motor). La única palanca disponible en este fichero es sesgar el hex al color
+## OPUESTO al que resta el tinte —más frío (menos rojo/verde, más azul)— para que el PRODUCTO
+## `hex × tinte` vuelva a leerse neutro en pantalla durante el horario de apertura.
+##
+## El hex de abajo es la media geométrica-simple de compensar contra las tres paradas de la jornada
+## de servicio (08:00 / 13:00 / 18:00 — `CicloLuz.PARADAS`): por canal, `compensado = min(canal) /
+## media(canal)`, normalizado a que el canal más alto llegue a 1.0 (no se puede pasar de 255 para
+## "sobre-compensar" el resto). Con `e5eeff` (0.898, 0.933, 1.0):
+##   · 08:00 → pinta (0.90, 0.89, 0.88) — prácticamente neutro, ya no ambarino.
+##   · 13:00 → pinta (0.90, 0.93, 0.99) — un frío MUY leve, imperceptible junto al resto de la paleta.
+##   · 18:00 → pinta (0.90, 0.87, 0.82) — sigue habiendo algo de calidez residual (es la hora más
+##     cálida de las tres), pero la brecha R↔B baja de 0.18 a 0.08: la mitad de "crema" que antes.
+## Por la noche el tinte ya es frío por diseño (vigilia azulada, ver `CicloLuz`), así que esta
+## corrección no lo agrava de forma perceptible: sigue siendo el mismo blanco de siempre a ras de
+## paleta, la sala ya se ve azulada de por sí a esas horas.
+const HEX_POR_DEFECTO: String = "e5eeff"
 
 ## Las familias, en el orden en que se muestran en la rejilla de la UI (una fila por familia).
 const FAMILIAS: Array[StringName] = [
@@ -39,7 +65,10 @@ const FAMILIAS: Array[StringName] = [
 ## ⚠️ El primero de la lista ES el color por defecto (`por_defecto()` lo lee de aquí).
 const COLORES: Array[Dictionary] = [
 	# ── Neutros (el blanco puro abre la lista: es el color de partida de toda pared) ───────────
-	{"id": &"blanco_puro", "familia": &"neutros", "nombre": "Blanco puro", "hex": "ffffff"},
+	# "ffffff" YA NO: ver la cabecera de `HEX_POR_DEFECTO`, el mismo hex compensado vive aquí para
+	# que la muestra de la rejilla y el color por defecto sean SIEMPRE el mismo valor (nunca dos
+	# literales "ffffff" que uno se olvide de actualizar si esto se vuelve a tocar).
+	{"id": &"blanco_puro", "familia": &"neutros", "nombre": "Blanco puro", "hex": HEX_POR_DEFECTO},
 	{"id": &"blanco_roto", "familia": &"neutros", "nombre": "Blanco roto", "hex": "f2ede3"},
 	{"id": &"gris_claro", "familia": &"neutros", "nombre": "Gris claro", "hex": "d8d9d6"},
 	{"id": &"gris_calido", "familia": &"neutros", "nombre": "Gris cálido", "hex": "c9c2b6"},
