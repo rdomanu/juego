@@ -377,6 +377,13 @@ func _ready() -> void:
 		# sigue refrescando aunque no se vea). Solo se conecta con el flag puesto: en juego normal esta
 		# señal no tiene a nadie escuchando y el HUD no cambia de comportamiento.
 		_modo_disenador_entorno.activado_cambiado.connect(_al_activar_disenador)
+		# Interruptor del entorno base (2026-08-09): el diseñador solo AVISA; quien esconde las
+		# capas procedurales es EntornoExterior (el diseñador no toca nodos ajenos).
+		_modo_disenador_entorno.base_visible_cambiada.connect(
+			func(visible: bool) -> void:
+				if _entorno_exterior != null:
+					_entorno_exterior.fijar_base_visible(visible)
+		)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
 	_panel_personal = PanelPersonalScript.new()

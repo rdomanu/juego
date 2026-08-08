@@ -30,6 +30,9 @@ signal layout_cambiado()
 ## datos del juego"). Puramente de presentación — este nodo no conoce ni le importa qué hace `Main`
 ## con la señal (ADR-0001: la UI ordena, no asume quién escucha).
 signal activado_cambiado(activo: bool)
+## El usuario alterna la visibilidad del entorno base procedural desde la paleta (2026-08-09).
+## `Main` la cablea a `EntornoExterior.fijar_base_visible` — esta clase no toca nodos ajenos.
+signal base_visible_cambiada(visible: bool)
 
 ## ── SUBMENÚS POR CATEGORÍA (2026-08-08, encargo "en el city kit hay más casas... se puede poner
 ## un submenú: casas, carreteras, árboles y jardín, objetos") ────────────────────────────────────
@@ -141,19 +144,21 @@ const COLOR_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, 0.5)
 ## `_crear_ui`) hace que ese sobrante crezca HACIA ARRIBA, nunca fuera de la pantalla por abajo —
 ## mismo gotcha que ya resolvió `ModoConstruccion._crear_ui` (ver su comentario del panel).
 ## Sube 260->340 (2026-08-08): la fila de PESTAÑAS nueva (ver `CATEGORIAS`) se suma por ENCIMA de la
-## fila de tarjetas de siempre -- con 21 casas en la pestaña más grande, `HFlowContainer` envuelve a
-## 2 filas dentro del ancho típico de la ventana, así que la barra necesita ese hueco extra.
-## Sube 340->352 (2026-08-08, spec `design/ux/spec-tarjetas-2026-08-08.md` §2.1): las tarjetas
-## crecen de 48 a 56px de alto para respetar el margen de 8px (fix de causa raíz §0-B) -- con 3
-## filas de 56px + separación, el peor caso ("🏠 Casas", 21 ids) necesita 184px de presupuesto para
-## la rejilla; +12px de barra cubre esa diferencia.
-const ALTO_BARRA: float = 352.0
+## (2026-08-09: `ALTO_BARRA` eliminada — la paleta es ahora un `PanelContainer` anclado abajo cuya
+## altura la decide su CONTENIDO, a cualquier resolución; ver el comentario del rehecho en
+## `_crear_ui`.)
 
 var _tam_celda: int = 40
 var _origen: Vector2 = Vector2.ZERO
 var _mundo_profundo: Node2D = null
 
 var _activo: bool = false
+## Visibilidad del ENTORNO BASE procedural (vallas/farolas/coches/casas/calle de acceso que pinta
+## `EntornoExterior` por código). El usuario lo apaga desde la paleta para diseñar desde cero
+## (feedback 2026-08-09: "no puedo eliminar los objetos que ya vienen por defecto"); se PERSISTE
+## en el JSON del layout para que el congelado lo respete. Las manchas de asfalto del suelo se
+## repintan con la brocha de césped (superficies), que ya escribe sobre el mismo tilemap.
+var _base_visible: bool = true
 ## `true` en cuanto esta instancia ha hecho SU carga automática (la de `_ready()`, ver más abajo) --
 ## a partir de ahí `alternar()` NUNCA vuelve a recargar por su cuenta, ni siquiera si `_piezas` y
 ## `_superficies` quedan vacíos por un borrado del usuario (ver el fix de `alternar()` con fecha de
@@ -180,6 +185,7 @@ var _capa_superficies: TileMapLayer
 var _fuentes_superficie: Dictionary[StringName, int] = {}
 
 var _capa_ui: CanvasLayer
+var _btn_base: Button = null
 var _lbl_estado: Label
 var _botones: Dictionary[StringName, Button] = {}
 ## categoría (StringName de `CATEGORIAS`) → Array[Button] de sus tarjetas, en el orden en que se
@@ -428,6 +434,7 @@ func guardar_en_disco(ruta: String = "") -> bool:
 		superficies_json.append({"celda": [celda.x, celda.y], "tipo": String(_superficies[celda])})
 	var datos: Dictionary = {
 		"version": VERSION_LAYOUT, "piezas": piezas_json, "superficies": superficies_json,
+		"base_visible": _base_visible,
 	}
 	var texto: String = JSON.stringify(datos, "", true, true)
 	var ruta_tmp: String = ruta + ".tmp"
@@ -485,7 +492,22 @@ func _aplicar_datos(datos: Dictionary) -> void:
 		var celda: Vector2i = _celda_de_entrada(entrada)
 		_superficies[celda] = StringName(String(entrada.get("tipo", "")))
 		_refrescar_superficie_visual(celda)
+	# Visibilidad del entorno base guardada con el layout (2026-08-09) — por defecto visible para
+	# los layouts viejos sin la clave.
+	_fijar_base_visible(bool(datos.get("base_visible", true)))
 	layout_cambiado.emit()
+
+
+## Fija el estado del interruptor del entorno base, refresca su botón y avisa a `Main` (que es
+## quien de verdad oculta/muestra las capas de `EntornoExterior` — ver `base_visible_cambiada`).
+func _fijar_base_visible(visible: bool) -> void:
+	_base_visible = visible
+	if _btn_base != null:
+		# `set_pressed_no_signal`: asignar `button_pressed` re-dispararía `toggled` y esta función
+		# se llamaría a sí misma (cazado por el test de roundtrip: la señal salía duplicada).
+		_btn_base.set_pressed_no_signal(not visible)
+		_btn_base.text = "🌍 Base: oculta" if not visible else "🌍 Base: visible"
+	base_visible_cambiada.emit(visible)
 
 
 static func _celda_de_entrada(entrada: Dictionary) -> Vector2i:
@@ -606,29 +628,33 @@ func _crear_ui() -> void:
 	_capa_ui.visible = false
 	add_child(_capa_ui)
 
-	var fondo := ColorRect.new()
-	fondo.color = Color(0.08, 0.09, 0.10, 0.88)
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fondo.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	fondo.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	fondo.custom_minimum_size = Vector2(0.0, ALTO_BARRA)
-	fondo.position.y = -ALTO_BARRA
-	fondo.size = Vector2(2000.0, ALTO_BARRA)
-	_capa_ui.add_child(fondo)
+	# 🐛 REHECHO (2026-08-09, feedback del usuario: "el menú sale muy arriba y me tapa toda la
+	# pantalla, y abajo un recuadro gris semitransparente vacío"): la versión anterior mezclaba
+	# `PRESET_BOTTOM_WIDE` con `position.y`/`size` puestos A MANO — `position` es relativa a la
+	# ESQUINA SUPERIOR del viewport, no al ancla, así que el contenido caía a una distancia FIJA
+	# del borde de arriba (calibrada a ojo en una resolución concreta) y el ColorRect del fondo se
+	# quedaba abajo, vacío y descolgado. Ahora es un `PanelContainer` anclado abajo que CRECE hacia
+	# arriba con la altura de su contenido — el mismo patrón (que sí funciona a cualquier
+	# resolución) de la barra de `ModoConstruccion`, con el fondo plano compartido del kit.
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.theme = KitUIComisarioScript.tema()
+	var estilo_fondo := StyleBoxFlat.new()
+	estilo_fondo.bg_color = KitUIComisarioScript.COLOR_FONDO_BARRA_INFERIOR
+	panel.add_theme_stylebox_override("panel", estilo_fondo)
+	_capa_ui.add_child(panel)
+
+	var margen := MarginContainer.new()
+	margen.add_theme_constant_override("margin_left", 12)
+	margen.add_theme_constant_override("margin_right", 12)
+	margen.add_theme_constant_override("margin_top", 8)
+	margen.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margen)
 
 	var raiz := VBoxContainer.new()
-	raiz.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	# Gotcha de anclas (mismo que `ModoConstruccion._crear_ui`): anclada abajo, la barra debe CRECER
-	# HACIA ARRIBA -- si no, el sobrante de las tarjetas agrandadas se saldría por debajo de la pantalla.
-	raiz.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	raiz.position.y = -(ALTO_BARRA - 4.0)
-	raiz.custom_minimum_size = Vector2(0.0, ALTO_BARRA - 4.0)
-	# El TEMA del kit (2026-08-07, remate del reskin -- mismo patrón que `ModoConstruccion`): se
-	# aplica UNA vez al contenedor raíz y baja por herencia (fuente Kenney Future, tamaños de letra) a
-	# todo lo que cuelgue de aquí. Las piezas con arte propio piden ADEMÁS su `theme_type_variation`
-	# explícita (ver `_boton_herramienta` y los botones de guardar/cargar, más abajo).
-	raiz.theme = KitUIComisarioScript.tema()
-	_capa_ui.add_child(raiz)
+	raiz.add_theme_constant_override("separation", 6)
+	margen.add_child(raiz)
 
 	var titulo := Label.new()
 	titulo.text = "🏗 MODO DISEÑADOR DE ENTORNO -- R rota · arrastra para colocar/pintar · F8 guarda · F12 sale"
@@ -679,6 +705,19 @@ func _crear_ui() -> void:
 	btn_cargar.custom_minimum_size = Vector2(160.0, 48.0)
 	btn_cargar.pressed.connect(cargar_desde_disco)
 	fila_acciones.add_child(btn_cargar)
+
+	# Interruptor del ENTORNO BASE procedural (2026-08-09, "quiero hacer de nuevo el entorno y no
+	# me deja borrar lo que había"): apagarlo esconde vallas/farolas/coches/casas/calle de acceso
+	# que pinta `EntornoExterior` por código, dejando el lienzo limpio para diseñar desde cero. Se
+	# guarda con F8 dentro del layout y el congelado lo respeta.
+	_btn_base = Button.new()
+	_btn_base.text = "🌍 Base: visible"
+	_btn_base.focus_mode = Control.FOCUS_NONE
+	_btn_base.toggle_mode = true
+	_btn_base.theme_type_variation = KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA
+	_btn_base.custom_minimum_size = Vector2(160.0, 48.0)
+	_btn_base.toggled.connect(func(pulsado: bool) -> void: _fijar_base_visible(not pulsado))
+	fila_acciones.add_child(_btn_base)
 
 	_lbl_estado = Label.new()
 	_lbl_estado.text = "Elige una pieza o una brocha de superficie"

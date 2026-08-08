@@ -158,6 +158,29 @@ func test_el_formato_guardado_lo_entiende_entornoexterior_leer_layout() -> void:
 	assert_int((datos["piezas"] as Array).size()).is_equal(1)
 
 
+## El interruptor del entorno base (2026-08-09, "quiero hacer de nuevo el entorno") viaja con el
+## layout: guardar con la base oculta y recargar la deja oculta; un layout viejo sin la clave
+## carga como visible (compat).
+func test_base_visible_hace_roundtrip_y_por_defecto_es_visible() -> void:
+	var origen: ModoDisenadorEntorno = _modo()
+	var avisos: Array[bool] = []
+	origen.base_visible_cambiada.connect(func(v: bool) -> void: avisos.append(v))
+	origen._fijar_base_visible(false)
+	assert_bool(origen._base_visible).is_false()
+	assert_array(avisos).is_equal([false] as Array[bool])
+	origen.guardar_en_disco(RUTA_SCRATCH)
+
+	var destino: ModoDisenadorEntorno = _modo()
+	destino.cargar_desde_disco(RUTA_SCRATCH)
+	assert_bool(destino._base_visible).is_false()
+
+	# compat: un layout sin la clave (esquema viejo) carga como base visible
+	var limpio: ModoDisenadorEntorno = _modo()
+	limpio._fijar_base_visible(false)
+	limpio._aplicar_datos({"version": 1, "piezas": [], "superficies": []})
+	assert_bool(limpio._base_visible).is_true()
+
+
 func test_cargar_sin_archivo_devuelve_false_y_no_revienta() -> void:
 	var modo: ModoDisenadorEntorno = _modo()
 	assert_bool(modo.cargar_desde_disco(RUTA_SCRATCH)).is_false()

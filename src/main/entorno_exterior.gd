@@ -326,6 +326,9 @@ var _capa_overlays_planas: Node2D = null
 ## `configurar`); si no, cae al patrón viejo (hijo de esta capa, fondo puro) -- SOLO por compatibilidad
 ## con tests/herramientas sueltas que no montan un `Main` completo.
 var _capa_decor: Node2D = null
+## Estado de los dos interruptores de visibilidad procedural (ver `_refrescar_visibilidad_procedural`).
+var _scatter_visible: bool = true
+var _base_visible: bool = true
 var _fuentes: Dictionary[String, int] = {}
 ## Huellas (rect lógico) de las casas del barrio YA colocadas -- 2026-08-08: antes esta bolsa se
 ## declaraba pero NUNCA se rellenaba (bug latente sin notar mientras las casas eran pequeñas): ni
@@ -451,10 +454,30 @@ func puntos_farolas() -> Array[Vector2]:
 ## circulación, no "morralla" (el congelado, `RUTA_LAYOUT_FIJO`, ya sustituye el scatter entero;
 ## esto es solo un lienzo limpio TEMPORAL mientras se diseña, ver `ModoDisenadorEntorno.alternar`).
 func fijar_scatter_visible(visible_scatter: bool) -> void:
+	_scatter_visible = visible_scatter
+	_refrescar_visibilidad_procedural()
+
+
+## Interruptor del ENTORNO BASE entero (2026-08-09, feedback "quiero hacer de nuevo el entorno y
+## no me deja borrar lo que había"): además del scatter, esconde las líneas de aparcamiento
+## (`_capa_marcas`). El asfalto del suelo (`_capa_suelo`) no se toca: el usuario lo repinta con la
+## brocha de césped del diseñador (escribe sobre el mismo tilemap). Lo fija el diseñador (botón
+## "🌍 Base"), viaja guardado en el layout y `_aplicar_layout_fijo` lo respeta en el congelado.
+func fijar_base_visible(visible_base: bool) -> void:
+	_base_visible = visible_base
+	_refrescar_visibilidad_procedural()
+
+
+## Los dos interruptores son independientes y comparten capas: el scatter (diseñador activo) y la
+## base (elección del usuario) — una capa se ve solo si NINGUNO de los dos la esconde.
+func _refrescar_visibilidad_procedural() -> void:
+	var decor_visible: bool = _scatter_visible and _base_visible
 	if _capa_decor != null:
-		_capa_decor.visible = visible_scatter
+		_capa_decor.visible = decor_visible
 	if _capa_overlays_planas != null:
-		_capa_overlays_planas.visible = visible_scatter
+		_capa_overlays_planas.visible = decor_visible
+	if _capa_marcas != null:
+		_capa_marcas.visible = _base_visible
 
 
 ## ── LECTURA DEL LAYOUT (compartida con `ModoDisenadorEntorno`, que escribe el MISMO esquema en
@@ -503,6 +526,9 @@ static func textura_de_pieza(id: String, rotacion: int) -> Texture2D:
 ## "ENTORNO FIJO"). Nunca toca el esqueleto (calle/recinto/plazas), que ya se pintó antes de llamar
 ## aquí (ver `configurar`).
 func _aplicar_layout_fijo(datos: Dictionary) -> void:
+	# El layout manda también sobre la visibilidad del entorno base (2026-08-09): si el usuario
+	# diseñó con la base oculta, el congelado la respeta (layouts viejos sin la clave → visible).
+	fijar_base_visible(bool(datos.get("base_visible", true)))
 	for entrada: Variant in datos.get("superficies", []):
 		if typeof(entrada) != TYPE_DICTIONARY:
 			continue
