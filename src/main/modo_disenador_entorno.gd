@@ -58,7 +58,7 @@ const JARDIN_IDS: Array[StringName] = [
 ]
 const OBJETOS_IDS: Array[StringName] = [
 	&"farola", &"valla_baja", &"valla_estandar", &"camino_recinto", &"entrada_casa",
-	&"coche_policia", &"coche_sedan", &"coche_suv",
+	&"coche_policia", &"coche_sedan", &"coche_suv", &"barrera_seguridad",
 ]
 static var CATALOGO_PIEZAS: Array[StringName] = (
 	EntornoExteriorScript.CASAS_TODAS + EntornoExteriorScript.CARRETERAS_TODAS
@@ -86,6 +86,9 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 		&"planter": "🪴 Jardinera",
 		&"coche_policia": "🚓 Coche patrulla", &"coche_sedan": "🚗 Coche sedán",
 		&"coche_suv": "🚙 Coche SUV",
+		# Barrera del control de entrada (diseño 1 del usuario, 2026-08-09): motor del modelo
+		# generado + pluma 3D de franjas continuas; cruza una calle de 6 celdas de arcén a arcén.
+		&"barrera_seguridad": "🚧 Barrera de entrada",
 		&"carretera_recta": "🛣 Recta", &"carretera_curva": "🛣 Curva",
 		&"carretera_cruce": "🛣 Cruce", &"carretera_interseccion_t": "🛣 Cruce en T",
 		&"carretera_paso_cebra": "🛣 Paso de cebra",
