@@ -41,7 +41,7 @@ const ASIENTO_BASICO := &"asiento_basico"
 
 ## La puerta del edificio, por donde entra todo el mundo (misma celda que usan Flujo y Personal).
 ## Las puertas de las SALAS ya no salen de aquí: las coloca el jugador (quick-spec §3, 2026-08-04).
-const CELDA_PUERTA_EDIFICIO := Vector2i(0, 6)
+const CELDA_PUERTA_EDIFICIO := Vector2i(11, 12)
 ## Centinela de "esta sala no tiene puerta" (ninguna celda del edificio es negativa).
 const CELDA_NULA_PUERTA := Vector2i(-1, -1)
 ## Los cuatro vecinos de una celda, con el lado por el que se sale hacia cada uno. En 4 direcciones
@@ -1139,24 +1139,29 @@ func es_muro_fijo(clave: String) -> bool:
 ## cargar, y el resultado es el mismo. Al cargar hace falta precisamente para volver a marcar como
 ## FIJAS unas aristas que en el save eran tabiques corrientes.
 ##
-## La puerta ocupa `alto_puerta` celdas seguidas en el lado IZQUIERDO, centrada en la fila de
-## `CELDA_PUERTA_EDIFICIO` — que es por donde ya llegaba la gente desde la calle, así que el
-## recorrido de siempre sigue valiendo. Al ser PUERTA, `deja_pasar` la deja cruzar y la navegación
-## no la recorta: es el ÚNICO hueco por el que se entra y se sale.
+## La puerta ocupa `ancho_puerta` celdas seguidas en el lado de ABAJO (fachada SUR, la de delante),
+## centrada en la columna de `CELDA_PUERTA_EDIFICIO` — que es por donde ya llegaba la gente desde
+## la calle, así que el recorrido de siempre sigue valiendo. Al ser PUERTA, `deja_pasar` la deja
+## cruzar y la navegación no la recorta: es el ÚNICO hueco por el que se entra y se sale.
 ##
 ## ⚠️ No cambia los RECINTOS: el modelo ya trataba el perímetro del edificio como muro implícito
 ## (ver `recinto_de`), así que declararlo explícito no altera ninguna zona ya designada.
-func levantar_fachada(alto_puerta: int = 2) -> void:
-	var fila_puerta: int = CELDA_PUERTA_EDIFICIO.y
+##
+## ⚠️ MIGRACIÓN (2026-08-08, entrada oeste → sur): esta función reescribe TODAS las aristas del
+## perímetro en cada llamada (es idempotente por diseño), así que un save viejo con la puerta en la
+## fachada oeste no deja un agujero fantasma ahí: al recargar, la oeste se tapia como tabique
+## corriente y la sur se abre como puerta, sin migración de datos aparte.
+func levantar_fachada(ancho_puerta: int = 2) -> void:
+	var columna_puerta: int = CELDA_PUERTA_EDIFICIO.x
 	var puertas: Dictionary[String, bool] = {}
-	for i: int in range(maxi(alto_puerta, 1)):
-		puertas["v:0:%d" % (fila_puerta + i)] = true
+	for i: int in range(maxi(ancho_puerta, 1)):
+		puertas["h:%d:%d" % [columna_puerta + i, edificio_filas]] = true
 	var claves: Array[String] = []
 	for x: int in edificio_columnas:
 		claves.append("h:%d:0" % x)                    # fachada de arriba (al fondo)
-		claves.append("h:%d:%d" % [x, edificio_filas]) # fachada de abajo (la de delante)
+		claves.append("h:%d:%d" % [x, edificio_filas]) # fachada de abajo (la de delante, con la puerta)
 	for y: int in edificio_filas:
-		claves.append("v:0:%d" % y)                    # fachada izquierda (donde va la puerta)
+		claves.append("v:0:%d" % y)                    # fachada izquierda
 		claves.append("v:%d:%d" % [edificio_columnas, y])
 	for clave: String in claves:
 		_muros_fijos[clave] = true

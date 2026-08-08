@@ -17,11 +17,12 @@ const TAM_CELDA: int = 40
 const COLUMNAS: int = 24
 const FILAS: int = 13
 
-## El mismo rectángulo que bakea `NPCsFlujo._bakear_navegacion` (columnas [−2, COLUMNAS), filas
-## [0, FILAS)) — reconstruido aquí a propósito, SIN importar ese fichero (es la capa cosmética de
-## NPCs, no una dependencia de esta capa): si algún día cambia el margen de 2 columnas, este test
+## El mismo rectángulo que bakea `NPCsFlujo._bakear_navegacion` (columnas [0, COLUMNAS), filas
+## [0, FILAS+2) — margen de 2 filas por el SUR, 2026-08-08: la entrada pasó de la fachada oeste a
+## la sur) — reconstruido aquí a propósito, SIN importar ese fichero (es la capa cosmética de
+## NPCs, no una dependencia de esta capa): si algún día cambia el margen de 2 filas, este test
 ## debe romperse para forzar a revisar la franja también aquí.
-const RECT_NAV_PEATONAL := Rect2i(-2, 0, COLUMNAS + 2, FILAS)
+const RECT_NAV_PEATONAL := Rect2i(0, 0, COLUMNAS, FILAS + 2)
 
 
 func _entorno() -> EntornoExterior:
@@ -62,13 +63,13 @@ func test_las_zonas_nuevas_no_pisan_la_franja_de_navegacion_existente() -> void:
 
 
 # AC-4: el solapamiento del RECINTO con la franja peatonal es el ESPERADO (documentado en la
-# cabecera) — las columnas −2/−1 son las únicas que se tocan; el resto del recinto (aparcamiento
-# incluido) cae fuera.
-func test_el_recinto_solapa_la_franja_peatonal_solo_en_sus_dos_columnas_pegadas_al_edificio() -> void:
+# cabecera) — las filas 13/14 (pegadas al borde sur del edificio) son las únicas que se tocan; el
+# resto del recinto (aparcamiento incluido) cae fuera.
+func test_el_recinto_solapa_la_franja_peatonal_solo_en_sus_dos_filas_pegadas_al_edificio() -> void:
 	var interseccion: Rect2i = EntornoExterior.RECT_RECINTO.intersection(RECT_NAV_PEATONAL)
-	assert_int(interseccion.position.x).is_equal(-2)
-	assert_int(interseccion.size.x).is_equal(2)
-	# Y ninguna plaza de coche (todas en columnas −7..−3) cae en esa franja compartida.
+	assert_int(interseccion.position.y).is_equal(FILAS)
+	assert_int(interseccion.size.y).is_equal(2)
+	# Y ninguna plaza de coche (todas en filas 15..19) cae en esa franja compartida.
 	for plaza: Dictionary in EntornoExterior.PLAZAS_APARCAMIENTO:
 		assert_bool((plaza["rect"] as Rect2i).intersects(RECT_NAV_PEATONAL)).is_false()
 
@@ -109,10 +110,11 @@ func test_variacion_de_celda_es_determinista() -> void:
 		assert_int(EntornoExterior._variacion_de_celda(celda)).is_equal(primera)
 
 
-# AC-8: la variación cae siempre dentro de rango, para negativos incluidos (la calle vive en x<0).
+# AC-8: la variación cae siempre dentro de rango, para negativos incluidos (la calle vive en y>13,
+# 2026-08-08: era x<0).
 func test_variacion_de_celda_esta_siempre_en_rango() -> void:
-	for x in range(-12, 1):
-		for y in range(-2, 13):
+	for x in range(-2, 25):
+		for y in range(0, 26):
 			var variacion: int = EntornoExterior._variacion_de_celda(Vector2i(x, y))
 			assert_int(variacion).is_greater_equal(0)
 			assert_int(variacion).is_less(EntornoExterior.VARIACIONES)

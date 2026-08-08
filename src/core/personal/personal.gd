@@ -285,7 +285,7 @@ func enviar_a_descansar(agente: RefCounted) -> float:
 ## La puerta del edificio: por donde entra TODO el mundo, funcionarios incluidos. Misma celda que
 ## usa Flujo para la entrada de los ciudadanos (`CELDA_ENTRADA`), duplicada aqui como constante
 ## propia para no crear una dependencia de Personal hacia Flujo por un dato de geometria.
-const CELDA_PUERTA := Vector2i(0, 6)
+const CELDA_PUERTA := Vector2i(11, 12)
 
 
 ## Lo que tarda un funcionario en llegar ANDANDO desde la puerta hasta su ventanilla.

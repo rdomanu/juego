@@ -52,9 +52,10 @@ func test_la_fachada_cierra_las_cuatro_caras_del_edificio() -> void:
 func test_la_puerta_de_acceso_deja_pasar() -> void:
 	var c: Node = _mundo()
 	c.levantar_fachada()
+	var columna: int = c.CELDA_PUERTA_EDIFICIO.x
 	var fila: int = c.CELDA_PUERTA_EDIFICIO.y
-	assert_that(c.tipo_de_muro(Vector2i(0, fila), &"izquierda")).is_equal(c.PUERTA)
-	assert_bool(c.deja_pasar(Vector2i(0, fila), &"izquierda")).is_true()
+	assert_that(c.tipo_de_muro(Vector2i(columna, fila), &"abajo")).is_equal(c.PUERTA)
+	assert_bool(c.deja_pasar(Vector2i(columna, fila), &"abajo")).is_true()
 	# Y el resto de la fachada NO deja pasar: se entra por la puerta o no se entra.
 	assert_bool(c.deja_pasar(Vector2i(0, 0), &"izquierda")).is_false()
 
@@ -65,7 +66,9 @@ func test_la_fachada_no_se_puede_demoler() -> void:
 	c.levantar_fachada()
 	var antes: int = c.muros().size()
 	assert_bool(c.demoler_muro(Vector2i(0, 0), &"arriba")).is_false()
-	assert_bool(c.demoler_muro(Vector2i(0, c.CELDA_PUERTA_EDIFICIO.y), &"izquierda")).is_false()
+	assert_bool(c.demoler_muro(
+		Vector2i(c.CELDA_PUERTA_EDIFICIO.x, c.CELDA_PUERTA_EDIFICIO.y), &"abajo"
+	)).is_false()
 	assert_int(c.muros().size()).is_equal(antes)   # sigue entera
 	assert_bool(c.hay_muro(Vector2i(0, 0), &"arriba")).is_true()
 
@@ -76,9 +79,10 @@ func test_la_fachada_no_se_puede_convertir() -> void:
 	c.levantar_fachada()
 	assert_bool(c.fijar_tipo_de_muro(Vector2i(0, 0), &"arriba", c.PUERTA)).is_false()
 	assert_that(c.tipo_de_muro(Vector2i(0, 0), &"arriba")).is_equal(c.TABIQUE)
+	var columna: int = c.CELDA_PUERTA_EDIFICIO.x
 	var fila: int = c.CELDA_PUERTA_EDIFICIO.y
-	assert_bool(c.fijar_tipo_de_muro(Vector2i(0, fila), &"izquierda", c.TABIQUE)).is_false()
-	assert_that(c.tipo_de_muro(Vector2i(0, fila), &"izquierda")).is_equal(c.PUERTA)
+	assert_bool(c.fijar_tipo_de_muro(Vector2i(columna, fila), &"abajo", c.TABIQUE)).is_false()
+	assert_that(c.tipo_de_muro(Vector2i(columna, fila), &"abajo")).is_equal(c.PUERTA)
 
 
 # AC-F5: un muro del JUGADOR sigue derribándose igual. La fachada es la excepción, no la regla.
@@ -99,8 +103,9 @@ func test_levantar_la_fachada_es_idempotente() -> void:
 	var saldo_1: float = c.saldo_actual() if c.has_method("saldo_actual") else 0.0
 	c.levantar_fachada()
 	assert_int(c.muros().size()).is_equal(muros_1)
+	var columna: int = c.CELDA_PUERTA_EDIFICIO.x
 	var fila: int = c.CELDA_PUERTA_EDIFICIO.y
-	assert_that(c.tipo_de_muro(Vector2i(0, fila), &"izquierda")).is_equal(c.PUERTA)
+	assert_that(c.tipo_de_muro(Vector2i(columna, fila), &"abajo")).is_equal(c.PUERTA)
 	if c.has_method("saldo_actual"):
 		assert_float(c.saldo_actual()).is_equal_approx(saldo_1, 0.01)
 

@@ -129,7 +129,7 @@ func test_pintar_celda_manzana_es_determinista() -> void:
 func test_ninguna_zona_perimetral_nueva_invade_el_rect_jugable() -> void:
 	var rect_jugable := Rect2i(0, 0, COLUMNAS, FILAS)
 	for rect: Rect2i in [
-		EntornoExterior.RECT_ACERA_NORTE, EntornoExterior.RECT_ACERA_SUR, EntornoExterior.RECT_ACERA_ESTE,
+		EntornoExterior.RECT_ACERA_NORTE, EntornoExterior.RECT_ACERA_OESTE, EntornoExterior.RECT_ACERA_ESTE,
 	]:
 		assert_bool(rect.intersects(rect_jugable)).is_false()
 
@@ -147,8 +147,8 @@ func test_ninguna_celda_pintada_dentro_de_la_franja_peatonal_es_manzana_de_fondo
 		var es_zona_documentada: bool = (
 			EntornoExterior.RECT_RECINTO.has_point(celda)
 			or EntornoExterior.RECT_CONTROL.has_point(celda)
-			or EntornoExterior.RECT_ACERA_NAV_NORTE.has_point(celda)
-			or EntornoExterior.RECT_ACERA_NAV_SUR.has_point(celda)
+			or EntornoExterior.RECT_ACERA_NAV_OESTE.has_point(celda)
+			or EntornoExterior.RECT_ACERA_NAV_ESTE.has_point(celda)
 		)
 		if not es_zona_documentada:
 			sin_documentar.append(celda)

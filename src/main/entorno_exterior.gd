@@ -1,6 +1,7 @@
 class_name EntornoExterior extends Node2D
 ## EntornoExterior — el marco NO JUGABLE alrededor del edificio (24×13): acera + calzada frente a
-## la puerta oeste, el recinto/aparcamiento del control de acceso y el barrio disperso alrededor.
+## la puerta SUR (2026-08-08: era la oeste), el recinto/aparcamiento del control de acceso y el
+## barrio disperso alrededor.
 ##
 ## Diseño: `design/art/entorno-exterior.md`. Esta pieza es SOLO el suelo por código + los props
 ## reales (assets 3D→sprite) que le dan vida — anclajes con nombre para garita/barrera aparte.
@@ -52,7 +53,7 @@ class_name EntornoExterior extends Node2D
 ##  3. SIN NAVEGACIÓN: el polígono navegable lo bakea `NPCsFlujo._bakear_navegacion` en un rectángulo
 ##     FIJO que este fichero no toca — salvo `RECT_RECINTO`, ver la nota original más abajo.
 ##
-## ── EL RECORRIDO, EN CELDAS DEL PLANO LÓGICO (columna 0 = borde oeste del edificio) ──────────────
+## ── EL RECORRIDO, EN CELDAS DEL PLANO LÓGICO (fila 13 = borde sur del edificio) ──────────────────
 ## CALLE (acera+calzada) → CONTROL (garita+barrera) → RECINTO (césped+camino+aparcamiento) → puerta.
 ##
 ## ── SIN randf() (regla del proyecto) ─────────────────────────────────────────────────────────────
@@ -100,50 +101,54 @@ const LADO_PARCHE_CESPED: int = 6
 ## Grosor (en px del plano lógico cuadrado) de las líneas pintadas de una plaza de aparcamiento.
 const GROSOR_LINEA_APARCAMIENTO: float = 3.0
 
-# ── El recorrido: fila eje + zonas (Rect2i en celdas del plano lógico) ──────────────────────────
-const FILA_PUERTA: int = 6
+# ── El recorrido: columna eje + zonas (Rect2i en celdas del plano lógico) ───────────────────────
+## REORIENTACIÓN 2026-08-08 (feedback del usuario: la entrada pasa de la fachada oeste, lado corto,
+## a la fachada SUR, lado largo, centrada). Todo este bloque era una banda horizontal que salía por
+## el oeste a la altura de `FILA_PUERTA`; ahora es una banda VERTICAL que sale por el sur a la
+## columna de `COLUMNA_PUERTA` (11, la misma que `Construccion.CELDA_PUERTA_EDIFICIO.x`). El álgebra
+## es la misma con los ejes intercambiados: "profundidad" (antes X, alejándose del edificio hacia el
+## oeste) pasa a ser Y (alejándose hacia el sur); "banda lateral" (antes Y) pasa a ser X.
+const COLUMNA_PUERTA: int = 11
 const SEMI_ANCHO_RECORRIDO: int = 3
 const ALTO_BANDA_RECORRIDO: int = SEMI_ANCHO_RECORRIDO * 2 + 1
 
-const RECT_RECINTO := Rect2i(-8, FILA_PUERTA - SEMI_ANCHO_RECORRIDO, 8, ALTO_BANDA_RECORRIDO)
-const RECT_CONTROL := Rect2i(-9, FILA_PUERTA - 1, 1, 3)
-const RECT_ACERA := Rect2i(-10, FILA_PUERTA - SEMI_ANCHO_RECORRIDO, 1, ALTO_BANDA_RECORRIDO)
-const RECT_CALZADA := Rect2i(-12, FILA_PUERTA - SEMI_ANCHO_RECORRIDO, 2, ALTO_BANDA_RECORRIDO)
-const RECT_CESPED := Rect2i(-9, -2, 7, 5)
+const RECT_RECINTO := Rect2i(COLUMNA_PUERTA - SEMI_ANCHO_RECORRIDO, FILAS_JUGABLE, ALTO_BANDA_RECORRIDO, 8)
+const RECT_CONTROL := Rect2i(COLUMNA_PUERTA - 1, FILAS_JUGABLE + 8, 3, 1)
+const RECT_ACERA := Rect2i(COLUMNA_PUERTA - SEMI_ANCHO_RECORRIDO, FILAS_JUGABLE + 9, ALTO_BANDA_RECORRIDO, 1)
+const RECT_CALZADA := Rect2i(COLUMNA_PUERTA - SEMI_ANCHO_RECORRIDO, FILAS_JUGABLE + 10, ALTO_BANDA_RECORRIDO, 2)
+const RECT_CESPED := Rect2i(COLUMNA_PUERTA - 8, FILAS_JUGABLE + 2, 5, 7)
 
 ## EL CAMINO DEL RECINTO (2026-08-07, "caminos claros que conectan entrada-control-puerta"): UNA
-## sola fila (la de la puerta) dentro de `RECT_RECINTO`, entre el césped norte (filas 3-4) y las
-## plazas (filas 7-8) — un paseo, no una segunda explanada (ajuste tras revisar la captura: con 2
-## filas el camino ocupaba TODO el ancho del recinto y se comía el césped que pedía la referencia).
-const PATH_RECINTO := Rect2i(-8, FILA_PUERTA, 8, 1)
+## sola columna (la de la puerta) dentro de `RECT_RECINTO`, entre el césped y las plazas — un
+## paseo, no una segunda explanada (ajuste tras revisar la captura: con más de una columna el camino
+## ocupaba TODO el ancho del recinto y se comía el césped que pedía la referencia).
+const PATH_RECINTO := Rect2i(COLUMNA_PUERTA, FILAS_JUGABLE, 1, 8)
 
-# ── Perímetro completo del edificio (acera que rodea el edificio por norte/este/sur) ────────────
+# ── Perímetro completo del edificio (acera que rodea el edificio por norte/este/oeste — el sur ya
+# lleva el recorrido completo de arriba, con el recinto/control/acera/calzada) ──────────────────
 const GROSOR_ACERA_PERIMETRAL: int = 2
 const RECT_ACERA_NORTE := Rect2i(
 	-GROSOR_ACERA_PERIMETRAL, -GROSOR_ACERA_PERIMETRAL,
 	COLUMNAS_JUGABLE + 2 * GROSOR_ACERA_PERIMETRAL, GROSOR_ACERA_PERIMETRAL
 )
-const RECT_ACERA_SUR := Rect2i(
-	-GROSOR_ACERA_PERIMETRAL, FILAS_JUGABLE,
-	COLUMNAS_JUGABLE + 2 * GROSOR_ACERA_PERIMETRAL, GROSOR_ACERA_PERIMETRAL
-)
+const RECT_ACERA_OESTE := Rect2i(-GROSOR_ACERA_PERIMETRAL, 0, GROSOR_ACERA_PERIMETRAL, FILAS_JUGABLE)
 const RECT_ACERA_ESTE := Rect2i(COLUMNAS_JUGABLE, 0, GROSOR_ACERA_PERIMETRAL, FILAS_JUGABLE)
 
-const RECT_NAV_PEATONAL := Rect2i(-2, 0, COLUMNAS_JUGABLE + 2, FILAS_JUGABLE)
-const RECT_ACERA_NAV_NORTE := Rect2i(-2, 0, 2, FILA_PUERTA - SEMI_ANCHO_RECORRIDO)
-const RECT_ACERA_NAV_SUR := Rect2i(
-	-2, FILA_PUERTA + SEMI_ANCHO_RECORRIDO + 1, 2,
-	FILAS_JUGABLE - (FILA_PUERTA + SEMI_ANCHO_RECORRIDO + 1)
+const RECT_NAV_PEATONAL := Rect2i(0, 0, COLUMNAS_JUGABLE, FILAS_JUGABLE + 2)
+const RECT_ACERA_NAV_OESTE := Rect2i(0, FILAS_JUGABLE, COLUMNA_PUERTA - SEMI_ANCHO_RECORRIDO, 2)
+const RECT_ACERA_NAV_ESTE := Rect2i(
+	COLUMNA_PUERTA + SEMI_ANCHO_RECORRIDO + 1, FILAS_JUGABLE,
+	COLUMNAS_JUGABLE - (COLUMNA_PUERTA + SEMI_ANCHO_RECORRIDO + 1), 2
 )
 
 ## Todas las zonas YA resueltas por sus propios `RECT_*` — el relleno de verde exterior
 ## (`_pintar_verde_exterior`) y el scatter de props las saltan para no repintar/colocar encima.
 const ZONAS_CERCANAS: Array[Rect2i] = [
 	RECT_CALZADA, RECT_ACERA, RECT_RECINTO, RECT_CONTROL, RECT_CESPED,
-	RECT_ACERA_NORTE, RECT_ACERA_SUR, RECT_ACERA_ESTE,
+	RECT_ACERA_NORTE, RECT_ACERA_OESTE, RECT_ACERA_ESTE,
 ]
 
-## Las 5 plazas (3 patrulla + 2 visita), de oeste a este dentro de `RECT_RECINTO`.
+## Las 5 plazas (3 patrulla + 2 visita), apiladas norte a sur dentro de `RECT_RECINTO` (2026-08-08:
 ##
 ## ── PLAZAS A 3 CELDAS DE FONDO (2026-08-07, "los coches ocupan MÍNIMO 3 celdas; la mesa ocupa 2 y
 ## un coche es más grande") ────────────────────────────────────────────────────────────────────────
@@ -156,22 +161,28 @@ const ZONAS_CERCANAS: Array[Rect2i] = [
 ## de hasta 2,1 celdas de ancho en una plaza de 1 se sale un poco a los lados de su línea pintada
 ## (igual que en una plaza de calle real, donde el coche nunca calza justo la marca), efecto
 ## aceptado por ahora.
+## rotación de ejes de la reforma: antes iban de oeste a este a lo largo de X, ahora van de norte
+## a sur a lo largo de Y — mismo patrón, mismo `RECT_RECINTO`, banda lateral en X en vez de Y).
 const PLAZAS_APARCAMIENTO: Array[Dictionary] = [
-	{"id": &"visita_1", "tipo": &"visita", "rect": Rect2i(-7, 7, 1, 3), "celda_ancla": Vector2i(-7, 8)},
-	{"id": &"visita_2", "tipo": &"visita", "rect": Rect2i(-6, 7, 1, 3), "celda_ancla": Vector2i(-6, 8)},
-	{"id": &"patrulla_1", "tipo": &"patrulla", "rect": Rect2i(-5, 7, 1, 3), "celda_ancla": Vector2i(-5, 8)},
-	{"id": &"patrulla_2", "tipo": &"patrulla", "rect": Rect2i(-4, 7, 1, 3), "celda_ancla": Vector2i(-4, 8)},
-	{"id": &"patrulla_3", "tipo": &"patrulla", "rect": Rect2i(-3, 7, 1, 3), "celda_ancla": Vector2i(-3, 8)},
+	{"id": &"visita_1", "tipo": &"visita", "rect": Rect2i(12, 19, 3, 1), "celda_ancla": Vector2i(13, 19)},
+	{"id": &"visita_2", "tipo": &"visita", "rect": Rect2i(12, 18, 3, 1), "celda_ancla": Vector2i(13, 18)},
+	{"id": &"patrulla_1", "tipo": &"patrulla", "rect": Rect2i(12, 17, 3, 1), "celda_ancla": Vector2i(13, 17)},
+	{"id": &"patrulla_2", "tipo": &"patrulla", "rect": Rect2i(12, 16, 3, 1), "celda_ancla": Vector2i(13, 16)},
+	{"id": &"patrulla_3", "tipo": &"patrulla", "rect": Rect2i(12, 15, 3, 1), "celda_ancla": Vector2i(13, 15)},
 ]
 
 ## Anclas con nombre para garita/barrera (sin sprite propio todavía — fuera del alcance de esta
 ## reforma, que es "vida" del entorno, no el control de acceso).
-const ANCLA_GARITA := Vector2i(-9, 6)
-const ANCLA_BARRERA := Vector2i(-8, 6)
-const ANCLAS_FAROLAS: Array[Vector2i] = [Vector2i(-8, 3), Vector2i(-8, 9), Vector2i(-3, 6)]
-const ANCLA_BANCO := Vector2i(-6, 0)
+const ANCLA_GARITA := Vector2i(COLUMNA_PUERTA, FILAS_JUGABLE + 8)
+const ANCLA_BARRERA := Vector2i(COLUMNA_PUERTA, FILAS_JUGABLE + 7)
+const ANCLAS_FAROLAS: Array[Vector2i] = [
+	Vector2i(COLUMNA_PUERTA - 3, FILAS_JUGABLE + 7), Vector2i(COLUMNA_PUERTA + 3, FILAS_JUGABLE + 7),
+	Vector2i(COLUMNA_PUERTA, FILAS_JUGABLE + 2),
+]
+const ANCLA_BANCO := Vector2i(COLUMNA_PUERTA - 6, FILAS_JUGABLE + 5)
 const ANCLAS_FAROLAS_PERIMETRO: Array[Vector2i] = [
 	Vector2i(6, -2), Vector2i(18, -2), Vector2i(COLUMNAS_JUGABLE + 1, 3), Vector2i(COLUMNAS_JUGABLE + 1, 9),
+	Vector2i(-2, 3), Vector2i(-2, 9),
 	Vector2i(6, FILAS_JUGABLE + 1), Vector2i(18, FILAS_JUGABLE + 1),
 ]
 
@@ -327,10 +338,10 @@ func configurar(
 	_pintar_rect(PATH_RECINTO, COLOR_CAMINO)
 	_pintar_rect(RECT_CONTROL, COLOR_CAMINO)
 	_pintar_rect(RECT_ACERA_NORTE, COLOR_ACERA)
-	_pintar_rect(RECT_ACERA_SUR, COLOR_ACERA)
+	_pintar_rect(RECT_ACERA_OESTE, COLOR_ACERA)
 	_pintar_rect(RECT_ACERA_ESTE, COLOR_ACERA)
-	_pintar_rect(RECT_ACERA_NAV_NORTE, COLOR_ACERA)
-	_pintar_rect(RECT_ACERA_NAV_SUR, COLOR_ACERA)
+	_pintar_rect(RECT_ACERA_NAV_OESTE, COLOR_ACERA)
+	_pintar_rect(RECT_ACERA_NAV_ESTE, COLOR_ACERA)
 	for plaza: Dictionary in PLAZAS_APARCAMIENTO:
 		_pintar_rect(plaza["rect"], COLOR_APARCAMIENTO)
 
@@ -477,7 +488,7 @@ func _avisar_si_invade_lo_jugable(columnas: int, filas: int) -> void:
 	var rect_jugable := Rect2i(0, 0, columnas, filas)
 	for rect: Rect2i in [
 		RECT_RECINTO, RECT_CONTROL, RECT_ACERA, RECT_CALZADA, RECT_CESPED,
-		RECT_ACERA_NORTE, RECT_ACERA_SUR, RECT_ACERA_ESTE,
+		RECT_ACERA_NORTE, RECT_ACERA_OESTE, RECT_ACERA_ESTE,
 	]:
 		if rect.intersects(rect_jugable):
 			push_error("EntornoExterior: la zona %s invade el rect jugable %s" % [rect, rect_jugable])
@@ -704,8 +715,8 @@ func _pintar_overlay_camino() -> void:
 	for x: int in range(PATH_RECINTO.position.x, PATH_RECINTO.position.x + PATH_RECINTO.size.x):
 		for y: int in range(PATH_RECINTO.position.y, PATH_RECINTO.position.y + PATH_RECINTO.size.y):
 			_colocar_overlay_plano(TEX_CAMINO_RECINTO, Vector2i(x, y))
-	for y: int in range(RECT_CONTROL.position.y, RECT_CONTROL.position.y + RECT_CONTROL.size.y):
-		_colocar_overlay_plano(TEX_CAMINO_RECINTO, Vector2i(RECT_CONTROL.position.x, y))
+	for x: int in range(RECT_CONTROL.position.x, RECT_CONTROL.position.x + RECT_CONTROL.size.x):
+		_colocar_overlay_plano(TEX_CAMINO_RECINTO, Vector2i(x, RECT_CONTROL.position.y))
 
 
 ## ── LA CALLE DE ACCESO (calzada + acera) CON PIEZAS DEL KIT DE CARRETERAS ───────────────────────
@@ -745,9 +756,9 @@ func _colocar_valla_y_seto() -> void:
 			var vecina: Vector2i = celda + dir
 			if dentro.has(vecina):
 				continue
-			if vecina.x >= 0:
+			if vecina.y < FILAS_JUGABLE:
 				continue  # cara que toca el edificio -- ya amurallada, no duplicar
-			if RECT_CONTROL.has_point(celda) and dir == Vector2i(-1, 0):
+			if RECT_CONTROL.has_point(celda) and dir == Vector2i(0, 1):
 				continue  # HUECO DE ENTRADA -- el punto del control (ANCLA_GARITA/ANCLA_BARRERA)
 			_instanciar_valla(celda, dir)
 			if not RECT_CONTROL.has_point(celda):
@@ -787,8 +798,8 @@ func _colocar_props_recinto() -> void:
 		_puntos_farolas.append(punto_pantalla_de_ancla(ancla))
 	# Dos parterres junto a la entrada (control), a lado y lado del camino -- toque de jardín de la
 	# referencia (`capturas/entorno.PNG`).
-	_colocar_prop(TEX_PLANTER, Vector2i(RECT_CONTROL.position.x, FILA_PUERTA - 2))
-	_colocar_prop(TEX_PLANTER, Vector2i(RECT_CONTROL.position.x, FILA_PUERTA + 2))
+	_colocar_prop(TEX_PLANTER, Vector2i(COLUMNA_PUERTA - 2, RECT_CONTROL.position.y))
+	_colocar_prop(TEX_PLANTER, Vector2i(COLUMNA_PUERTA + 2, RECT_CONTROL.position.y))
 
 
 ## ── LOS COCHES DE LAS 5 PLAZAS ───────────────────────────────────────────────────────────────

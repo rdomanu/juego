@@ -300,7 +300,7 @@ const UMBRAL_GIRO: float = 1.5
 const DIRECCION_SENTADO := Vector2(0.0, -1.0)
 ## La celda por la que se sale del edificio (la puerta de la fachada). Se usa para comprobar si un
 ## agente puede siquiera salir a la calle a tomarse el café cuando no hay sala de descanso.
-const CELDA_PUERTA_SALIDA := Vector2i(0, 6)
+const CELDA_PUERTA_SALIDA := Vector2i(11, 12)
 ## Cuánto sube el cuerpo en lo alto del paso. 2 px: se nota que bota, no parece que dé saltos.
 const ALTURA_BOTE: float = 2.0
 ## Cuánto se balancea, en radianes (~2,3°). Muy poco a propósito: es un vaivén, no un tentetieso.
@@ -784,9 +784,12 @@ func _bakear_navegacion() -> void:
 	# PANTALLA y ahora lo aplica la capa de escena al dibujar; metiéndolo aquí, los destinos (que
 	# salen de `Construccion.centro_de_celda`, sin desplazar) habrían caído fuera del polígono
 	# navegable y nadie habría podido moverse.
+	# La entrada vive en la fachada SUR (2026-08-08, era la oeste): el margen navegable extra sale
+	# por ABAJO, no por la izquierda — así el corredor que conecta la calle con la puerta cae en el
+	# lado correcto del edificio.
 	var datos := NavigationMeshSourceGeometryData2D.new()
-	var origen := Vector2(-2.0 * _tam_celda, 0.0)
-	var fin := Vector2(_columnas * _tam_celda, _filas * _tam_celda)
+	var origen := Vector2(0.0, 0.0)
+	var fin := Vector2(_columnas * _tam_celda, (_filas + 2) * _tam_celda)
 	datos.add_traversable_outline(PackedVector2Array([
 		origen, Vector2(fin.x, origen.y), fin, Vector2(origen.x, fin.y),
 	]))
@@ -908,11 +911,13 @@ func destino_de(npc: Node) -> Vector2:
 			return _punto_calle(persona.numero_turno)
 
 
-## Un punto de la calle (el margen izquierdo, FUERA del edificio): entrada, cola exterior y
-## salida. Repartido en vertical por turno para que la cola exterior se vea como grupito.
+## Un punto de la calle (el margen de ABAJO, FUERA del edificio, alineado con la puerta de la
+## fachada sur): entrada, cola exterior y salida. Repartido en horizontal por turno para que la
+## cola exterior se vea como grupito.
 func _punto_calle(turno: int) -> Vector2:
-	var base := Vector2(-1.0 * _tam_celda, 6.5 * _tam_celda)
-	return base + Vector2(0.0, float(turno % 6) * 18.0 - 54.0)
+	var columna_puerta: float = float(CELDA_PUERTA_SALIDA.x) + 0.5
+	var base := Vector2(columna_puerta * _tam_celda, (float(_filas) + 1.0) * _tam_celda)
+	return base + Vector2(float(turno % 6) * 18.0 - 54.0, 0.0)
 
 
 ## Sitio en la espera: PRIMERO un asiento libre de sus salas; sin asiento libre, un hueco de pie
