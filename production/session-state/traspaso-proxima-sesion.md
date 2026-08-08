@@ -70,3 +70,9 @@ ESPAÑOL llano con orden y detalle (MEMORY.md — leerla). NUNCA ofrecer parar. 
 - APUNTE FINAL DEL USUARIO sobre las casas: "una casa es más pequeña que una sala" — usar
   también LAS SALAS de la comisaría como vara de medir (una casa ≥ una sala típica de 4-6
   celdas; parcela 6-8 celdas va bien encaminada). Verificarlo en la composición de escala.
+- CIERRE REAL: CASAS HECHAS y verificadas en motor (6/6/7/7/8 celdas por tipo, alto 2,3-3,6×
+  pared, scatter 4 casas sin solape, bug de exclusión mutua corregido; casa_k algo aplanada,
+  revisar a ojo). SIN commitear (va con el lote UI o aparte). ⚠️ La suite da 911/911 con
+  5 FAILURES: TODAS en tests/unit/ui/kit_ui_comisario_test.gd (el test del lote UI está roto
+  o el tema no carga como espera — ARREGLAR ANTES de commitear el lote UI). Capturas de escala
+  en el scratchpad de la sesión vieja: escala_composicion.png / escala_barrio_general.png.
