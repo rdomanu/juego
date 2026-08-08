@@ -44,6 +44,7 @@ const CATEGORIAS: Array[Dictionary] = [
 	{"id": &"carreteras", "nombre": "🛣 Carreteras"},
 	{"id": &"jardin", "nombre": "🌳 Árboles y jardín"},
 	{"id": &"objetos", "nombre": "🚧 Objetos"},
+	{"id": &"construccion", "nombre": "🧱 Construcción"},
 	{"id": &"superficies", "nombre": "🖌 Superficies"},
 ]
 
@@ -61,12 +62,13 @@ const OBJETOS_IDS: Array[StringName] = [
 ]
 static var CATALOGO_PIEZAS: Array[StringName] = (
 	EntornoExteriorScript.CASAS_TODAS + EntornoExteriorScript.CARRETERAS_TODAS
-	+ JARDIN_IDS + OBJETOS_IDS
+	+ JARDIN_IDS + OBJETOS_IDS + EntornoExteriorScript.CONSTRUCCION_TODAS
 )
 ## id de categoría → ids de `CATALOGO_PIEZAS` que le corresponden (ver la cabecera de `CATEGORIAS`).
 static var PIEZAS_POR_CATEGORIA: Dictionary[StringName, Array] = {
 	&"casas": EntornoExteriorScript.CASAS_TODAS, &"carreteras": EntornoExteriorScript.CARRETERAS_TODAS,
 	&"jardin": JARDIN_IDS, &"objetos": OBJETOS_IDS,
+	&"construccion": EntornoExteriorScript.CONSTRUCCION_TODAS,
 }
 ## Nombre de cada casa: "🏠 Casa <letra>" en MAYÚSCULA a partir del id (`casa_a`→A,
 ## `casa_kit_b`→B…) — evita 21 entradas sueltas a mano; el resto del catálogo sí las lleva literales
@@ -87,6 +89,10 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 		&"carretera_recta": "🛣 Recta", &"carretera_curva": "🛣 Curva",
 		&"carretera_cruce": "🛣 Cruce", &"carretera_interseccion_t": "🛣 Cruce en T",
 		&"carretera_paso_cebra": "🛣 Paso de cebra",
+		&"bk_muro": "🧱 Muro", &"bk_muro_esquina": "🧱 Muro esquina", &"bk_ventana": "🪟 Ventana",
+		&"bk_puerta": "🚪 Puerta", &"bk_columna": "🏛 Columna", &"bk_escaleras": "🪜 Escaleras",
+		&"bk_suelo": "▦ Suelo", &"bk_muro_bajo": "🧱 Muro bajo", &"bk_borde": "▭ Borde",
+		&"bk_tuberia": "🔧 Tubería",
 	}
 	for id: StringName in EntornoExteriorScript.CASAS_TODAS:
 		nombres[id] = _nombre_casa(id)
@@ -97,6 +103,7 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 const PIEZAS_PLANAS: Array[StringName] = [
 	&"camino_recinto", &"entrada_casa", &"carretera_recta", &"carretera_curva",
 	&"carretera_cruce", &"carretera_interseccion_t", &"carretera_paso_cebra",
+	&"bk_suelo",
 ]
 
 ## Las 3 "brochas de superficie" + la goma -- pintan/borran celdas con los MISMOS colores planos que
@@ -144,6 +151,12 @@ var _origen: Vector2 = Vector2.ZERO
 var _mundo_profundo: Node2D = null
 
 var _activo: bool = false
+## `true` en cuanto esta instancia ha hecho SU carga automática (la de `_ready()`, ver más abajo) --
+## a partir de ahí `alternar()` NUNCA vuelve a recargar por su cuenta, ni siquiera si `_piezas` y
+## `_superficies` quedan vacíos por un borrado del usuario (ver el fix de `alternar()` con fecha de
+## hoy: comprobar "está vacío" en vez de "ya se autocargó" confundía "sin nada guardado todavía" con
+## "el usuario lo vació a propósito" -- la última pieza borrada resucitaba del disco al reactivar).
+var _autocargado: bool = false
 ## Herramienta en mano: un id de `CATALOGO_PIEZAS`, un id de `SUPERFICIES`, `HERRAMIENTA_BORRAR`, o "".
 var _herramienta: StringName = &""
 var _orientacion: int = 0
@@ -194,6 +207,7 @@ func _ready() -> void:
 	_crear_ui()
 	_crear_preview()
 	cargar_desde_disco(ruta_guardado)
+	_autocargado = true
 	_actualizar_visibilidad()
 
 
@@ -485,7 +499,31 @@ func alternar() -> void:
 		# Editor, no gameplay (mismo criterio que `--pausa`): el reloj no debe correr mientras se
 		# compone el entorno -- nadie quiere que un NPC cruce el recinto mientras colocas una casa.
 		Tiempo.fijar_velocidad(Tiempo.Velocidad.PAUSA)
-		cargar_desde_disco()
+		# 🐛 FIX (playtest 2026-08-08, "los objetos guardados no los puedo modificar ni quitar"):
+		# ANTES esto llamaba `cargar_desde_disco()` sin condición CADA VEZ que se activaba (F12) --
+		# `_ready()` YA autocarga una vez al instanciar (ver más abajo), así que en la primera
+		# activación era redundante e inofensivo, pero si el usuario editaba/borraba piezas y
+		# volvía a pulsar F12 (desactivar/reactivar) SIN guardar (F8) de por medio, esta recarga a
+		# lo bruto pisaba el estado en memoria con lo último guardado en disco -- cualquier borrado o
+		# colocación sin guardar se deshacía en silencio, exactamente el síntoma reportado ("no puedo
+		# quitarlas": las quitaba, pero reaparecían al re-alternar).
+		#
+		# 🐛 SEGUNDO FIX (mismo día, agujero del primero): "solo recarga si _piezas/_superficies están
+		# vacíos" seguía mal -- confundía "vacío porque no se ha cargado nada todavía" con "vacío
+		# porque el usuario ACABA de borrar la última pieza". Si borrabas la única pieza con el modo ya
+		# activo y volvías a pulsar F12 dos veces (desactivar/reactivar), el estado en memoria SÍ está
+		# vacío mereciendamente y esta condición lo trataba como "arranque limpio" -- resucitaba del
+		# disco justo lo que el usuario acababa de borrar (test
+		# `test_alternar_no_descarta_una_pieza_borrada_sin_guardar`). La única autocarga fiable es "una
+		# vez por proceso", nunca "cuando esté vacío": `_autocargado` se pone a `true` en cuanto esta
+		# instancia hace SU carga inicial (normalmente la de `_ready()`, ver más abajo; el chequeo aquí
+		# es solo un cinturón de seguridad por si algún día `alternar()` se llamara antes de que
+		# `_ready()` corra). A partir de ahí el estado en memoria manda siempre, tal como
+		# `guardar_en_disco()`/F8 ya asumía -- "Recargar del disco" sigue siendo la vía explícita para
+		# quien quiera descartar cambios sin guardar a propósito.
+		if not _autocargado:
+			cargar_desde_disco()
+			_autocargado = true
 	else:
 		_fijar_herramienta(&"")
 	_actualizar_visibilidad()

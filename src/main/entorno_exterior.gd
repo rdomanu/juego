@@ -257,6 +257,15 @@ const CARRETERAS_TODAS: Array[StringName] = [
 	&"carretera_recta", &"carretera_curva", &"carretera_cruce", &"carretera_interseccion_t",
 	&"carretera_paso_cebra",
 ]
+## El set inicial del "Building Kit" (Kenney, CC0) -- 2026-08-08, encargo de playtest 3/3: "muros,
+## ventanas, puertas y demás para montar p.ej. la garita". 10 de las 79 piezas del kit (ver la
+## cabecera de `tools/render_entorno_urbano.gd`, bloque "BUILDING KIT", para la calibración de
+## cada una). `bk_suelo` es CASI PLANA -- `ModoDisenadorEntorno.PIEZAS_PLANAS` la trata igual que
+## `camino_recinto`/`entrada_casa`; el resto tiene volumen (van a `_capa_decor`/y-sort).
+const CONSTRUCCION_TODAS: Array[StringName] = [
+	&"bk_muro", &"bk_muro_esquina", &"bk_ventana", &"bk_puerta", &"bk_columna", &"bk_escaleras",
+	&"bk_suelo", &"bk_muro_bajo", &"bk_borde", &"bk_tuberia",
+]
 
 ## Las 4 direcciones cardinales del plano lógico, para recorrer vecinos de una celda.
 const VECINOS_4: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]

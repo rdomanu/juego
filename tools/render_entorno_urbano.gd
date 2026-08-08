@@ -43,6 +43,11 @@ const CARPETA_SUBURBAN := "res://capturas/fuentes/kenney_suburban/Models/GLB for
 ## Kit de carreteras (Kenney, CC0) -- 2026-08-07, doctrina "todo es asset, nada por código": la
 ## calzada/acera de la calle de acceso usan piezas de este kit en vez de rectángulos pintados.
 const CARPETA_ROADS := "res://capturas/fuentes/kenney_roads/Models/GLB format/"
+## Building Kit (Kenney, CC0) -- 2026-08-08, encargo de playtest 3/3: "muros, ventanas, puertas y
+## demás para montar p.ej. la garita" -- primer lote a la paleta del diseñador (prefijo `bk_`, ver
+## `PIEZAS_BUILDING_KIT` más abajo). 79 GLB en el kit completo; este lote es un SET INICIAL de 10
+## piezas (muro recto, muro esquina, ventana, puerta, columna, escaleras, suelo + 3 detalles).
+const CARPETA_BUILDING := "res://capturas/fuentes/kenney_building_kit/Models/GLB format/"
 
 ## Cada pieza: `id` (nombre de salida), `ruta` del `.glb` de origen, y UNA de las dos calibraciones:
 ##  · `altura_objetivo_m` -- para piezas con volumen vertical real (casas, coches, farola, seto,
@@ -293,6 +298,33 @@ const MODELOS: Array[Dictionary] = [
 	{"id": "casa_kit_s", "ruta": CARPETA_SUBURBAN + "building-type-s.glb", "ancho_objetivo_celdas": 4.0},
 	{"id": "casa_kit_t", "ruta": CARPETA_SUBURBAN + "building-type-t.glb", "ancho_objetivo_celdas": 5.0},
 	{"id": "casa_kit_u", "ruta": CARPETA_SUBURBAN + "building-type-u.glb", "ancho_objetivo_celdas": 5.0},
+
+	## ── BUILDING KIT (Kenney, CC0) -- 2026-08-08, encargo de playtest 3/3 ─────────────────────────
+	## SET INICIAL de 10 piezas (de las 79 del kit) para montar estructuras modulares en la paleta
+	## del diseñador (muros/ventanas/puertas/etc. -- p.ej. la garita del control de acceso).
+	## `altura_objetivo_m` = 2,8m para TODA la familia "de muro" (muro/esquina/ventana/puerta/
+	## columna/escaleras) -- MISMO modo que ya usan `valla_baja`/`valla_estandar` (independiente,
+	## sin `factor_de`: el kit "Building Kit" es MODULAR por diseño, todas sus piezas comparten la
+	## MISMA altura real de base en el `.glb` de origen, así que calibrar cada una por su PROPIA
+	## altura bruta al MISMO objetivo de 2,8m ya las deja a la misma escala mundo->px sin necesitar
+	## compartir un factor -- a diferencia del kit "roads", cuyas piezas NO comparten proporción
+	## bruta:contenido, ver la nota `factor_de` más arriba). 2,8m cae en la banda "~2,6-3m" del
+	## encargo -- una planta de altura razonable junto al muñeco de 44px~1,70m.
+	## `bk_suelo` usa `ancho_objetivo_celdas=1.0` (mismo modo/valor que `camino_recinto`/
+	## `entrada_casa`): es una losa CASI PLANA, calibrar por altura daría una silueta minúscula.
+	## Los 3 detalles (`bk_muro_bajo`/`bk_borde`/`bk_tuberia`) llevan su PROPIA altura estimada
+	## (más bajas que un muro completo) -- valores de partida, a confirmar visualmente contra el
+	## muñeco en la captura de la sonda (`tools/_probe_playtest_20260808.gd`).
+	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_columna", "ruta": CARPETA_BUILDING + "column.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_escaleras", "ruta": CARPETA_BUILDING + "stairs-open.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_suelo", "ruta": CARPETA_BUILDING + "floor.glb", "ancho_objetivo_celdas": 1.0},
+	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "altura_objetivo_m": 1.4},
+	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "altura_objetivo_m": 0.8},
+	{"id": "bk_tuberia", "ruta": CARPETA_BUILDING + "detail-pipe.glb", "altura_objetivo_m": 2.0},
 ]
 
 
@@ -301,8 +333,8 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
-	"carretera_paso_cebra",
+	"bk_muro", "bk_muro_esquina", "bk_ventana", "bk_puerta", "bk_columna", "bk_escaleras",
+	"bk_suelo", "bk_muro_bajo", "bk_borde", "bk_tuberia",
 ]
 
 ## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
