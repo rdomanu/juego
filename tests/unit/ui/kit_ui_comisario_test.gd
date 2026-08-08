@@ -43,7 +43,7 @@ func test_tema_trae_las_variantes_que_consume_src_main() -> void:
 	var variantes: Array[StringName] = [
 		KitUIComisarioScript.VARIANTE_PESTANA, KitUIComisarioScript.VARIANTE_TARJETA,
 		KitUIComisarioScript.VARIANTE_BOTON_DEMOLER, KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA,
-		KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA,
+		KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA, KitUIComisarioScript.VARIANTE_BARRA_SUPERIOR,
 	]
 
 	# Act / Assert
@@ -84,6 +84,40 @@ func test_todos_los_iconos_del_catalogo_cargan_textura() -> void:
 func test_icono_desconocido_devuelve_null_sin_reventar() -> void:
 	# Act
 	var textura: Texture2D = KitUIComisarioScript.icono(&"esto_no_existe_en_el_catalogo")
+
+	# Assert
+	assert_object(textura).is_null()
+
+
+# ── Módulos de la barra superior (Fase 2 del HUD, 2026-08-08) ────────────────────────────────────
+
+## Un id conocido de `MODULOS_BARRA_SUPERIOR` devuelve una textura real -- mismo contrato que
+## `icono()`, pero por su propio diccionario (los ids no comparten espacio de nombres).
+func test_modulo_barra_superior_conocido_devuelve_una_textura() -> void:
+	# Act
+	var textura: Texture2D = KitUIComisarioScript.modulo_barra_superior(&"reloj")
+
+	# Assert
+	assert_object(textura).is_not_null()
+	assert_bool(textura is Texture2D).is_true()
+
+
+## Todo el catálogo de módulos carga -- ninguna entrada apunta a un archivo que ya no existe.
+func test_todos_los_modulos_de_la_barra_superior_cargan_textura() -> void:
+	# Arrange
+	var ids: Array = KitUIComisarioScript.MODULOS_BARRA_SUPERIOR.keys()
+
+	# Act / Assert
+	for id: StringName in ids:
+		assert_object(KitUIComisarioScript.modulo_barra_superior(id)).override_failure_message(
+			"Módulo '%s' (%s) no cargó ninguna textura" % [id, KitUIComisarioScript.MODULOS_BARRA_SUPERIOR[id]]
+		).is_not_null()
+
+
+## Un id que NO está en el catálogo de módulos no revienta: `null` en silencio (con warning).
+func test_modulo_barra_superior_desconocido_devuelve_null_sin_reventar() -> void:
+	# Act
+	var textura: Texture2D = KitUIComisarioScript.modulo_barra_superior(&"esto_no_existe")
 
 	# Assert
 	assert_object(textura).is_null()

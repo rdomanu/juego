@@ -64,8 +64,23 @@ const COLOR_INFO := Color(0.58, 0.73, 0.87, 1.0)
 const COLOR_AVISO := Color(0.94, 0.68, 0.30, 1.0)
 const COLOR_CRITICO := Color(0.98, 0.25, 0.28, 1.0)
 
+## Los 4 módulos ilustrados de la barra superior (Fase 2 del HUD, 2026-08-08 -- decisión del usuario
+## "información ARRIBA, herramientas ABAJO"). `barra_superior_fondo.png` es el fondo 9-slice de la
+## variante `VARIANTE_BARRA_SUPERIOR` (arriba); estos 4 son piezas SUELTAS que `main.gd` coloca como
+## `TextureRect` encima, en fila, cada una con sus propios Labels/botones por delante. Mismo criterio
+## que `ICONOS`: el id es la clave que usa el código, el nombre de archivo es detalle de Summer. Ojo:
+## los ids NO comparten espacio de nombres con `ICONOS` -- `&"reloj"` aquí es el módulo GRANDE de la
+## barra (234×98), no el pictograma pequeño `icono_reloj.png`.
+const MODULOS_BARRA_SUPERIOR: Dictionary[StringName, String] = {
+	&"reloj": "barra_superior_modulo_reloj.png",
+	&"velocidad": "barra_superior_modulo_velocidad.png",
+	&"saldo": "barra_superior_modulo_saldo.png",
+	&"objetivo": "barra_superior_modulo_objetivo.png",
+}
+
 static var _tema_cache: Theme = null
 static var _iconos_cache: Dictionary[StringName, Texture2D] = {}
+static var _modulos_barra_cache: Dictionary[StringName, Texture2D] = {}
 
 
 ## El `Theme` del kit, cacheado a nivel de clase (varias pantallas lo comparten: `ModoConstruccion`,
@@ -87,4 +102,18 @@ static func icono(id: StringName) -> Texture2D:
 		return null
 	var textura: Texture2D = load(RUTA_ICONOS + nombre_archivo) as Texture2D
 	_iconos_cache[id] = textura
+	return textura
+
+
+## La textura de un módulo de la barra superior (`MODULOS_BARRA_SUPERIOR`), cacheada -- mismo patrón
+## y mismo contrato que `icono()` (null silencioso + warning con un id desconocido, nunca revienta).
+static func modulo_barra_superior(id: StringName) -> Texture2D:
+	if _modulos_barra_cache.has(id):
+		return _modulos_barra_cache[id]
+	var nombre_archivo: String = MODULOS_BARRA_SUPERIOR.get(id, "")
+	if nombre_archivo == "":
+		push_warning("KitUIComisario.modulo_barra_superior: id desconocido '%s'" % id)
+		return null
+	var textura: Texture2D = load(RUTA_ICONOS + nombre_archivo) as Texture2D
+	_modulos_barra_cache[id] = textura
 	return textura

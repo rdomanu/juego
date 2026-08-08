@@ -56,6 +56,17 @@ const NOMBRES_TURNO: Array[String] = ["Mañana", "Tarde", "Noche"]
 ## Etiquetas de los botones de velocidad, indexadas por el enum `Tiempo.Velocidad` (0..3).
 const NOMBRES_VELOCIDAD: Array[String] = ["⏸ Pausa", "1×", "2×", "3×"]
 
+## Margen izquierdo (px) que reserva cada módulo de la barra superior para NO tapar su propio
+## icono (`KitUIComisario.MODULOS_BARRA_SUPERIOR`) -- a mano por módulo a propósito: cada PNG de
+## Summer tiene el icono a un ancho distinto (medido con `Read` sobre el propio archivo, no a ojo).
+## El resto de la posición del contenido SÍ es por contenedor (`_modulo_barra_superior`), esto es lo
+## único que depende del PÍXEL EXACTO del arte y por eso vive aquí, no en un `MarginContainer` a
+## ciegas. Sin entrada = 12px por defecto (módulo "velocidad": sin icono propio que esquivar, los
+## botones se centran sobre todo el ancho).
+const MARGEN_IZQ_MODULO_BARRA: Dictionary[StringName, int] = {
+	&"reloj": 95, &"saldo": 88, &"objetivo": 88,
+}
+
 ## Economía (Story 007 del epic economia): el primer sistema Core instanciado en el mundo (§3.4).
 const EconomiaScript := preload("res://src/core/economia/economia.gd")
 ## Demanda (Story 007 del epic demanda): el grifo de la comisaría — genera las llegadas.
@@ -104,6 +115,9 @@ const ParedesSalasScript := preload("res://src/main/paredes_salas.gd")
 const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
 ## El cuadro de mandos de calibración (petición del usuario 2026-07-26). Herramienta DEV.
 const PanelAdminScript := preload("res://src/main/panel_admin.gd")
+## El punto único del kit de arte de UI (piloto Summer, 2026-08-07): Fase 2 del HUD (2026-08-08) es
+## la PRIMERA pieza de `main.gd` que lo consume -- ver `_crear_barra_superior`.
+const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
 ## Alto reservado abajo para la barra del HUD (estilo tycoon — petición del usuario 2026-07-24):
 ## el mundo se centra en lo que queda por encima, no en la ventana entera.
 const ALTO_BARRA_HUD: float = 84.0
@@ -122,8 +136,16 @@ const ALTO_BARRA_HUD: float = 84.0
 const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
 const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
 const COLOR_ROJOS := Color(0.95, 0.4, 0.4)
-## Gris tenue del HUD (texto secundario).
+## Gris tenue del HUD (texto secundario) -- pensado para el fondo OSCURO de la barra inferior
+## (blanco a media opacidad = gris sobre negro). NO usar sobre los módulos CLAROS de la barra
+## superior nueva (ver `COLOR_TENUE_HUD_CLARO`, justo abajo): blanco al 65% sobre un fondo pastel
+## claro casi no se ve -- ese fue el bug real que encontró esta story al mover `_lbl_reclamaciones`.
 const COLOR_TENUE_HUD := Color(1, 1, 1, 0.65)
+## Gemelo de `COLOR_TENUE_HUD` para fondos CLAROS (Fase 2 del HUD, 2026-08-08): mismo criterio de
+## "texto secundario atenuado", pero partiendo del marino del kit (`KitUIComisario.COLOR_TEXTO_
+## PRINCIPAL`) en vez de blanco -- sobre los módulos pastel de la barra superior, blanco atenuado
+## se lava; marino atenuado se sigue leyendo.
+const COLOR_TENUE_HUD_CLARO := Color(0.11, 0.2, 0.32, 0.65)
 ## Ids de las opciones del menú del clic derecho.
 const ID_MENU_TITULO := 0
 const ID_MENU_COLAR := 1
@@ -241,6 +263,17 @@ var _modo_disenador_entorno: Node2D = null
 ## paneles `PRESET_BOTTOM_WIDE` y se dibujaban una encima de otra). Solo existe con `--disenador`
 ## conectada (ver `_ready`); en juego normal nadie la toca y el HUD se comporta igual que siempre.
 var _capa_hud: CanvasLayer = null
+## La barra superior nueva (Fase 2 del HUD, 2026-08-08 -- decisión del usuario "información ARRIBA,
+## herramientas ABAJO"): reloj/velocidad/saldo/objetivo con el arte del kit (`_crear_barra_
+## superior`). Capa PROPIA, DELIBERADAMENTE separada de `_capa_hud`: a diferencia del HUD inferior,
+## esta barra NO se oculta con construcción/diseñador activos -- verifica `_al_activar_construccion`
+## / `_al_activar_disenador` (más abajo): las dos solo tocan `_capa_hud`, nunca esta variable. Se
+## añade al árbol SIN `layer` explícita (se queda en la 1 por defecto, igual que `_capa_hud`): el
+## orden real lo da que se crea ANTES que los paneles/modales (Personal, Horario, ODAC, Comisario…),
+## así que esos se siguen dibujando POR ENCIMA cuando se abren -- mismo mecanismo de apilado por
+## orden de inserción que ya usaba `_capa_hud`. Solo la brújula de depuración se sube aparte a la
+## layer 10 (`_crear_brujula_orientacion`) para quedar por encima de TODO a propósito.
+var _capa_barra_superior: CanvasLayer = null
 
 
 ## ── BRÚJULA DE ORIENTACIÓN (herramienta DEV temporal, 2026-08-08) ────────────────────────────────
@@ -350,6 +383,11 @@ func _ready() -> void:
 	_crear_suelo()
 	_instanciar_mundo()
 	_crear_hud()
+	# Barra superior (Fase 2 del HUD, 2026-08-08): capa PROPIA, ANTES que los paneles/modales de más
+	# abajo (para que la sigan tapando al abrirse, mismo criterio que `_capa_hud`). El ORDEN respecto
+	# a `_crear_hud()` no importa hoy (ninguna de las dos lee a la otra), se deja detrás por lectura:
+	# "primero el HUD de siempre, luego lo nuevo".
+	_crear_barra_superior()
 	# Brújula de orientación (herramienta DEV, 2026-08-08): capa propia, independiente del HUD --
 	# ver `BRUJULA_ORIENTACION_VISIBLE` y la cabecera de `BrujulaOrientacion`.
 	_crear_brujula_orientacion()
@@ -1535,9 +1573,12 @@ func _crear_suelo() -> void:
 
 
 # ── HUD provisional (construido por código, como el prototipo validado) ──────────────────────
-## Panel arriba-izquierda: hora grande, fecha "Mes · Semana N — Año A", turno, y 4 botones de velocidad.
-## Barra inferior estilo tycoon (petición del usuario 2026-07-24): toda la info ABAJO en una fila de
-## secciones (reloj · velocidad · finanzas · demanda · personal); el mundo queda despejado arriba.
+## Barra inferior estilo tycoon (petición del usuario 2026-07-24): demanda · personal · flujo ·
+## acciones. Desde la Fase 2 del HUD (2026-08-08, "información ARRIBA, herramientas ABAJO") el
+## reloj/velocidad/saldo/satisfacción se JUBILARON de aquí -- viven en `_crear_barra_superior` con
+## el arte del kit. Lo que queda abajo son los hints de teclas, la demanda/llegadas del día, la
+## plantilla/nómina y la cola/atención en curso, más la botonera de acciones (Personal/Horario/
+## Guardar/Cargar/Paredes) -- eso último se mudará en la fase 3.
 func _crear_hud() -> void:
 	var capa := CanvasLayer.new()
 	capa.name = "HUD"
@@ -1555,49 +1596,6 @@ func _crear_hud() -> void:
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 14)
 	panel.add_child(fila)
-
-	# Sección reloj (fuente única: Tiempo).
-	var caja_reloj := _seccion(fila)
-	_lbl_hora = Label.new()
-	_lbl_hora.add_theme_font_size_override("font_size", 24)
-	caja_reloj.add_child(_lbl_hora)
-	_lbl_fecha = Label.new()
-	_lbl_fecha.add_theme_font_size_override("font_size", 11)
-	caja_reloj.add_child(_lbl_fecha)
-	_lbl_turno = Label.new()
-	_lbl_turno.add_theme_font_size_override("font_size", 11)
-	caja_reloj.add_child(_lbl_turno)
-
-	# Sección velocidad (+ nota de atajos).
-	var caja_velocidad := _seccion(fila)
-	var fila_botones := HBoxContainer.new()
-	fila_botones.add_theme_constant_override("separation", 6)
-	caja_velocidad.add_child(fila_botones)
-	for indice in NOMBRES_VELOCIDAD.size():
-		var boton := Button.new()
-		boton.text = NOMBRES_VELOCIDAD[indice]
-		# Gotcha del prototipo: sin esto, Espacio "pulsa" el botón enfocado en vez de pausar.
-		boton.focus_mode = Control.FOCUS_NONE
-		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(indice as Tiempo.Velocidad))
-		fila_botones.add_child(boton)
-		_botones.append(boton)
-	var nota := Label.new()
-	nota.text = (
-		"Espacio pausa · 1/2/3 velocidad · B construcción · P personal · rueda/± zoom · "
-		+ "Home paredes (HUD provisional)"
-	)
-	nota.add_theme_font_size_override("font_size", 10)
-	nota.modulate = Color(1, 1, 1, 0.55)
-	caja_velocidad.add_child(nota)
-
-	# Bloque financiero (Story 007 del epic economia): saldo + estado, SOLO lectura.
-	var caja_saldo := _seccion(fila)
-	_lbl_saldo = Label.new()
-	_lbl_saldo.add_theme_font_size_override("font_size", 18)
-	caja_saldo.add_child(_lbl_saldo)
-	_lbl_estado_fin = Label.new()
-	_lbl_estado_fin.add_theme_font_size_override("font_size", 11)
-	caja_saldo.add_child(_lbl_estado_fin)
 
 	# Bloque de demanda (story demanda-007): llegadas del día + nivel BAJA/MEDIA/ALTA, SOLO lectura.
 	var caja_demanda := _seccion(fila)
@@ -1639,6 +1637,16 @@ func _crear_hud() -> void:
 	# Acciones del jugador (feedback del usuario 2026-07-26: "no hay panel de guardado, ni de personal
 	# accesible como el de construir"). Todo lo que se puede hacer, VISIBLE y con su tecla al lado.
 	var caja_acciones := _seccion(fila)
+	# Nota de atajos (venía en la sección de velocidad, jubilada a la barra superior en la Fase 2 del
+	# HUD -- 2026-08-08): se queda abajo con el resto de hints, ahora como cabecera de esta sección.
+	var nota := Label.new()
+	nota.text = (
+		"Espacio pausa · 1/2/3 velocidad · B construcción · P personal · rueda/± zoom · "
+		+ "Home paredes (HUD provisional)"
+	)
+	nota.add_theme_font_size_override("font_size", 10)
+	nota.modulate = Color(1, 1, 1, 0.55)
+	caja_acciones.add_child(nota)
 	var botonera := HFlowContainer.new()
 	botonera.add_theme_constant_override("h_separation", 6)
 	botonera.add_theme_constant_override("v_separation", 4)
@@ -1662,17 +1670,6 @@ func _crear_hud() -> void:
 	_lbl_guardado.text = "Partida sin guardar"
 	caja_acciones.add_child(_lbl_guardado)
 
-	# Bloque de satisfacción (story paciencia-008): la media de HOY construyéndose junto al cierre de
-	# AYER (el que fija el dinero de hoy) + las quejas. Con su escala SIEMPRE visible (principio U5
-	# del backlog de pulido: ningún número sin saber respecto a qué).
-	var caja_sat := _seccion(fila)
-	_lbl_satisfaccion = Label.new()
-	_lbl_satisfaccion.add_theme_font_size_override("font_size", 13)
-	caja_sat.add_child(_lbl_satisfaccion)
-	_lbl_reclamaciones = Label.new()
-	_lbl_reclamaciones.add_theme_font_size_override("font_size", 11)
-	caja_sat.add_child(_lbl_reclamaciones)
-
 
 ## Un botón de la barra de acciones (font pequeña, sin foco — gotcha: si no, Espacio lo "pulsa").
 func _boton_accion(texto: String, accion: Callable) -> Button:
@@ -1682,6 +1679,157 @@ func _boton_accion(texto: String, accion: Callable) -> Button:
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.pressed.connect(accion)
 	return boton
+
+
+# ── Barra superior (Fase 2 del HUD, 2026-08-08) ───────────────────────────────────────────────
+## Construye la barra superior con el arte del kit: `Panel` ancho anclado arriba (`KitUIComisario.
+## VARIANTE_BARRA_SUPERIOR`) con 4 módulos ilustrados en fila -- reloj, velocidad, saldo, objetivo
+## (satisfacción/reclamaciones). Capa PROPIA (`_capa_barra_superior`, ver su cabecera): sigue
+## visible con construcción/diseñador activos, a diferencia de `_capa_hud`.
+##
+## Alto del panel (164 px) calculado, NO copiado 1:1 del alto nativo de `barra_superior_fondo.png`
+## (935×185): 185 incluía holgura vertical de sobra en la maqueta original de Summer; aquí es
+## `margen_superior(22) + alto_de_fila(98, el alto nativo de cada módulo) + margen_inferior(44)`
+## -- los 22/44 son los MISMOS px que ya usa `VARIANTE_BARRA_SUPERIOR` como `texture_margin_top`/
+## `_bottom` en el tema (`assets/ui/theme_comisario.tres`), así que el borde no se deforma. Si en
+## captura se ve demasiado alta, el ajuste es un pase de escalado UNIFORME de este número + el
+## `custom_minimum_size` de cada módulo, no un recorte suelto de uno de los dos.
+func _crear_barra_superior() -> void:
+	var capa := CanvasLayer.new()
+	capa.name = "BarraSuperior"
+	add_child(capa)
+	_capa_barra_superior = capa
+
+	var panel := Panel.new()
+	panel.name = "Panel"
+	panel.theme = KitUIComisarioScript.tema()
+	panel.theme_type_variation = KitUIComisarioScript.VARIANTE_BARRA_SUPERIOR
+	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	panel.grow_vertical = Control.GROW_DIRECTION_END
+	panel.custom_minimum_size = Vector2(0, 164)
+	capa.add_child(panel)
+
+	# Mismos 19/22/20/44 que `texture_margin_*` de `sb_barra` en el tema: el contenido no invade el
+	# borde/pie navy pintado por el 9-slice del fondo.
+	var margen := MarginContainer.new()
+	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margen.add_theme_constant_override("margin_left", 19)
+	margen.add_theme_constant_override("margin_top", 22)
+	margen.add_theme_constant_override("margin_right", 20)
+	margen.add_theme_constant_override("margin_bottom", 44)
+	panel.add_child(margen)
+
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 10)
+	margen.add_child(fila)
+
+	# Módulo RELOJ: hora grande + fecha/turno pequeños (mismos datos/formato de siempre --
+	# `_refrescar_etiquetas` no cambia salvo el recorte de `_lbl_fecha`, ver esa función).
+	var mod_reloj := _modulo_barra_superior(fila, &"reloj")
+	var caja_reloj := VBoxContainer.new()
+	caja_reloj.add_theme_constant_override("separation", 0)
+	mod_reloj.add_child(caja_reloj)
+	_lbl_hora = _etiqueta_barra_superior(24)
+	caja_reloj.add_child(_lbl_hora)
+	_lbl_fecha = _etiqueta_barra_superior(11)
+	caja_reloj.add_child(_lbl_fecha)
+	_lbl_turno = _etiqueta_barra_superior(11)
+	caja_reloj.add_child(_lbl_turno)
+
+	# Módulo VELOCIDAD: los mismos botones Pausa/1×/2×/3× de siempre (mismo `_botones`/
+	# `_resaltar_boton`, sin tocar esa lógica), ahora encima del arte del módulo.
+	var mod_velocidad := _modulo_barra_superior(fila, &"velocidad")
+	var fila_botones := HBoxContainer.new()
+	fila_botones.add_theme_constant_override("separation", 4)
+	mod_velocidad.add_child(fila_botones)
+	for indice in NOMBRES_VELOCIDAD.size():
+		var boton := Button.new()
+		boton.text = NOMBRES_VELOCIDAD[indice]
+		boton.add_theme_font_size_override("font_size", 11)
+		# Gotcha del prototipo: sin esto, Espacio "pulsa" el botón enfocado en vez de pausar.
+		boton.focus_mode = Control.FOCUS_NONE
+		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(indice as Tiempo.Velocidad))
+		fila_botones.add_child(boton)
+		_botones.append(boton)
+
+	# Módulo SALDO: saldo + estado financiero (color dinámico por `.modulate`, sin cambios en
+	# `_refrescar_etiquetas` salvo el recorte de `_lbl_estado_fin`, ver esa función).
+	var mod_saldo := _modulo_barra_superior(fila, &"saldo")
+	var caja_saldo := VBoxContainer.new()
+	caja_saldo.add_theme_constant_override("separation", 0)
+	mod_saldo.add_child(caja_saldo)
+	_lbl_saldo = _etiqueta_barra_superior(18)
+	caja_saldo.add_child(_lbl_saldo)
+	_lbl_estado_fin = _etiqueta_barra_superior(11)
+	caja_saldo.add_child(_lbl_estado_fin)
+
+	# Módulo OBJETIVO: satisfacción + reclamaciones (color dinámico, sin cambios en
+	# `_refrescar_etiquetas` salvo el recorte de ambos textos y el "sin graves" por defecto -- ver
+	# `COLOR_TENUE_HUD_CLARO`: `COLOR_TENUE_HUD` era blanco pensado para el fondo OSCURO de abajo).
+	var mod_objetivo := _modulo_barra_superior(fila, &"objetivo")
+	var caja_objetivo := VBoxContainer.new()
+	caja_objetivo.add_theme_constant_override("separation", 0)
+	mod_objetivo.add_child(caja_objetivo)
+	_lbl_satisfaccion = _etiqueta_barra_superior(13)
+	caja_objetivo.add_child(_lbl_satisfaccion)
+	_lbl_reclamaciones = _etiqueta_barra_superior(11)
+	caja_objetivo.add_child(_lbl_reclamaciones)
+
+
+## Un módulo ilustrado de la barra superior: `Control` cuyo alto mínimo lo fija el PNG nativo del
+## módulo (`KitUIComisario.modulo_barra_superior`, sin deformarlo -- `TextureRect.STRETCH_KEEP_
+## CENTERED` nunca escala, solo centra) + un hueco (`CenterContainer`) para que quien llama meta
+## Labels o botones, desplazado a la derecha del icono propio de cada módulo
+## (`MARGEN_IZQ_MODULO_BARRA` -- el único número a mano por módulo, y a propósito: el resto de la
+## posición SÍ es por contenedor). Si el contenido pide más ancho del que trae el PNG (p.ej. un
+## texto largo), el `MarginContainer` raíz CRECE para darle sitio -- el arte se queda centrado a su
+## tamaño real (nunca se estira) y el módulo vecino nunca se tapa, porque `fila` sigue repartiendo
+## por el tamaño mínimo real de cada módulo.
+func _modulo_barra_superior(fila: HBoxContainer, id: StringName) -> CenterContainer:
+	var textura: Texture2D = KitUIComisarioScript.modulo_barra_superior(id)
+
+	var raiz := MarginContainer.new()
+	raiz.name = "Modulo" + String(id).capitalize()
+	raiz.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(raiz)
+
+	var fondo := TextureRect.new()
+	fondo.texture = textura
+	fondo.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	raiz.add_child(fondo)
+
+	var margen := MarginContainer.new()
+	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margen.add_theme_constant_override("margin_left", MARGEN_IZQ_MODULO_BARRA.get(id, 12))
+	margen.add_theme_constant_override("margin_right", 12)
+	margen.add_theme_constant_override("margin_top", 6)
+	margen.add_theme_constant_override("margin_bottom", 6)
+	raiz.add_child(margen)
+
+	var centro := CenterContainer.new()
+	margen.add_child(centro)
+	return centro
+
+
+## Una etiqueta de la barra superior: tamaño de fuente pedido + color marino (`KitUIComisario.
+## COLOR_TEXTO_PRINCIPAL`) + un contorno del MISMO marino (2 px). El contorno es el que garantiza
+## que se siga leyendo pase lo que pase con el color dinámico que le ponga `_refrescar_etiquetas`
+## (`.modulate` tiñe TAMBIÉN el contorno, pero un contorno oscuro modulado por un color de estado
+## sigue siendo mucho más oscuro que el fondo pastel del módulo). Verificado a mano con los píxeles
+## reales de cada PNG (`Read` + muestreo RGB): el ámbar de "justo" (`COLOR_JUSTO`, usado por saldo/
+## satisfacción) sobre el fondo crema del módulo saldo da un contraste de ~1.6:1 SIN contorno --
+## muy por debajo del 4.5:1 de WCAG texto normal; con el contorno el trazo sigue leyéndose con
+## ~13:1 de contraste. Las 3 etiquetas que NUNCA se colorean dinámicamente (hora/fecha/turno) se
+## quedan con el marino base, que ya tiene buen contraste sobre el módulo reloj (azul pálido).
+func _etiqueta_barra_superior(tam: int) -> Label:
+	var etiqueta := Label.new()
+	etiqueta.add_theme_font_size_override("font_size", tam)
+	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	etiqueta.add_theme_color_override("font_outline_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	etiqueta.add_theme_constant_override("outline_size", 2)
+	return etiqueta
 
 
 ## Abre el panel de personal (lo mismo que la tecla P, pero descubrible con el ratón).
@@ -1731,11 +1879,12 @@ func _al_activar_disenador(activo: bool) -> void:
 
 
 ## Gemelo de `_al_activar_disenador` para `ModoConstruccion` (fix del solape 2026-08-08: la barra de
-## construcción, anclada abajo igual que el HUD, lo tapaba). Puente hasta que la fase 2 mueva la
-## información del HUD a la barra superior nueva (decisión del usuario: "información ARRIBA,
-## herramientas ABAJO") — sin combinar con el diseñador de entorno a propósito: son modos que hoy no
-## se solapan en la práctica (uno es --disenador, el otro el juego normal), así que cada señal pisa
-## la visibilidad del HUD de forma independiente, como ya hacía `_al_activar_disenador`.
+## construcción, anclada abajo igual que el HUD, lo tapaba) — sin combinar con el diseñador de
+## entorno a propósito: son modos que hoy no se solapan en la práctica (uno es --disenador, el otro
+## el juego normal), así que cada señal pisa la visibilidad del HUD de forma independiente, como ya
+## hacía `_al_activar_disenador`. Desde la Fase 2 del HUD (mismo día: "información ARRIBA,
+## herramientas ABAJO") esto SOLO afecta a `_capa_hud` (la barra inferior) -- `_capa_barra_superior`
+## es una capa aparte que ninguna de las dos funciones toca, así que sigue visible con estos modos.
 func _al_activar_construccion(activo: bool) -> void:
 	if _capa_hud != null:
 		_capa_hud.visible = not activo
@@ -1792,9 +1941,15 @@ func _seccion(fila: HBoxContainer) -> VBoxContainer:
 
 ## Refresca hora/fecha/turno LEYENDO el reloj (fuente única; jamás se escribe en él) y el saldo
 ## LEYENDO Economía (la UI lee y ordena, nunca muta — ADR-0001).
+##
+## Textos RECORTADOS respecto al HUD provisional (Fase 2, 2026-08-08): `_lbl_fecha`/`_lbl_estado_
+## fin`/`_lbl_satisfaccion`/`_lbl_reclamaciones` ahora viven en un módulo de ~130 px de ancho útil
+## (el módulo entero mide 234-242 px, menos el hueco del icono y los márgenes -- ver `MARGEN_IZQ_
+## MODULO_BARRA`), no en la barra inferior sin límite de ancho de antes. El texto completo que
+## llevaban se conserva en `tooltip_text` para quien pase el ratón por encima.
 func _refrescar_etiquetas() -> void:
 	_lbl_hora.text = Tiempo.hhmm(Tiempo.minutos_juego)
-	_lbl_fecha.text = "Mes %d · Semana %d — Año %d" % [Tiempo.mes, Tiempo.semana, Tiempo.anio]
+	_lbl_fecha.text = "Mes %d · Sem %d · Año %d" % [Tiempo.mes, Tiempo.semana, Tiempo.anio]
 	_lbl_turno.text = "Turno: %s" % NOMBRES_TURNO[Tiempo.turno_de(Tiempo.minutos_juego)]
 	if _economia == null or _lbl_saldo == null:
 		return
@@ -1802,15 +1957,18 @@ func _refrescar_etiquetas() -> void:
 	_lbl_saldo.text = "%.2f €" % saldo
 	if saldo < 0.0:
 		_lbl_saldo.modulate = COLOR_ROJOS
-		_lbl_estado_fin.text = "Estado: NÚMEROS ROJOS (gasto bloqueado)"
+		_lbl_estado_fin.text = "NÚMEROS ROJOS"
+		_lbl_estado_fin.tooltip_text = "Estado: NÚMEROS ROJOS (gasto bloqueado)"
 		_lbl_estado_fin.modulate = COLOR_ROJOS
 	elif saldo < _economia.umbral_holgura_ui:
 		_lbl_saldo.modulate = COLOR_JUSTO
-		_lbl_estado_fin.text = "Estado: justo"
+		_lbl_estado_fin.text = "Justo"
+		_lbl_estado_fin.tooltip_text = "Estado: justo"
 		_lbl_estado_fin.modulate = COLOR_JUSTO
 	else:
 		_lbl_saldo.modulate = COLOR_HOLGADO
-		_lbl_estado_fin.text = "Estado: holgado"
+		_lbl_estado_fin.text = "Holgado"
+		_lbl_estado_fin.tooltip_text = "Estado: holgado"
 		_lbl_estado_fin.modulate = COLOR_HOLGADO
 	if _demanda == null or _lbl_llegadas == null:
 		return
@@ -1873,15 +2031,23 @@ func _refrescar_etiquetas() -> void:
 	# refuerza (verde/ámbar/rojo por los umbrales de ánimo), pero el número manda.
 	var sat_hoy: float = _paciencia.sat_global()
 	var sat_ayer: float = _paciencia.sat_cierre_de(&"Documentacion")
-	_lbl_satisfaccion.text = "Satisfacción: %d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
+	_lbl_satisfaccion.text = "%d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
+	_lbl_satisfaccion.tooltip_text = "Satisfacción: %d/100 (ayer %d)" % [roundi(sat_hoy), roundi(sat_ayer)]
 	_lbl_satisfaccion.modulate = _color_satisfaccion(sat_hoy)
 	var graves: int = _paciencia.reclamaciones_graves_jornada
-	_lbl_reclamaciones.text = "Reclamaciones hoy: %d%s · mes: %d" % [
+	_lbl_reclamaciones.text = "%d hoy%s · %d mes" % [
 		_paciencia.reclamaciones_jornada,
 		(" (%d graves)" % graves) if graves > 0 else "",
 		_paciencia.reclamaciones_mes,
 	]
-	_lbl_reclamaciones.modulate = COLOR_ROJOS if graves > 0 else COLOR_TENUE_HUD
+	_lbl_reclamaciones.tooltip_text = "Reclamaciones hoy: %d%s · mes: %d" % [
+		_paciencia.reclamaciones_jornada,
+		(" (%d graves)" % graves) if graves > 0 else "",
+		_paciencia.reclamaciones_mes,
+	]
+	# `COLOR_TENUE_HUD_CLARO`, NO `COLOR_TENUE_HUD`: este Label vive ahora en el módulo OBJETIVO
+	# (fondo pastel claro), no en la barra inferior oscura -- ver la cabecera de las dos constantes.
+	_lbl_reclamaciones.modulate = COLOR_ROJOS if graves > 0 else COLOR_TENUE_HUD_CLARO
 	# Estado del servicio de Documentación (story doc-002): ABIERTA / CERRANDO / CERRADA — el texto
 	# SIEMPRE dice lo que pasa; el color solo lo refuerza (regla de daltónicos del manifiesto).
 	var hora_cierre: String = Tiempo.hhmm(float(_documentacion.hora_cierre_min))
