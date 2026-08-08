@@ -1960,7 +1960,7 @@ func _crear_ui() -> void:
 	fila_tarjetas_paginada.add_child(_boton_pagina_izq)
 	_scroll_tarjetas = ScrollContainer.new()
 	_scroll_tarjetas.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll_tarjetas.custom_minimum_size = Vector2(0.0, 96.0)
+	_scroll_tarjetas.custom_minimum_size = Vector2(0.0, 124.0)
 	_scroll_tarjetas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila_tarjetas_paginada.add_child(_scroll_tarjetas)
 	_fila_tarjetas = HBoxContainer.new()
@@ -2114,6 +2114,17 @@ func _anadir_herramienta(
 ## formas que usa este mismo botón — y sigue valiendo si el kit cambia de tamaño en disco otra vez.
 const FRACCION_BANDA_INFERIOR: float = 0.22
 
+## Zonas de alto FIJO en píxeles para el camino de TARJETA (84×120, no pestaña -- ver
+## `_construir_boton_con_icono`): sustituyen a `FRACCION_BANDA_INFERIOR` en ese camino porque una
+## proporción del alto total no garantiza píxeles suficientes para una fuente de tamaño fijo (bug
+## "los nombres no se ven" -- `design/ux/spec-tarjetas-2026-08-08.md` §0-A, §1.2). El camino de
+## PESTAÑA (112×74, `_construir_pestana_categoria`) sigue usando `FRACCION_BANDA_INFERIOR` sin
+## cambios -- sus rótulos son cortos y no forman parte de este bug.
+const ALTO_ZONA_ICONO_TARJETA: float = 68.0
+const SEPARACION_ICONO_ROTULO_TARJETA: float = 4.0
+const ALTO_BANDA_ROTULO_TARJETA: float = 32.0
+const TAMANO_MINIMO_ICONO_TARJETA := Vector2(32.0, 32.0)
+
 ## Un botón "en blanco" (sin `text`/`icon` propios de `Button` — ver la nota de la cabecera del
 ## archivo sobre por qué NO se usa `Button.icon`/alineación vertical nativa: la referencia de motor
 ## de esta versión no confirma esa API en 4.6, así que el icono+rótulo se dibuja a mano encima con
@@ -2128,21 +2139,51 @@ const FRACCION_BANDA_INFERIOR: float = 0.22
 ## `icono_id` (pictograma de `KitUIComisario`) cuando ambos llegan — ver la cabecera de
 ## `_anadir_herramienta`.
 func _construir_boton_con_icono(
-	texto: String, icono_id: StringName, variante: StringName, textura_miniatura: Texture2D = null
+	texto: String, icono_id: StringName, variante: StringName, textura_miniatura: Texture2D = null,
+	tamano: Vector2 = Vector2(84.0, 120.0)
 ) -> Button:
 	var boton := Button.new()
 	boton.text = ""
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.toggle_mode = true   # el estado "pressed" del tema ES el arte de "seleccionada/activa"
 	boton.theme_type_variation = variante
-	boton.custom_minimum_size = Vector2(84.0, 84.0)
+	boton.custom_minimum_size = tamano
 	boton.tooltip_text = texto   # nombre completo siempre disponible, aunque el rótulo se recorte
+	# `clip_contents` en el BOTÓN, no solo en `contenido` (diagnóstico 2026-08-08, sonda
+	# `_diag_tarjeta_rects`): con un nombre largo (p.ej. "Oficina de Documentación", 4 líneas
+	# envueltas a 68px de ancho), el `Label.get_combined_minimum_size()` de la etiqueta reporta la
+	# altura de las 4 líneas (57px), NO el suelo de `ALTO_BANDA_ROTULO_TARJETA` (32px) -- ese suelo
+	# es un MÍNIMO, no un TECHO. Ese mínimo mayor se propaga hacia arriba (`contenido` 129px,
+	# `margen` 145px) y, como los anclajes de `margen` solo pueden CRECER para respetar el mínimo de
+	# su hijo (nunca encoger por debajo), `margen` acaba más alto que el propio `boton` (120px) y el
+	# rótulo se dibuja fuera de la tarjeta, sobre el fondo del juego. Sin `clip_contents` aquí no hay
+	# nada que recorte ese desbordamiento -- es el límite REAL de la tarjeta, coincide con el arte.
+	boton.clip_contents = true
+	# Camino de PESTAÑA (112×74) vs camino de TARJETA (84×120): la pestaña sigue con la banda
+	# proporcional de siempre (`FRACCION_BANDA_INFERIOR`), la tarjeta pasa a zonas de alto fijo
+	# (`design/ux/spec-tarjetas-2026-08-08.md` §4) — sus rótulos largos son los del bug reportado.
+	var es_pestana: bool = variante == KitUIComisarioScript.VARIANTE_PESTANA
+
+	# Envuelve el contenido en un margen de 8px (mismo valor que `content_margin_*` de
+	# `sb_tarj_n`/`sb_tarj_h`/`sb_tarj_s`/`sb_tarj_b` en `theme_comisario.tres`) en vez de anclarlo
+	# directo al rect completo del botón — fix de causa raíz §0-B: sin este margen, un hijo expansivo
+	# empuja contra el borde literal del 9-slice en vez de dejar aire.
+	var margen := MarginContainer.new()
+	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margen.add_theme_constant_override("margin_left", 8)
+	margen.add_theme_constant_override("margin_right", 8)
+	margen.add_theme_constant_override("margin_top", 8)
+	margen.add_theme_constant_override("margin_bottom", 8)
+	boton.add_child(margen)
+
 	var contenido := VBoxContainer.new()
 	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	contenido.clip_contents = true   # cinturón de seguridad: nada se dibuja fuera de la tarjeta
-	contenido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	contenido.add_theme_constant_override("separation", 2)
-	boton.add_child(contenido)
+	contenido.add_theme_constant_override(
+		"separation", 2 if es_pestana else int(SEPARACION_ICONO_ROTULO_TARJETA)
+	)
+	margen.add_child(contenido)
 
 	# ZONA CUADRADA superior: icono/miniatura, centrada y con aspecto preservado (nunca deformada).
 	var textura: Texture2D = textura_miniatura
@@ -2153,35 +2194,59 @@ func _construir_boton_con_icono(
 		rect.texture = textura
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		rect.custom_minimum_size = Vector2(24.0, 24.0)
-		rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		rect.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if es_pestana:
+			rect.custom_minimum_size = Vector2(24.0, 24.0)
+			rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			rect.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
+		else:
+			# Zona de alto FIJO (68px, no proporcional): el suelo de 32×32 evita que un icono
+			# pequeño se pierda en una zona más generosa; el alto real de la zona lo fija
+			# `custom_minimum_size.y` + `SIZE_FILL` (no expansivo) para que sean siempre 68px.
+			rect.custom_minimum_size = TAMANO_MINIMO_ICONO_TARJETA
+			rect.custom_minimum_size.y = ALTO_ZONA_ICONO_TARJETA
+			rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rect.size_flags_vertical = Control.SIZE_FILL
 		contenido.add_child(rect)
 	else:
 		# Sin icono ni miniatura (hoy no ocurre — ver la cabecera de `_anadir_herramienta` — pero deja
 		# el rótulo cayendo en la banda de todos modos, no centrado en todo el botón).
 		var hueco := Control.new()
 		hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hueco.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		hueco.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
+		if es_pestana:
+			hueco.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			hueco.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
+		else:
+			hueco.custom_minimum_size = TAMANO_MINIMO_ICONO_TARJETA
+			hueco.custom_minimum_size.y = ALTO_ZONA_ICONO_TARJETA
+			hueco.size_flags_vertical = Control.SIZE_FILL
 		contenido.add_child(hueco)
 
-	# LA BANDA INFERIOR clara del arte: el rótulo, SOLO ahí. `autowrap` OFF + `clip_contents` (no
-	# `TextServer.OVERRUN_TRIM_ELLIPSIS`: no está confirmado en `docs/engine-reference/godot/` para
-	# 4.6 — regla del proyecto de no adivinar API post-cutoff sin verificar, así que el corte es
-	# plano, sin puntos suspensivos) en vez de dejarlo desbordar sobre el icono o fuera de la tarjeta.
+	# LA BANDA INFERIOR clara del arte: el rótulo, SOLO ahí. `autowrap` (WORD_SMART en el camino de
+	# tarjeta, OFF sin cambios en pestaña) + `clip_contents` (no `TextServer.OVERRUN_TRIM_ELLIPSIS`:
+	# no está confirmado en `docs/engine-reference/godot/` para 4.6 — regla del proyecto de no
+	# adivinar API post-cutoff sin verificar, así que el corte es plano, sin puntos suspensivos) en
+	# vez de dejarlo desbordar sobre el icono o fuera de la tarjeta.
 	var etiqueta := Label.new()
 	etiqueta.text = texto
 	etiqueta.add_theme_font_size_override("font_size", 10)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
 	etiqueta.clip_contents = true
-	etiqueta.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	etiqueta.size_flags_stretch_ratio = FRACCION_BANDA_INFERIOR
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if es_pestana:
+		etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
+		etiqueta.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		etiqueta.size_flags_stretch_ratio = FRACCION_BANDA_INFERIOR
+	else:
+		# Banda de alto FIJO (32px, no proporcional -- la causa raíz de "los nombres no se ven").
+		# `TOP`: si el nombre no cabe en 2 líneas, el recorte se come SIEMPRE la parte de abajo,
+		# nunca un semi-carácter arriba y otro abajo como pasaría centrado.
+		etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		etiqueta.custom_minimum_size.y = ALTO_BANDA_ROTULO_TARJETA
+		etiqueta.size_flags_vertical = Control.SIZE_FILL
 	contenido.add_child(etiqueta)
 	return boton
 
@@ -2189,8 +2254,9 @@ func _construir_boton_con_icono(
 ## El botón de una PESTAÑA de categoría (no es una `_herramienta`: cambia qué tarjetas se ven).
 func _construir_pestana_categoria(id: StringName, nombre: String) -> Button:
 	var icono_id: StringName = KitUIComisarioScript.ICONO_POR_CATEGORIA.get(id, &"")
-	var boton := _construir_boton_con_icono(nombre, icono_id, KitUIComisarioScript.VARIANTE_PESTANA)
-	boton.custom_minimum_size = Vector2(112.0, 74.0)
+	var boton := _construir_boton_con_icono(
+		nombre, icono_id, KitUIComisarioScript.VARIANTE_PESTANA, null, Vector2(112.0, 74.0)
+	)
 	boton.pressed.connect(func() -> void: _mostrar_categoria(id))
 	_pestanas_categoria[id] = boton
 	return boton

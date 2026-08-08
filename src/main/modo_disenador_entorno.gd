@@ -133,7 +133,11 @@ const COLOR_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, 0.5)
 ## Sube 260->340 (2026-08-08): la fila de PESTAÑAS nueva (ver `CATEGORIAS`) se suma por ENCIMA de la
 ## fila de tarjetas de siempre -- con 21 casas en la pestaña más grande, `HFlowContainer` envuelve a
 ## 2 filas dentro del ancho típico de la ventana, así que la barra necesita ese hueco extra.
-const ALTO_BARRA: float = 340.0
+## Sube 340->352 (2026-08-08, spec `design/ux/spec-tarjetas-2026-08-08.md` §2.1): las tarjetas
+## crecen de 48 a 56px de alto para respetar el margen de 8px (fix de causa raíz §0-B) -- con 3
+## filas de 56px + separación, el peor caso ("🏠 Casas", 21 ids) necesita 184px de presupuesto para
+## la rejilla; +12px de barra cubre esa diferencia.
+const ALTO_BARRA: float = 352.0
 
 var _tam_celda: int = 40
 var _origen: Vector2 = Vector2.ZERO
@@ -644,14 +648,24 @@ func _crear_ui() -> void:
 ## "una imagen del objeto a elegir con el diseño que tiene... por ejemplo las diferentes casas").
 ## Es un SUELO (`custom_minimum_size`), no el tamaño final: `STRETCH_KEEP_ASPECT_CENTERED` la
 ## encoge/agranda con aspecto dentro de lo que le asigne el `HBoxContainer` — nunca deforma la pieza.
-const TAMANO_MINIATURA_PALETA := Vector2(40.0, 40.0)
+## Baja 40->36 (2026-08-08, spec `design/ux/spec-tarjetas-2026-08-08.md` §2.1): con la tarjeta a
+## 128×56 y el margen de 8px ahora respetado (fix de causa raíz §0-B), 36px deja sitio de sobra al
+## rótulo sin que la miniatura se salga de su columna.
+const TAMANO_MINIATURA_PALETA := Vector2(36.0, 36.0)
+
+## Tamaño de la tarjeta de la paleta (icono + rótulo, o solo texto) — spec
+## `design/ux/spec-tarjetas-2026-08-08.md` §2.1: 128×56, ancho +16px (2×8px del margen de contenido
+## que el fix de §0-B empieza a respetar) y alto +8px (mismo margen, dirección vertical).
+const TAMANO_TARJETA_PALETA := Vector2(128.0, 56.0)
 
 ## Botón de la paleta (pieza/superficie/goma): piel `TarjetaObjeto` del kit (2026-08-07, remate del
 ## reskin) con `toggle_mode` porque el estado "pressed" del tema ES el arte de "herramienta en mano"
 ## (contrato documentado en la cabecera de `KitUIComisario` -- ver `_fijar_herramienta`, la ÚNICA
-## fuente de verdad de qué botón queda marcado). Tamaño mínimo ~48px de alto (petición del usuario:
-## "me cuesta seleccionar las cosas") -- antes el botón se ajustaba solo al ancho del texto, una zona
-## de clic tan fina como una línea de letra.
+## fuente de verdad de qué botón queda marcado). Tamaño mínimo 56px de alto (petición del usuario:
+## "me cuesta seleccionar las cosas"; subido de 48 a 56 el 2026-08-08, spec
+## `design/ux/spec-tarjetas-2026-08-08.md` §2.1, para respetar el margen de 8px de contenido) --
+## antes el botón se ajustaba solo al ancho del texto, una zona de clic tan fina como una línea de
+## letra.
 ##
 ## MINIATURA DEL SPRITE REAL (2026-08-08): solo las PIEZAS de `CATALOGO_PIEZAS` (casas, vallas,
 ## árboles, coches...) tienen arte propio que enseñar -- las brochas de `SUPERFICIES` y
@@ -665,7 +679,7 @@ func _boton_herramienta(id: StringName, texto: String) -> Button:
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.toggle_mode = true
 	boton.theme_type_variation = KitUIComisarioScript.VARIANTE_TARJETA
-	boton.custom_minimum_size = Vector2(112.0, 48.0)
+	boton.custom_minimum_size = TAMANO_TARJETA_PALETA
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id))
 	_botones[id] = boton
 	var textura: Texture2D = null
@@ -675,24 +689,43 @@ func _boton_herramienta(id: StringName, texto: String) -> Button:
 		# Sin arte (superficies/goma, o una pieza a la que le falte el PNG -- fallback honesto): el
 		# botón de texto de siempre. El texto desbordaba la tarjeta (auditoría 2026-08-08):
 		# `TarjetaObjeto` tiene un `content_margin` pequeño y fijo (ver `theme_comisario.tres`), pero
-		# un rótulo largo aun así puede no caber en 112px de ancho. `clip_text` corta en el borde en
-		# vez de derramarse fuera del botón. `TextServer.OVERRUN_TRIM_ELLIPSIS` daría un corte más
-		# elegante ("Sillón...") pero no está confirmado en `docs/engine-reference/godot/` para 4.6 --
-		# por la regla del proyecto (no adivinar API post-cutoff sin verificar) nos quedamos solo con
-		# `clip_text`.
+		# un rótulo largo aun así puede no caber en el ancho de la tarjeta. `clip_text` corta en el
+		# borde en vez de derramarse fuera del botón. `TextServer.OVERRUN_TRIM_ELLIPSIS` daría un
+		# corte más elegante ("Sillón...") pero no está confirmado en `docs/engine-reference/godot/`
+		# para 4.6 -- por la regla del proyecto (no adivinar API post-cutoff sin verificar) nos
+		# quedamos solo con `clip_text`. Mismo `custom_minimum_size` que el camino con sprite (arriba)
+		# para que la rejilla quede uniforme (spec `design/ux/spec-tarjetas-2026-08-08.md` §2.1).
 		boton.text = texto
 		boton.clip_text = true
 		boton.add_theme_font_size_override("font_size", 11)
 		return boton
 	boton.text = ""
 	boton.tooltip_text = texto   # nombre completo siempre disponible, aunque el rótulo se recorte
+	# `clip_contents` en el BOTÓN, no solo en `contenido` (diagnóstico 2026-08-08, sonda
+	# `_diag_tarjeta_rects` de `ModoConstruccion`, mismo patrón aquí): con un nombre largo, el
+	# `Label.get_combined_minimum_size()` de la etiqueta reporta la altura de TODAS las líneas
+	# envueltas, no el suelo fijo de la banda -- ese suelo es un MÍNIMO, no un TECHO. El mínimo mayor
+	# se propaga hacia `contenido` y `margen`, que crecen más allá del alto real del botón (56px) sin
+	# nada que los recorte. Sin `clip_contents` aquí, el rótulo se dibuja fuera de la tarjeta.
+	boton.clip_contents = true
+	# Envuelve el contenido en un margen de 8px (mismo valor que `content_margin_*` de
+	# `sb_tarj_n`/`sb_tarj_h`/`sb_tarj_s`/`sb_tarj_b` en `theme_comisario.tres`) en vez de anclarlo
+	# directo al rect completo del botón -- fix de causa raíz §0-B: era el `PRESET_FULL_RECT` sin
+	# margen + rótulo expansivo lo que empujaba la miniatura contra el borde izquierdo literal.
+	var margen := MarginContainer.new()
+	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margen.add_theme_constant_override("margin_left", 8)
+	margen.add_theme_constant_override("margin_right", 8)
+	margen.add_theme_constant_override("margin_top", 8)
+	margen.add_theme_constant_override("margin_bottom", 8)
+	boton.add_child(margen)
 	var contenido := HBoxContainer.new()
 	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	contenido.clip_contents = true   # cinturón de seguridad: nada se dibuja fuera de la tarjeta
-	contenido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	contenido.alignment = BoxContainer.ALIGNMENT_CENTER
 	contenido.add_theme_constant_override("separation", 6)
-	boton.add_child(contenido)
+	margen.add_child(contenido)
 	var rect := TextureRect.new()
 	rect.texture = textura
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -703,7 +736,8 @@ func _boton_herramienta(id: StringName, texto: String) -> Button:
 	var etiqueta := Label.new()
 	etiqueta.text = texto
 	etiqueta.add_theme_font_size_override("font_size", 10)
-	etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	etiqueta.clip_contents = true
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	etiqueta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
