@@ -76,3 +76,11 @@ ESPAÑOL llano con orden y detalle (MEMORY.md — leerla). NUNCA ofrecer parar. 
   5 FAILURES: TODAS en tests/unit/ui/kit_ui_comisario_test.gd (el test del lote UI está roto
   o el tema no carga como espera — ARREGLAR ANTES de commitear el lote UI). Capturas de escala
   en el scratchpad de la sesión vieja: escala_composicion.png / escala_barrio_general.png.
+- ⚠️ CORRECCIÓN URGENTE (el usuario cazó el fallo, mi auditoría lo dejó pasar): las CASAS
+  re-escaladas están DEFORMADAS — el agente usó escala NO UNIFORME (factor X del ancho +
+  factor Y recortado para "cuadrar la altura") y quedan achatadas/alargadas. PROHIBIDO
+  deformar (ley de módulos). REHACER: escala UNIFORME calibrada por ancho de parcela
+  (6/7/8 celdas) y la altura QUE SALGA — se juzga A OJO con composición (casa+coche+muñeco+
+  comisaría), no contra un número de metros; si algún tipo de casa queda desproporcionado con
+  escala uniforme, se cambia el MODELO por otro tipo del kit, no se deforma. Re-verificar
+  después el scatter y los tests que se adaptaron.
