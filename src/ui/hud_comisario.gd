@@ -361,12 +361,13 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 			boton.add_theme_font_size_override("font_size", 14)
 			boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
 		else:
-			boton.text = "3×"
+			# Mismo estilo plano que sus 3 hermanos (fix 2026-08-08: "el 3x no tiene icono" — era
+			# una pildora de texto distinta y desentonaba).
+			boton.text = "▶▶▶"
 			boton.tooltip_text = "3×"
-			boton.theme = KitUIComisarioScript.tema()
-			boton.theme_type_variation = KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA
-			boton.add_theme_font_size_override("font_size", 11)
-			boton.custom_minimum_size = Vector2(28, 28)
+			boton.flat = true
+			boton.add_theme_font_size_override("font_size", 14)
+			boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
 		# Captura por valor (mismo patrón ya probado en el HUD viejo, `Main._crear_barra_superior`):
 		# cada iteración cierra sobre SU PROPIO `i`, no el último del bucle.
 		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(i as Tiempo.Velocidad))
@@ -377,7 +378,9 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 		pip.add_theme_font_size_override("font_size", 8)
 		pip.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
 		pip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pip.visible = false
+		# SIEMPRE visible con alfa (fix 2026-08-08: "al pulsar se cambia de posicion" — el toggle de
+		# visible reflowaba la fila); activo = opaco, inactivo = transparente. Mismo hueco siempre.
+		pip.modulate = Color(1, 1, 1, 0.0)
 		caja_v.add_child(pip)
 
 		fila_botones.add_child(caja_v)
@@ -642,7 +645,7 @@ func _refrescar_reloj() -> void:
 func _refrescar_velocidad() -> void:
 	var indice: int = Tiempo.velocidad_actual
 	for i in _pips_velocidad.size():
-		_pips_velocidad[i].visible = (i == indice)
+		_pips_velocidad[i].modulate.a = 1.0 if i == indice else 0.0
 	if _boton_3x != null:
 		_boton_3x.theme_type_variation = (
 			KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA if indice == 3
