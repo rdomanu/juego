@@ -375,3 +375,28 @@ for i, (name, im) in enumerate(results):
 
 sheet.save(os.path.join(CONTROL, "contact_sheet_kit_ui.png"))
 print("Contact sheet:", os.path.join(CONTROL, "contact_sheet_kit_ui.png"))
+
+
+# ── 8) REESCALADO FINAL DE LAS PIEZAS DE BOTON (2026-08-08, fix del "achatado") ────────────
+# Los margenes de un StyleBoxTexture son PIXELES DE TEXTURA dibujados 1:1 en el boton: con
+# arte de ~250px y botones de 84px las esquinas se comian el boton entero y el centro salia
+# aplastado (visto en el playtest del usuario). Se reescala cada familia de piezas de BOTON
+# a ~1.2x su tamano de render (nitido y con margenes pequenos); un solo factor UNIFORME por
+# familia para que los 4 estados de cada boton casen entre si (ley: nada de escala no
+# uniforme ni factores distintos por estado). Los margenes del theme se dividen igual.
+# Piezas grandes (toasts, ventana_marco, barra_superior) NO se tocan: se usan a tamano grande.
+FACTOR_BOTON = {
+    "pestana_normal.png": 0.42, "pestana_hover.png": 0.42,
+    "pestana_activa.png": 0.42, "pestana_bloqueada.png": 0.42,
+    "tarjeta_normal.png": 0.43, "tarjeta_hover.png": 0.43,
+    "tarjeta_seleccionada.png": 0.43, "tarjeta_bloqueada.png": 0.43,
+    "boton_demoler_normal.png": 0.25, "boton_demoler_pulsado.png": 0.25,
+    "boton_pildora_primario_normal.png": 0.5, "boton_pildora_primario_hover.png": 0.5,
+    "boton_pildora_secundario_normal.png": 0.5, "boton_pildora_secundario_hover.png": 0.5,
+}
+for nombre, factor in FACTOR_BOTON.items():
+    ruta = os.path.join(OUT, nombre)
+    im = Image.open(ruta).convert("RGBA")
+    nuevo = im.resize((max(1, round(im.width * factor)), max(1, round(im.height * factor))), Image.LANCZOS)
+    nuevo.save(ruta)
+    print("reescalada %s: %dx%d -> %dx%d (x%.2f)" % (nombre, im.width, im.height, nuevo.width, nuevo.height, factor))
