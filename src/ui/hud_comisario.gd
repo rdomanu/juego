@@ -99,7 +99,7 @@ const ALTO_PANEL_SUPERIOR: float = 22.0 + ALTO_MODULO + 44.0
 ## `sb_mod_vel` en el tema (los 3 círculos ocupan casi todo el ancho, compresión uniforme al 24%).
 const ANCHO_MODULO_RELOJ: float = 150.0
 const ANCHO_MODULO_VELOCIDAD: float = 135.0
-const ANCHO_MODULO_SALDO: float = 145.0
+const ANCHO_MODULO_SALDO: float = 165.0   # 145 recortaba '3000.00' (fix 2026-08-08)
 ## Margen izquierdo (px) que cada módulo 9-slice reserva para no tapar su propio icono — el mismo
 ## valor que ya protege `texture_margin_left` del StyleBoxTexture del tema (ver `theme_comisario.
 ## tres`, `sb_mod_reloj`/`sb_mod_saldo`): PINTADO EN LOS DOS SITIOS a propósito (uno mueve el
@@ -576,9 +576,7 @@ func _boton_pildora(
 	boton.theme = KitUIComisarioScript.tema()
 	boton.theme_type_variation = variante
 	boton.focus_mode = Control.FOCUS_NONE
-	# Ancho MINIMO por pildora (fix 2026-08-08, captura: el texto se recortaba sin el) -- la spec
-	# S2.2 da 105-150px por pildora; 130 generico cubre el rotulo mas largo con la fuente 12.
-	boton.custom_minimum_size = Vector2(130, 40)
+	boton.custom_minimum_size = Vector2(0, 40)   # el ancho real se fija al final con el texto medido
 
 	var margen := MarginContainer.new()
 	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -606,12 +604,16 @@ func _boton_pildora(
 
 	var etiqueta := Label.new()
 	etiqueta.text = texto
-	etiqueta.add_theme_font_size_override("font_size", 12)
+	etiqueta.add_theme_font_size_override("font_size", 11)
 	etiqueta.add_theme_color_override("font_color", color_texto)
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fila.add_child(etiqueta)
 
 	boton.set_meta(&"etiqueta_pildora", etiqueta)
+	# Un Button NO se dimensiona por hijos arbitrarios (el MarginContainer interno no cuenta para su
+	# minimo): sin esto las pildoras colapsaban al minimo del 9-slice y el contenido se solapaba.
+	# 58 = margenes internos (12+12) + icono 18 + separacion 6 + aire del 9-slice.
+	boton.custom_minimum_size.x = 58.0 + etiqueta.get_minimum_size().x
 	return boton
 
 

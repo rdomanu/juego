@@ -321,8 +321,9 @@ func _crear_brujula_orientacion() -> void:
 	brujula.anchor_bottom = 0.0
 	brujula.offset_left = -(BrujulaOrientacion.LADO + 12.0)
 	brujula.offset_right = -12.0
-	brujula.offset_top = 12.0
-	brujula.offset_bottom = BrujulaOrientacion.LADO + 12.0
+	# Debajo de la barra superior del HUD (164px) -- antes solapaba su extremo derecho (fix 2026-08-08).
+	brujula.offset_top = 172.0
+	brujula.offset_bottom = BrujulaOrientacion.LADO + 172.0
 	capa.add_child(brujula)
 
 
