@@ -99,7 +99,10 @@ const ALTO_PANEL_SUPERIOR: float = 22.0 + ALTO_MODULO + 44.0
 ## `sb_mod_vel` en el tema (los 3 círculos ocupan casi todo el ancho, compresión uniforme al 24%).
 const ANCHO_MODULO_RELOJ: float = 150.0
 const ANCHO_MODULO_VELOCIDAD: float = 135.0
-const ANCHO_MODULO_SALDO: float = 165.0   # 145 recortaba '3000.00' (fix 2026-08-08)
+## 179: con el formato de la spec ("3.000 €", `_formato_euros`) el texto cabía en 165 pero el "€"
+## quedaba ROZANDO el bisel dorado de la placa (auditoría 2026-08-09) — 14px más de aire a la
+## derecha. Histórico: 145 recortaba "3000.00" (fix 2026-08-08, formato viejo con decimales).
+const ANCHO_MODULO_SALDO: float = 179.0
 ## Margen izquierdo (px) que cada módulo 9-slice reserva para no tapar su propio icono — el mismo
 ## valor que ya protege `texture_margin_left` del StyleBoxTexture del tema (ver `theme_comisario.
 ## tres`, `sb_mod_reloj`/`sb_mod_saldo`): PINTADO EN LOS DOS SITIOS a propósito (uno mueve el
@@ -343,31 +346,34 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 	var contenido := CenterContainer.new()
 	margen_v.add_child(contenido)
 	var fila_botones := HBoxContainer.new()
-	fila_botones.add_theme_constant_override("separation", 3)
+	# 10px entre glifos: los botones ya no llevan relleno propio (styleboxes vacíos, ver abajo),
+	# así que esta separación es TODO el aire que hay entre ellos.
+	fila_botones.add_theme_constant_override("separation", 10)
 	contenido.add_child(fila_botones)
 
-	const GLIFOS := ["⏸", "▶", "▶▶"]
-	const TOOLTIPS := ["Pausa", "1×", "2×"]
+	# "II" tipográfico y no "⏸" (fix 2026-08-09, auditoría de captura): el glifo ⏸ cae en la fuente
+	# de EMOJIS del sistema (cuadrado azul de color, ignora `font_color`) mientras ▶ se queda en
+	# presentación de texto navy — un botón con chip azul y tres glifos planos no son una familia.
+	const GLIFOS := ["II", "▶", "▶▶", "▶▶▶"]
+	const TOOLTIPS := ["Pausa", "1×", "2×", "3×"]
 	for i in 4:
 		var caja_v := VBoxContainer.new()
 		caja_v.add_theme_constant_override("separation", 1)
 		caja_v.alignment = BoxContainer.ALIGNMENT_CENTER
 		var boton := Button.new()
 		boton.focus_mode = Control.FOCUS_NONE   # gotcha ya conocido: si no, Espacio lo "pulsa".
-		if i < 3:
-			boton.text = GLIFOS[i]
-			boton.tooltip_text = TOOLTIPS[i]
-			boton.flat = true
-			boton.add_theme_font_size_override("font_size", 14)
-			boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-		else:
-			# Mismo estilo plano que sus 3 hermanos (fix 2026-08-08: "el 3x no tiene icono" — era
-			# una pildora de texto distinta y desentonaba).
-			boton.text = "▶▶▶"
-			boton.tooltip_text = "3×"
-			boton.flat = true
-			boton.add_theme_font_size_override("font_size", 14)
-			boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+		boton.text = GLIFOS[i]
+		boton.tooltip_text = TOOLTIPS[i]
+		boton.flat = true
+		boton.add_theme_font_size_override("font_size", 14)
+		boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+		# Sin las content margins del Button del tema (fix 2026-08-09, misma auditoría): `flat`
+		# esconde el DIBUJO del stylebox pero no sus márgenes — cada botón arrastraba ~16px de
+		# relleno y la fila respiraba desigual (el hueco ▶▶↔▶▶▶ parecía un agujero). Con el
+		# stylebox vacío el ancho es el del glifo y la separación del HBox manda de verdad.
+		for estado: String in ["normal", "hover", "pressed", "disabled", "focus"]:
+			boton.add_theme_stylebox_override(estado, StyleBoxEmpty.new())
+		boton.add_theme_color_override("font_hover_color", KitUIComisarioScript.COLOR_ACENTO_NAVY)
 		# Captura por valor (mismo patrón ya probado en el HUD viejo, `Main._crear_barra_superior`):
 		# cada iteración cierra sobre SU PROPIO `i`, no el último del bucle.
 		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(i as Tiempo.Velocidad))
@@ -375,7 +381,8 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 
 		var pip := Label.new()
 		pip.text = "▾"
-		pip.add_theme_font_size_override("font_size", 8)
+		# 10px y no 8 (auditoría 2026-08-09): a 8px el triángulo era una mota que parecía suciedad.
+		pip.add_theme_font_size_override("font_size", 10)
 		pip.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
 		pip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		# SIEMPRE visible con alfa (fix 2026-08-08: "al pulsar se cambia de posicion" — el toggle de
@@ -388,6 +395,19 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 		_pips_velocidad.append(pip)
 		if i == 3:
 			_boton_3x = boton
+
+
+## Formato de saldo de la spec §1.3-[3] ("1.240 €"): miles con punto y SIN decimales — los céntimos
+## no aportan en un tycoon y "3000.00 €" desbordaba la placa por la derecha (auditoría 2026-08-09).
+func _formato_euros(saldo: float) -> String:
+	var negativo: bool = saldo < 0.0
+	var texto: String = str(absi(roundi(saldo)))
+	var con_miles: String = ""
+	while texto.length() > 3:
+		con_miles = "." + texto.substr(texto.length() - 3) + con_miles
+		texto = texto.substr(0, texto.length() - 3)
+	con_miles = texto + con_miles
+	return ("-" if negativo else "") + con_miles + " €"
 
 
 func _construir_modulo_saldo(fila: HBoxContainer) -> void:
@@ -659,7 +679,7 @@ func _refrescar_saldo() -> void:
 	if _economia == null:
 		return
 	var saldo: float = _economia.saldo_eur
-	_lbl_saldo.text = "%.2f €" % saldo
+	_lbl_saldo.text = _formato_euros(saldo)
 	if saldo < 0.0:
 		_lbl_saldo.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
 		_lbl_saldo.add_theme_constant_override("outline_size", 1)   # refuerzo WCAG, spec §1.3-[3]
