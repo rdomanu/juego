@@ -41,12 +41,12 @@ func test_construye_los_7_grupos_de_la_franja_superior() -> void:
 	assert_object(hud._lbl_doc_atendiendo).is_not_null()
 
 
-## Las 5 píldoras de la franja de acciones nacen en el orden del wireframe (spec §6): Personal,
-## Horario, Guardar, Cargar, Paredes.
-func test_franja_de_acciones_tiene_las_5_pildoras_en_orden() -> void:
+## Las 6 píldoras de la franja de acciones nacen en el orden del wireframe (spec §6 + opción A del
+## veredicto 2026-08-09): Construir, Personal, Horario, Guardar, Cargar, Paredes.
+func test_franja_de_acciones_tiene_las_6_pildoras_en_orden() -> void:
 	var hud := _hud()
 
-	assert_int(hud._botones_acciones.size()).is_equal(5)
+	assert_int(hud._botones_acciones.size()).is_equal(6)
 	for boton: Button in hud._botones_acciones:
 		assert_object(boton).is_not_null()
 	assert_object(hud._lbl_aviso).is_not_null()
@@ -58,9 +58,10 @@ func test_franja_de_acciones_tiene_las_5_pildoras_en_orden() -> void:
 ## Cada píldora emite SU señal -- `Main` las reconecta a los callbacks existentes
 ## (`_abrir_personal`/`_abrir_horario`/`_guardar_partida`/`_cargar_partida`/
 ## `_alternar_modo_paredes`), pero esta clase no debe ejecutar nada por sí misma (ADR-0001).
-func test_las_5_pildoras_emiten_su_senal_al_pulsarlas() -> void:
+func test_las_6_pildoras_emiten_su_senal_al_pulsarlas() -> void:
 	var hud := _hud()
 	var recibidas: Array[StringName] = []
+	hud.construccion_solicitada.connect(func() -> void: recibidas.append(&"construccion"))
 	hud.personal_solicitado.connect(func() -> void: recibidas.append(&"personal"))
 	hud.horario_solicitado.connect(func() -> void: recibidas.append(&"horario"))
 	hud.guardar_solicitado.connect(func() -> void: recibidas.append(&"guardar"))
@@ -71,7 +72,8 @@ func test_las_5_pildoras_emiten_su_senal_al_pulsarlas() -> void:
 		boton.pressed.emit()
 
 	assert_array(recibidas).is_equal(
-		[&"personal", &"horario", &"guardar", &"cargar", &"paredes"] as Array[StringName]
+		[&"construccion", &"personal", &"horario", &"guardar", &"cargar", &"paredes"]
+		as Array[StringName]
 	)
 
 

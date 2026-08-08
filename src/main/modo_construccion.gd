@@ -33,8 +33,6 @@ const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 const ALFA_FANTASMA_SPRITE: float = 0.55
 const TINTE_FANTASMA_VALIDO := Color(0.78, 1.0, 0.82, ALFA_FANTASMA_SPRITE)
 const TINTE_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, ALFA_FANTASMA_SPRITE)
-## Hueco reservado para la barra de info de Main (abajo del todo): esta barra se apoya ENCIMA.
-const HUECO_BARRA_INFO := 84.0
 ## Grosor del resalte de ARISTA del pincel de muro (2026-07-30): más fino que la caja de una celda
 ## entera — así el jugador ve claramente que apunta a un LADO, no a la celda completa.
 const GROSOR_PREVIEW_MURO := 10.0
@@ -195,6 +193,10 @@ var _casilla_con_paredes: CheckBox
 var _lbl_categoria_vacia: Label
 var _lbl_estado: Label
 var _boton_modo: Button
+## El PanelContainer raíz de la barra: SOLO visible con el modo activo (opción A del veredicto
+## 2026-08-09 — la franja colapsada gris desapareció; abrir/cerrar vive en la píldora
+## "Construir (B)" de la fila de acciones del HUD, además de la tecla B de siempre).
+var _panel_raiz: PanelContainer
 ## Los botones de HERRAMIENTA de verdad (tarjetas + Demoler) — id → `Button`. Las 5 PESTAÑAS de
 ## categoría NO viven aquí (no son una `_herramienta`, cambian qué tarjetas se ven): esas están en
 ## `_pestanas_categoria`.
@@ -1936,24 +1938,36 @@ func _crear_ui() -> void:
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	# Gotcha de anclas (el bug del "menú invisible"): anclada abajo, la barra debe CRECER HACIA
-	# ARRIBA; sin esto se dibuja POR DEBAJO del borde de la pantalla. Y se apoya sobre la barra de
-	# info de Main (hueco fijo — andamio; la UI real de /ux-design lo hará bien).
+	# ARRIBA; sin esto se dibuja POR DEBAJO del borde de la pantalla. Se apoya en el borde REAL de
+	# la pantalla (2026-08-09, opción A): cuando esta barra está abierta la fila de acciones del
+	# HUD se oculta (`_al_activar_construccion`), así que reservarle hueco solo dejaba una franja
+	# de mundo colándose por debajo.
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_top = -HUECO_BARRA_INFO
-	panel.offset_bottom = -HUECO_BARRA_INFO
+	panel.offset_top = 0.0
+	panel.offset_bottom = 0.0
 	# El TEMA del kit (2026-08-07): se aplica al PANEL, no a cada botón suelto — así hereda el
 	# `default_font`/`default_font_size` (Kenney Future) TODO lo que cuelgue de aquí sin tocarlo
 	# nodo a nodo. Las piezas con arte propio (pestañas/tarjetas/demoler) piden ADEMÁS su
 	# `theme_type_variation` explícita (ver `_construir_pestana_categoria`/`_construir_tarjeta`).
 	panel.theme = KitUIComisarioScript.tema()
+	# Mismo relleno plano deliberado que la fila de acciones del HUD (opción A del veredicto
+	# 2026-08-09, ver `KitUIComisario.COLOR_FONDO_BARRA_INFERIOR`): cosidas sin costura, y fuera
+	# el gris por defecto del motor.
+	var estilo_fondo := StyleBoxFlat.new()
+	estilo_fondo.bg_color = KitUIComisarioScript.COLOR_FONDO_BARRA_INFERIOR
+	panel.add_theme_stylebox_override("panel", estilo_fondo)
 	capa.add_child(panel)
+	_panel_raiz = panel
+	_panel_raiz.visible = false   # colapsado = invisible; lo gobierna `_actualizar_visibilidad`
 	var caja := VBoxContainer.new()
 	panel.add_child(caja)
 	var fila_superior := HBoxContainer.new()
 	fila_superior.add_theme_constant_override("separation", 8)
 	caja.add_child(fila_superior)
 	_boton_modo = Button.new()
-	_boton_modo.text = "🔨 Construir (B)"
+	# Sin el emoji 🔨 (2026-08-09): renderiza como emoji de COLOR del sistema e ignora el tema —
+	# el mismo gotcha que el ⏸ del módulo de velocidad del HUD.
+	_boton_modo.text = "Construir (B)"
 	_boton_modo.focus_mode = Control.FOCUS_NONE
 	_boton_modo.pressed.connect(_alternar_modo)
 	fila_superior.add_child(_boton_modo)
@@ -2359,6 +2373,10 @@ func _paginar_tarjetas(delta: float) -> void:
 
 
 func _actualizar_visibilidad() -> void:
+	# Colapsado = barra INVISIBLE del todo (opción A, 2026-08-09): la píldora "Construir (B)" de
+	# la fila de acciones del HUD es quien abre; ya no hay franja gris residente en pantalla.
+	if _panel_raiz != null:
+		_panel_raiz.visible = _activo
 	_fila_herramientas.visible = _activo
 	_atenuador.visible = _activo
 	# LA CUADRÍCULA VIVE Y MUERE CON EL MODO (2026-08-05 · quick-spec §3c). Este es el ÚNICO sitio

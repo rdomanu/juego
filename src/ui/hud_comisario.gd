@@ -77,6 +77,7 @@ extends CanvasLayer
 ## del icono permitiría los 40px reales sin deformarlo — anotado para `art-director`/`ux-designer`.
 
 # ── Señales (upward, child → parent — coding standards del proyecto) ────────────────────────────
+signal construccion_solicitada
 signal personal_solicitado
 signal horario_solicitado
 signal guardar_solicitado
@@ -520,10 +521,13 @@ func _espaciador_familia() -> Control:
 func _construir_panel_acciones() -> void:
 	var panel := Panel.new()
 	panel.name = "PanelAcciones"
-	# Tema SIN `theme_type_variation` a propósito -- mismo estilo por defecto que usa el panel raíz
-	# de `ModoConstruccion` justo debajo (`panel.theme = KitUIComisarioScript.tema()`, sin variante
-	# tampoco allí): las dos franjas quedan visualmente cosidas, sin costura entre ellas.
 	panel.theme = KitUIComisarioScript.tema()
+	# Relleno plano deliberado en vez del gris por defecto del motor (opción A del veredicto
+	# 2026-08-09; ver `COLOR_FONDO_BARRA_INFERIOR`): la barra de construcción usa el MISMO color,
+	# así las dos franjas siguen cosidas sin costura como antes.
+	var estilo_fondo := StyleBoxFlat.new()
+	estilo_fondo.bg_color = KitUIComisarioScript.COLOR_FONDO_BARRA_INFERIOR
+	panel.add_theme_stylebox_override("panel", estilo_fondo)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	panel.custom_minimum_size = Vector2(0, ALTO_FRANJA_ACCIONES)
@@ -551,6 +555,19 @@ func _construir_panel_acciones() -> void:
 	_lbl_aviso.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_lbl_aviso.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(_lbl_aviso)
+
+	# La píldora de Construcción abre/cierra el modo (opción A del veredicto 2026-08-09: la franja
+	# colapsada gris de `ModoConstruccion` desaparece y esta píldora ocupa su papel). Va la PRIMERA
+	# de la fila (esquina inferior izquierda, espejo de Fitts del grupo derecho); con el modo
+	# abierto la fila entera se oculta (`ocultar_acciones`, ya cableado) y manda la barra de
+	# pestañas+tarjetas.
+	var boton_construir := _boton_pildora(
+		&"plano", "Construir (B)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA, Color.WHITE
+	)
+	boton_construir.pressed.connect(func() -> void: construccion_solicitada.emit())
+	fila.add_child(boton_construir)
+	fila.move_child(boton_construir, 0)   # delante del aviso: pegada al borde izquierdo
+	_botones_acciones.append(boton_construir)
 
 	var boton_personal := _boton_pildora(
 		&"personal", "Personal (P)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA, Color.WHITE

@@ -64,6 +64,13 @@ const ICONO_POR_CATEGORIA: Dictionary[StringName, StringName] = {
 ## que cualquier color pintado a mano en código (textos, bordes de fallback) case con el kit en vez
 ## de inventarse un azul distinto cada vez.
 const COLOR_ACENTO_NAVY := Color(0.094, 0.278, 0.451, 1.0)
+## Fondo PLANO de las franjas inferiores (fila de acciones del HUD y barra de construcción — ambas
+## lo comparten para quedar cosidas sin costura). Relleno plano DELIBERADO (ley Summer 2026-08-06:
+## "cero diseño visual por código; rellenos planos tolerados") en el matiz navy del kit, oscurecido
+## para que las píldoras navy contrasten encima; antes las dos franjas caían en el gris por defecto
+## del motor (veredicto del usuario 2026-08-09, opción A). Si algún día Summer dibuja una pieza de
+## barra inferior, se sustituye aquí sin tocar a los consumidores.
+const COLOR_FONDO_BARRA_INFERIOR := Color(0.10, 0.13, 0.20, 1.0)
 const COLOR_TEXTO_PRINCIPAL := Color(0.11, 0.2, 0.32, 1.0)
 ## Semántica de estado (transversal, `accessibility-requirements.md`): SIEMPRE con forma/icono al
 ## lado, nunca solo el color -- estas constantes son el respaldo de color, no la única señal.

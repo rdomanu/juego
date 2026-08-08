@@ -103,12 +103,11 @@ const PanelAdminScript := preload("res://src/main/panel_admin.gd")
 ## `HudComisario` para el árbol de nodos completo.
 const HudComisarioScript := preload("res://src/ui/hud_comisario.gd")
 ## Alto reservado abajo para la barra del HUD (estilo tycoon — petición del usuario 2026-07-24):
-## el mundo se centra en lo que queda por encima, no en la ventana entera. Sigue en 84px, el MISMO
-## valor que `ModoConstruccion.HUECO_BARRA_INFO` (no tocado por esta story -- regla dura del
-## encargo) para que el hueco reservado abajo siga siendo consistente con la barra de construcción,
-## aunque la franja de acciones nueva del HUD (`HudComisario.ALTO_FRANJA_ACCIONES`) solo use 60 de
-## esos 84px -- ver la nota de esa constante para el pendiente de sincronización.
-const ALTO_BARRA_HUD: float = 84.0
+## el mundo se centra en lo que queda por encima, no en la ventana entera. Sincronizado a los 60px
+## reales de `HudComisario.ALTO_FRANJA_ACCIONES` y `ModoConstruccion.HUECO_BARRA_INFO` (2026-08-09,
+## opción A del veredicto de la franja: fuera la banda muerta de 24px que dejaba la reserva vieja
+## de 84px de la barra de info).
+const ALTO_BARRA_HUD: float = 60.0
 ## Posición en pantalla del ORIGEN de la rejilla — la esquina (0,0). La comparten el suelo de
 ## fondo, las capas de Construcción, las paredes y todo lo que se dibuje.
 ##
@@ -1540,6 +1539,8 @@ func _crear_hud_comisario() -> void:
 	add_child(hud)
 	_hud = hud
 	hud.configurar(_economia, _demanda, _personal, _flujo, _paciencia, _documentacion, _paredes_salas)
+	# La píldora "Construir (B)" (opción A, 2026-08-09) hace lo mismo que la tecla B.
+	hud.construccion_solicitada.connect(func() -> void: _modo_construccion._alternar_modo())
 	hud.personal_solicitado.connect(_abrir_personal)
 	hud.horario_solicitado.connect(_abrir_horario)
 	hud.guardar_solicitado.connect(_guardar_partida)
@@ -1586,6 +1587,14 @@ func _al_cambiar_layout_disenador() -> void:
 ## herramientas ABAJO" -- siempre arriba, pase lo que pase abajo). El HUD sigue vivo debajo
 ## (`_process` lo sigue refrescando), así que al salir del diseñador reaparece con los datos al día.
 func _al_activar_disenador(activo: bool) -> void:
+	# La barra de construcción no debe quedarse abierta debajo del diseñador (cazado en la
+	# auditoría de capturas 2026-08-09: el HUD se ocultaba pero la barra no): si estaba activa,
+	# se cierra por su propio camino (descarta trazo, apaga rejilla y avisa por su señal). ANTES
+	# de ocultar las acciones: cerrarla emite `activado_cambiado(false)` → `_al_activar_
+	# construccion(false)` → `ocultar_acciones(false)`, y en el orden inverso ese rebote dejaría
+	# la fila de acciones visible debajo del diseñador.
+	if activo and _modo_construccion != null and _modo_construccion._activo:
+		_modo_construccion._alternar_modo()
 	if _hud != null:
 		_hud.ocultar_acciones(activo)
 	# Lienzo limpio mientras se diseña (2026-08-08, encargo "poder diseñar sin la morralla
