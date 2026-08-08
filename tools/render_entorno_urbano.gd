@@ -163,6 +163,22 @@ const MODELOS: Array[Dictionary] = [
 		"id": "TEST_metro_corner", "ruta": CARPETA_SUMMER + "metro_street_corner.glb",
 		"altura_objetivo_m": 9.0,
 	},
+	## Carreteras Kenney Roads (2026-08-08, encargo del usuario) -- LEY DE ESCALA: "1 coche de
+	## nuestra escala por carril" -- medido con `AnclajeSprite.semiejes_base` (el MISMO mecanismo con
+	## el que el juego ancla props, no PIL sobre el PNG en bruto: la cámara isométrica mezcla largo y
+	## ancho en cualquier bbox de píxeles, ver la nota `por_longitud` más arriba) sobre
+	## `coche_sedan_90.png`: semiejes=(63.75, 37.75)px -> footprint 3.19 x 1.89 celdas -- el eje corto
+	## (1,89 celdas) ES el ancho transversal (el otro eje, 3,19, es el largo ya calibrado y documentado
+	## arriba). 2 carriles = 2 x 1,89 = 3,78 celdas -> `ancho_objetivo_celdas = 3.8`. Todas estas
+	## piezas son CASI PLANAS (calzada Kenney con la línea central pintada en la textura, no en el
+	## volumen) -- mismo modo `ancho_objetivo_celdas` que `calzada_recta`/`acera_recta`, ver la
+	## cabecera de `MODELOS`. Solo cablear a la paleta cuando otro lote lo pida (este render SOLO deja
+	## los PNG listos + el registro de textura en `entorno_exterior.gd`, ver su cabecera).
+	{"id": "carretera_recta", "ruta": CARPETA_ROADS + "road-straight.glb", "ancho_objetivo_celdas": 3.8},
+	{"id": "carretera_curva", "ruta": CARPETA_ROADS + "road-bend.glb", "ancho_objetivo_celdas": 3.8},
+	{"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb", "ancho_objetivo_celdas": 3.8},
+	{"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb", "ancho_objetivo_celdas": 3.8},
+	{"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb", "ancho_objetivo_celdas": 3.8},
 ]
 
 
@@ -170,7 +186,10 @@ const MODELOS: Array[Dictionary] = [
 ## vacío = todos (comportamiento de siempre); con ids dentro, `_ready()` solo carga/renderiza esos --
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
-const SOLO_IDS: Array[String] = ["casa_a", "casa_d", "casa_g", "casa_k", "casa_o"]
+const SOLO_IDS: Array[String] = [
+	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
+	"carretera_paso_cebra",
+]
 
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SALIDA_ENTORNO))
