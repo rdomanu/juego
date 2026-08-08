@@ -736,6 +736,9 @@ func _boton_herramienta(id: StringName, texto: String) -> Button:
 	var etiqueta := Label.new()
 	etiqueta.text = texto
 	etiqueta.add_theme_font_size_override("font_size", 10)
+	# Mismo bug/fix que en _construir_boton_con_icono de ModoConstruccion (2026-08-08): el Label
+	# hijo no hereda el font_color del Button y salía blanco — invisible sobre la tarjeta clara.
+	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
 	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	etiqueta.clip_contents = true

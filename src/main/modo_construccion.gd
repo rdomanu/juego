@@ -2229,8 +2229,19 @@ func _construir_boton_con_icono(
 	# adivinar API post-cutoff sin verificar, así que el corte es plano, sin puntos suspensivos) en
 	# vez de dejarlo desbordar sobre el icono o fuera de la tarjeta.
 	var etiqueta := Label.new()
+	etiqueta.name = "RotuloBoton"   # localizable con find_child: _mostrar_categoria le cambia el color
 	etiqueta.text = texto
 	etiqueta.add_theme_font_size_override("font_size", 10)
+	# COLOR EXPLÍCITO (2026-08-08, bug "las letras están en blanco y no se ven"): un Label HIJO no
+	# hereda los font_color por estado del Button (esos solo pintan su texto nativo) — sin esto sale
+	# con el blanco por defecto de Godot, invisible sobre pestaña/tarjeta claras. Navy del kit salvo
+	# sobre el arte rojo de Demoler (ahí blanco, como su variante del theme). La pestaña ACTIVA
+	# (arte azul marino) se pasa a blanco en _mostrar_categoria.
+	etiqueta.add_theme_color_override(
+		"font_color",
+		Color.WHITE if variante == KitUIComisarioScript.VARIANTE_BOTON_DEMOLER
+		else KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
+	)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	etiqueta.clip_contents = true
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2279,7 +2290,17 @@ func _mostrar_categoria(categoria: StringName) -> void:
 	if _casilla_con_paredes != null:
 		_casilla_con_paredes.visible = categoria == &"muros_suelos"
 	for id: StringName in _pestanas_categoria:
-		(_pestanas_categoria[id] as Button).button_pressed = id == categoria
+		var activa: bool = id == categoria
+		var pestana: Button = _pestanas_categoria[id] as Button
+		pestana.button_pressed = activa
+		# El rótulo hijo no hereda font_pressed_color del Button (ver _construir_boton_con_icono):
+		# blanco sobre el arte azul marino de la pestaña activa, navy sobre las claras.
+		var rotulo: Label = pestana.find_child("RotuloBoton", true, false) as Label
+		if rotulo != null:
+			rotulo.add_theme_color_override(
+				"font_color",
+				Color.WHITE if activa else KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
+			)
 
 
 func _paginar_tarjetas(delta: float) -> void:
