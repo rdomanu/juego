@@ -31,27 +31,73 @@ signal layout_cambiado()
 ## con la señal (ADR-0001: la UI ordena, no asume quién escucha).
 signal activado_cambiado(activo: bool)
 
+## ── SUBMENÚS POR CATEGORÍA (2026-08-08, encargo "en el city kit hay más casas... se puede poner
+## un submenú: casas, carreteras, árboles y jardín, objetos") ────────────────────────────────────
+## Antes eran ~22 botones en una sola fila (Progressive disclosure, Hick's Law, mismo principio que
+## `ModoConstruccion::CATEGORIAS` — reutiliza el MISMO `VARIANTE_PESTANA` del kit): con las 21 casas
+## del kit completo + las 5 carreteras el catálogo pasa a 39 piezas, imposible de escanear en una
+## fila. `CATEGORIAS` fija el orden/rótulo de cada pestaña; `PIEZAS_POR_CATEGORIA` reparte los ids
+## de `CATALOGO_PIEZAS` entre ellas (las brochas de `SUPERFICIES` + la goma se cuelgan aparte, de la
+## pestaña "Superficies" — ver `_crear_ui`).
+const CATEGORIAS: Array[Dictionary] = [
+	{"id": &"casas", "nombre": "🏠 Casas"},
+	{"id": &"carreteras", "nombre": "🛣 Carreteras"},
+	{"id": &"jardin", "nombre": "🌳 Árboles y jardín"},
+	{"id": &"objetos", "nombre": "🚧 Objetos"},
+	{"id": &"superficies", "nombre": "🖌 Superficies"},
+]
+
 ## Catálogo de piezas colocables — mismos ids que los PNG de `assets/sprites/entorno/`
-## (`tools/render_entorno_urbano.gd`), las 4 rotaciones ya renderizadas para cada una.
-const CATALOGO_PIEZAS: Array[StringName] = [
-	&"casa_a", &"casa_d", &"casa_g", &"casa_k", &"casa_o",
-	&"valla_baja", &"valla_estandar", &"camino_recinto", &"entrada_casa",
-	&"arbol_urbano", &"tree_grande", &"tree_pequeno", &"seto", &"farola", &"planter",
+## (`tools/render_entorno_urbano.gd`), las 4 rotaciones ya renderizadas para cada una. Las 21 casas
+## y las 5 carreteras vienen de `EntornoExterior.CASAS_TODAS`/`CARRETERAS_TODAS` (fuente ÚNICA de
+## verdad de esos dos catálogos — nunca se duplica la lista de ids a mano en dos ficheros).
+const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
+const JARDIN_IDS: Array[StringName] = [
+	&"arbol_urbano", &"tree_grande", &"tree_pequeno", &"seto", &"planter",
+]
+const OBJETOS_IDS: Array[StringName] = [
+	&"farola", &"valla_baja", &"valla_estandar", &"camino_recinto", &"entrada_casa",
 	&"coche_policia", &"coche_sedan", &"coche_suv",
 ]
-const NOMBRES_PIEZA: Dictionary[StringName, String] = {
-	&"casa_a": "🏠 Casa A", &"casa_d": "🏠 Casa D", &"casa_g": "🏠 Casa G",
-	&"casa_k": "🏠 Casa K", &"casa_o": "🏠 Casa O",
-	&"valla_baja": "▤ Valla baja", &"valla_estandar": "▥ Valla estándar",
-	&"camino_recinto": "▬ Camino", &"entrada_casa": "▭ Entrada de casa",
-	&"arbol_urbano": "🌳 Árbol urbano", &"tree_grande": "🌲 Árbol grande",
-	&"tree_pequeno": "🌱 Árbol pequeño", &"seto": "🌿 Seto", &"farola": "💡 Farola",
-	&"planter": "🪴 Jardinera",
-	&"coche_policia": "🚓 Coche patrulla", &"coche_sedan": "🚗 Coche sedán",
-	&"coche_suv": "🚙 Coche SUV",
+static var CATALOGO_PIEZAS: Array[StringName] = (
+	EntornoExteriorScript.CASAS_TODAS + EntornoExteriorScript.CARRETERAS_TODAS
+	+ JARDIN_IDS + OBJETOS_IDS
+)
+## id de categoría → ids de `CATALOGO_PIEZAS` que le corresponden (ver la cabecera de `CATEGORIAS`).
+static var PIEZAS_POR_CATEGORIA: Dictionary[StringName, Array] = {
+	&"casas": EntornoExteriorScript.CASAS_TODAS, &"carreteras": EntornoExteriorScript.CARRETERAS_TODAS,
+	&"jardin": JARDIN_IDS, &"objetos": OBJETOS_IDS,
 }
-## Piezas CASI PLANAS (van al overlay del suelo, sin y-sort — mismo criterio que `EntornoExterior`).
-const PIEZAS_PLANAS: Array[StringName] = [&"camino_recinto", &"entrada_casa"]
+## Nombre de cada casa: "🏠 Casa <letra>" en MAYÚSCULA a partir del id (`casa_a`→A,
+## `casa_kit_b`→B…) — evita 21 entradas sueltas a mano; el resto del catálogo sí las lleva literales
+## (nombres más descriptivos que una sola letra).
+static func _nombre_casa(id: StringName) -> String:
+	var letra: String = String(id).right(1).to_upper()
+	return "🏠 Casa %s" % letra
+static var NOMBRES_PIEZA: Dictionary[StringName, String] = _construir_nombres_pieza()
+static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
+	var nombres: Dictionary[StringName, String] = {
+		&"valla_baja": "▤ Valla baja", &"valla_estandar": "▥ Valla estándar",
+		&"camino_recinto": "▬ Camino", &"entrada_casa": "▭ Entrada de casa",
+		&"arbol_urbano": "🌳 Árbol urbano", &"tree_grande": "🌲 Árbol grande",
+		&"tree_pequeno": "🌱 Árbol pequeño", &"seto": "🌿 Seto", &"farola": "💡 Farola",
+		&"planter": "🪴 Jardinera",
+		&"coche_policia": "🚓 Coche patrulla", &"coche_sedan": "🚗 Coche sedán",
+		&"coche_suv": "🚙 Coche SUV",
+		&"carretera_recta": "🛣 Recta", &"carretera_curva": "🛣 Curva",
+		&"carretera_cruce": "🛣 Cruce", &"carretera_interseccion_t": "🛣 Cruce en T",
+		&"carretera_paso_cebra": "🛣 Paso de cebra",
+	}
+	for id: StringName in EntornoExteriorScript.CASAS_TODAS:
+		nombres[id] = _nombre_casa(id)
+	return nombres
+## Piezas CASI PLANAS (van al overlay del suelo, sin y-sort — mismo criterio que `EntornoExterior`):
+## camino/entrada de siempre + las 5 carreteras (línea central pintada en la textura, no en el
+## volumen — ver la cabecera de `tools/render_entorno_urbano.gd`).
+const PIEZAS_PLANAS: Array[StringName] = [
+	&"camino_recinto", &"entrada_casa", &"carretera_recta", &"carretera_curva",
+	&"carretera_cruce", &"carretera_interseccion_t", &"carretera_paso_cebra",
+]
 
 ## Las 3 "brochas de superficie" + la goma -- pintan/borran celdas con los MISMOS colores planos que
 ## ya usa `EntornoExterior` (nunca un color inventado aparte).
@@ -72,7 +118,6 @@ var ruta_guardado: String = RUTA_GUARDADO
 const VERSION_LAYOUT := 1
 
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
-const EntornoExteriorScript := preload("res://src/main/entorno_exterior.gd")
 ## El kit de UI (2026-08-07, remate del reskin — piloto Summer): mismo punto único de acceso que usa
 ## `ModoConstruccion` para tema/iconos/variantes. Ver la cabecera de `KitUIComisario`.
 const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
@@ -85,7 +130,10 @@ const COLOR_FANTASMA_INVALIDO := Color(1.0, 0.35, 0.35, 0.5)
 ## seleccionar las cosas") la paleta necesita más sitio. `grow_vertical = GROW_DIRECTION_BEGIN` (en
 ## `_crear_ui`) hace que ese sobrante crezca HACIA ARRIBA, nunca fuera de la pantalla por abajo —
 ## mismo gotcha que ya resolvió `ModoConstruccion._crear_ui` (ver su comentario del panel).
-const ALTO_BARRA: float = 260.0
+## Sube 260->340 (2026-08-08): la fila de PESTAÑAS nueva (ver `CATEGORIAS`) se suma por ENCIMA de la
+## fila de tarjetas de siempre -- con 21 casas en la pestaña más grande, `HFlowContainer` envuelve a
+## 2 filas dentro del ancho típico de la ventana, así que la barra necesita ese hueco extra.
+const ALTO_BARRA: float = 340.0
 
 var _tam_celda: int = 40
 var _origen: Vector2 = Vector2.ZERO
@@ -114,6 +162,16 @@ var _fuentes_superficie: Dictionary[StringName, int] = {}
 var _capa_ui: CanvasLayer
 var _lbl_estado: Label
 var _botones: Dictionary[StringName, Button] = {}
+## categoría (StringName de `CATEGORIAS`) → Array[Button] de sus tarjetas, en el orden en que se
+## registraron -- fuente de verdad de "qué botones tiene cada pestaña" (mismo patrón que
+## `ModoConstruccion._tarjetas_por_categoria`: los hijos son FIJOS, `_mostrar_categoria` solo alterna
+## `visible`, nunca descuelga nada -- eso dio 224 huérfanos la vez que se intentó distinto).
+var _tarjetas_por_categoria: Dictionary[StringName, Array] = {}
+## categoría → su botón de pestaña, para poder marcar cuál está activa.
+var _pestanas_categoria: Dictionary[StringName, Button] = {}
+## La categoría que se ve ahora mismo en la paleta. Arranca en "casas" (la más grande, la que motivó
+## el submenú).
+var _categoria_activa: StringName = &"casas"
 
 var _capa_preview: CanvasLayer
 var _preview_sprite: Sprite2D
@@ -203,13 +261,14 @@ func _unhandled_input(evento: InputEvent) -> void:
 		_celda_pintada_anterior = Vector2i(-999, -999)
 
 
+## TODA herramienta es arrastrable (2026-08-08, encargo "no puedo seleccionar una celda, mantener
+## pulsado y arrastrar para que se haga una línea entera") -- antes solo superficie/goma pasaban por
+## aquí; una PIEZA se colocaba una sola vez con el clic y soltar/arrastrar no hacía nada más. Ahora
+## el mismo pincel de siempre (`_pintando` + la guarda de `_celda_pintada_anterior`, que ya evita
+## repetir la MISMA celda) sirve para las tres cosas -- ver `_pintar_o_borrar_en`.
 func _al_pulsar(celda: Vector2i) -> void:
 	if _herramienta == &"":
 		return
-	if CATALOGO_PIEZAS.has(_herramienta):
-		_colocar_pieza_en(celda)
-		return
-	# Superficie o goma: arrastrable (petición: "arrastre para pintar superficies").
 	_pintando = true
 	_celda_pintada_anterior = Vector2i(-999, -999)
 	_pintar_o_borrar_en(celda)
@@ -226,6 +285,12 @@ func _pintar_o_borrar_en(celda: Vector2i) -> void:
 		_borrar_en(celda)
 	elif SUPERFICIES.has(_herramienta):
 		_pintar_superficie_en(celda, _herramienta)
+	elif CATALOGO_PIEZAS.has(_herramienta):
+		# La pieza en mano, con la orientación ACTUAL, en cada celda nueva que pise el cursor --
+		# `_colocar_pieza_en` hace su propia comprobación de validez (redundante aquí, pero se
+		# mantiene: sigue siendo el punto de entrada que usan los tests y `_al_pulsar` de un solo
+		# clic, sin arrastre).
+		_colocar_pieza_en(celda)
 
 
 # ── Piezas ────────────────────────────────────────────────────────────────────────────────────
@@ -453,6 +518,42 @@ func _avisar(texto: String) -> void:
 		_lbl_estado.text = texto
 
 
+## El botón de una PESTAÑA de categoría (no es una `_herramienta`: cambia qué tarjetas se ven) --
+## mismo contrato que `ModoConstruccion._construir_pestana_categoria`, sin depender de sus iconos
+## propios (esta paleta no tiene pictograma dedicado por categoría todavía: el rótulo ya lleva el
+## emoji, ver `CATEGORIAS`).
+func _construir_pestana(id: StringName, nombre: String) -> Button:
+	var boton := Button.new()
+	boton.text = nombre
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.toggle_mode = true
+	boton.theme_type_variation = KitUIComisarioScript.VARIANTE_PESTANA
+	boton.custom_minimum_size = Vector2(112.0, 48.0)
+	boton.pressed.connect(func() -> void: _mostrar_categoria(id))
+	_pestanas_categoria[id] = boton
+	return boton
+
+
+## Cuelga `boton` de `fila` (SIEMPRE, ver la cabecera de `_tarjetas_por_categoria`) y lo apunta en la
+## categoría -- oculto hasta que `_mostrar_categoria` la active.
+func _anadir_tarjeta(fila: HFlowContainer, categoria: StringName, boton: Button) -> void:
+	boton.visible = false
+	fila.add_child(boton)
+	(_tarjetas_por_categoria[categoria] as Array).append(boton)
+
+
+## Cambia qué fila de tarjetas se ve. NO reinstancia ni descuelga nada: todas las tarjetas son hijas
+## fijas de `fila` (ver `_crear_ui`) y aquí solo se alterna su `visible`.
+func _mostrar_categoria(categoria: StringName) -> void:
+	_categoria_activa = categoria
+	for cat_id: StringName in _tarjetas_por_categoria:
+		var activa: bool = cat_id == categoria
+		for boton: Button in (_tarjetas_por_categoria[cat_id] as Array):
+			(boton as Button).visible = activa
+	for id: StringName in _pestanas_categoria:
+		(_pestanas_categoria[id] as Button).button_pressed = id == categoria
+
+
 # ── UI (paleta, patrón de `ModoConstruccion`: HFlowContainer de botones) ────────────────────────
 func _crear_ui() -> void:
 	_capa_ui = CanvasLayer.new()
@@ -485,8 +586,18 @@ func _crear_ui() -> void:
 	_capa_ui.add_child(raiz)
 
 	var titulo := Label.new()
-	titulo.text = "🏗 MODO DISEÑADOR DE ENTORNO -- R rota · arrastra para pintar superficie · F8 guarda · F12 sale"
+	titulo.text = "🏗 MODO DISEÑADOR DE ENTORNO -- R rota · arrastra para colocar/pintar · F8 guarda · F12 sale"
 	raiz.add_child(titulo)
+
+	# ── PESTAÑAS DE CATEGORÍA (2026-08-08, encargo "submenú: casas, carreteras, árboles y jardín,
+	# objetos") -- mismo patrón que `ModoConstruccion::_construir_pestana_categoria`: un botón
+	# `toggle_mode` con `VARIANTE_PESTANA`, todas las tarjetas SIEMPRE colgadas de `fila` (ver abajo),
+	# `_mostrar_categoria` solo alterna `visible` -- nunca se descuelga un nodo.
+	var fila_pestanas := HBoxContainer.new()
+	fila_pestanas.add_theme_constant_override("separation", 6)
+	raiz.add_child(fila_pestanas)
+	for categoria: Dictionary in CATEGORIAS:
+		fila_pestanas.add_child(_construir_pestana(categoria["id"], categoria["nombre"]))
 
 	var fila: HFlowContainer = HFlowContainer.new()
 	# Separación entre tarjetas (petición del usuario: "me cuesta seleccionar las cosas") -- un botón
@@ -495,11 +606,16 @@ func _crear_ui() -> void:
 	fila.add_theme_constant_override("h_separation", 8)
 	fila.add_theme_constant_override("v_separation", 8)
 	raiz.add_child(fila)
-	for id: StringName in CATALOGO_PIEZAS:
-		fila.add_child(_boton_herramienta(id, NOMBRES_PIEZA[id]))
-	for id: StringName in SUPERFICIES:
-		fila.add_child(_boton_herramienta(id, NOMBRES_SUPERFICIE[id]))
-	fila.add_child(_boton_herramienta(HERRAMIENTA_BORRAR, "🧹 Borrar"))
+	for categoria: Dictionary in CATEGORIAS:
+		var cat_id: StringName = categoria["id"]
+		_tarjetas_por_categoria[cat_id] = []
+		for id: StringName in (PIEZAS_POR_CATEGORIA.get(cat_id, []) as Array):
+			_anadir_tarjeta(fila, cat_id, _boton_herramienta(id, NOMBRES_PIEZA[id]))
+		if cat_id == &"superficies":
+			for id: StringName in SUPERFICIES:
+				_anadir_tarjeta(fila, cat_id, _boton_herramienta(id, NOMBRES_SUPERFICIE[id]))
+			_anadir_tarjeta(fila, cat_id, _boton_herramienta(HERRAMIENTA_BORRAR, "🧹 Borrar"))
+	_mostrar_categoria(&"casas")
 
 	var fila_acciones := HBoxContainer.new()
 	fila_acciones.add_theme_constant_override("separation", 8)

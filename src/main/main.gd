@@ -1723,6 +1723,11 @@ func _al_cambiar_layout_disenador() -> void:
 func _al_activar_disenador(activo: bool) -> void:
 	if _capa_hud != null:
 		_capa_hud.visible = not activo
+	# Lienzo limpio mientras se diseña (2026-08-08, encargo "poder diseñar sin la morralla
+	# procedural delante"): oculta el scatter procedural (casas/coches/árboles/vallas del barrio) al
+	# entrar, lo devuelve al salir -- ver `EntornoExterior.fijar_scatter_visible`.
+	if _entorno_exterior != null:
+		_entorno_exterior.fijar_scatter_visible(not activo)
 
 
 ## Gemelo de `_al_activar_disenador` para `ModoConstruccion` (fix del solape 2026-08-08: la barra de

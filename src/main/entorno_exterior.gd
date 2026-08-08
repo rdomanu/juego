@@ -231,6 +231,33 @@ const TEX_CASAS: Array[Texture2D] = [
 ## nunca se notó, con casas 2-3× más anchas sí solapaban).
 const ANCHO_CASA_BARRIO: Array[int] = [6, 6, 7, 7, 8]
 
+## ── EL CATÁLOGO COMPLETO DE `ModoDisenadorEntorno` (2026-08-08, encargo "hay como 20 casas...
+## submenú: casas, carreteras, árboles y jardín, objetos") ──────────────────────────────────────
+## Estos dos arrays son SOLO un índice de ids -- `textura_de_pieza` (ya genérica, `id`+`rotación` →
+## PNG en disco) resuelve cada uno sin necesitar un `const TEX_...` explícito por pieza; es la MISMA
+## función que ya sirve el fantasma/paleta del diseñador y el layout congelado. `ModoDisenadorEntorno`
+## los consume para construir sus pestañas 🏠 Casas / 🛣 Carreteras -- fuente ÚNICA de verdad de qué
+## ids existen en cada grupo (nunca se duplica la lista a mano en dos sitios).
+## Las 21 casas del kit "City Kit Suburban": las 5 originales (`casa_a/d/g/k/o`, NUNCA se tocan --
+## ver la cabecera de `tools/render_entorno_urbano.gd`) + las 16 nuevas letter-true `casa_kit_*`
+## (prefijo para no chocar con los ids viejos), en el orden alfabético de LETRA del kit (a..u) --
+## `casa_d`→letra m, `casa_k`→letra i, `casa_o`→letra n (ver la sustitución documentada en la
+## cabecera de `tools/render_entorno_urbano.gd`), el resto id=letra.
+const CASAS_TODAS: Array[StringName] = [
+	&"casa_a", &"casa_kit_b", &"casa_kit_c", &"casa_kit_d", &"casa_kit_e", &"casa_kit_f",
+	&"casa_g", &"casa_kit_h", &"casa_k", &"casa_kit_j", &"casa_kit_k", &"casa_kit_l",
+	&"casa_d", &"casa_o", &"casa_kit_o", &"casa_kit_p", &"casa_kit_q", &"casa_kit_r",
+	&"casa_kit_s", &"casa_kit_t", &"casa_kit_u",
+]
+## Las 5 piezas del kit "Roads" (Kenney, CC0) renderizadas a escala de carril (ver la cabecera de
+## `tools/render_entorno_urbano.gd`, nota "LEY DE ESCALA"). CASI PLANAS (línea central pintada en la
+## textura, no en el volumen) -- `ModoDisenadorEntorno.PIEZAS_PLANAS` las trata igual que
+## `camino_recinto`/`entrada_casa`.
+const CARRETERAS_TODAS: Array[StringName] = [
+	&"carretera_recta", &"carretera_curva", &"carretera_cruce", &"carretera_interseccion_t",
+	&"carretera_paso_cebra",
+]
+
 ## Las 4 direcciones cardinales del plano lógico, para recorrer vecinos de una celda.
 const VECINOS_4: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 
@@ -405,6 +432,20 @@ func capa_suelo() -> TileMapLayer:
 ## mecanismo que las comodidades interiores (ver la cabecera de `LucesObjetos`).
 func puntos_farolas() -> Array[Vector2]:
 	return _puntos_farolas
+
+
+## Oculta/enseña el SCATTER PROCEDURAL de props (2026-08-08, encargo "poder diseñar sin la morralla
+## procedural delante"): SOLO los props con forma (`_capa_decor` -- casas/coches/árboles/farolas/
+## vallas/setos/jardineras) y sus overlays casi planos (`_capa_overlays_planas` -- camino del
+## recinto/entrada de casa). El suelo base (césped/calzada/acera/recinto, `_capa_suelo`) y las
+## líneas de aparcamiento (`_capa_marcas`) se quedan SIEMPRE visibles -- son el esqueleto fijo de
+## circulación, no "morralla" (el congelado, `RUTA_LAYOUT_FIJO`, ya sustituye el scatter entero;
+## esto es solo un lienzo limpio TEMPORAL mientras se diseña, ver `ModoDisenadorEntorno.alternar`).
+func fijar_scatter_visible(visible_scatter: bool) -> void:
+	if _capa_decor != null:
+		_capa_decor.visible = visible_scatter
+	if _capa_overlays_planas != null:
+		_capa_overlays_planas.visible = visible_scatter
 
 
 ## ── LECTURA DEL LAYOUT (compartida con `ModoDisenadorEntorno`, que escribe el MISMO esquema en

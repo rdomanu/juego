@@ -117,6 +117,34 @@ const CARPETA_ROADS := "res://capturas/fuentes/kenney_roads/Models/GLB format/"
 ## `TEST_metro_corner`: pieza de EVALUACIÓN (candidato del usuario, `metro_street_corner.glb`,
 ## realista PBR) -- se renderiza para comparar su estilo contra el low-poly Kenney con evidencia,
 ## NO para usarla necesariamente en el juego (ver el informe, veredicto).
+##
+## ── LAS 16 CASAS RESTANTES DEL KIT (2026-08-08, encargo "hay como 20 casas... se puede poner un
+## submenú: casas y que salgan las 20") ─────────────────────────────────────────────────────────
+## Ids NUEVOS letter-true (prefijo `casa_kit_` para no chocar con los 5 ids viejos casa_a/d/g/k/o,
+## que NUNCA se tocan -- ver la nota de arriba): las 16 letras del kit que las 5 casas originales
+## no usan (a/g/i/m/n ya están servidas). Mismo modo `ancho_objetivo_celdas` (escala UNIFORME, ley
+## del proyecto) que el resto del catálogo -- `ancho = clampi(roundi(360.0 / (80.0 × ratio)), 4, 8)`
+## sobre el `ratio(alto/ancho)` medido con `SOLO_MEDICION` (ver esa nota, log de esta tarea):
+##   id            | letra | ratio  | ancho (celdas) | alto final previsto
+##   casa_kit_b    |   b   | 0.7546 |       6         | 362.2px
+##   casa_kit_c    |   c   | 0.8764 |       5         | 350.6px
+##   casa_kit_d    |   d   | 0.8656 |       5         | 346.2px
+##   casa_kit_e    |   e   | 1.0040 |       4         | 321.3px
+##   casa_kit_f    |   f   | 0.8412 |       5         | 336.5px
+##   casa_kit_h    |   h   | 0.8025 |       6         | 385.2px
+##   casa_kit_j    |   j   | 0.8281 |       5         | 331.2px
+##   casa_kit_k    |   k   | 1.2394 |       4         | 396.6px
+##   casa_kit_l    |   l   | 0.9916 |       5         | 396.6px
+##   casa_kit_o    |   o   | 0.9620 |       5         | 384.8px
+##   casa_kit_p    |   p   | 1.0075 |       4         | 322.4px
+##   casa_kit_q    |   q   | 0.8233 |       5         | 329.3px
+##   casa_kit_r    |   r   | 1.1462 |       4         | 366.8px
+##   casa_kit_s    |   s   | 1.0228 |       4         | 327.3px
+##   casa_kit_t    |   t   | 0.9074 |       5         | 362.9px
+##   casa_kit_u    |   u   | 0.9020 |       5         | 360.8px
+## Todas caen dentro (o muy cerca) de la banda ~320-400px que ya daban las 5 originales -- ninguna
+## sale "torre" con este reparto de anchos (a diferencia de lo que habría pasado con un ancho fijo
+## de 6-8 para las 21, ver la nota de arriba sobre `casa_k`→letra `i`).
 ## ⚠️ MODO TEMPORAL DE SOLO MEDICIÓN (2026-08-08, paso 3 de la receta de rehacer las 5 casas por
 ## escala uniforme): con `SOLO_MEDICION = true`, `_ready()` NO monta ni renderiza el catálogo --
 ## en su lugar mide la proporción bruta (alto/ancho de la silueta a 0°) de TODAS las letras
@@ -179,6 +207,23 @@ const MODELOS: Array[Dictionary] = [
 	{"id": "carretera_cruce", "ruta": CARPETA_ROADS + "road-crossroad-line.glb", "ancho_objetivo_celdas": 3.8},
 	{"id": "carretera_interseccion_t", "ruta": CARPETA_ROADS + "road-intersection-line.glb", "ancho_objetivo_celdas": 3.8},
 	{"id": "carretera_paso_cebra", "ruta": CARPETA_ROADS + "road-crossing.glb", "ancho_objetivo_celdas": 3.8},
+	## Las 16 casas restantes del kit (ver la tabla de la cabecera, "LAS 16 CASAS RESTANTES DEL KIT").
+	{"id": "casa_kit_b", "ruta": CARPETA_SUBURBAN + "building-type-b.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "casa_kit_c", "ruta": CARPETA_SUBURBAN + "building-type-c.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_d", "ruta": CARPETA_SUBURBAN + "building-type-d.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_e", "ruta": CARPETA_SUBURBAN + "building-type-e.glb", "ancho_objetivo_celdas": 4.0},
+	{"id": "casa_kit_f", "ruta": CARPETA_SUBURBAN + "building-type-f.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_h", "ruta": CARPETA_SUBURBAN + "building-type-h.glb", "ancho_objetivo_celdas": 6.0},
+	{"id": "casa_kit_j", "ruta": CARPETA_SUBURBAN + "building-type-j.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_k", "ruta": CARPETA_SUBURBAN + "building-type-k.glb", "ancho_objetivo_celdas": 4.0},
+	{"id": "casa_kit_l", "ruta": CARPETA_SUBURBAN + "building-type-l.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_o", "ruta": CARPETA_SUBURBAN + "building-type-o.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_p", "ruta": CARPETA_SUBURBAN + "building-type-p.glb", "ancho_objetivo_celdas": 4.0},
+	{"id": "casa_kit_q", "ruta": CARPETA_SUBURBAN + "building-type-q.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_r", "ruta": CARPETA_SUBURBAN + "building-type-r.glb", "ancho_objetivo_celdas": 4.0},
+	{"id": "casa_kit_s", "ruta": CARPETA_SUBURBAN + "building-type-s.glb", "ancho_objetivo_celdas": 4.0},
+	{"id": "casa_kit_t", "ruta": CARPETA_SUBURBAN + "building-type-t.glb", "ancho_objetivo_celdas": 5.0},
+	{"id": "casa_kit_u", "ruta": CARPETA_SUBURBAN + "building-type-u.glb", "ancho_objetivo_celdas": 5.0},
 ]
 
 
@@ -187,8 +232,9 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
-	"carretera_paso_cebra",
+	"casa_kit_b", "casa_kit_c", "casa_kit_d", "casa_kit_e", "casa_kit_f", "casa_kit_h",
+	"casa_kit_j", "casa_kit_k", "casa_kit_l", "casa_kit_o", "casa_kit_p", "casa_kit_q",
+	"casa_kit_r", "casa_kit_s", "casa_kit_t", "casa_kit_u",
 ]
 
 func _ready() -> void:
