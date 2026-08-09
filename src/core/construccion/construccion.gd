@@ -654,6 +654,22 @@ func _perpendicular_de(orientacion: int) -> Vector2i:
 			return Vector2i(0, 1)    # 0° (HORIZONTAL): sur
 
 
+## Lo mismo, PÚBLICO: hacia dónde MIRA una pieza con fondo (el lado del ciudadano) según su
+## orientación. Lo necesita la capa visual desde 2026-08-09 para rotar la ventanilla entera —
+## mostrador, silla del funcionario y sitio del ciudadano— siguiendo al MODELO en vez de repetir la
+## tabla por su cuenta (ver `MesaAtencion.desvio_ciudadano`). Encargo del usuario: *"las ventanillas
+## no se pueden rotar, le doy a la R y solo gira la flecha"*.
+func frente_de_orientacion(orientacion: int) -> Vector2i:
+	return _perpendicular_de(orientacion)
+
+
+## La orientación con la que se construyó un puesto/elemento, o `HORIZONTAL` si no existe.
+func orientacion_de_elemento(elemento_id: StringName) -> int:
+	if not _elementos.has(elemento_id):
+		return HORIZONTAL
+	return int(_elementos[elemento_id].get("orientacion", HORIZONTAL))
+
+
 ## La HUELLA de un elemento YA COLOCADO (lo que RESERVA: las 6 celdas de un puesto), a partir de su
 ## ficha del modelo. Punto ÚNICO por el que pasa todo el que pregunta qué sitio ocupa algo puesto:
 ## así el escalón de huella recortada (un puesto que no cabía entero) se respeta a la vez en la

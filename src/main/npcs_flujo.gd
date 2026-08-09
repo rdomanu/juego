@@ -2009,11 +2009,21 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# silla del funcionario al FONDO (vacía, nadie sentado todavía), la mesa de PERSONAJE y el
 	# policía de FRENTE —él es quien tapa, al ser más alto que el mostrador—. `_reconstruir_cuerpo_
 	# policia` reasigna las capas de policía/mesa (nunca la de la silla) en cuanto se sienta.
+	# LA VENTANILLA GIRA ENTERA (2026-08-09): el frente lo manda el MODELO, y de él salen los tres
+	# sitios (mostrador, funcionario detrás, ciudadano delante). Antes eran constantes de 0° y por
+	# eso girar el puesto dejaba al policía dentro del mostrador.
+	var frente: Vector2i = _construccion.frente_de_orientacion(
+		_construccion.orientacion_de_elemento(puesto_id)
+	)
+	var sitio_funcionario: Vector2 = MesaAtencionScript.desvio_funcionario(frente)
 	var silla_funcionario: Node2D = MesaAtencionScript.silla_funcionario_o_defecto(
-		MesaAtencionScript.CELDA_FUNCIONARIO.normalized() * 20.0
+		sitio_funcionario.normalized() * 20.0
 	)
 	silla_funcionario.name = "SillaFuncionario"
-	silla_funcionario.position = MesaAtencionScript.CELDA_FUNCIONARIO
+	silla_funcionario.position = sitio_funcionario
+	# El sitio queda anotado en el contenedor: `_reconstruir_cuerpo_policia` lo necesita y no tiene
+	# el `puesto_id` a mano para volver a preguntárselo al modelo.
+	contenedor.set_meta(&"sitio_funcionario", sitio_funcionario)
 	_insertar_en_capa(contenedor, silla_funcionario, CAPA_FONDO)
 	# `es_huella_legado`: un puesto de save viejo que no cabe en 2 celdas hoy usa el mostrador de 1
 	# celda (ver `MesaAtencion.construir` y la cabecera "LA HUELLA DEL PUESTO" en `Construccion`).
@@ -2026,11 +2036,12 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	_insertar_en_capa(
 		contenedor, MesaAtencionScript.construir(
 			_construccion.es_huella_legado(puesto_id),
-			String(_construccion.catalogo_de_elemento(puesto_id))
+			String(_construccion.catalogo_de_elemento(puesto_id)),
+			frente
 		),
 		CAPA_PERSONAJE
 	)
-	policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
+	policia.position = sitio_funcionario
 	_insertar_en_capa(contenedor, policia, CAPA_FRENTE)
 	# LA SILLA DE ESPERA (lado SUR, el que da a camara) va por ENCIMA del mostrador: es lo que hay
 	# DELANTE de la ventanilla, no detras. Hermana de "Mesa" y en su propia capa (2026-08-03, ver
@@ -2225,16 +2236,21 @@ func _reconstruir_cuerpo_policia(contenedor: Node2D, policia: Node2D, nombre: St
 		hijo.queue_free()
 	var prefijo: String = _prefijo_oficial_de(nombre) if nombre != "" else ""
 	var con_sprite: bool = prefijo != "" and MunecoScript.hay_sprites(prefijo, ALTO_SPRITE_OFICIAL)
+	# Dónde se sienta: lo anotó `_asegurar_visual_puesto` según la orientación del puesto
+	# (2026-08-09, la ventanilla gira entera). Sin el meta (contenedor viejo) cae al sitio de 0°.
+	var sitio: Vector2 = contenedor.get_meta(
+		&"sitio_funcionario", MesaAtencionScript.CELDA_FUNCIONARIO
+	) as Vector2
 	if con_sprite:
 		policia.add_child(MunecoScript.construir_sprite_sentado(
 			prefijo, ALTO_SPRITE_OFICIAL, DIRECCION_POLICIA_SENTADO
 		))
 		# CELDA_FUNCIONARIO + alzado del sentado (usuario 2026-08-03: la cabeza a la altura del
 		# monitor) — ver ambas constantes en `mesa_atencion.gd`. El alzado es SOLO del muñeco.
-		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO + MesaAtencionScript.ALZADO_SENTADO_FUNCIONARIO
+		policia.position = sitio + MesaAtencionScript.ALZADO_SENTADO_FUNCIONARIO
 	else:
 		_anadir_cuerpo_policia(policia)
-		policia.position = MesaAtencionScript.CELDA_FUNCIONARIO
+		policia.position = sitio
 	if contenedor.get_meta(&"policia_sentado", false) != con_sprite:
 		contenedor.set_meta(&"policia_sentado", con_sprite)
 		# POR CAPAS, nunca con `move_child` sueltos (ADR-0005): lo unico que cambia entre modos es a

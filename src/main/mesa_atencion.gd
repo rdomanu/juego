@@ -218,6 +218,43 @@ const CELDA_FUNCIONARIO := (   # norte, detrás: su celda entera, menos el arrim
 const CELDA_CIUDADANO := (     # sur, delante: ídem por el otro lado
 	PASO_SUR * (1.0 - ARRIME_CIUDADANO) + DESVIO_CENTRADO_ATENCION
 )
+
+## ── LA VENTANILLA GIRA ENTERA (2026-08-09) ──────────────────────────────────────────────────────
+## Encargo del usuario: *"las ventanillas no se pueden rotar, le doy a la R y solo gira la flecha de
+## acción pero no la mesa entera"*. Y no era el sprite: una ventanilla no es un mueble suelto, es un
+## puesto con TRES sitios (mostrador, funcionario detrás, ciudadano delante). Girar solo la imagen
+## dejaba al policía dentro del mostrador.
+##
+## Las dos constantes de arriba son el caso 0° de estas funciones, y se conservan porque medio
+## `npcs_flujo` las nombra. La geometría NO se reinventa aquí: el vector "hacia el ciudadano" lo da
+## el MODELO (`Construccion.frente_de_orientacion`) y esto solo lo proyecta a pantalla, así que
+## dibujo y modelo no pueden desincronizarse.
+
+## De "hacia dónde mira el puesto" al GRADO del PNG que toca. La convención del arte es la del
+## proyecto (`render_mobiliario`: 0/90/180/270 girando el modelo), y el frente de 0° es el SUR
+## (0,1) — la pose de siempre, con el dorso del monitor a cámara.
+static func rotacion_de_frente(frente: Vector2i) -> int:
+	if frente == Vector2i(-1, 0):
+		return 90
+	if frente == Vector2i(0, -1):
+		return 180
+	if frente == Vector2i(1, 0):
+		return 270
+	return ROT_MOSTRADOR
+
+
+## Desvío EN PANTALLA del sitio del ciudadano (delante del mostrador) para una orientación dada.
+static func desvio_ciudadano(frente: Vector2i) -> Vector2:
+	return (
+		Proyeccion.centro_iso(frente) * (1.0 - ARRIME_CIUDADANO) + DESVIO_CENTRADO_ATENCION
+	)
+
+
+## Desvío EN PANTALLA del sitio del funcionario (detrás del mostrador): el frente en negativo.
+static func desvio_funcionario(frente: Vector2i) -> Vector2:
+	return (
+		Proyeccion.centro_iso(-frente) * (1.0 - ARRIME_FUNCIONARIO) + DESVIO_CENTRADO_ATENCION
+	)
 ## Del centro de la celda SUR (donde el modelo planta al ciudadano, `_frente_del_puesto`) al punto
 ## donde está su silla. Es el desvío de DIBUJO que le aplica `NPCsFlujo.colocar_muneco` mientras le
 ## atienden, para que se siente sobre la silla y no en el centro de la celda.
@@ -237,8 +274,8 @@ static func hay_sprite_mostrador(id_sprite: String) -> bool:
 	return ResourceLoader.exists(_ruta_sprite_mostrador(id_sprite))
 
 
-static func _ruta_sprite_mostrador(id_sprite: String) -> String:
-	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_sprite, ROT_MOSTRADOR]
+static func _ruta_sprite_mostrador(id_sprite: String, rotacion: int = ROT_MOSTRADOR) -> String:
+	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_sprite, rotacion]
 
 
 ## El mostrador de sprite: un `Sprite2D` anclado por el mismo punto que las piezas de código (el
@@ -247,13 +284,22 @@ static func _ruta_sprite_mostrador(id_sprite: String) -> String:
 ## `superficie` = cuántas celdas ocupa el cuerpo a lo largo del eje este (2 el mostrador normal, 1
 ## el legado); es lo que le dice al auto-anclaje cuánto hay entre el centro de la huella y el
 ## centro de la última celda, que es donde se posiciona el nodo (ver `construir`).
-static func _pieza_sprite_mostrador(id_sprite: String, superficie: int) -> Node2D:
+static func _pieza_sprite_mostrador(
+	id_sprite: String, superficie: int, rotacion: int = ROT_MOSTRADOR,
+	paso: Vector2i = Vector2i(1, 0)
+) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Tablero"
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.texture = load(_ruta_sprite_mostrador(id_sprite))
-	AnclajeSprite.aplicar(sprite, Vector2i(1, 0), superficie)
+	# El PNG de ESA rotación si existe; si no (arte incompleto de algún tier), el de 0° de siempre.
+	var ruta: String = _ruta_sprite_mostrador(id_sprite, rotacion)
+	if not ResourceLoader.exists(ruta):
+		ruta = _ruta_sprite_mostrador(id_sprite)
+	sprite.texture = load(ruta)
+	# El `paso` es el eje por el que crece el mostrador (2 celdas): con la ventanilla girada 90° el
+	# cuerpo va norte-sur, no este-oeste, y el ancla tiene que contarlo por ahí.
+	AnclajeSprite.aplicar(sprite, paso, superficie)
 	raiz.add_child(sprite)
 	return raiz
 
@@ -519,7 +565,11 @@ const DESVIO_CENTRADO_MESA_LARGO := Vector2.ZERO
 ## (`hay_sprite_mostrador`), se usa ESE en vez del básico; si no existe el arte todavía, cae al
 ## básico de siempre — nunca revienta por un tier sin render. `es_legado` sigue mandando sobre el
 ## tier: una huella legado es SIEMPRE el mostrador de 1 celda, no hay tier que valga ahí.
-static func construir(es_legado: bool = false, id_sprite_tier: String = "") -> Node2D:
+## `frente`: hacia dónde mira el puesto (`Construccion.frente_de_orientacion`) — 2026-08-09, la
+## ventanilla gira entera. Por defecto (0,1) = sur, que es el comportamiento de SIEMPRE.
+static func construir(
+	es_legado: bool = false, id_sprite_tier: String = "", frente: Vector2i = Vector2i(0, 1)
+) -> Node2D:
 	var raiz := Node2D.new()
 	raiz.name = "Mesa"
 	# Superficie del cuerpo en celdas: 2 el caso normal (catálogo, `TipoPuesto.superficie`), 1 la
@@ -530,11 +580,19 @@ static func construir(es_legado: bool = false, id_sprite_tier: String = "") -> N
 	if not es_legado and id_sprite_tier != "" and hay_sprite_mostrador(id_sprite_tier):
 		id_sprite = id_sprite_tier
 	if hay_sprite_mostrador(id_sprite):
-		var tablero: Node2D = _pieza_sprite_mostrador(id_sprite, superficie)
+		# El eje del cuerpo es PERPENDICULAR al frente: si mira al sur/norte, crece este-oeste.
+		var paso_cuerpo: Vector2i = (
+			Vector2i(1, 0) if frente.x == 0 else Vector2i(0, 1)
+		)
+		var tablero: Node2D = _pieza_sprite_mostrador(
+			id_sprite, superficie, rotacion_de_frente(frente), paso_cuerpo
+		)
 		# LA POSICIÓN DEL NODO ES SOLO REJILLA: el centro de la ÚLTIMA celda del cuerpo, ni un píxel
 		# más (ver `DESVIO_CENTRADO_MESA`, hoy cero). Todo lo que tenga que ver con la FORMA del
 		# dibujo lo resuelve el `offset` medido de `AnclajeSprite`, no esta línea.
-		tablero.position = Proyeccion.delta_ultima_celda(Vector2i(1, 0), superficie)
+		tablero.position = Proyeccion.delta_ultima_celda(
+			Vector2i(1, 0) if frente.x == 0 else Vector2i(0, 1), superficie
+		)
 		raiz.add_child(tablero)
 	else:
 		raiz.add_child(_pieza("Tablero", Vector2.ZERO, ALTO_MESA, ESCALA_MESA, COLOR_TABLERO))
