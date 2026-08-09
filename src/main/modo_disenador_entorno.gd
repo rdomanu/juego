@@ -103,10 +103,17 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 		&"carretera_recta": "🛣 Recta", &"carretera_curva": "🛣 Curva",
 		&"carretera_cruce": "🛣 Cruce", &"carretera_interseccion_t": "🛣 Cruce en T",
 		&"carretera_paso_cebra": "🛣 Paso de cebra",
-		&"bk_muro": "🧱 Muro", &"bk_muro_esquina": "🧱 Muro esquina", &"bk_ventana": "🪟 Ventana",
-		&"bk_puerta": "🚪 Puerta", &"bk_columna": "🏛 Columna", &"bk_escaleras": "🪜 Escaleras",
-		&"bk_suelo": "▦ Suelo", &"bk_muro_bajo": "🧱 Muro bajo", &"bk_borde": "▭ Borde",
-		&"bk_tuberia": "🔧 Tubería",
+		&"bk_muro": "🧱 Muro", &"bk_muro_medio": "🧱 Muro medio",
+		&"bk_muro_bajo": "🧱 Muro bajo",
+		&"bk_muro_esquina": "🧱 Esquina", &"bk_muro_curvo": "🧱 Esquina curva",
+		&"bk_muro_diagonal": "🧱 Esquina diagonal", &"bk_muro_columna": "🧱 Esquina columna",
+		&"bk_puerta": "🚪 Puerta", &"bk_puerta_arco": "🚪 Puerta arco",
+		&"bk_puerta_ancha": "🚪 Puerta ancha", &"bk_puerta_ancha_arco": "🚪 Puerta ancha arco",
+		&"bk_ventana": "🪟 Ventana", &"bk_ventana_arco": "🪟 Ventana arco",
+		&"bk_ventana_ancha": "🪟 Ventana ancha", &"bk_ventana_ancha_arco": "🪟 Ventana ancha arco",
+		&"bk_hoja_puerta": "🚪 Hoja de puerta", &"bk_hoja_puerta_arco": "🚪 Hoja arco",
+		&"bk_columna": "🏛 Columna", &"bk_escaleras": "🪜 Escaleras",
+		&"bk_suelo": "▦ Suelo", &"bk_borde": "▭ Borde", &"bk_tuberia": "🔧 Tubería",
 	}
 	for id: StringName in EntornoExteriorScript.CASAS_TODAS:
 		nombres[id] = _nombre_casa(id)
@@ -118,8 +125,19 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 ## usuario 2026-08-09: *"la pared se sitúa en el medio de la celda en lugar de en un extremo, así es
 ## imposible hacer esquinas"*). Una pared vive en el LADO de la celda — igual que los muros de la
 ## comisaría, que `Construccion` guarda por arista ("h:x:y"/"v:x:y"), no por celda.
+## Las piezas del Building Kit se renderizan al DOBLE de resolución (ver `SUPERMUESTREO_KIT` en
+## `tools/render_entorno_urbano.gd`) y se dibujan a la mitad: mismo tamaño en pantalla, el doble de
+## píxeles, así aguantan el zoom del juego sin cuadricularse (encargo 2026-08-09: "tiene que salir
+## nítido"). El anclaje no se toca: Godot aplica el `offset` del sprite ANTES de la escala, así que
+## el ancla medida del PNG se escala sola con la pieza.
+const ESCALA_KIT: float = 0.5
+
 const PIEZAS_PARED: Array[StringName] = [
-	&"bk_muro", &"bk_ventana", &"bk_puerta", &"bk_muro_bajo", &"bk_borde", &"bk_muro_esquina",
+	&"bk_muro", &"bk_muro_medio", &"bk_muro_bajo", &"bk_borde",
+	&"bk_muro_esquina", &"bk_muro_curvo", &"bk_muro_diagonal", &"bk_muro_columna",
+	&"bk_puerta", &"bk_puerta_arco", &"bk_puerta_ancha", &"bk_puerta_ancha_arco",
+	&"bk_ventana", &"bk_ventana_arco", &"bk_ventana_ancha", &"bk_ventana_ancha_arco",
+	&"bk_hoja_puerta", &"bk_hoja_puerta_arco",
 ]
 
 const PIEZAS_PLANAS: Array[StringName] = [
@@ -418,6 +436,8 @@ func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	var sprite := Sprite2D.new()
 	sprite.texture = textura
 	AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
+	if EntornoExteriorScript.CONSTRUCCION_TODAS.has(StringName(id)):
+		sprite.scale = Vector2(ESCALA_KIT, ESCALA_KIT)   # ver `ESCALA_KIT`
 	# ALINEACIÓN A LA CUADRÍCULA (2026-08-09, "las casas empiezan en mitad de una celda"): las
 	# piezas con huella PAR (casa 6, coche 2, carretera 6) se corren media celda para que sus
 	# bordes caigan sobre bordes de celda; las de huella impar (farola 1) siguen centradas.
@@ -963,6 +983,11 @@ func _process(_delta: float) -> void:
 			_preview_sprite.texture = textura
 			_preview_sprite.modulate = COLOR_FANTASMA_PIEZA if valido else COLOR_FANTASMA_INVALIDO
 			AnclajeSpriteScript.aplicar(_preview_sprite, Vector2i(1, 0), 1)
+			_preview_sprite.scale = (
+				Vector2(ESCALA_KIT, ESCALA_KIT)
+				if EntornoExteriorScript.CONSTRUCCION_TODAS.has(_herramienta)
+				else Vector2.ONE
+			)
 			# El fantasma cae EXACTAMENTE donde caerá la pieza (mismo desvío de rejilla que
 			# `_refrescar_pieza_visual`) — si no, lo que se ve al apuntar no es lo que se coloca.
 			_preview_sprite.position = (

@@ -35,6 +35,14 @@ const FACTOR_PRESENCIA: float = 1.25
 
 const SALIDA_ENTORNO := "res://assets/sprites/entorno/"
 
+## SUPERMUESTREO del Building Kit (2026-08-09, "tiene que salir nitido"): sus piezas se renderizan
+## al DOBLE de los pixeles que ocupan en pantalla y el juego las dibuja a escala 0,5
+## (`ModoDisenadorEntorno.ESCALA_KIT`). Un muro pasa de 44 a 88 px de ancho: se ve del mismo tamano
+## pero con el doble de informacion, asi que aguanta el zoom del juego (hasta 2,5x) sin cuadricularse.
+## El resto del catalogo (casas, coches, carreteras) va a 1:1 como siempre -- son piezas grandes
+## (una casa son 492 px) y ahi el problema no se da.
+const SUPERMUESTREO_KIT: float = 2.0
+
 const CARPETA_SUMMER := "res://capturas/fuentes/biblioteca_summer/"
 const CARPETA_CARKIT := "res://capturas/fuentes/kenney_carkit/extracted/Models/GLB format/"
 ## Casas completas del pack "City Kit Suburban" (Kenney, CC0) -- 2026-08-07, mejora del material:
@@ -315,15 +323,40 @@ const MODELOS: Array[Dictionary] = [
 	## Los 3 detalles (`bk_muro_bajo`/`bk_borde`/`bk_tuberia`) llevan su PROPIA altura estimada
 	## (más bajas que un muro completo) -- valores de partida, a confirmar visualmente contra el
 	## muñeco en la captura de la sonda (`tools/_probe_playtest_20260808.gd`).
-	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "ancho_objetivo_celdas": 0.556},
-	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
-	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
-	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
+	# ── BUILDING KIT: catálogo REHECHO (2026-08-09, veredicto del usuario: "si quiero poner una
+	# puerta no la puedo adaptar a la pared, salen huecos a los lados; faltan puertas distintas,
+	# paredes curvas, más ventanas; revisa ese kit"). El kit trae 61 piezas de construcción y se
+	# estaban usando 10 — y la de la puerta era la EQUIVOCADA: `door-rotate-square-a` es solo la
+	# HOJA batiente suelta, no una pared; por eso al ponerla junto a un muro quedaban huecos.
+	# Las piezas `wall-doorway-*` y `wall-window-*` son PAREDES COMPLETAS con el hueco ya integrado:
+	# encajan con `wall` sin junta porque son del mismo módulo.
+	# Todas heredan el factor de `bk_muro` (kit modular, ver la nota de `factor_de`).
+	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT},
+	{"id": "bk_muro_medio", "ruta": CARPETA_BUILDING + "wall-half.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	# Esquinas: recta, redonda (la "pared curva" que pide el encargo) y diagonal
+	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_muro_curvo", "ruta": CARPETA_BUILDING + "wall-corner-round.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_muro_diagonal", "ruta": CARPETA_BUILDING + "wall-corner-diagonal.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_muro_columna", "ruta": CARPETA_BUILDING + "wall-corner-column.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	# PUERTAS: pared CON hueco (lo que faltaba) — recta, redonda y sus versiones anchas
+	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "wall-doorway-square.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_puerta_arco", "ruta": CARPETA_BUILDING + "wall-doorway-round.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_puerta_ancha", "ruta": CARPETA_BUILDING + "wall-doorway-wide-square.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_puerta_ancha_arco", "ruta": CARPETA_BUILDING + "wall-doorway-wide-round.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	# VENTANAS: pared con hueco, 4 formas
+	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_ventana_arco", "ruta": CARPETA_BUILDING + "wall-window-round.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_ventana_ancha", "ruta": CARPETA_BUILDING + "wall-window-wide-square.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_ventana_ancha_arco", "ruta": CARPETA_BUILDING + "wall-window-wide-round.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	# Hojas de puerta sueltas (se ponen DENTRO del hueco de una `bk_puerta*`)
+	{"id": "bk_hoja_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	{"id": "bk_hoja_puerta_arco", "ruta": CARPETA_BUILDING + "door-rotate-round-a.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
+	# Resto del set
 	{"id": "bk_columna", "ruta": CARPETA_BUILDING + "column.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_escaleras", "ruta": CARPETA_BUILDING + "stairs-open.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_suelo", "ruta": CARPETA_BUILDING + "floor.glb", "ancho_objetivo_celdas": 1.0},
-	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
-	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
+	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "ancho_objetivo_celdas": 0.556 * SUPERMUESTREO_KIT, "factor_de": "bk_muro"},
 	{"id": "bk_tuberia", "ruta": CARPETA_BUILDING + "detail-pipe.glb", "altura_objetivo_m": 2.0},
 ]
 
@@ -333,7 +366,10 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"bk_muro", "bk_muro_esquina", "bk_ventana", "bk_puerta", "bk_muro_bajo", "bk_borde",
+	"bk_muro", "bk_muro_medio", "bk_muro_bajo", "bk_muro_esquina", "bk_muro_curvo",
+	"bk_muro_diagonal", "bk_muro_columna", "bk_puerta", "bk_puerta_arco", "bk_puerta_ancha",
+	"bk_puerta_ancha_arco", "bk_ventana", "bk_ventana_arco", "bk_ventana_ancha",
+	"bk_ventana_ancha_arco", "bk_hoja_puerta", "bk_hoja_puerta_arco", "bk_borde",
 ]
 
 ## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
@@ -818,9 +854,13 @@ func _afeitar_extremos_via(imagen: Image, centro: Vector2, ancho_ideal: float) -
 
 ## Las piezas de PARED del Building Kit: sus sprites se afeitan por los lados para que en fila se
 ## lean como UNA pared (ver `_afeitar_cantos_muro`).
-const AFEITAR_CANTOS_MURO: Array[String] = [
-	"bk_muro", "bk_ventana", "bk_puerta", "bk_muro_bajo",
-]
+## VACIA a proposito (2026-08-09, veredicto del usuario: "si en el kit ya viene bien no entiendo
+## por que lo editas, tiene que salir nitido"). El afeitado de cantos y la correccion de pendiente
+## movian columnas de pixeles ENTERAS y se cargaban el suavizado del render 3D: dejaban mordiscos
+## oscuros en los bordes, justo lo contrario de lo que se buscaba. El arte del kit se guarda TAL
+## CUAL sale del render; la nitidez se consigue con RESOLUCION (ver `SUPERMUESTREO_KIT`), no
+## retocando pixeles. Las dos funciones se dejan porque el pipeline de carreteras usa la misma idea.
+const AFEITAR_CANTOS_MURO: Array[String] = []
 ## Columnas de canto que se comen por cada lado. Medido con PIL sobre `bk_muro_0.png`: el canto
 ## lateral iluminado ocupa 2px (174,184,229 contra 77,85,113 de la cara) y el del otro lado 2px
 ## algo más oscuros — 3 cubre los dos con margen sin morder la cara.

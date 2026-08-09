@@ -262,9 +262,17 @@ const CARRETERAS_TODAS: Array[StringName] = [
 ## cabecera de `tools/render_entorno_urbano.gd`, bloque "BUILDING KIT", para la calibración de
 ## cada una). `bk_suelo` es CASI PLANA -- `ModoDisenadorEntorno.PIEZAS_PLANAS` la trata igual que
 ## `camino_recinto`/`entrada_casa`; el resto tiene volumen (van a `_capa_decor`/y-sort).
+## Building Kit AMPLIADO (2026-08-09, veredicto del usuario: "faltan elementos como puertas
+## distintas, paredes curvas, más ventanas; revisa ese kit"): de 10 a 21 piezas. Las de puerta y
+## ventana son PAREDES CON EL HUECO INTEGRADO (`wall-doorway-*`/`wall-window-*` del kit), no la hoja
+## suelta — con la hoja suelta quedaban huecos a los lados al pegarla a un muro.
 const CONSTRUCCION_TODAS: Array[StringName] = [
-	&"bk_muro", &"bk_muro_esquina", &"bk_ventana", &"bk_puerta", &"bk_columna", &"bk_escaleras",
-	&"bk_suelo", &"bk_muro_bajo", &"bk_borde", &"bk_tuberia",
+	&"bk_muro", &"bk_muro_medio", &"bk_muro_bajo",
+	&"bk_muro_esquina", &"bk_muro_curvo", &"bk_muro_diagonal", &"bk_muro_columna",
+	&"bk_puerta", &"bk_puerta_arco", &"bk_puerta_ancha", &"bk_puerta_ancha_arco",
+	&"bk_ventana", &"bk_ventana_arco", &"bk_ventana_ancha", &"bk_ventana_ancha_arco",
+	&"bk_hoja_puerta", &"bk_hoja_puerta_arco",
+	&"bk_columna", &"bk_escaleras", &"bk_suelo", &"bk_borde", &"bk_tuberia",
 ]
 
 ## Las 4 direcciones cardinales del plano lógico, para recorrer vecinos de una celda.

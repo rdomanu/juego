@@ -18,14 +18,11 @@ func _ready() -> void:
 	# lienzo limpio: fuera el entorno base
 	modo._fijar_base_visible(false)
 	var muestras: Array = [
-		# ESQUINA: tramo por el eje X (rot 90) que gira a un tramo por el eje Y (rot 0)
 		{"id": &"bk_muro", "celda": Vector2i(-16, 4), "rot": 90},
-		{"id": &"bk_muro", "celda": Vector2i(-15, 4), "rot": 90},
-		{"id": &"bk_muro", "celda": Vector2i(-14, 4), "rot": 90},
-		{"id": &"bk_muro", "celda": Vector2i(-13, 4), "rot": 0},
-		{"id": &"bk_muro", "celda": Vector2i(-13, 5), "rot": 0},
-		{"id": &"bk_muro", "celda": Vector2i(-13, 6), "rot": 0},
 		{"id": &"bk_ventana", "celda": Vector2i(-15, 4), "rot": 90},
+		{"id": &"bk_puerta", "celda": Vector2i(-14, 4), "rot": 90},
+		{"id": &"bk_muro", "celda": Vector2i(-13, 4), "rot": 90},
+		{"id": &"bk_muro_curvo", "celda": Vector2i(-12, 4), "rot": 90},
 	]
 	for m: Dictionary in muestras:
 		modo._fijar_herramienta(m["id"])
