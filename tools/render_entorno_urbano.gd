@@ -315,15 +315,15 @@ const MODELOS: Array[Dictionary] = [
 	## Los 3 detalles (`bk_muro_bajo`/`bk_borde`/`bk_tuberia`) llevan su PROPIA altura estimada
 	## (más bajas que un muro completo) -- valores de partida, a confirmar visualmente contra el
 	## muñeco en la captura de la sonda (`tools/_probe_playtest_20260808.gd`).
-	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "altura_objetivo_m": 2.8},
-	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "altura_objetivo_m": 2.8},
-	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "altura_objetivo_m": 2.8},
-	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "altura_objetivo_m": 2.8},
+	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "ancho_objetivo_celdas": 0.5},
+	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
+	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
+	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
 	{"id": "bk_columna", "ruta": CARPETA_BUILDING + "column.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_escaleras", "ruta": CARPETA_BUILDING + "stairs-open.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_suelo", "ruta": CARPETA_BUILDING + "floor.glb", "ancho_objetivo_celdas": 1.0},
-	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "altura_objetivo_m": 1.4},
-	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "altura_objetivo_m": 0.8},
+	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
+	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
 	{"id": "bk_tuberia", "ruta": CARPETA_BUILDING + "detail-pipe.glb", "altura_objetivo_m": 2.0},
 ]
 
@@ -333,8 +333,7 @@ const MODELOS: Array[Dictionary] = [
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
 const SOLO_IDS: Array[String] = [
-	"carretera_recta", "carretera_curva", "carretera_cruce", "carretera_interseccion_t",
-	"carretera_paso_cebra",
+	"bk_muro", "bk_muro_esquina", "bk_ventana", "bk_puerta", "bk_muro_bajo", "bk_borde",
 ]
 
 ## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
