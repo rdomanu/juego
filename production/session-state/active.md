@@ -3001,3 +3001,133 @@ activado_cambiado→main.gd) · paleta del diseñador con Theme y botones ≥48p
 pantalla completa (futuro). VERIFICAR AL LIBERARSE EL MOTOR: suite completa + visual (B barra
 nueva, márgenes 9-slice, --disenador+F12 oculta HUD) → commits. + CASAS a escala de parcela
 (re-render 2-3×) en el mismo hueco.
+
+---
+# ⭐ CHECKPOINT 2026-08-08 TARDE-NOCHE (sesión Fable maratón) — ver traspaso-proxima-sesion.md
+Commits e3937f4..9a9d5b3 (pusheado hasta b17a9f3): casas uniformes+16 nuevas · entrada SUR ·
+kit UI limpio+tarjetas+miniaturas+brújula · paleta 2.0 (5 categorías, 21 casas, carreteras 6
+celdas con curva que PROLONGA) · papel visible · pintura fachada/blanco/tiers/silla N · HUD
+RECONSTRUIDO (HudComisario) · diseñador F12 fix + Building Kit (10 bk_). Arte generado listo:
+2 bancos + barrera (capturas/fuentes/, thumbs auditados). PRIMERA TAREA PRÓXIMA SESIÓN: 3
+failures de contaminación entre suites (verdes en aislado) — ver traspaso. Veredictos del
+usuario pendientes: HUD nuevo, paleta Construcción/garita, hoja bancos+barrera, bandas blancas
+de carretera, ampliación Este (¿24→32?).
+
+---
+# ⭐ CHECKPOINT 2026-08-09 (sesión Fable, arranque)
+1) CONTAMINACIÓN ENTRE SUITES RESUELTA (commit 2191608): causa raíz = modo_disenador_entorno_test
+llamaba alternar() → Tiempo.fijar_velocidad(PAUSA) sobre el AUTOLOAD y nadie reanudaba → NPCs
+congelados en flujo_muro_tras_ruta (quieto 600 frames) + impresora_papel_visible (viaje sin
+cerrar). Cazado por bisección (unit/main → modo_disenador). Fix de aislamiento: before/after_test
+guarda y restaura Tiempo.velocidad_actual. Bonus: gdUnit descartaba el resto de la suite tras el
+fallo → reaparecen 4 casos: suite ahora 953/953 VERDE (antes 949 con 3 rojos).
+2) CARRETERAS FUSIÓN TOTAL (tarea 0b, decisión ya dada): pipeline render_entorno_urbano.gd
++ _bordes_de_via (detección por color de calzada, 5 muestras a 0,12uv por borde, umbral medido
+con PIL: asfalto 122/129/157, franja oscura ≤104, banda 255 — idéntico en las 4 rotaciones)
++ _afeitar_extremos_via (extiende el perfil transversal hasta el borde exacto del rombo,
+franja 0,03uv, muestra a 0,05uv; NO alfa — alfar dejaría rendija porque las losetas no solapan).
+Re-render de las 5 (SOLO_IDS), --import hecho. Verificado con PIL + ojo: recta-recta, codo en L
+(curva PROLONGA), cruce 4 vías, T, cebra — costura invisible; muesca ~1px en ápice interior del
+codo (aceptada, invisible a 1x; el render viejo tenía costuras oscuras cruzando TODA la vía).
+OJO: simular costuras con paso EXACTO (240,120), no H//2 (=122, mete 2px de rendija falsa).
+PENDIENTE INMEDIATO: suite completa post-render en marcha → commit de pipeline+PNGs.
+Ley nueva del usuario (en memoria supervision-visual-fable): auditar toda captura antes de
+enseñarla — cero textos superpuestos/fuera de recuadro, "perfecta de videojuego bueno".
+
+## Avance 2026-08-09 (2ª parte): HUD auditado + opción A implementada
+- Commit 95be810: velocidad uniforme (⏸ emoji → "II" tipográfico; flat esconde dibujo pero NO
+  content margins → styleboxes vacíos + sep 10px; pip 10px) · saldo "3.000 €" (_formato_euros,
+  spec §1.3-[3]) + placa 179px · barra_superior_fondo.png saneado (bultos horneados, borde recto).
+- OPCIÓN A ELEGIDA POR EL USUARIO (franja CONSTRUIR): confirmado que píldoras = arte del kit
+  (StyleBoxTexture) pero fondos de franjas = gris default del MOTOR (theme sin Panel). Implementado:
+  píldora "Construir (B)" (señal construccion_solicitada→main) primera de la fila · franja
+  colapsada ELIMINADA (_panel_raiz.visible = _activo) · fondo plano deliberado compartido
+  KitUIComisario.COLOR_FONDO_BARRA_INFERIOR (ley Summer: relleno plano tolerado) · HUECO 84→60
+  sincronizado (ALTO_BARRA_HUD 60, HUECO_BARRA_INFO eliminado, barra abierta apoya en borde real
+  — sin agujero de mundo) · diseñador cierra construcción al abrirse (orden: cerrar ANTES de
+  ocultar acciones por el rebote de activado_cambiado) · emoji 🔨 fuera · test HUD a 6 píldoras.
+- DEFECTOS PREEXISTENTES APUNTADOS (cazados en auditoría, pendientes): rótulos de tarjetas de
+  construcción TRUNCADOS ("OFICINA DE DOCUMEN...") — ley del usuario "nada fuera del recuadro" ·
+  paleta del diseñador: píldora CASA K cortada por el borde dcho + "CARGADO:" pegado al borde.
+
+## Avance 2026-08-09 (3ª parte): hojas de veredicto bancos + barrera LISTAS
+- Push hecho (usuario OK): origin/main al día hasta f5f9d39.
+- Renders: agente Sonnet creó tools/_render_bancos_barrera.gd/.tscn (verificado contra disco).
+  1ª pasada calibró por altura 0,85m → bancos de 0,36-0,45 celdas (inútil). Fable re-calibró por
+  ANCHO (encargo manda): medio/pro 3 celdas, madera 2. HALLAZGO CLAVE: el ancla de familia de
+  asientos es asiento_sofa3 (109×81px para 3 plazas) — las hojas van a ESA escala (109px), no a
+  240px. Paso de celda a lo largo de un eje = 40px horizontales (no 80).
+- Descartados por rotos (verificado a ojo): banco_desgastado_graveyard (geometría revuelta),
+  banco_urbano_retro (sin textura). Quedan: medio (aeropuerto), pro (azul), madera (básico).
+- Hojas en scratchpad: hoja_bancos_v3.png (muñecos sentados en centroides de cojín medidos por
+  color; referencia silla+sofa3+muñeco) · hoja_barrera_v3.png (rot 0 cruza la calle N-S — 0/180
+  cruzan, 90/270 paralelas; carretera_90 ES la calle N-S en pantalla; pilar al arcén; AVISO:
+  pilar ~2,5 muñecos de alto con pluma a 6 celdas).
+- PENDIENTE: veredicto del usuario sobre ambas hojas → quick-spec asiento multi-plaza → integrar.
+
+## Avance 2026-08-09 (4ª parte): barrera re-hecha a escala de coche (feedback usuario)
+Feedback: "no tiene sentido, 2 montadas juntas, debe ser a escala del coche, NPC antiguo,
+la pluma como mucho al arranque del parabrisas, es inmenso" + "el largo no puede superar el
+ancho de una calle de 6 celdas". Diagnóstico: el modelo es UNA unidad con cabina GIGANTE tipo
+garita + poste suelto (por eso parecían 2). Regla de escala nueva: factor = 43px (arranque del
+parabrisas del coche_policia, medido) / 120px (altura de montaje de la pluma en el render
+nativo) ≈ 0,36. NPC de escala = policia_40px (girl_44px es ANTIGUO — no volver a usarlo en hojas).
+3 variantes compuestas (barrera_3_variantes_v2.png): V1 unidad completa cerrando un carril ·
+V2 dos unidades en espejo entrada/salida (coche_180 esperando) · V3 sin cabina (cirugía PIL:
+pluma + poste en ambos extremos). Pendiente veredicto del usuario (también hoja_bancos_v3).
+
+## Avance 2026-08-09 (5ª parte): barrera v9 — pluma 3D real
+Feedback iterativo del usuario sobre la barrera: (1) "ninguna de las 3 variantes: motor en
+arcén y principio de un lado, pluma hasta el final del otro lado sin tocar el arcén" · (2)
+"las líneas rojas no siguen la línea" (textura del modelo ROTA: parches desfasados al doblar
+el cilindro) · (3) "la pluma no tiene 3D y al motor le falta algo" (mi pluma PIL era plana y
+al cortar el brazo dejé la cabina mocha).
+SOLUCIÓN v9: tools/_render_pluma_barrera.gd(.tscn) — pluma 3D REAL por segmentos BoxMesh
+rojo/blanco planos (relleno plano tolerado por la ley Summer) con cámara/luces del pipeline →
+capturas/fuentes/barrera_summer/renders/pluma_limpia_{0,90,180,270}.png. Motor = recorte del
+render nativo x<118 SIN limpiar rojos (la limpieza mordía la cabina) + autocrop a contenido
+(el lienzo nativo tiene aire debajo: la cabina solo llega a y=233/413 — por eso "flotaba").
+Composición: pluma nace del canto de la cabina tapando el muñón del brazo viejo.
+GOTCHAS SONDA: const SALIDA ya existe en render_mobiliario (renombrar) · la escena debe ser
+Node3D (la base extiende Node3D; con Node2D el script no se asigna y Godot se queda colgado
+sin quit — matar con taskkill).
+PENDIENTE: veredicto de barrera_v9.png y de hoja_bancos_v3.png.
+
+## Avance 2026-08-09 (6ª parte): BARRERA DISEÑO 1 INTEGRADA EN EL JUEGO
+- Usuario eligió diseño 1 (caja 72px) + confirmó que policia_40px NO es el agente de las mesas
+  (es sprite viejo — los de mesa son los cabezones tipo Poly; el policia_40px solo era escala).
+- Pieza final: 4 sprites assets/sprites/entorno/barrera_seguridad_{0,90,180,270}.png compuestos
+  con PIL: cabina del modelo (recorte rectangular por rotación + acortado POR ABAJO 33px nativos
+  — así el punto de montaje del brazo BAJA a la vez que la caja — + repintado del brazo horneado
+  SOLO en el corredor del brazo, rot 0/270) + pluma 3D real (tools/_render_pluma_barrera.gd,
+  BoxMesh segmentos rojo/blanco, SECCION 0,14) + ancla invisible alfa 16 en el suelo de la punta
+  (rot 0/270: la punta cuelga más bajo que la base del motor y AnclajeSprite anclaría mal; lienzo
+  ampliado por abajo para que el suelo real de la punta quepa).
+- Registro: modo_disenador_entorno.gd OBJETOS_IDS + "🚧 Barrera de entrada".
+- VERIFICADO IN-GAME con tools/_diag_barrera_ingame (sonda desechable): captura en
+  production/qa/evidence/barrera_ingame_2026-08-09.png.
+- GOTCHAS de la sonda in-game: el diseñador guarda UNA pieza por celda (la barrera en la celda
+  de la loseta LA SUSTITUYE → colocarla en la celda del arcén) · Main._camara usa
+  ANCHOR_MODE_FIXED_TOP_LEFT (posición = esquina sup-izq: para centrar, restar media ventana) ·
+  el clamp de cámara pisa posiciones fuera de cobertura · el motor 3D por cajas salía NEGRO con
+  la iluminación del pipeline (se descartó; cabina = modelo real).
+- Suite en marcha como gate → commit. PENDIENTE del usuario: hoja de bancos (hoja_bancos_v3.png),
+  borde ondulado, columnas ampliación Este. Push: 2 commits sin subir (95be810, f5f9d39) + el de
+  la barrera cuando esté verde (el usuario pidió saber qué queda por pushear al terminar).
+
+---
+# ⭐ CHECKPOINT 2026-08-09 (sesión Fable maratón) — ver traspaso-proxima-sesion.md
+16 commits, 2191608..e0a7e9b, TODO PUSHEADO. Suite 949 -> **974/974 verde**.
+Hecho: aislamiento de la suite (Tiempo PAUSA sin restaurar) · fusión de carreteras · HUD auditado
+(⏸ era emoji del sistema; saldo con formato de spec) · franja CONSTRUIR = píldora del kit (opción A)
+· diseñador con paleta rehecha + "Base visible/oculta" + "Importar entorno" · alineación a la
+cuadrícula por paridad de huella · Building Kit 10->21 piezas (la puerta era la pieza equivocada:
+wall-doorway-* es pared CON hueco) · bordes lisos con TAM_RENDER 2048 (contorno suavizado 42%->99%)
+· barrera diseño 1 sin cortes · ciudadanos de perfil + papel en la mano con capas · ventanillas que
+giran ENTERAS · bancos multi-plaza (3 tiers, 1 NPC por celda, 3 sentados verificados).
+PRÓXIMO: re-render general del catálogo con el supermuestreo (TAM_RENDER ya está a 2048; falta
+ejecutar los pipelines y VACIAR SOLO_IDS en render_entorno_urbano).
+GOTCHA MÁS CARO DEL DÍA: dos celdas contiguas distan 40px (MEDIO rombo), no 80 — causó muros
+solapados, bancos gigantes y casas descuadradas. Y: la escala se ancla a una pieza que YA existe en
+el juego, no a cuentas teóricas.
+Veredictos pendientes del usuario: columnas de la ampliación Este (¿24->32?), borde ondulado del kit.
