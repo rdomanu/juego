@@ -379,12 +379,17 @@ func importar_base(inventario: Array) -> int:
 
 
 ## ARRIMADO A LA ARISTA de las piezas de pared (ver `PIEZAS_PARED`). Una pared no ocupa el centro de
-## su celda: se apoya en uno de sus cuatro lados, y qué lado depende de cómo esté girada. El desvío
-## es media celda en el plano lógico cuadrado, en la dirección que mira la pared:
-##   rot   0 → norte (−Y)      rot  90 → oeste (−X)
-##   rot 180 → sur   (+Y)      rot 270 → este  (+X)
-## (mismo ciclo de orientaciones que usa `AnclajeSprite.CICLO_ESPALDA` y la brújula del proyecto:
-## 0=S, 90=O, 180=N, 270=E — el muro se arrima al lado CONTRARIO al que mira su cara vista.)
+## su celda: se apoya en uno de sus cuatro lados. QUÉ lado no es libre — lo decide el eje por el que
+## AVANZA la pared, y equivocarlo es lo que producía el aspecto de SIERRA que reportó el usuario:
+##
+##   Una fila de muros que avanza en X sobre la arista OESTE de cada celda NO forma una línea: las
+##   aristas oeste de celdas contiguas en X están ESCALONADAS media celda cada una. La línea recta
+##   la forman las aristas NORTE (todas comparten la misma y), y ésas son las que tocan.
+##
+##   rot  90/270 (pared a lo largo del eje X) → arista NORTE/SUR
+##   rot   0/180 (pared a lo largo del eje Y) → arista OESTE/ESTE
+##
+## El desvío es media celda del plano lógico cuadrado hacia ese lado.
 ## Cero para todo lo que no sea pared: un árbol o un coche siguen centrados en su celda.
 func _desvio_arista(id: StringName, rotacion: int) -> Vector2:
 	if not PIEZAS_PARED.has(id):
@@ -392,10 +397,10 @@ func _desvio_arista(id: StringName, rotacion: int) -> Vector2:
 	var medio: float = float(_tam_celda) * 0.5
 	var direccion := Vector2.ZERO
 	match posmod(rotacion, 360):
-		0: direccion = Vector2(0.0, -1.0)
-		90: direccion = Vector2(-1.0, 0.0)
-		180: direccion = Vector2(0.0, 1.0)
-		270: direccion = Vector2(1.0, 0.0)
+		0: direccion = Vector2(-1.0, 0.0)    # pared a lo largo del eje Y → arista OESTE
+		90: direccion = Vector2(0.0, -1.0)   # pared a lo largo del eje X → arista NORTE
+		180: direccion = Vector2(1.0, 0.0)   # ídem 0, por el lado contrario
+		270: direccion = Vector2(0.0, 1.0)   # ídem 90, por el lado contrario
 	return Proyeccion.proyectar(direccion * medio)
 
 

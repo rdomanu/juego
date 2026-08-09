@@ -609,7 +609,7 @@ func _ejecutar(todas: Dictionary) -> void:
 		# pared corrida (ver `_afeitar_cantos_muro`).
 		if AFEITAR_CANTOS_MURO.has(id):
 			for i: int in imagenes.size():
-				imagenes[i] = _afeitar_cantos_muro(imagenes[i])
+				imagenes[i] = _corregir_pendiente_iso(_afeitar_cantos_muro(imagenes[i]))
 			print("[ENTORNO URBANO]   %s: cantos laterales afeitados (pared continua)" % id)
 
 		for i: int in ROTACIONES.size():
@@ -841,39 +841,44 @@ const ANCHO_CANTO_MURO: int = 3
 func _corregir_pendiente_iso(imagen: Image) -> Image:
 	var ancho: int = imagen.get_width()
 	var alto: int = imagen.get_height()
-	# Pendiente REAL del borde superior, medida de la propia silueta.
+	# TOP real de cada columna (primera fila opaca).
+	var tops: Array[int] = []
 	var x_ini := -1
-	var x_fin := -1
-	var y_ini := 0
-	var y_fin := 0
 	for x: int in range(ancho):
-		var top: int = -1
+		var top := -1
 		for y: int in range(alto):
 			if imagen.get_pixel(x, y).a > 0.6:
 				top = y
 				break
-		if top >= 0:
-			if x_ini < 0:
-				x_ini = x
-				y_ini = top
-			x_fin = x
-			y_fin = top
-	if x_ini < 0 or x_fin <= x_ini:
+		tops.append(top)
+		if top >= 0 and x_ini < 0:
+			x_ini = x
+	if x_ini < 0:
 		return imagen
-	var pendiente_real: float = float(y_fin - y_ini) / float(x_fin - x_ini)
-	var falta: float = 0.5 - pendiente_real
-	if absf(falta) < 0.01:
-		return imagen   # ya cae a 2:1
-	var alto_extra: int = int(ceil(absf(falta) * float(x_fin - x_ini))) + 1
-	var salida := Image.create(ancho, alto + alto_extra, false, imagen.get_format())
+	# Cada columna se lleva a la LÍNEA IDEAL de pendiente 0,5 que arranca en su primer top. Ojo:
+	# no vale un cizallado global con la pendiente media (se intentó y salieron peldaños DOBLES,
+	# porque el error de redondeo se acumulaba); aquí cada columna se alinea a su objetivo exacto.
+	# El SIGNO de la pendiente depende del eje por el que corre la pared: a lo largo del eje X el
+	# borde BAJA hacia la derecha (+0,5) y a lo largo del eje Y SUBE (−0,5). Se toma el signo de la
+	# propia silueta y solo se corrige la magnitud — forzar +0,5 a las cuatro rotaciones destrozaba
+	# las de eje Y (los módulos salían desparramados en escalera, visto en la captura).
+	var x_fin: int = ancho - 1
+	while x_fin > x_ini and tops[x_fin] < 0:
+		x_fin -= 1
+	var signo: float = 1.0 if tops[x_fin] >= tops[x_ini] else -1.0
+	var margen := 4
+	var salida := Image.create(ancho, alto + margen * 2, false, imagen.get_format())
 	salida.fill(Color(0, 0, 0, 0))
 	for x: int in range(ancho):
-		var dy: int = int(round(falta * float(x - x_ini)))
+		if tops[x] < 0:
+			continue
+		var objetivo: int = tops[x_ini] + int(round(float(x - x_ini) * 0.5 * signo))
+		var dy: int = objetivo - tops[x] + margen
 		for y: int in range(alto):
 			var c: Color = imagen.get_pixel(x, y)
 			if c.a <= 0.0:
 				continue
-			var destino: int = clampi(y + dy, 0, alto + alto_extra - 1)
+			var destino: int = clampi(y + dy, 0, alto + margen * 2 - 1)
 			salida.set_pixel(x, destino, c)
 	return salida
 
