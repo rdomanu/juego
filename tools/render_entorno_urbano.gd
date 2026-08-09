@@ -183,9 +183,17 @@ const MODELOS: Array[Dictionary] = [
 	{"id": "arbol_urbano", "ruta": CARPETA_SUMMER + "arbol_urbano.glb", "altura_objetivo_m": 4.5},
 	{"id": "seto", "ruta": CARPETA_SUMMER + "seto.glb", "altura_objetivo_m": 0.8},
 	{"id": "farola", "ruta": CARPETA_SUMMER + "farola.glb", "altura_objetivo_m": 4.0},
-	{"id": "coche_policia", "ruta": CARPETA_CARKIT + "police.glb", "longitud_objetivo_m": 4.8},
-	{"id": "coche_sedan", "ruta": CARPETA_CARKIT + "sedan.glb", "longitud_objetivo_m": 5.3},
-	{"id": "coche_suv", "ruta": CARPETA_CARKIT + "suv.glb", "longitud_objetivo_m": 5.6},
+	## ⚠️ `yaw_invertido`: los 3 coches del carkit miran al lado CONTRARIO al que espera la
+	## convención del proyecto (0=S, 90=O, 180=N, 270=E -- `design/art/lado-de-accion.md`), así que
+	## a yaw 90 el coche miraba al Este. El 2026-08-08 (commit 839731f) se "arregló" INTERCAMBIANDO
+	## a mano los contenidos de los PNG _90 y _270, sin tocar este pipeline: por eso el bug
+	## RESUCITÓ en el primer re-render general (2026-08-10). El arreglo bueno es este flag, que
+	## invierte el SENTIDO de giro al renderizar (`_90` se saca del yaw 270 y viceversa), de modo
+	## que cualquier re-render futuro ya sale conforme a la brújula. Ver la ley del proyecto: los
+	## defectos se corrigen en la FUENTE, nunca retocando el arte ya renderizado.
+	{"id": "coche_policia", "ruta": CARPETA_CARKIT + "police.glb", "longitud_objetivo_m": 4.8, "yaw_invertido": true},
+	{"id": "coche_sedan", "ruta": CARPETA_CARKIT + "sedan.glb", "longitud_objetivo_m": 5.3, "yaw_invertido": true},
+	{"id": "coche_suv", "ruta": CARPETA_CARKIT + "suv.glb", "longitud_objetivo_m": 5.6, "yaw_invertido": true},
 	{"id": "casa_a", "ruta": CARPETA_SUBURBAN + "building-type-a.glb", "ancho_objetivo_celdas": 6.0},
 	{"id": "casa_d", "ruta": CARPETA_SUBURBAN + "building-type-m.glb", "ancho_objetivo_celdas": 6.0},
 	{"id": "casa_g", "ruta": CARPETA_SUBURBAN + "building-type-g.glb", "ancho_objetivo_celdas": 7.0},
@@ -365,12 +373,7 @@ const MODELOS: Array[Dictionary] = [
 ## vacío = todos (comportamiento de siempre); con ids dentro, `_ready()` solo carga/renderiza esos --
 ## así una pasada de recalibrado de las 5 casas no toca (ni reescribe en disco) los PNG de coches/
 ## vallas/etc. Se deja permanente por utilidad futura (recalibrar un solo grupo sin re-render completo).
-const SOLO_IDS: Array[String] = [
-	"bk_muro", "bk_muro_medio", "bk_muro_bajo", "bk_muro_esquina", "bk_muro_curvo",
-	"bk_muro_diagonal", "bk_muro_columna", "bk_puerta", "bk_puerta_arco", "bk_puerta_ancha",
-	"bk_puerta_ancha_arco", "bk_ventana", "bk_ventana_arco", "bk_ventana_ancha",
-	"bk_ventana_ancha_arco", "bk_hoja_puerta", "bk_hoja_puerta_arco", "bk_borde",
-]
+const SOLO_IDS: Array[String] = []
 
 ## Las 5 piezas cuyo sprite final se recorta al rombo IDEAL 2:1 -- ver el bug 2/2 documentado en la
 ## cabecera de `MODELOS` (nota del kit roads). Deliberadamente NO incluye `calzada_recta`/
@@ -599,8 +602,13 @@ func _ejecutar(todas: Dictionary) -> void:
 				escalados.append(_escalar(bruto_familia, escala_pieza))
 		else:
 			escalados.append(_escalar(bruto_0, escala_pieza))
+			# `yaw_invertido` (ver la nota en MODELOS, sobre los coches): el sprite que se GUARDA
+			# como `_90` se saca del yaw 270 y viceversa. El 0 y el 180 no cambian, por eso
+			# `bruto_0` sigue valiendo tal cual.
+			var yaw_invertido: bool = bool(modelo.get("yaw_invertido", false))
 			for rot: int in [90, 180, 270]:
-				grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
+				var yaw: int = ((360 - rot) % 360) if yaw_invertido else rot
+				grupo.rotation = Vector3(0.0, deg_to_rad(float(yaw)), 0.0)
 				var bruto: Dictionary = await _renderizar_bruto()
 				escalados.append(_escalar(bruto, escala_pieza))
 

@@ -3131,3 +3131,112 @@ GOTCHA MÁS CARO DEL DÍA: dos celdas contiguas distan 40px (MEDIO rombo), no 80
 solapados, bancos gigantes y casas descuadradas. Y: la escala se ancla a una pieza que YA existe en
 el juego, no a cuentas teóricas.
 Veredictos pendientes del usuario: columnas de la ampliación Este (¿24->32?), borde ondulado del kit.
+
+---
+# SESIÓN 2026-08-09 (tarde) — arranque
+Árbol limpio y pusheado hasta ad4eb74 (verificado). Suite 974/974 desde el cierre anterior.
+CAMBIO DE PRIORIDAD DEL USUARIO al empezar: antes del re-render general, quiere decidir el
+TAMAÑO DE LOS BANCOS ("están bastante grandes") con una hoja de 3 tamaños menores + coche y
+policía Poly al lado.
+Diagnóstico medido (PIL): banco medio 108x101, pro 108x104, básico 72x56; sofá3 aprobado 108x72;
+policía de pie (oficial_h_44px) 28x45. Los bancos medio/pro miden 2,2-2,3 VECES el alto de una
+persona de pie y 30px más que el sofá de 3 plazas con el mismo ancho -> la familia se ancló por
+ANCHO y la ALTURA se disparó. La queja del usuario es correcta y medible.
+Hoja v1 RECHAZADA por mí en auditoría: sin nadie sentado (el agente afirmó en falso que no había
+sprites `*_sit_*`; SÍ existen oficial_h_44px_sit_N y todos los civiles), rejilla que no llegaba
+bajo los bancos, policías de pie tapando el brazo del banco. Pedida v2.
+
+## Reconocimiento del RE-RENDER GENERAL (agente Sonnet 5, solo lectura, 2026-08-09 tarde)
+Estado real por pipeline (verificado con git log/ls-files):
+- YA MIGRADOS a 2048+LANCZOS: render_mobiliario (~40 PNG), render_props_poly (28),
+  _render_estanterias (12), render_entorno_urbano (hasta ~148, HOY limitado por SOLO_IDS a 72).
+- SIN MIGRAR (siguen a TAM_RENDER=512, cada uno con su propia constante, NO heredan):
+  render_sprites (girl, 144) · render_sprites_civiles (~1008) · render_sprites_animado
+  (oficial_h/m, ~288) · render_variantes_civiles_produccion (~2016) · _render_dispensador_b (4)
+  · _render_silla_espera_partida (3). => ~3456 PNG de PERSONAJES sin supermuestrear: es el 99%
+  del volumen y el trabajo más largo con diferencia.
+- NO TOCAR: render_catalogo_objetos / render_catalogo_oficina / render_despiece_objetos
+  (salida gitignored, no alimenta al juego) y los 18 _render_* que escriben solo a scratchpad.
+ORDEN: (1) render_mobiliario -> (2) render_props_poly -> (3) _render_estanterias ->
+(4) render_entorno_urbano CON SOLO_IDS VACIADO -> (5) los 4 de personajes subiendo su
+TAM_RENDER 512->2048 -> (6) _render_silla_espera_partida (DEPENDE de silla_espera_270.png del
+paso 1) -> (7) _render_dispensador_b (ojo: FACTOR_TAMANO_B=1.28, calibración propia).
+RIESGOS: las 5 piezas de RECORTAR_CANTOS_VIA (carreteras) llevan cirugía de píxel (recorte a
+rombo + afeitado de extremos) -> revisar a ojo que la sutura siga sin costura.
+AFEITAR_CANTOS_MURO debe seguir VACÍO (decisión del usuario: la nitidez es resolución, no retoque).
+VERIFICACIÓN: bbox de silueta antes/después (±1-2px o se aborta) + fracción de ancla igual +
+% de píxeles de PERÍMETRO con alfa intermedio (debe subir). Nunca medir sobre el área.
+
+## VEREDICTO DEL USUARIO 2026-08-09: bancos a ESCALA B = 75%
+Elegida la opción B de `hoja_bancos_escala.png` (scratchpad de esta sesión). Motivo: deja el banco
+de aeropuerto en 76px de alto, casi clavado al `asiento_sofa3` (108x72) que el usuario YA aprobó.
+La escala NO se aplica encogiendo el PNG (emborrona el borde y tira por tierra el supermuestreo):
+se mete en el pipeline y se RE-RENDERIZA desde el .glb -> entra en el lote del re-render general.
+Hoja auditada por mí en 3 pasadas: v1 rechazada (sin sentados, rejilla corta), v2 con rejilla que
+pisaba los rótulos -> arreglado por mí: rejilla en capa recortada a alfombra rectangular
+(GRID_DEPTH 20 + GRID_CLIP) y placa de fondo del color EXACTO de la banda bajo cada rótulo.
+
+## HALLAZGO GORDO: LOS NPC NO PUEDEN SENTARSE (el usuario lo cazó en la hoja)
+"están de pie en los asientos". CIERTO y es estructural, no un fallo de la hoja:
+- El esqueleto de `capturas/NPC/Ciudadanos/candidatos/generic_male.glb` (y familia) tiene 27 huesos
+  y NINGUNO es de pierna: CORE, Body, Head, Hand.L/R (+dedos), Foot.L/R, Toes.L/R. Son cabezones
+  estilo Rayman: los pies FLOTAN pegados al cuerpo. No hay cadera ni rodilla que doblar.
+- Por eso `render_sprites_civiles.gd::_posar_sentado` gira `Foot.L`/`Foot.R` 85 grados
+  (SENTADO_GRADOS_PIE) y baja el CORE medio largo de pierna (SENTADO_BAJADA_FRACCION 0,5). El
+  resultado es "de pie hundido", que es exactamente lo que se ve. OJO: las constantes se llaman
+  HUESO_PIERNA_IZQ/DER pero apuntan a Foot.L/Foot.R — el nombre engaña.
+- Animaciones disponibles en el .glb: Grounded, Idle, Jump, Sprint, Walk. **`Grounded` está sin
+  explorar** y es la candidata más barata a pose de sentado.
+- Comprobado con PIL: `civil_h1_44px_sit_*` y `civil_h1_44px_*_0` son visualmente la misma figura
+  erguida.
+
+### Dónde se aplica el 75% de los bancos (localizado, SIN ejecutar aún — Godot ocupado)
+`tools/_render_bancos_barrera.gd` controla la escala con `ancho_objetivo_celdas` (escala UNIFORME):
+  banco_espera_medio 1.35 -> **1.0125**   |   banco_espera_pro 1.35 -> **1.0125**
+  banco_madera_summer 0.90 -> **0.675**
+Escribe en `capturas/fuentes/bancos_espera/renders/` (NO directo a assets): tras el render hay que
+promover los PNG a `assets/sprites/mobiliario/comodidad_banco_espera_{basico,medio,pro}_{0,90,180,270}.png`.
+
+### Exploración de la pose sentada: resultados (2026-08-09 tarde)
+1. SONDA DE POSES (`tools/_diag_poses_sentado.gd`, desechable): probadas ACTUAL, GROUNDED (t=0..1),
+   HUNDIDO 0.75/1.0, RECOSTADO ±12°, PIES ADELANTE 0.20/0.40 y COMBO. **NINGUNA se lee como
+   sentado.** `Armature|Grounded` resultó ser un "recuperar el equilibrio" de 0,333 s, erguido, sin
+   flexión: NO sirve. PIES ADELANTE es PEOR que el bug (despega la bota del cuerpo). Nota: la hoja
+   que generó el agente tenía los muñecos a escala falsa -> NO se enseñó al usuario.
+   Dato técnico: subir SENTADO_BAJADA_FRACCION no cambia nada porque el pipeline hace autocrop al
+   contenido; el hundido solo serviría con oclusión real en el juego.
+2. TRUCO DEL MUEBLE PARTIDO (probado por mí, `scratchpad/prueba_banco_partido.py`): el juego YA lo
+   usa en la ventanilla (`npcs_flujo.gd::hay_silla_espera_partida` + `silla_espera_asiento_270.png`
+   / `silla_espera_respaldo_270.png`): el NPC va ENTRE las dos mitades del mueble. Probado en el
+   banco con corte a media altura y con banda fina de canto (8/12 px) + hundido 6/10.
+   **VEREDICTO MÍO: no basta.** El corte ancho mete patas y reposabrazos por delante del TORSO (el
+   muñeco parece DETRÁS del banco); el fino apenas cambia nada. El problema no es la oclusión: es
+   que la silueta erguida es idéntica a la de estar de pie.
+3. INVENTARIO DE RIGS: escaneados los 284 .glb de `capturas/`. **Solo `capturas/NPC/girl.glb` tiene
+   rig humano completo** (74 huesos: Hips_01, RightUpLeg_063, RightLeg_064, LeftUpLeg_068,
+   LeftLeg_069), sin animaciones. Ningún pack de personajes CC0 con piernas descargado.
+   => Con el arte actual NO hay sentado posible. En marcha una demo con girl.glb sentada de verdad
+   para que el usuario vea la diferencia y decida si encarga la pose a Summer.
+
+## DECISIÓN DEL USUARIO 2026-08-10: REHACER LOS CIUDADANOS CON RIG COMPLETO
+Tras ver el diagrama de esqueletos (`scratchpad/diagrama_esqueletos.png`, posiciones derivadas de
+las `inverseBindMatrices` del .glb), el usuario descarta el apaño del mueble macizo y elige la
+opción cara: **modelos de personaje nuevos con piernas de verdad**. Su razón (buena y de largo
+plazo): *"en un futuro tienen que subir escaleras o bajarlas o subirse a un coche"*.
+- El rig actual: CORE -> {Body->Head, Hand.L, Hand.R, Foot.L->Toes.L, Foot.R->Toes.R}. Manos y
+  pies CUELGAN DE LA CADERA. Tres huesos por dedo y CERO en la pierna. No hay bisagra que doblar:
+  no es dificultad, es imposibilidad sin re-riggear en Blender.
+- Alcance real: 7 modelos civiles (generic_male/female, citizen1-3, retail_worker, crypto_bro) +
+  2 de oficial = 9. Los 21 prefijos civiles salen de esos 7 por recoloreado.
+- **CONSECUENCIA INMEDIATA EN EL RE-RENDER**: los ~3.456 PNG de `assets/sprites/personajes/`
+  SALEN DEL LOTE del supermuestreo (se tirarían al llegar el muñeco nuevo). El re-render general
+  queda en muebles + entorno (~230 PNG). Ahorro grande de tiempo.
+- PLAN antes de gastar: (1) el usuario reconecta Summer con /mcp; (2) yo redacto el prompt del
+  modelo PILOTO y le enseño coste por pieza; (3) se genera UNO solo; (4) hoja de comparación con
+  los ciudadanos actuales (de pie / andando / sentado) + verlo in-game; (5) solo con su OK, los 8
+  restantes. Nada de encargar 9 a ciegas.
+- TRABAJO TÉCNICO QUE ME TOCA A MÍ (sin coste): `render_sprites_civiles.gd` y
+  `render_sprites_animado.gd` buscan los huesos POR NOMBRE (`CORE`, `Foot.L`...). Un rig nuevo
+  traerá nombres estándar distintos -> hay que parametrizar los nombres de hueso por modelo y
+  reescribir `_posar_sentado` para doblar cadera+rodilla de verdad (ya validado el método con
+  girl.glb en `tools/_diag_sentado_rig_completo.gd`).
