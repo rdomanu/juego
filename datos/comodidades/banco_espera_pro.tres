@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Comodidad" format=3]
+
+[ext_resource type="Script" path="res://src/foundation/datos/esquema/comodidad.gd" id="1_banco"]
+
+[resource]
+script = ExtResource("1_banco")
+id = &"banco_espera_pro"
+nombre = "Banco premium"
+descripcion = "Banco de tres plazas tapizado en azul, con reposabrazos."
+familia = "ciudadano"
+coste_construccion_eur = 240
+aporte = 5.0
+superficie = 3
+plazas = 3

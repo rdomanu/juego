@@ -69,6 +69,10 @@ func _sala_oficina(construccion: Node) -> StringName:
 # biblioteca pública Summer) y `silla_espera_madera`/`silla_espera_azul` (KayKit CC BY)/
 # `silla_espera_comoda` (Summer, encargo) (ciudadano). `vending` YA estaba en el catálogo (con
 # precio y `aporte` propios desde antes) — este lote solo le puso sprite, no suma al recuento.
+# 2026-08-09: sube de 16 a 19. Quick-spec `bancos-espera-multiplaza`: los tres BANCOS de sala de
+# espera aprobados por el usuario ("los bancos ok") — basico (2 plazas), medio y pro (3). Son
+# `Comodidad` de familia "ciudadano" como las sillas, con `plazas` = `superficie` (una plaza por
+# celda), que es lo que los distingue de una silla suelta.
 func test_el_catalogo_trae_los_ocho_objetos() -> void:
 	var todos: Array = Datos.obtener_todos(&"Comodidad")
 	var de_este_epic: Array = todos.filter(func(c: Resource) -> bool:
@@ -82,9 +86,12 @@ func test_el_catalogo_trae_los_ocho_objetos() -> void:
 		"escritorio_trabajo", "silla_espera_azul", "silla_espera_comoda", "silla_espera_madera",
 		"silla_oficina",
 	])
+	assert_array(ids).contains([
+		"banco_espera_basico", "banco_espera_medio", "banco_espera_pro",
+	])
 	assert_int(de_este_epic.size()).override_failure_message(
 		"las familias ciudadano+funcionario traen %s" % [ids]
-	).is_equal(16)
+	).is_equal(19)
 
 	var tele: Resource = Datos.obtener(&"Comodidad", &"television")
 	assert_str(tele.familia).is_equal("ciudadano")

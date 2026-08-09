@@ -1627,7 +1627,13 @@ const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [
 ## mueble DISTINTO — ni el mismo id ni el mismo arte). `silla_espera_madera` NO entra en esta lista
 ## a propósito: no la pidió el usuario y ya hay un asiento barato en la barra (`ASIENTO_BASICO`,
 ## 25 €) que cubre ese hueco de precio.
-const ASIENTOS_ESPERA_EN_BARRA: Array[StringName] = [&"silla_espera_azul", &"silla_espera_comoda"]
+## Los BANCOS MULTI-PLAZA entran aquí desde 2026-08-09 (quick-spec `bancos-espera-multiplaza`):
+## mismo camino de tarjeta que las sillas, y la etiqueta añade sus plazas para que se vea de un
+## vistazo que un banco sienta a 2-3 y una silla a 1.
+const ASIENTOS_ESPERA_EN_BARRA: Array[StringName] = [
+	&"silla_espera_azul", &"silla_espera_comoda",
+	&"banco_espera_basico", &"banco_espera_medio", &"banco_espera_pro",
+]
 
 
 ## Los datos para pintar el fantasma como sprite (`{"textura", "paso", "celdas"}`) o vacío
@@ -2060,8 +2066,13 @@ func _crear_ui() -> void:
 		var comodidad_asiento: Resource = Datos.obtener_silencioso(&"Comodidad", id_asiento)
 		if comodidad_asiento == null:
 			continue   # red de seguridad: un id de la lista sin `.tres` en el catálogo no rompe la UI
+		var etiqueta_asiento: String = "%s (%d €)" % [
+			comodidad_asiento.nombre, comodidad_asiento.coste_construccion_eur
+		]
+		if comodidad_asiento.plazas > 1:
+			etiqueta_asiento += " · %d plazas" % comodidad_asiento.plazas
 		_anadir_herramienta(
-			"%s (%d €)" % [comodidad_asiento.nombre, comodidad_asiento.coste_construccion_eur],
+			etiqueta_asiento,
 			id_asiento, false, &"muebles", &"sillon",
 			_sprite_de_herramienta(id_asiento, 0, 1).get("textura")
 		)

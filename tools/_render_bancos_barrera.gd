@@ -34,15 +34,24 @@ const SALIDA_BARRERA := "res://capturas/fuentes/barrera_summer/renders/"
 
 ## Los 5 bancos candidatos: por ALTURA REAL declarada 0,85 m (respaldo de banco público) × factor
 ## de presencia — se MIDE el ancho resultante a 0° y se reporta en celdas, sin forzarlo.
+## RECETA v4 (2026-08-09, definitiva): la escala se ancla al SOFÁ DE 3 PLAZAS que ya existe en el
+## juego (`asiento_sofa3`, 108x72 px) -- un banco de 3 plazas es su hermano y tiene que medir lo
+## mismo. Es además la escala con la que el usuario aprobó el arte en la hoja de veredicto. Las dos
+## cuentas "teóricas" anteriores (N rombos y (N+1) medios rombos) daban bancos 1,5-2,2x más grandes
+## que ese hermano, y en el juego aplastaban a los muñecos.
+## RECETA v3 (2026-08-09): la escala se corrige a la REGLA DEL PASO DE CELDA -- un mueble de N
+## celdas EN FILA mide (N+1) medias celdas de ancho de rombo, porque dos celdas contiguas distan
+## medio rombo (40px), no uno entero. Con la cuenta ingenua (N rombos) los bancos salian 1,5x
+## demasiado grandes y aplastaban a los muñecos (visto in-game).
 ## RECETA v2 (2026-08-09, verificación de Fable sobre la 1ª pasada): calibrar por ALTURA (0,85 m)
 ## daba bancos de 0,36-0,45 celdas — el propio encargo (encargo-bancos-espera.md) pide huella de
 ## ANCHO 2-3 celdas con 1 plaza/celda, así que el ancho manda y el alto sale de la proporción
 ## natural (escala uniforme, ley del proyecto). Fuera `banco_desgastado_graveyard` y
 ## `banco_urbano_retro` (verificados a ojo en la pasada 1: sin textura / geometría revuelta).
 const MODELOS_BANCOS: Array[Dictionary] = [
-	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 3.0},
-	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 3.0},
-	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 2.0},
+	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 1.35},
+	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 1.35},
+	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.90},
 ]
 
 ## La barrera: por ANCHO objetivo = 6,0 celdas (480 px) a 0° — el brazo debe cubrir una calle de 6

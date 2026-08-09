@@ -703,9 +703,13 @@ func esta_sentado(npc: Node) -> bool:
 	var plaza: Vector2i = _plaza_reservada_de(npc)
 	if plaza == CELDA_NULA or _construccion == null:
 		return false
-	# Su plaza es un ASIENTO si en esa celda hay un elemento de tipo asiento.
+	# Su plaza es un ASIENTO si en esa celda hay un mueble donde SENTARSE. Desde la quick-spec de
+	# bancos multi-plaza (2026-08-09) eso ya no es "ser la silla básica": un banco de 3 celdas sienta
+	# a uno en CADA una, así que se pregunta por las plazas que ofrece el mueble de esa celda.
 	var elemento: StringName = _construccion.elemento_en(plaza)
-	return elemento != &"" and _construccion.catalogo_de(elemento) == _construccion.ASIENTO_BASICO
+	if elemento == &"":
+		return false
+	return _construccion.plazas_sentadas_de(_construccion.catalogo_de(elemento)) > 0
 
 
 ## ¿Está este ciudadano PLANTADO EN EL FRENTE de su ventanilla (sentado o de pie, mientras le
@@ -984,8 +988,10 @@ func _sitio_en_espera(npc: Node) -> Vector2:
 		return _construccion.centro_de_celda(propia)
 	var salas: Array[StringName] = _construccion.salas_de_espera_de(persona.servicio())
 	for sala_id: StringName in salas:
-		for asiento_id: StringName in _construccion.asientos_de_sala(sala_id):
-			var celda_asiento: Vector2i = _construccion.posicion_de(asiento_id)
+		# Una plaza por CELDA sentable (quick-spec bancos multi-plaza 2026-08-09): un banco de 3
+		# celdas ofrece tres sitios, no uno. Antes se preguntaba por el elemento y su única
+		# `posicion_de`, así que en un banco solo se habría sentado el primero que llegara.
+		for celda_asiento: Vector2i in _construccion.celdas_sentables_de_sala(sala_id):
 			if _plaza_libre(celda_asiento):
 				_plaza_de[celda_asiento] = npc
 				return _construccion.centro_de_celda(celda_asiento)
@@ -1006,9 +1012,11 @@ func _hueco_de_pie_libre(sala_id: StringName, turno: int) -> Vector2i:
 	var area: int = rect.get_area()
 	if area <= 0:
 		return CELDA_NULA
+	# Celdas donde alguien se SIENTA (una por plaza: las 3 de un banco, la 1 de una silla) — este
+	# barrido busca hueco DE PIE, así que las esquiva.
 	var bancos: Dictionary = {}
-	for asiento_id: StringName in _construccion.asientos_de_sala(sala_id):
-		bancos[_construccion.posicion_de(asiento_id)] = true
+	for celda_sentable: Vector2i in _construccion.celdas_sentables_de_sala(sala_id):
+		bancos[celda_sentable] = true
 	var origen: int = turno % area
 	for salto: int in range(area):
 		var celda: Vector2i = _celda_del_rect(rect, (origen + salto) % area)

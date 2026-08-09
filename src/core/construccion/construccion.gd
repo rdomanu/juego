@@ -1878,12 +1878,45 @@ func aforo_de_servicio(servicio: StringName) -> int:
 
 
 ## Asientos colocados en una sala (`ignorar` excluye a uno — para revalidar al moverlo).
+## Cuántas PLAZAS SENTADAS ofrece un id de catálogo (0 = no es sitio para sentarse).
+##
+## Quick-spec `bancos-espera-multiplaza-2026-08-09.md`: hasta hoy "ser un asiento" era comparar el
+## catálogo con `ASIENTO_BASICO` — una celda, una silla, un NPC. Un BANCO ocupa 2-3 celdas y ofrece
+## una plaza POR CELDA, así que la pregunta ya no es "¿eres la silla?" sino "¿cuánta gente sienta
+## esto?". El dato sale del campo `Comodidad.plazas`, que ya existía en el esquema (lo usaba solo la
+## sala de descanso). El asiento básico sigue valiendo 1 exactamente como siempre.
+func plazas_sentadas_de(id_catalogo: StringName) -> int:
+	if id_catalogo == ASIENTO_BASICO:
+		return 1
+	var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id_catalogo)
+	if comodidad == null or comodidad.familia != "ciudadano":
+		return 0
+	return maxi(comodidad.plazas, 0)
+
+
+## Las CELDAS de una sala en las que alguien puede sentarse (una por plaza: las 3 de un banco de 3,
+## la única de una silla). Lo consume `NPCsFlujo` para repartir a quién le toca asiento.
+func celdas_sentables_de_sala(sala_id: StringName) -> Array[Vector2i]:
+	var celdas: Array[Vector2i] = []
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		if elemento["sala"] != sala_id:
+			continue
+		if plazas_sentadas_de(elemento["catalogo"]) <= 0:
+			continue
+		celdas.append_array(_huella_de(elemento))
+	return celdas
+
+
 func _asientos_en(sala_id: StringName, ignorar: StringName = &"") -> int:
 	var total: int = 0
 	for elemento_id: StringName in _elementos:
 		var elemento: Dictionary = _elementos[elemento_id]
-		if elemento_id != ignorar and elemento["catalogo"] == ASIENTO_BASICO and elemento["sala"] == sala_id:
-			total += 1
+		if elemento_id == ignorar or elemento["sala"] != sala_id:
+			continue
+		# PLAZAS, no muebles (quick-spec bancos multi-plaza): un banco de 3 celdas ocupa sitio para
+		# tres, y contarlo como uno dejaría que la sala admitiera el triple de gente de la que cabe.
+		total += plazas_sentadas_de(elemento["catalogo"])
 	return total
 
 
@@ -2655,6 +2688,11 @@ static func _sprites_comodidad() -> Dictionary:
 		&"silla_oficina": {"rotacion": 0, "rotacion_directa": true},
 		&"silla_espera_madera": {"rotacion": 0, "rotacion_directa": true},
 		&"silla_espera_azul": {"rotacion": 0, "rotacion_directa": true},
+		# BANCOS DE ESPERA MULTI-PLAZA (2026-08-09, quick-spec `bancos-espera-multiplaza`): 4 vistas
+		# reales renderizadas de los GLB aprobados por el usuario ("los bancos ok").
+		&"banco_espera_basico": {"rotacion": 0, "rotacion_directa": true},
+		&"banco_espera_medio": {"rotacion": 0, "rotacion_directa": true},
+		&"banco_espera_pro": {"rotacion": 0, "rotacion_directa": true},
 		&"silla_espera_comoda": {"rotacion": 0, "rotacion_directa": true},
 		&"vending": {"rotacion": 0, "rotacion_directa": true},
 	}
