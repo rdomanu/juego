@@ -77,7 +77,15 @@ const SALIDA := "res://assets/sprites/mobiliario/"
 const ELEVACION_GRADOS: float = 30.0
 ## Se renderiza GRANDE y se reduce después (mismo criterio que el resto de la herramientas de
 ## render): perder detalle al achicar se nota mucho menos que renderizar ya pequeño.
-const TAM_RENDER: int = 512
+##
+## 512 → 2048 (2026-08-09, veredicto del usuario: *"en lugar de línea recta pura sale con el efecto
+## sierra"*, y tras el MSAA: *"se ha mejorado pero muy poco, solo un 4%"*). El MSAA del viewport
+## apenas hace nada con el renderer en modo Compatibility que usa este proyecto. Lo que SÍ da
+## bordes lisos siempre es el SUPERMUESTREO: renderizar a 4× de lado (16× de píxeles) y dejar que
+## la reducción LANCZOS de `_escalar` promedie — cada píxel final nace de la media de 16, que es
+## exactamente lo que hace un antialiasing de verdad. Y no toca el arte: es el mismo render, solo
+## que muestreado más fino.
+const TAM_RENDER: int = 2048
 ## Aire alrededor del objeto al encuadrar la cámara, para que ningún borde roce el marco.
 const MARGEN: float = 1.15
 ## Cuánto de su celda debe ocupar el mostrador en el sprite final — ver la cabecera ("LA ESCALA").

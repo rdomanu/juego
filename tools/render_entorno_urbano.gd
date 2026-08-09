@@ -446,6 +446,14 @@ func _ejecutar(todas: Dictionary) -> void:
 	_sub.transparent_bg = true
 	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub.own_world_3d = true
+	# ANTIALIASING (2026-08-09, veredicto del usuario: "en lugar de linea recta pura sale con el
+	# efecto sierra, segun veo en el kit eso no deberia pasar"). MEDIDO en el PNG anterior: 178
+	# pixeles con alfa intermedio contra 11.238 opacos -- los bordes salian a ESCALONES DUROS, sin
+	# una sola muestra suavizada. El modelo del kit se ve liso en cualquier visor 3D porque TODOS
+	# aplican antialiasing; este render no lo tenia puesto. Con MSAA 4x las diagonales salen con su
+	# degradado y desaparece la sierra -- sin tocar un solo pixel del arte a posteriori (que fue
+	# justo lo que el usuario rechazo).
+	_sub.msaa_3d = Viewport.MSAA_4X
 	add_child(_sub)
 
 	var mundo := Node3D.new()
@@ -992,6 +1000,14 @@ func _medir_candidatos_casa() -> void:
 	_sub.transparent_bg = true
 	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_sub.own_world_3d = true
+	# ANTIALIASING (2026-08-09, veredicto del usuario: "en lugar de linea recta pura sale con el
+	# efecto sierra, segun veo en el kit eso no deberia pasar"). MEDIDO en el PNG anterior: 178
+	# pixeles con alfa intermedio contra 11.238 opacos -- los bordes salian a ESCALONES DUROS, sin
+	# una sola muestra suavizada. El modelo del kit se ve liso en cualquier visor 3D porque TODOS
+	# aplican antialiasing; este render no lo tenia puesto. Con MSAA 4x las diagonales salen con su
+	# degradado y desaparece la sierra -- sin tocar un solo pixel del arte a posteriori (que fue
+	# justo lo que el usuario rechazo).
+	_sub.msaa_3d = Viewport.MSAA_4X
 	add_child(_sub)
 
 	var mundo := Node3D.new()
