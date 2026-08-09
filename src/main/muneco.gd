@@ -277,9 +277,23 @@ const ANCHO_PAPEL: float = 7.0
 const ALTO_PAPEL: float = 9.0
 const COLOR_PAPEL := Color(0.96, 0.96, 0.94)
 const COLOR_BORDE_PAPEL := Color(0.55, 0.55, 0.52)
-## Dónde cuelga del muñeco (chest/mano, relativo a la raíz del visual — mismo sistema que la taza ☕
-## de `NPCsFlujo._poner_taza`, que se posiciona igual desde fuera).
-const POSICION_PAPEL := Vector2(-5.0, -22.0)
+## Dónde cuelga del muñeco, relativo a la raíz del visual.
+##
+## 🐛 CORREGIDO (2026-08-09, usuario: *"el papel que se les entrega va como pegado a la cara, debería
+## ir en la mano con el juego del movimiento de las manos y respetar las capas"*). Estaba en y = −22
+## y la CABEZA ocupa de −28 a −22 (`Y_CADERA − ALTO_TORSO − ALTO_CABEZA`): el papel caía justo sobre
+## la cara. La MANO está al final del brazo, que cuelga del hombro (`Y_HOMBRO` = −20) y mide
+## `ALTO_BRAZO` = 9 → y ≈ −11. Ahí va ahora, un pelo por encima para que se lea "agarrado" y no
+## "colgando". La X sale del ancho del torso: el papel va por fuera del cuerpo, en el lado de la mano.
+const POSICION_PAPEL := Vector2(ANCHO_TORSO * 0.5 + 1.0, Y_HOMBRO + ALTO_BRAZO - 2.0)
+## Cuánto acompaña el papel al vaivén del brazo (radianes). El brazo oscila `AMPLITUD_BRAZO`; el
+## papel va agarrado, así que se mueve con él pero atenuado — una mano que sujeta algo balancea menos.
+const VAIVEN_PAPEL: float = 0.55
+## Direcciones de sprite en las que el muñeco va DE ESPALDAS a la cámara (índice = rumbo i×45° desde
+## el este hacia el sur, ver `orientar_sprite`): 5, 6 y 7 miran al norte. Con el personaje de
+## espaldas su propio cuerpo tapa lo que lleva en la mano, así que el papel se dibuja DETRÁS —
+## "si se gira se oculta el papel con el cuerpo", que es justo lo que pidió el usuario.
+const DIRECCIONES_DE_ESPALDAS: Array[int] = [5, 6, 7]
 
 
 ## Un papel sostenido en la mano, listo para colgar de un muñeco. Quien lo cuelga (`NPCsFlujo.
@@ -395,6 +409,44 @@ static func orientar_sprite(muneco: Node2D, avance_mundo: Vector2) -> void:
 	muneco.set_meta(&"direccion", indice)
 	_poner_sprite(muneco, indice, int(muneco.get_meta(&"fotograma", 0)),
 		bool(muneco.get_meta(&"sentado", false)))
+
+
+## Coloca el papel que lleva un muñeco de SPRITE en la mano y lo hace acompañar al paso (2026-08-09,
+## encargo del usuario). Tres cosas, todas pedidas:
+##  1. En la MANO, no en la cara — la Y sale del brazo (ver `POSICION_PAPEL`), no de un número a ojo.
+##  2. Con "el juego del movimiento de las manos": se balancea con la misma `fase` del paso que mueve
+##     el resto del cuerpo, atenuado (`VAIVEN_PAPEL`), y solo mientras de verdad anda (`andando`).
+##  3. RESPETANDO LAS CAPAS: de espaldas el papel pasa DETRÁS del cuerpo (primer hijo del visual en
+##     vez del último) — el orden del árbol ES el orden de dibujo. Y el lado (izquierda/derecha) se
+##     elige según hacia dónde mire, para que no salga flotando por delante del pecho.
+##
+## Se llama cada frame desde `NPCCiudadano._physics_process`; si el muñeco no lleva papel, no hace
+## nada (cero coste).
+static func colocar_papel(visual: Node2D, fase: float, andando: float) -> void:
+	var papel: Node2D = visual.get_node_or_null("Papel") as Node2D
+	if papel == null:
+		return
+	# La dirección la lleva el SPRITE DEL CUERPO, a quien orienta `orientar_sprite`. Se BUSCA por su
+	# meta, no por el índice 0: en cuanto este mismo método manda el papel detrás, el papel PASA a ser
+	# el primer hijo y leerlo como cuerpo hacía que la capa oscilara de un frame a otro (cazado con
+	# la sonda in-game: el visual reportaba `cuerpo=Papel`).
+	var direccion := 0
+	for hijo: Node in visual.get_children():
+		if hijo.has_meta(&"direccion"):
+			direccion = int(hijo.get_meta(&"direccion"))
+			break
+	var de_espaldas: bool = DIRECCIONES_DE_ESPALDAS.has(direccion)
+	# Lado: con el personaje mirando al oeste (índices 3..5) la mano visible es la otra.
+	var a_la_izquierda: bool = direccion >= 3 and direccion <= 5
+	papel.position = Vector2(
+		-POSICION_PAPEL.x if a_la_izquierda else POSICION_PAPEL.x, POSICION_PAPEL.y
+	)
+	papel.rotation = sin(fase) * VAIVEN_PAPEL * andando
+	# El papel es hijo del VISUAL (que contiene el sprite del cuerpo): moverlo al principio lo manda
+	# detrás; al final, delante.
+	var indice_destino: int = 0 if de_espaldas else visual.get_child_count() - 1
+	if papel.get_index() != indice_destino:
+		visual.move_child(papel, indice_destino)
 
 
 static func orientar(muneco: Node2D, hacia_izquierda: bool, de_espaldas: bool) -> void:

@@ -298,6 +298,15 @@ const UMBRAL_GIRO: float = 1.5
 ## que atiende. Sentarse mirando a la pared quedaba raro y era lo que pasaba al conservar la última
 ## dirección de marcha.
 const DIRECCION_SENTADO := Vector2(0.0, -1.0)
+## Hacia dónde mira el ciudadano MIENTRAS LE ATIENDEN de pie (2026-08-09, usuario: *"los ciudadanos
+## cuando hacen los trámites salen de espaldas, no se giran en ningún momento"*).
+##
+## Ojo, que no es un despiste del código: el mostrador está al NORTE del ciudadano, así que mirar al
+## funcionario es, en esta cámara isométrica, darle la espalda al jugador. Correcto en geometría e
+## ilegible en pantalla — no se le ve ni la cara ni lo que lleva. Se resuelve como en cualquier
+## isométrico: de PERFIL (mira al este, índice de sprite 0). Sigue leyéndose que atiende en la
+## ventanilla, pero se le ve media cara y el papel que sostiene.
+const DIRECCION_ATENDIDO := Vector2(1.0, 0.0)
 ## La celda por la que se sale del edificio (la puerta de la fachada). Se usa para comprobar si un
 ## agente puede siquiera salir a la calle a tomarse el café cuando no hay sala de descanso.
 const CELDA_PUERTA_SALIDA := Vector2i(11, 12)
@@ -566,6 +575,21 @@ func configurar(
 	_rebake_pendiente = true
 
 
+## El SPRITE DEL CUERPO dentro de un visual de muñeco, o `null` si ese muñeco es de piezas.
+##
+## Se busca por el meta `prefijo` que le pone `Muneco.construir_sprite`, NUNCA por `get_child(0)`:
+## el visual lleva más hijos (barra de paciencia, ánimo, taza, papel) y desde 2026-08-09 el PAPEL se
+## manda al primer lugar cuando el muñeco va de espaldas (para que su cuerpo lo tape). Con el índice
+## fijo, todas las llamadas de animación y orientación apuntaban al papel en cuanto eso pasaba: el
+## ciudadano dejaba de girarse y se quedaba de espaldas en la ventanilla — el bug que reportó el
+## usuario, con una causa que no era la que parecía.
+func _cuerpo_sprite(visual: Node2D) -> Node2D:
+	for hijo: Node in visual.get_children():
+		if hijo.has_meta(&"prefijo"):
+			return hijo as Node2D
+	return null
+
+
 ## Coloca un muñeco en pantalla A PARTIR de dónde está su cuerpo en el plano lógico, Y LE PONE EL
 ## PASO: un bote y un vaivén que dependen del CAMINO RECORRIDO, no del reloj.
 ##
@@ -601,22 +625,37 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	visual.rotation = sin(fase) * VAIVEN_PASO * andando
 	# Un muñeco de SPRITE avanza su ciclo de fotogramas; el de piezas mueve sus piezas. Los dos con
 	# la MISMA fase, así que caminan al mismo ritmo.
-	if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
+	var cuerpo: Node2D = _cuerpo_sprite(visual)
+	if cuerpo != null:
 		# ⚠️ SENTADO solo si además está PARADO. Sin esta condición, alguien que ya tiene su silla
 		# reservada pero todavía va andando hacia ella cruzaba media comisaría en postura de
 		# sentado — lo cazó el usuario al momento: *"no pueden ir sentadas esas personas siempre,
 		# ahora andan con esa postura"*. La silla se reserva al ELEGIR destino, no al llegar; el que
 		# sabe si ha llegado es el movimiento, no el modelo.
 		var sentado: bool = bool(visual.get_meta(&"sentado", false)) and andando < 0.2
-		if sentado:
+		# 🐛 DE ESPALDAS EN LA VENTANILLA (2026-08-09, usuario: *"los ciudadanos cuando hacen los
+		# trámites salen de espaldas, no se giran en ningún momento muchos de ellos, otros sí"*).
+		# La dirección solo se recalcula al MOVERSE (ver el bloque de abajo), así que quien llegaba
+		# al mostrador andando hacia el norte se quedaba dándole la espalda al funcionario todo el
+		# trámite; los sentados sí giraban, de ahí el "otros sí". Atender de pie es la MISMA
+		# situación que estar sentado: se mira al mostrador, no a donde se venía andando.
+		var mirando_al_puesto: bool = (
+			bool(visual.get_meta(&"mirar_al_puesto", false)) and andando < 0.2
+		)
+		if sentado or mirando_al_puesto:
 			# Sentado se mira SIEMPRE hacia donde toca (a la ventanilla), no hacia donde venía
-			# andando: si no, cada uno se sienta mirando a un lado distinto.
+			# andando: si no, cada uno se sienta mirando a un lado distinto. Atendido de pie va de
+			# PERFIL (ver `DIRECCION_ATENDIDO`): mirar de frente al mostrador es quedarse de
+			# espaldas al jugador.
 			MunecoScript.orientar_sprite(
-				visual.get_child(0) as Node2D, DIRECCION_SENTADO
+				cuerpo, DIRECCION_ATENDIDO if mirando_al_puesto else DIRECCION_SENTADO
 			)
-		MunecoScript.animar_sprite(visual.get_child(0) as Node2D, fase, andando, sentado)
+		MunecoScript.animar_sprite(cuerpo, fase, andando, sentado)
 	else:
 		MunecoScript.animar(visual, fase, andando)
+	# El papel va EN LA MANO y acompaña al paso, y de espaldas se esconde tras el cuerpo
+	# (2026-08-09) — ver `Muneco.colocar_papel`. Si el muñeco no lleva papel, no hace nada.
+	MunecoScript.colocar_papel(visual, fase, andando)
 	# HACIA DÓNDE MIRA. Se decide por el movimiento de ESTE frame, y solo cuando de verdad se ha
 	# movido — si no, al pararse daría un volantazo por un temblor de medio píxel. Al quedarse quieto
 	# conserva la última dirección, que es lo natural: uno no gira la cara al detenerse.
@@ -631,8 +670,8 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 			previo = visual.get_meta(&"pos_previa_giro") as Vector2
 		var avance_mundo: Vector2 = punto_cuadrado - previo
 		if avance_mundo.length() > UMBRAL_GIRO:
-			if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
-				MunecoScript.orientar_sprite(visual.get_child(0) as Node2D, avance_mundo)
+			if cuerpo != null:
+				MunecoScript.orientar_sprite(cuerpo, avance_mundo)
 			else:
 				var en_pantalla: Vector2 = Proyeccion.proyectar(avance_mundo)
 				MunecoScript.orientar(visual, en_pantalla.x < 0.0, en_pantalla.y < 0.0)
@@ -1796,8 +1835,9 @@ func _orientar_entrega(cuerpo: Node2D) -> void:
 	var visual: Node2D = _visual_caminante(cuerpo)
 	if visual == null:
 		return
-	if visual.get_child_count() > 0 and visual.get_child(0).has_meta(&"prefijo"):
-		MunecoScript.orientar_sprite(visual.get_child(0) as Node2D, DIRECCION_POLICIA_SENTADO)
+	var cuerpo_policia: Node2D = _cuerpo_sprite(visual)
+	if cuerpo_policia != null:
+		MunecoScript.orientar_sprite(cuerpo_policia, DIRECCION_POLICIA_SENTADO)
 	else:
 		var en_pantalla: Vector2 = Proyeccion.proyectar(DIRECCION_POLICIA_SENTADO)
 		MunecoScript.orientar(visual, en_pantalla.x < 0.0, en_pantalla.y < 0.0)

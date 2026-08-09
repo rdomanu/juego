@@ -214,6 +214,9 @@ func _physics_process(_delta: float) -> void:
 		# ¿Sentado? Se marca en el muñeco y la capa visual elige el sprite que toca. Se consulta
 		# aquí (una vez por frame y por persona) porque depende del estado lógico, que cambia solo.
 		muneco.set_meta(&"sentado", _manager.esta_sentado(self))
+		# Mientras le atienden mira al mostrador aunque esté de pie (2026-08-09, "salen de
+		# espaldas"): lo aplica `NPCsFlujo.colocar_muneco`, que es quien orienta a todo el que anda.
+		muneco.set_meta(&"mirar_al_puesto", _manager.en_frente_del_puesto(self))
 		# ORDEN DE DIBUJO EN LA VENTANILLA (2026-08-03): mientras le atienden está en la celda sur,
 		# DELANTE del mostrador, y tiene que verse por encima de él (piernas y silla incluidas). Se
 		# hace con z_index de estado porque el muñeco no cuelga del contenedor del puesto y no puede
