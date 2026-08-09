@@ -384,6 +384,13 @@ func _ready() -> void:
 				if _entorno_exterior != null:
 					_entorno_exterior.fijar_base_visible(visible)
 		)
+		# "Importar entorno" (2026-08-09): el diseñador pide el inventario de lo que colocó el
+		# procedural y lo adopta como piezas suyas — ver `ModoDisenadorEntorno.importar_base`.
+		_modo_disenador_entorno.importar_base_solicitado.connect(
+			func() -> void:
+				if _entorno_exterior != null:
+					_modo_disenador_entorno.importar_base(_entorno_exterior.inventario_base())
+		)
 	# Panel de personal (feedback flujo-008): andamio de gestión de plantilla + mercado (tecla P). Se
 	# crea OCULTO; solo LEE y ORDENA por la API pública de los sistemas Core (ADR-0001).
 	_panel_personal = PanelPersonalScript.new()

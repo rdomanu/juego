@@ -120,6 +120,9 @@ static var _cache_centro: Dictionary[String, Vector2] = {}
 ## en uso y verificado. Se paga una segunda pasada de píxeles por textura, y solo por las texturas
 ## de los muebles DE PARED — que son los únicos que preguntan por los semiejes.
 static var _cache_semiejes: Dictionary[String, Vector2] = {}
+## Celdas de huella por textura (ver `celdas_de_huella`) — medir la silueta descomprime la imagen,
+## así que se cachea igual que el centro y los semiejes.
+static var _cache_celdas: Dictionary[String, int] = {}
 
 
 ## El píxel del PNG que debe caer sobre el nodo del sprite, sabiendo que ese nodo vive en el centro
@@ -179,6 +182,77 @@ static func semiejes_base(textura: Texture2D) -> Vector2:
 	if clave != "":
 		_cache_semiejes[clave] = semiejes
 	return semiejes
+
+
+## ── ALINEACIÓN A LA CUADRÍCULA (2026-08-09, encargo del usuario) ────────────────────────────────
+## *"Las casas tienen que colocarse en los bordes de las celdas, ahora empiezan en mitad de una
+## celda"* / *"los muros y puertas no se ajustan a las cuadrículas"* / *"si algo ocupa 1,94, amplíalo
+## a 2"*.
+##
+## LA CAUSA: colocar un sprite pone el CENTRO de su base en el CENTRO de la celda señalada. Para una
+## pieza de 1 celda es lo correcto (una farola se centra en su celda, y así debe seguir). Pero una
+## casa mide 6 celdas y un coche 2: con un número PAR de celdas, el centro de la pieza cae por
+## geometría en el BORDE entre dos celdas, no en el centro de ninguna — clavarlo en el centro de una
+## celda la descuadra media celda y sus bordes caen partiendo celdas por la mitad.
+##
+## LA REGLA: la huella se REDONDEA a celdas enteras (1,94 → 2 celdas; ese es el "amplíalo a 2") y,
+## si el resultado es PAR, el ancla se corre media celda en ese eje para que los bordes de la pieza
+## caigan sobre bordes de celda. Impar → sin desvío (sigue centrada, como la farola).
+## Todo MEDIDO del PNG: ninguna pieza declara su huella a mano (misma ley que el resto del fichero).
+
+## Cuántas CELDAS mide el ROMBO de la base en pantalla, redondeado al entero más cercano (mínimo 1).
+##
+## Se mide del ANCHO de la silueta (`min_x`..`max_x`), que es el dato más fiable del PNG: para una
+## base de a×b celdas, ese ancho vale exactamente `(a+b)` rombos (ver la cabecera). NO se usan aquí
+## los `semiejes_base`: separar a de b exige suponer una caja perfecta y en piezas grandes con
+## tejado (las casas) el reparto se despista — para la ALINEACIÓN solo hace falta la paridad de la
+## suma, que el ancho da directamente y sin suposiciones.
+static func celdas_de_huella(textura: Texture2D) -> int:
+	if textura == null:
+		return 1
+	var clave: String = textura.resource_path
+	if clave != "" and _cache_celdas.has(clave):
+		return _cache_celdas[clave]
+	var ancho_px: float = _medir_ancho_silueta(textura)
+	var celdas: int = maxi(1, int(roundf(ancho_px / float(Proyeccion.ANCHO_ROMBO))))
+	if clave != "":
+		_cache_celdas[clave] = celdas
+	return celdas
+
+
+## El desplazamiento EN PANTALLA que alinea la pieza a la cuadrícula: media celda cuando su huella
+## mide un número PAR de celdas (sus bordes caen entonces sobre bordes de celda), cero cuando es
+## impar (la pieza sigue centrada en su celda, como la farola). Se SUMA al punto de pantalla de la
+## celda señalada.
+static func desvio_rejilla(textura: Texture2D) -> Vector2:
+	if celdas_de_huella(textura) % 2 != 0:
+		return Vector2.ZERO
+	var medio: float = float(Proyeccion.TAM_CELDA) * 0.5
+	return Proyeccion.proyectar(Vector2(medio, medio))
+
+
+## El ancho en píxeles de la silueta opaca (misma medida que usa `_medir_centro_base`).
+static func _medir_ancho_silueta(textura: Texture2D) -> float:
+	var img: Image = textura.get_image()
+	if img == null:
+		return 0.0
+	if img.is_compressed():
+		img.decompress()
+	var ancho: int = img.get_width()
+	var alto: int = img.get_height()
+	var min_x: int = -1
+	for px: int in range(ancho):
+		if _columna_opaca(img, px, alto):
+			min_x = px
+			break
+	if min_x < 0:
+		return 0.0
+	var max_x: int = min_x
+	for px: int in range(ancho - 1, min_x, -1):
+		if _columna_opaca(img, px, alto):
+			max_x = px
+			break
+	return float(max_x - min_x + 1)
 
 
 ## Por qué EJE es DELGADO el mueble, medido de sus píxeles: `Vector2i(1,0)` si lo es en X (este/

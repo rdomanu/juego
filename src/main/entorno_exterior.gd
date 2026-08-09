@@ -329,6 +329,8 @@ var _capa_decor: Node2D = null
 ## Estado de los dos interruptores de visibilidad procedural (ver `_refrescar_visibilidad_procedural`).
 var _scatter_visible: bool = true
 var _base_visible: bool = true
+## Qué colocó el procedural, en el esquema del layout — ver `_anotar_en_inventario`.
+var _inventario_base: Array[Dictionary] = []
 var _fuentes: Dictionary[String, int] = {}
 ## Huellas (rect lógico) de las casas del barrio YA colocadas -- 2026-08-08: antes esta bolsa se
 ## declaraba pero NUNCA se rellenaba (bug latente sin notar mientras las casas eran pequeñas): ni
@@ -761,9 +763,49 @@ func _colocar_prop(textura: Texture2D, celda: Vector2i, empuje: Vector2 = Vector
 	var sprite := Sprite2D.new()
 	sprite.texture = textura
 	AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
-	sprite.position = punto_pantalla_de_ancla(celda) + empuje
+	# Mismo desvío de alineación a la cuadrícula que usa el diseñador (2026-08-09) — así una casa
+	# colocada por el procedural y otra colocada a mano caen exactamente igual sobre la rejilla.
+	sprite.position = (
+		punto_pantalla_de_ancla(celda) + AnclajeSpriteScript.desvio_rejilla(textura) + empuje
+	)
 	_capa_decor.add_child(sprite)
+	_anotar_en_inventario(textura, celda)
 	return sprite
+
+
+## Apunta una pieza procedural en el INVENTARIO BASE (2026-08-09, encargo del usuario "quiero poder
+## editar con F12 todos los elementos del entorno"): el diseñador lo importa como piezas SUYAS y a
+## partir de ahí el usuario las mueve, rota y borra como cualquier otra. El id y la rotación se
+## DEDUCEN del nombre del PNG (`coche_policia_90.png` → id `coche_policia`, rotación 90) — la misma
+## convención `<id>_<rot>.png` que ya usa `textura_de_pieza` para el camino inverso, así que no hay
+## una segunda lista que mantener sincronizada.
+func _anotar_en_inventario(textura: Texture2D, celda: Vector2i) -> void:
+	var pieza: Dictionary = _id_rotacion_de_textura(textura)
+	if pieza.is_empty():
+		return
+	_inventario_base.append({
+		"id": pieza["id"], "celda": [celda.x, celda.y], "rotacion": pieza["rotacion"],
+	})
+
+
+## `<id>_<rot>.png` → `{"id": …, "rotacion": …}`; `{}` si el nombre no sigue la convención.
+static func _id_rotacion_de_textura(textura: Texture2D) -> Dictionary:
+	if textura == null or textura.resource_path == "":
+		return {}
+	var base: String = textura.resource_path.get_file().get_basename()
+	var corte: int = base.rfind("_")
+	if corte <= 0:
+		return {}
+	var sufijo: String = base.substr(corte + 1)
+	if not sufijo.is_valid_int():
+		return {}
+	return {"id": base.substr(0, corte), "rotacion": int(sufijo)}
+
+
+## El inventario de TODO lo que el procedural colocó, en el esquema del layout
+## (`{"id","celda":[x,y],"rotacion"}`) — lo consume `ModoDisenadorEntorno.importar_base`.
+func inventario_base() -> Array[Dictionary]:
+	return _inventario_base.duplicate(true)
 
 
 ## Coloca un asset CASI PLANO (camino/calzada/acera/entrada de casa) en la bolsa plana (SIN
@@ -772,8 +814,9 @@ func _colocar_overlay_plano(textura: Texture2D, celda: Vector2i) -> void:
 	var sprite := Sprite2D.new()
 	sprite.texture = textura
 	AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
-	sprite.position = punto_pantalla_de_ancla(celda)
+	sprite.position = punto_pantalla_de_ancla(celda) + AnclajeSpriteScript.desvio_rejilla(textura)
 	_capa_overlays_planas.add_child(sprite)
+	_anotar_en_inventario(textura, celda)
 
 
 ## Como `_colocar_overlay_plano`, pero anclado a un punto LÓGICO continuo (no una celda entera) —

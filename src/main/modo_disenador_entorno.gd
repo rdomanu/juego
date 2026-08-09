@@ -33,6 +33,10 @@ signal activado_cambiado(activo: bool)
 ## El usuario alterna la visibilidad del entorno base procedural desde la paleta (2026-08-09).
 ## `Main` la cablea a `EntornoExterior.fijar_base_visible` — esta clase no toca nodos ajenos.
 signal base_visible_cambiada(visible: bool)
+## El usuario pide convertir el entorno procedural en piezas SUYAS (botón "⬇ Importar entorno").
+## `Main` responde pasando `EntornoExterior.inventario_base()` a `importar_base` — esta clase no
+## conoce a `EntornoExterior` (ADR-0001: comunicación hacia arriba por señales).
+signal importar_base_solicitado
 
 ## ── SUBMENÚS POR CATEGORÍA (2026-08-08, encargo "en el city kit hay más casas... se puede poner
 ## un submenú: casas, carreteras, árboles y jardín, objetos") ────────────────────────────────────
@@ -62,6 +66,9 @@ const JARDIN_IDS: Array[StringName] = [
 const OBJETOS_IDS: Array[StringName] = [
 	&"farola", &"valla_baja", &"valla_estandar", &"camino_recinto", &"entrada_casa",
 	&"coche_policia", &"coche_sedan", &"coche_suv", &"barrera_seguridad",
+	# Piezas de la calle de acceso vieja: están en la paleta para que "Importar entorno" pueda
+	# convertirlas en piezas editables como todo lo demás (2026-08-09).
+	&"calzada_recta", &"acera_recta",
 ]
 static var CATALOGO_PIEZAS: Array[StringName] = (
 	EntornoExteriorScript.CASAS_TODAS + EntornoExteriorScript.CARRETERAS_TODAS
@@ -92,6 +99,7 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 		# Barrera del control de entrada (diseño 1 del usuario, 2026-08-09): motor del modelo
 		# generado + pluma 3D de franjas continuas; cruza una calle de 6 celdas de arcén a arcén.
 		&"barrera_seguridad": "🚧 Barrera de entrada",
+		&"calzada_recta": "▤ Calzada (vieja)", &"acera_recta": "▨ Acera (vieja)",
 		&"carretera_recta": "🛣 Recta", &"carretera_curva": "🛣 Curva",
 		&"carretera_cruce": "🛣 Cruce", &"carretera_interseccion_t": "🛣 Cruce en T",
 		&"carretera_paso_cebra": "🛣 Paso de cebra",
@@ -109,7 +117,7 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 const PIEZAS_PLANAS: Array[StringName] = [
 	&"camino_recinto", &"entrada_casa", &"carretera_recta", &"carretera_curva",
 	&"carretera_cruce", &"carretera_interseccion_t", &"carretera_paso_cebra",
-	&"bk_suelo",
+	&"bk_suelo", &"calzada_recta", &"acera_recta",
 ]
 
 ## Las 3 "brochas de superficie" + la goma -- pintan/borran celdas con los MISMOS colores planos que
@@ -331,6 +339,37 @@ func _colocar_pieza_en(celda: Vector2i) -> void:
 	layout_cambiado.emit()
 
 
+## IMPORTA EL ENTORNO PROCEDURAL COMO PIEZAS DEL USUARIO (2026-08-09, encargo: "quiero poder editar
+## con F12 todos los elementos del entorno"). Hasta hoy los árboles/farolas/coches/casas del barrio
+## los pintaba `EntornoExterior` por código y el diseñador ni los veía: no había forma de moverlos ni
+## borrarlos. Ahora se copian a `_piezas` (mismo esquema que las colocadas a mano, así que la goma,
+## la R y el arrastre funcionan igual) y se APAGA la base procedural para que no se vean duplicadas.
+##
+## Respeta lo que ya hay: una celda con pieza del usuario NO se pisa. Ignora los ids que la paleta no
+## sabe pintar y las celdas del edificio (mismo veto que `_colocar_pieza_en`) — nunca se crea una
+## pieza que luego no se pudiera borrar. Devuelve cuántas importó.
+func importar_base(inventario: Array) -> int:
+	var nuevas := 0
+	for entrada: Variant in inventario:
+		if typeof(entrada) != TYPE_DICTIONARY:
+			continue
+		var celda: Vector2i = _celda_de_entrada(entrada as Dictionary)
+		if _piezas.has(celda) or not _celda_valida(celda):
+			continue
+		var id := StringName(String((entrada as Dictionary).get("id", "")))
+		if not CATALOGO_PIEZAS.has(id):
+			continue
+		_piezas[celda] = {"id": id, "rotacion": int((entrada as Dictionary).get("rotacion", 0))}
+		_refrescar_pieza_visual(celda)
+		nuevas += 1
+	# La base se apaga SIEMPRE tras importar: lo que el usuario ve a partir de ahora son SUS piezas
+	# (si siguiera encendida, cada objeto se vería dos veces).
+	_fijar_base_visible(false)
+	_avisar("Importadas %d piezas del entorno -- ya puedes moverlas y borrarlas" % nuevas)
+	layout_cambiado.emit()
+	return nuevas
+
+
 func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	if _nodos_pieza.has(celda):
 		_nodos_pieza[celda].queue_free()
@@ -345,7 +384,12 @@ func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	var sprite := Sprite2D.new()
 	sprite.texture = textura
 	AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
-	sprite.position = _origen + Proyeccion.centro_iso(celda)
+	# ALINEACIÓN A LA CUADRÍCULA (2026-08-09, "las casas empiezan en mitad de una celda"): las
+	# piezas con huella PAR (casa 6, coche 2, carretera 6) se corren media celda para que sus
+	# bordes caigan sobre bordes de celda; las de huella impar (farola 1) siguen centradas.
+	sprite.position = (
+		_origen + Proyeccion.centro_iso(celda) + AnclajeSpriteScript.desvio_rejilla(textura)
+	)
 	if PIEZAS_PLANAS.has(StringName(id)):
 		# Casi planas: SIN y-sort, van al fondo (mismo criterio que `EntornoExterior`).
 		sprite.z_index = EntornoExteriorScript.Z_CAPA - _capa_piezas.z_index
@@ -719,6 +763,16 @@ func _crear_ui() -> void:
 	_btn_base.toggled.connect(func(pulsado: bool) -> void: _fijar_base_visible(not pulsado))
 	fila_acciones.add_child(_btn_base)
 
+	# "Importar entorno": convierte el procedural en piezas EDITABLES del usuario (ver
+	# `importar_base`) — la vía para rehacer el entorno partiendo de lo que ya hay en vez del vacío.
+	var btn_importar := Button.new()
+	btn_importar.text = "⬇ Importar entorno"
+	btn_importar.focus_mode = Control.FOCUS_NONE
+	btn_importar.theme_type_variation = KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA
+	btn_importar.custom_minimum_size = Vector2(180.0, 48.0)
+	btn_importar.pressed.connect(func() -> void: importar_base_solicitado.emit())
+	fila_acciones.add_child(btn_importar)
+
 	_lbl_estado = Label.new()
 	_lbl_estado.text = "Elige una pieza o una brocha de superficie"
 	raiz.add_child(_lbl_estado)
@@ -870,7 +924,9 @@ func _process(_delta: float) -> void:
 			_preview_sprite.texture = textura
 			_preview_sprite.modulate = COLOR_FANTASMA_PIEZA if valido else COLOR_FANTASMA_INVALIDO
 			AnclajeSpriteScript.aplicar(_preview_sprite, Vector2i(1, 0), 1)
-			_preview_sprite.position = centro
+			# El fantasma cae EXACTAMENTE donde caerá la pieza (mismo desvío de rejilla que
+			# `_refrescar_pieza_visual`) — si no, lo que se ve al apuntar no es lo que se coloca.
+			_preview_sprite.position = centro + AnclajeSpriteScript.desvio_rejilla(textura)
 			_refrescar_triangulo(celda, valido)
 	else:
 		_preview_sprite.visible = false
