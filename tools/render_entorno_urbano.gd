@@ -315,15 +315,15 @@ const MODELOS: Array[Dictionary] = [
 	## Los 3 detalles (`bk_muro_bajo`/`bk_borde`/`bk_tuberia`) llevan su PROPIA altura estimada
 	## (más bajas que un muro completo) -- valores de partida, a confirmar visualmente contra el
 	## muñeco en la captura de la sonda (`tools/_probe_playtest_20260808.gd`).
-	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "ancho_objetivo_celdas": 0.5},
-	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
-	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
-	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
+	{"id": "bk_muro", "ruta": CARPETA_BUILDING + "wall.glb", "ancho_objetivo_celdas": 0.556},
+	{"id": "bk_muro_esquina", "ruta": CARPETA_BUILDING + "wall-corner.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
+	{"id": "bk_ventana", "ruta": CARPETA_BUILDING + "wall-window-square.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
+	{"id": "bk_puerta", "ruta": CARPETA_BUILDING + "door-rotate-square-a.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
 	{"id": "bk_columna", "ruta": CARPETA_BUILDING + "column.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_escaleras", "ruta": CARPETA_BUILDING + "stairs-open.glb", "altura_objetivo_m": 2.8},
 	{"id": "bk_suelo", "ruta": CARPETA_BUILDING + "floor.glb", "ancho_objetivo_celdas": 1.0},
-	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
-	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "ancho_objetivo_celdas": 0.5, "factor_de": "bk_muro"},
+	{"id": "bk_muro_bajo", "ruta": CARPETA_BUILDING + "wall-low.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
+	{"id": "bk_borde", "ruta": CARPETA_BUILDING + "border.glb", "ancho_objetivo_celdas": 0.556, "factor_de": "bk_muro"},
 	{"id": "bk_tuberia", "ruta": CARPETA_BUILDING + "detail-pipe.glb", "altura_objetivo_m": 2.0},
 ]
 
@@ -605,6 +605,13 @@ func _ejecutar(todas: Dictionary) -> void:
 				_marcar_ancla_invisible(imagen, ancla_final, objetivo_px)
 			print("[ENTORNO URBANO]   %s: ancla invisible marcada (izq/dcha/abajo del rombo de familia)" % id)
 
+		# Paredes del Building Kit: fuera las aristas laterales, para que en fila se lean como UNA
+		# pared corrida (ver `_afeitar_cantos_muro`).
+		if AFEITAR_CANTOS_MURO.has(id):
+			for i: int in imagenes.size():
+				imagenes[i] = _afeitar_cantos_muro(imagenes[i])
+			print("[ENTORNO URBANO]   %s: cantos laterales afeitados (pared continua)" % id)
+
 		for i: int in ROTACIONES.size():
 			var ruta: String = "%s%s_%d.png" % [SALIDA_ENTORNO, id, ROTACIONES[i]]
 			var err: Error = (imagenes[i] as Image).save_png(ProjectSettings.globalize_path(ruta))
@@ -806,6 +813,98 @@ func _afeitar_extremos_via(imagen: Image, centro: Vector2, ancho_ideal: float) -
 				roundi(centro.y + (nu + nv - 1.0) * semialto), 0, alto_img - 1
 			)
 			copia.set_pixel(px, py, imagen.get_pixel(sx, sy))
+	return copia
+
+
+## Las piezas de PARED del Building Kit: sus sprites se afeitan por los lados para que en fila se
+## lean como UNA pared (ver `_afeitar_cantos_muro`).
+const AFEITAR_CANTOS_MURO: Array[String] = [
+	"bk_muro", "bk_ventana", "bk_puerta", "bk_muro_bajo",
+]
+## Columnas de canto que se comen por cada lado. Medido con PIL sobre `bk_muro_0.png`: el canto
+## lateral iluminado ocupa 2px (174,184,229 contra 77,85,113 de la cara) y el del otro lado 2px
+## algo más oscuros — 3 cubre los dos con margen sin morder la cara.
+const ANCHO_CANTO_MURO: int = 3
+
+
+## CORRECCIÓN DE PENDIENTE (encargo 2026-08-09: *"veo huecos arriba y abajo de las uniones"*, tras
+## el afeitado de cantos). MEDIDO en la captura del juego: dientes de 2px EXACTOS cada 40px, o sea
+## uno por unión de módulos. La causa es geométrica: el borde superior/inferior del módulo baja con
+## pendiente ~0,45 (20px en 44 de ancho) mientras la retícula isométrica avanza a 0,50 exacto (una
+## celda son 40px en horizontal y 20 en vertical) — al encadenar módulos cada uno arranca 2px
+## desviado del anterior y la pared se dentella.
+##
+## Se corrige CIZALLANDO la imagen: cada columna se desplaza verticalmente lo que le falta para caer
+## a 0,50. No es deformar (la ley del proyecto prohíbe escalar no uniforme): el sprite conserva su
+## ancho y su alto, solo se inclina 2px de punta a punta — imperceptible en la pieza suelta y lo que
+## hace que la pared se lea corrida.
+func _corregir_pendiente_iso(imagen: Image) -> Image:
+	var ancho: int = imagen.get_width()
+	var alto: int = imagen.get_height()
+	# Pendiente REAL del borde superior, medida de la propia silueta.
+	var x_ini := -1
+	var x_fin := -1
+	var y_ini := 0
+	var y_fin := 0
+	for x: int in range(ancho):
+		var top: int = -1
+		for y: int in range(alto):
+			if imagen.get_pixel(x, y).a > 0.6:
+				top = y
+				break
+		if top >= 0:
+			if x_ini < 0:
+				x_ini = x
+				y_ini = top
+			x_fin = x
+			y_fin = top
+	if x_ini < 0 or x_fin <= x_ini:
+		return imagen
+	var pendiente_real: float = float(y_fin - y_ini) / float(x_fin - x_ini)
+	var falta: float = 0.5 - pendiente_real
+	if absf(falta) < 0.01:
+		return imagen   # ya cae a 2:1
+	var alto_extra: int = int(ceil(absf(falta) * float(x_fin - x_ini))) + 1
+	var salida := Image.create(ancho, alto + alto_extra, false, imagen.get_format())
+	salida.fill(Color(0, 0, 0, 0))
+	for x: int in range(ancho):
+		var dy: int = int(round(falta * float(x - x_ini)))
+		for y: int in range(alto):
+			var c: Color = imagen.get_pixel(x, y)
+			if c.a <= 0.0:
+				continue
+			var destino: int = clampi(y + dy, 0, alto + alto_extra - 1)
+			salida.set_pixel(x, destino, c)
+	return salida
+
+
+## AFEITADO DE CANTOS DE PARED (encargo 2026-08-09: *"se ve la separación entre muro y muro en lugar
+## de verse la pared entera como la pared que hay en la comisaría, que no se ven las líneas de
+## separación"*). Cada módulo del kit trae sus aristas laterales sombreadas/iluminadas por el render
+## 3D; puestos en fila, esas aristas dibujan una línea vertical cada 40px y la pared se lee como
+## paneles sueltos en vez de un muro corrido. Se sanea EXTENDIENDO el color de la cara hasta el
+## borde: por cada FILA, los `ANCHO_CANTO_MURO` píxeles opacos de cada extremo copian el color del
+## primer píxel "de cara" que hay hacia dentro. Respeta la silueta (solo toca píxeles ya opacos), así
+## que la forma del módulo —y el hueco de la ventana o la puerta— no cambia.
+func _afeitar_cantos_muro(imagen: Image) -> Image:
+	var copia: Image = imagen.duplicate()
+	var ancho: int = copia.get_width()
+	var alto: int = copia.get_height()
+	for y: int in range(alto):
+		var opacos: Array[int] = []
+		for x: int in range(ancho):
+			if copia.get_pixel(x, y).a > 0.6:
+				opacos.append(x)
+		if opacos.size() <= ANCHO_CANTO_MURO * 2:
+			continue   # fila demasiado estrecha (remates arriba/abajo): se deja como está
+		var x_izq: int = opacos[ANCHO_CANTO_MURO]
+		var color_izq: Color = copia.get_pixel(x_izq, y)
+		for i: int in range(ANCHO_CANTO_MURO):
+			copia.set_pixel(opacos[i], y, color_izq)
+		var x_dcha: int = opacos[opacos.size() - 1 - ANCHO_CANTO_MURO]
+		var color_dcha: Color = copia.get_pixel(x_dcha, y)
+		for i: int in range(ANCHO_CANTO_MURO):
+			copia.set_pixel(opacos[opacos.size() - 1 - i], y, color_dcha)
 	return copia
 
 

@@ -114,6 +114,14 @@ static func _construir_nombres_pieza() -> Dictionary[StringName, String]:
 ## Piezas CASI PLANAS (van al overlay del suelo, sin y-sort — mismo criterio que `EntornoExterior`):
 ## camino/entrada de siempre + las 5 carreteras (línea central pintada en la textura, no en el
 ## volumen — ver la cabecera de `tools/render_entorno_urbano.gd`).
+## Piezas de PARED del Building Kit: no se centran en su celda, se ARRIMAN a la arista (encargo del
+## usuario 2026-08-09: *"la pared se sitúa en el medio de la celda en lugar de en un extremo, así es
+## imposible hacer esquinas"*). Una pared vive en el LADO de la celda — igual que los muros de la
+## comisaría, que `Construccion` guarda por arista ("h:x:y"/"v:x:y"), no por celda.
+const PIEZAS_PARED: Array[StringName] = [
+	&"bk_muro", &"bk_ventana", &"bk_puerta", &"bk_muro_bajo", &"bk_borde", &"bk_muro_esquina",
+]
+
 const PIEZAS_PLANAS: Array[StringName] = [
 	&"camino_recinto", &"entrada_casa", &"carretera_recta", &"carretera_curva",
 	&"carretera_cruce", &"carretera_interseccion_t", &"carretera_paso_cebra",
@@ -370,6 +378,27 @@ func importar_base(inventario: Array) -> int:
 	return nuevas
 
 
+## ARRIMADO A LA ARISTA de las piezas de pared (ver `PIEZAS_PARED`). Una pared no ocupa el centro de
+## su celda: se apoya en uno de sus cuatro lados, y qué lado depende de cómo esté girada. El desvío
+## es media celda en el plano lógico cuadrado, en la dirección que mira la pared:
+##   rot   0 → norte (−Y)      rot  90 → oeste (−X)
+##   rot 180 → sur   (+Y)      rot 270 → este  (+X)
+## (mismo ciclo de orientaciones que usa `AnclajeSprite.CICLO_ESPALDA` y la brújula del proyecto:
+## 0=S, 90=O, 180=N, 270=E — el muro se arrima al lado CONTRARIO al que mira su cara vista.)
+## Cero para todo lo que no sea pared: un árbol o un coche siguen centrados en su celda.
+func _desvio_arista(id: StringName, rotacion: int) -> Vector2:
+	if not PIEZAS_PARED.has(id):
+		return Vector2.ZERO
+	var medio: float = float(_tam_celda) * 0.5
+	var direccion := Vector2.ZERO
+	match posmod(rotacion, 360):
+		0: direccion = Vector2(0.0, -1.0)
+		90: direccion = Vector2(-1.0, 0.0)
+		180: direccion = Vector2(0.0, 1.0)
+		270: direccion = Vector2(1.0, 0.0)
+	return Proyeccion.proyectar(direccion * medio)
+
+
 func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	if _nodos_pieza.has(celda):
 		_nodos_pieza[celda].queue_free()
@@ -387,9 +416,14 @@ func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	# ALINEACIÓN A LA CUADRÍCULA (2026-08-09, "las casas empiezan en mitad de una celda"): las
 	# piezas con huella PAR (casa 6, coche 2, carretera 6) se corren media celda para que sus
 	# bordes caigan sobre bordes de celda; las de huella impar (farola 1) siguen centradas.
+	# `.round()`: la posición final SIEMPRE en píxel entero. Con decimales (el ancla medida y los
+	# desvíos son floats) cada módulo redondea por su lado y en una fila de muros aparecen dientes
+	# de 1-2px en el borde — el defecto que reportó el usuario ("veo huecos arriba y abajo de las
+	# uniones"), medido en la captura: saltos de 2px justo en cada unión.
 	sprite.position = (
 		_origen + Proyeccion.centro_iso(celda) + AnclajeSpriteScript.desvio_rejilla(textura)
-	)
+		+ _desvio_arista(StringName(id), int(pieza["rotacion"]))
+	).round()
 	if PIEZAS_PLANAS.has(StringName(id)):
 		# Casi planas: SIN y-sort, van al fondo (mismo criterio que `EntornoExterior`).
 		sprite.z_index = EntornoExteriorScript.Z_CAPA - _capa_piezas.z_index
@@ -926,7 +960,10 @@ func _process(_delta: float) -> void:
 			AnclajeSpriteScript.aplicar(_preview_sprite, Vector2i(1, 0), 1)
 			# El fantasma cae EXACTAMENTE donde caerá la pieza (mismo desvío de rejilla que
 			# `_refrescar_pieza_visual`) — si no, lo que se ve al apuntar no es lo que se coloca.
-			_preview_sprite.position = centro + AnclajeSpriteScript.desvio_rejilla(textura)
+			_preview_sprite.position = (
+				centro + AnclajeSpriteScript.desvio_rejilla(textura)
+				+ _desvio_arista(_herramienta, _orientacion)
+			)
 			_refrescar_triangulo(celda, valido)
 	else:
 		_preview_sprite.visible = false
