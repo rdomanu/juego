@@ -76,10 +76,17 @@ class_name AnclajeSprite
 ## cada columna sale por el primer píxel opaco que encuentra subiendo desde abajo). Nada de esto
 ## ocurre en `_process`.
 
-## Alfa por encima del cual un píxel cuenta como "mueble". 0,05 deja fuera el borde antialiaseado
-## casi transparente del recorte y nada más (verificado: los PNG de mobiliario no traen sombra
-## suave que se derrame por el lienzo — su silueta es el mueble).
-const UMBRAL_ALFA: float = 0.05
+## Alfa por encima del cual un píxel cuenta como "mueble".
+##
+## Subido de 0,05 a 0,50 el 2026-08-10, tras re-renderizar el catálogo con SUPERMUESTREO: la
+## reducción LANCZOS deja un halo de píxeles muy tenues alrededor de la silueta, y con 0,05 ese
+## halo contaba como mueble. Efecto medido en `comodidad_estanteria_suelta_90`: los semiejes
+## sumaban 18,50 contra un semiancho de 16,50 — 2 px de desvío, fuera de la tolerancia de la
+## invariante geométrica (`anclaje_arrimado_test`), o sea que el mueble se arrimaba mal.
+## Con el umbral a 0,50 el desvío cae a 0,50 px, y a 0,75 sería exacto; se elige 0,50 por dejar
+## margen a piezas con bordes legítimamente translúcidos.
+## La medida debe describir el MUEBLE, no el halo con el que se dibuja.
+const UMBRAL_ALFA: float = 0.50
 
 ## ── HACIA DÓNDE DA LA ESPALDA UN MUEBLE (y por qué NO hay una tabla global) ────────────────────
 ## La rotación del render (0/90/180/270°) NO dice por sí sola hacia dónde mira un mueble: dice

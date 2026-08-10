@@ -10,5 +10,5 @@ descripcion = "Banco de tres plazas con estructura metalica y asientos acolchado
 familia = "ciudadano"
 coste_construccion_eur = 150
 aporte = 3.5
-superficie = 3
+superficie = 2
 plazas = 3

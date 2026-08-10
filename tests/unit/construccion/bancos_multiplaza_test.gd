@@ -47,8 +47,12 @@ func test_lo_que_no_es_asiento_no_sienta_a_nadie() -> void:
 
 # ── Una plaza por celda ─────────────────────────────────────────────────────────────────────────
 
-## 🔒 AC1 (modelo): un banco de 3 celdas ofrece TRES celdas donde sentarse, no una.
-func test_un_banco_ofrece_una_celda_sentable_por_plaza() -> void:
+## 🔒 AC1 (modelo): un banco ofrece UN SITIO POR PLAZA del mueble, aunque tenga menos celdas.
+##
+## Cambió el 2026-08-10 (decisión del usuario "que mande el mueble, no la celda"): desde que la
+## huella se declara en celdas ENTERAS, el banco de aeropuerto dibuja 3 asientos y ocupa 2 celdas.
+## Antes se daba "una plaza por celda" y un asiento del dibujo quedaba siempre vacío.
+func test_un_banco_ofrece_un_sitio_por_plaza() -> void:
 	var c: Node = _construccion()
 	var sala: StringName = c.construir_de_oficio_sala(&"sala_espera_odac", RECT_ESPERA)
 	assert_str(String(sala)).is_not_equal("")
@@ -57,15 +61,18 @@ func test_un_banco_ofrece_una_celda_sentable_por_plaza() -> void:
 		"no se pudo colocar el banco de 3 plazas en la sala de espera"
 	).is_not_equal("")
 
-	var celdas: Array[Vector2i] = c.celdas_sentables_de_sala(sala)
-	assert_int(celdas.size()).override_failure_message(
-		"un banco de 3 plazas deberia dar 3 celdas sentables, dio %d" % celdas.size()
-	).is_equal(3)
-	# Y son celdas DISTINTAS (si no, no cabrian tres personas).
-	var unicas: Dictionary = {}
-	for celda: Vector2i in celdas:
-		unicas[celda] = true
-	assert_int(unicas.size()).is_equal(3)
+	var plazas: int = c.plazas_sentadas_de(&"banco_espera_medio")
+	var sitios: Array[Vector2] = c.sitios_sentables_de_sala(sala)
+	assert_int(sitios.size()).override_failure_message(
+		"un banco de %d plazas deberia dar %d sitios, dio %d" % [plazas, plazas, sitios.size()]
+	).is_equal(plazas)
+	# Y son sitios DISTINTOS (si no, la gente se sentaria encima de otra).
+	var unicos: Dictionary = {}
+	for sitio: Vector2 in sitios:
+		unicos[Vector2i(sitio.round())] = true
+	assert_int(unicos.size()).override_failure_message(
+		"los %d sitios del banco deberian caer en puntos distintos" % plazas
+	).is_equal(plazas)
 
 
 ## Una sala sin nada donde sentarse no da ninguna celda (y no revienta).

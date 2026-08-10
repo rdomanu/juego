@@ -1908,6 +1908,49 @@ func celdas_sentables_de_sala(sala_id: StringName) -> Array[Vector2i]:
 	return celdas
 
 
+## Los SITIOS donde alguien puede sentarse en una sala, como POSICIONES del mundo — no como celdas.
+##
+## Por qué existe además de `celdas_sentables_de_sala` (2026-08-10, decisión del usuario "que mande
+## el mueble, no la celda"): desde que la huella se declara en celdas ENTERAS, un mueble puede tener
+## MÁS PLAZAS QUE CELDAS — el banco de aeropuerto dibuja 3 asientos y ocupa 2 celdas. Repartir "una
+## plaza por celda" dejaba un asiento del dibujo siempre vacío. Aquí las plazas se reparten a lo
+## largo del EJE del mueble: la plaza `i` de `n` cae en el centro de su tramo, o sea a
+## `(i + 0,5) · celdas / n − 0,5` celdas del centro de la primera celda de la huella.
+##
+## El eje sale de la ORIENTACIÓN del elemento (no de restar la primera y la última celda: con huella
+## de una sola celda esa resta da cero y todas las plazas caerían encimadas).
+func sitios_sentables_de_sala(sala_id: StringName) -> Array[Vector2]:
+	var sitios: Array[Vector2] = []
+	for elemento_id: StringName in _elementos:
+		var elemento: Dictionary = _elementos[elemento_id]
+		if elemento["sala"] != sala_id:
+			continue
+		var plazas: int = plazas_sentadas_de(elemento["catalogo"])
+		if plazas <= 0:
+			continue
+		var huella: Array[Vector2i] = _huella_de(elemento)
+		if huella.is_empty():
+			continue
+		var orientacion: int = int(elemento.get("orientacion", HORIZONTAL))
+		var eje: Vector2i = (
+			Vector2i(0, 1) if orientacion == VERTICAL or orientacion == VERTICAL_GIRADO
+			else Vector2i(1, 0)
+		)
+		var origen: Vector2 = centro_de_celda(huella[0])
+		var paso: Vector2 = centro_de_celda(huella[0] + eje) - origen
+		# Los asientos no están en el CENTRO de la celda: el mueble tiene fondo y su asiento cae en
+		# la mitad TRASERA. Sin este empujón los sentados aparecían plantados DELANTE del banco
+		# (verificado in-game, `_diag_banco_75`). Un cuarto de celda hacia atrás, en el eje
+		# perpendicular al del mueble.
+		var atras: Vector2i = Vector2i(-eje.y, -eje.x) if eje.x != 0 else Vector2i(-1, 0)
+		var empujon: Vector2 = (centro_de_celda(huella[0] + atras) - origen) * 0.25
+		var celdas: float = float(huella.size())
+		for i: int in plazas:
+			var desvio: float = (float(i) + 0.5) * celdas / float(plazas) - 0.5
+			sitios.append(origen + paso * desvio + empujon)
+	return sitios
+
+
 func _asientos_en(sala_id: StringName, ignorar: StringName = &"") -> int:
 	var total: int = 0
 	for elemento_id: StringName in _elementos:

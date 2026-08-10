@@ -64,6 +64,9 @@ const COLOR_ANIMO: Dictionary[StringName, Color] = {
 const COLOR_COLADO := Color(0.45, 0.75, 1.0)
 ## Sentinela de "sin celda" (fuera de todo rect de sala: las celdas del edificio son ≥ 0).
 const CELDA_NULA := Vector2i(-1, -1)
+## Centinela de "sin asiento". No vale `CELDA_NULA`: las claves de `_asiento_de` son POSICIONES del
+## mundo redondeadas, y (-1, -1) es un punto perfectamente posible.
+const SITIO_NULO := Vector2i(-999999, -999999)
 
 ## Barra de cansancio sobre el puesto (bienestar-013, feedback ANTICIPATORIO 2026-07-29): hoy el
 ## cansancio existe en el modelo y afecta al juego (ralentiza, manda al café) pero no se veía en
@@ -98,6 +101,13 @@ var _rebake_pendiente: bool = false
 ## Celda de la sala de espera (banco o hueco de pie) → NPC que la ocupa. UNA CELDA, UNA PERSONA:
 ## solo estética de "sentarse/esperar de pie" — el aforo de verdad es de Flujo (F3).
 var _plaza_de: Dictionary[Vector2i, Node] = {}
+
+## Los ASIENTOS ocupados, indexados por POSICIÓN del mundo redondeada (no por celda). Existe aparte
+## de `_plaza_de` porque desde 2026-08-10 un mueble puede tener MÁS PLAZAS QUE CELDAS (el banco de
+## aeropuerto: 3 asientos sobre 2 celdas), así que la celda ya no identifica a la plaza. Los sitios
+## los reparte `Construccion.sitios_sentables_de_sala`; aquí solo se apunta quién ocupa cada uno.
+## No hace falta reservar además la celda: `_hueco_de_pie_libre` ya esquiva las celdas sentables.
+var _asiento_de: Dictionary[Vector2i, Node] = {}
 ## Puesto_id → Node2D contenedor de su visual (muñeco policía + etiqueta nombre + rótulo estado).
 ## Se crea/borra/actualiza por DIFF (meta en el contenedor) — cero trabajo por frame si nada cambia.
 var _visual_de_puesto: Dictionary[StringName, Node2D] = {}
@@ -700,6 +710,10 @@ func esta_sentado(npc: Node) -> bool:
 		return true
 	if estado != &"esperando_dentro":
 		return false
+	# Tener un ASIENTO reservado ya ES estar sentado: esos sitios los da el propio mueble
+	# (`sitios_sentables_de_sala`), así que no hay nada más que comprobar.
+	if _asiento_reservado_de(npc) != SITIO_NULO:
+		return true
 	var plaza: Vector2i = _plaza_reservada_de(npc)
 	if plaza == CELDA_NULA or _construccion == null:
 		return false
@@ -983,18 +997,23 @@ func _punto_calle(turno: int) -> Vector2:
 ## misma celda con un desvío sub-celda determinista, para que se vean dos cuerpos y no uno.
 func _sitio_en_espera(npc: Node) -> Vector2:
 	var persona: RefCounted = npc.persona
+	var asiento_propio: Vector2i = _asiento_reservado_de(npc)
+	if asiento_propio != SITIO_NULO:   # idempotente: quien ya tiene asiento no se muda
+		return Vector2(asiento_propio)
 	var propia: Vector2i = _plaza_reservada_de(npc)
 	if propia != CELDA_NULA:   # idempotente: quien ya tiene plaza no se muda al re-preguntar
 		return _construccion.centro_de_celda(propia)
 	var salas: Array[StringName] = _construccion.salas_de_espera_de(persona.servicio())
 	for sala_id: StringName in salas:
-		# Una plaza por CELDA sentable (quick-spec bancos multi-plaza 2026-08-09): un banco de 3
-		# celdas ofrece tres sitios, no uno. Antes se preguntaba por el elemento y su única
-		# `posicion_de`, así que en un banco solo se habría sentado el primero que llegara.
-		for celda_asiento: Vector2i in _construccion.celdas_sentables_de_sala(sala_id):
-			if _plaza_libre(celda_asiento):
-				_plaza_de[celda_asiento] = npc
-				return _construccion.centro_de_celda(celda_asiento)
+		# Un sitio por PLAZA del mueble, repartidas a lo largo de su eje (2026-08-10, decisión del
+		# usuario "que mande el mueble, no la celda"). Antes era una plaza por celda sentable, y
+		# desde que la huella se declara en celdas ENTERAS eso dejaba asientos del dibujo vacíos:
+		# el banco de aeropuerto pinta 3 asientos y ocupa 2 celdas.
+		for sitio: Vector2 in _construccion.sitios_sentables_de_sala(sala_id):
+			var clave: Vector2i = Vector2i(sitio.round())
+			if _asiento_libre(clave):
+				_asiento_de[clave] = npc
+				return sitio
 	for sala_id: StringName in salas:
 		var celda_pie: Vector2i = _hueco_de_pie_libre(sala_id, persona.numero_turno)
 		if celda_pie != CELDA_NULA:
@@ -1078,6 +1097,33 @@ func _liberar_plaza(npc: Node) -> void:
 			sueltas.append(celda)
 	for celda: Vector2i in sueltas:
 		_plaza_de.erase(celda)
+	# Los ASIENTOS van en su propio registro (ver `_asiento_de`): se sueltan con el mismo criterio.
+	var asientos: Array[Vector2i] = []
+	for clave: Vector2i in _asiento_de:
+		var sentado: Node = _asiento_de[clave]
+		if sentado == npc or not is_instance_valid(sentado):
+			asientos.append(clave)
+	for clave: Vector2i in asientos:
+		_asiento_de.erase(clave)
+
+
+## ¿Está libre el asiento de esa clave? Purga de paso al ocupante ya desaparecido, igual que
+## `_plaza_libre` hace con las plazas de pie.
+func _asiento_libre(clave: Vector2i) -> bool:
+	if not _asiento_de.has(clave):
+		return true
+	if is_instance_valid(_asiento_de[clave]):
+		return false
+	_asiento_de.erase(clave)
+	return true
+
+
+## La clave del asiento que tiene reservado este NPC, o `SITIO_NULO`.
+func _asiento_reservado_de(npc: Node) -> Vector2i:
+	for clave: Vector2i in _asiento_de:
+		if _asiento_de[clave] == npc:
+			return clave
+	return SITIO_NULO
 
 
 # ── Visual de puestos: policía + rótulo de estado (feedback flujo-008) ───────────────────────

@@ -10,5 +10,5 @@ descripcion = "Banco de tres plazas tapizado en azul, con reposabrazos."
 familia = "ciudadano"
 coste_construccion_eur = 240
 aporte = 5.0
-superficie = 3
+superficie = 2
 plazas = 3

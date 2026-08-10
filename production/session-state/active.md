@@ -3240,3 +3240,36 @@ plazo): *"en un futuro tienen que subir escaleras o bajarlas o subirse a un coch
   traerá nombres estándar distintos -> hay que parametrizar los nombres de hueso por modelo y
   reescribir `_posar_sentado` para doblar cadera+rodilla de verdad (ya validado el método con
   girl.glb en `tools/_diag_sentado_rig_completo.gd`).
+
+## HITO 2026-08-10: bancos a su tamaño final + las plazas las manda el MUEBLE
+REGLA NUEVA DEL USUARIO (memoria `huella-celdas-enteras`): la huella de todo objeto es un número
+ENTERO de celdas, aunque el dibujo deje huecos. Y se mide EN EL PLANO DEL SUELO (como
+`AnclajeSprite.semiejes_base`), NUNCA por el ancho en píxeles de pantalla — el usuario cazó ese
+error mío: el mueble está girado 45° y en pantalla su largo sale deformado.
+Recorrido de decisiones del usuario: 75 % -> huella 2 celdas -> opción B "que LLENE sus celdas para
+poder hacer hileras sin huecos" -> "las plazas las manda el mueble, no la celda" -> banco de madera
+a 1 celda EXACTA.
+- `_render_bancos_barrera.gd` receta v6: ancho_objetivo_celdas medio/pro 1,0125 -> **1,2981**,
+  madera 0,675 -> **0,6683**. Medido tras el render: 2,013 / 1,988 / 0,988 celdas de largo. Los
+  sprites promovidos a `assets/sprites/mobiliario/comodidad_banco_espera_*`.
+- Fichas: basico superficie 1 / plazas 2 · medio y pro superficie **2** / plazas **3**.
+- `Construccion.sitios_sentables_de_sala()` NUEVA: devuelve POSICIONES, una por plaza del mueble,
+  repartidas por su eje (`(i+0,5)·celdas/plazas − 0,5`), con un empujón de 1/4 de celda hacia atrás
+  porque el asiento está en la mitad TRASERA (sin él los NPC se sentaban DELANTE del banco,
+  verificado in-game). El eje sale de la ORIENTACIÓN, no de restar celdas (con huella de 1 celda
+  esa resta da cero y las plazas se encimarían).
+- `npcs_flujo`: nuevo registro `_asiento_de` indexado por POSICIÓN redondeada (la celda ya no
+  identifica la plaza) + `_asiento_libre` + `_asiento_reservado_de` + `SITIO_NULO`; `esta_sentado`
+  y `_liberar_plaza` al día. `celdas_sentables_de_sala` SIGUE existiendo: la usa
+  `_hueco_de_pie_libre` para esquivar los bancos.
+- ⚠️ EFECTO COLATERAL DEL SUPERMUESTREO, cazado por la suite: `AnclajeSprite.UMBRAL_ALFA` 0,05 ->
+  **0,50**. La reducción LANCZOS deja un halo de píxeles tenues y con 0,05 contaba como mueble: en
+  `comodidad_estanteria_suelta_90` los semiejes sumaban 18,50 contra un semiancho de 16,50 (2 px de
+  desvío, fuera de tolerancia) -> el mueble se arrimaba mal a la pared. Con 0,50 el desvío cae a
+  0,50 px. Este fallo estaba LATENTE: no salió en la suite del re-render porque Godot servía los
+  .ctex viejos; apareció al forzar `--import`.
+- Suite: **974/974 verde**.
+- PENDIENTE de afinar: el empujón de 1/4 de celda mejora mucho (verificado in-game: el NPC ya se
+  sienta SOBRE el asiento) pero no está calibrado contra el fondo real de cada mueble.
+- PENDIENTE de decidir: precios/aporte de los bancos (150 € y 240 € se fijaron para 3 plazas en 3
+  celdas; ahora son 3 plazas en 2 celdas) y si el banco de madera con 2 plazas en 1 celda cuadra.

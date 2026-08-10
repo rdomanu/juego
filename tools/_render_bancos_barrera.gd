@@ -48,10 +48,28 @@ const SALIDA_BARRERA := "res://capturas/fuentes/barrera_summer/renders/"
 ## ANCHO 2-3 celdas con 1 plaza/celda, así que el ancho manda y el alto sale de la proporción
 ## natural (escala uniforme, ley del proyecto). Fuera `banco_desgastado_graveyard` y
 ## `banco_urbano_retro` (verificados a ojo en la pasada 1: sin textura / geometría revuelta).
+## RECETA v5 (2026-08-10, veredicto del usuario sobre `hoja_bancos_escala.png`): **×0,75 sobre la
+## v4**. La v4 ancló la familia al `asiento_sofa3` POR ANCHO (108 px) y la ALTURA se disparó: el
+## banco de aeropuerto quedó en 101 px, o sea 2,24 veces el alto de un ciudadano de pie (45 px) y
+## 30 px más que el propio sofá de 3 plazas con el mismo ancho. El usuario lo cazó a ojo ("los
+## bancos están bastante grandes") y eligió la opción B de la hoja de tamaños: al 75 % el banco de
+## aeropuerto cae a 76 px, casi clavado al sofá que él ya había aprobado.
+## La escala se aplica AQUÍ y se re-renderiza desde el .glb -- NUNCA encogiendo el PNG, que
+## emborrona el borde y tira por tierra el supermuestreo.
+## RECETA v6 (2026-08-10, veredicto del usuario sobre `hoja_hilera_bancos.png`, opción B): el banco
+## LLENA su huella de celdas ENTERAS, para que al encadenar varios NO queden huecos entre ellos
+## ("me gusta más para hacer hileras"). Regla del proyecto fijada ese mismo día: la huella es
+## siempre un número entero de celdas, aunque sobre sitio.
+##
+## Los números NO se ajustan a ojo: se mide el largo real de la base EN EL PLANO DEL SUELO (misma
+## cuenta que `AnclajeSprite.semiejes_base` — el ancho en píxeles de PANTALLA está deformado por la
+## proyección a 45° y no vale, lo cazó el usuario) y se escala para que dé celdas exactas:
+##   medio/pro: medían 1,56 celdas con 1,0125 -> 2,00 celdas con 1,2981 (×1,282)
+##   madera:    medía  1,01 celdas con 0,6750 -> 1,00 celdas con 0,6683 (×0,990)
 const MODELOS_BANCOS: Array[Dictionary] = [
-	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 1.35},
-	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 1.35},
-	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.90},
+	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 1.2981},
+	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 1.2981},
+	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.6683},
 ]
 
 ## La barrera: por ANCHO objetivo = 6,0 celdas (480 px) a 0° — el brazo debe cubrir una calle de 6
