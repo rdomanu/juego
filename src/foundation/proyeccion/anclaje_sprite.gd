@@ -127,6 +127,10 @@ static var _cache_centro: Dictionary[String, Vector2] = {}
 ## en uso y verificado. Se paga una segunda pasada de píxeles por textura, y solo por las texturas
 ## de los muebles DE PARED — que son los únicos que preguntan por los semiejes.
 static var _cache_semiejes: Dictionary[String, Vector2] = {}
+
+## Caché de `centros_de_asiento`, con clave "<ruta>#<plazas>": la medida depende de cuántas plazas
+## se pidan, así que la textura sola no basta como clave.
+static var _cache_asientos: Dictionary[String, PackedVector2Array] = {}
 ## Celdas de huella por textura (ver `celdas_de_huella`) — medir la silueta descomprime la imagen,
 ## así que se cachea igual que el centro y los semiejes.
 static var _cache_celdas: Dictionary[String, int] = {}
@@ -346,8 +350,94 @@ static func desvio_arrimado_esquina(espalda_a: Vector2i, espalda_b: Vector2i) ->
 	return Proyeccion.proyectar((Vector2(espalda_a) + Vector2(espalda_b)) * (Proyeccion.TAM_CELDA * 0.5))
 
 
+## Dónde están DE VERDAD los asientos de un mueble, medidos sobre su propio PNG. Devuelve un punto
+## por plaza, en píxeles del PNG (mismo sistema que `centro_base`).
+##
+## Por qué se mide y no se calcula (2026-08-10, el usuario: "no encaja perfecto la persona que se
+## sienta con el lugar exacto del asiento"): repartir las plazas uniformemente a lo largo del eje da
+## puntos plausibles pero no los del dibujo — los cojines de un banco no están equiespaciados en
+## pantalla, porque la perspectiva isométrica acerca unos y aleja otros, y además los reposabrazos
+## comen ancho. Aquí cada plaza se busca en SU franja de columnas:
+##   · la X es el centro de la franja ocupada;
+##   · la Y es la fila MÁS ANCHA de la mitad inferior de esa franja, que es la banda del cojín (el
+##     respaldo queda por encima y es más estrecho, las patas por debajo y más estrechas todavía).
+## Cacheado por textura+plazas: es un escaneo de píxeles, jamás en `_process`.
+static func centros_de_asiento(textura: Texture2D, plazas: int) -> PackedVector2Array:
+	if textura == null or plazas <= 0:
+		return PackedVector2Array()
+	var clave: String = "%s#%d" % [textura.resource_path, plazas]
+	if textura.resource_path != "" and _cache_asientos.has(clave):
+		return _cache_asientos[clave]
+	var img: Image = textura.get_image()
+	if img == null:
+		push_error("AnclajeSprite: textura '%s' sin imagen legible" % textura.resource_path)
+		return PackedVector2Array()
+	if img.is_compressed():
+		img.decompress()
+	var ancho: int = img.get_width()
+	var alto: int = img.get_height()
+	var min_x: int = -1
+	var max_x: int = -1
+	for px: int in range(ancho):
+		if _columna_opaca(img, px, alto):
+			if min_x < 0:
+				min_x = px
+			max_x = px
+	if min_x < 0:
+		return PackedVector2Array()
+	var salida := PackedVector2Array()
+	var util: float = float(max_x + 1 - min_x)
+	for i: int in plazas:
+		var x0: int = min_x + int(floor(util * float(i) / float(plazas)))
+		var x1: int = min_x + int(ceil(util * float(i + 1) / float(plazas)))
+		salida.append(_asiento_en_franja(img, x0, maxi(x1, x0 + 1), alto))
+	if textura.resource_path != "":
+		_cache_asientos[clave] = salida
+	return salida
+
+
+static func _asiento_en_franja(img: Image, x0: int, x1: int, alto: int) -> Vector2:
+	var arriba: int = -1
+	var abajo: int = -1
+	var izq: int = -1
+	var der: int = -1
+	for px: int in range(x0, x1):
+		for py: int in range(alto):
+			if img.get_pixel(px, py).a > UMBRAL_ALFA:
+				if arriba < 0 or py < arriba:
+					arriba = py
+				if py > abajo:
+					abajo = py
+				if izq < 0:
+					izq = px
+				der = px
+				break
+	if arriba < 0:
+		return Vector2((x0 + x1) * 0.5, float(alto))
+	# El cojín: la fila más ancha de la MITAD INFERIOR del trozo de mueble que hay en esta franja.
+	var medio: int = arriba + (abajo - arriba) / 2
+	var mejor_ancho: int = -1
+	var mejor_y: float = float(abajo)
+	for py: int in range(medio, abajo + 1):
+		var primero: int = -1
+		var ultimo: int = -1
+		for px: int in range(x0, x1):
+			if img.get_pixel(px, py).a > UMBRAL_ALFA:
+				if primero < 0:
+					primero = px
+				ultimo = px
+		if primero < 0:
+			continue
+		var w: int = ultimo - primero
+		if w > mejor_ancho:
+			mejor_ancho = w
+			mejor_y = float(py)
+	return Vector2((float(izq) + float(der) + 1.0) * 0.5, mejor_y)
+
+
 ## Vacía las cachés de medidas. Solo para tests y herramientas que recargan texturas en caliente.
 static func limpiar_cache() -> void:
+	_cache_asientos.clear()
 	_cache_centro.clear()
 	_cache_semiejes.clear()
 

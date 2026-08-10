@@ -70,6 +70,13 @@ const MODELOS_BANCOS: Array[Dictionary] = [
 	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 1.2981},
 	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 1.2981},
 	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.6683},
+	## CANDIDATO 2026-08-10 (encargo a Summer): banco de 3 plazas pedido "muy alargado" para que
+	## ocupe 3 celdas sin dispararse de alto. Se calibra a 3 celdas de largo: 1,2981 daba 2,013
+	## celdas con un modelo casi idéntico, así que 1,2981 × 3 / 2,013 = 1,934.
+	{"id": "banco_3plazas_largo_summer", "ruta": CARPETA_BANCOS + "banco_3plazas_largo_summer.glb", "ancho_objetivo_celdas": 1.934},
+	## CANDIDATO a banco PREMIUM (encargo a Summer 2026-08-10, idea del usuario): 3 plazas azules con
+	## reposabrazos de madera y cargador — lo "pro" se nota en los extras, no en el tamaño. A 2 celdas.
+	{"id": "banco_premium_madera_summer", "ruta": CARPETA_BANCOS + "banco_premium_madera_summer.glb", "ancho_objetivo_celdas": 1.228, "pasos_giro": 1},
 ]
 
 ## La barrera: por ANCHO objetivo = 6,0 celdas (480 px) a 0° — el brazo debe cubrir una calle de 6
@@ -201,7 +208,11 @@ func _ejecutar(todas: Dictionary) -> void:
 
 		# 1) Bruto a 0° -- define la escala de ESTA pieza. Bancos: por ALTURA REAL x factor de
 		# presencia. Barrera: por el ANCHO de su huella en la rejilla (6,0 celdas).
-		grupo.rotation = Vector3.ZERO
+		# `giro_base_grados`: algunos modelos vienen mirando al lado contrario (los generados por
+		# Summer, sin ir mas lejos: el premium salia DE ESPALDAS a camara). Se corrige aqui, en la
+		# fuente, y no reordenando los PNG a mano — ese apaño ya resucito una vez con los coches.
+		var giro_base: float = float(receta.get("giro_base_grados", 0.0))
+		grupo.rotation = Vector3(0.0, deg_to_rad(giro_base), 0.0)
 		var bruto_0: Dictionary = await _renderizar_bruto()
 		var imagen_0: Image = bruto_0["imagen"]
 		var objetivo_px: float
@@ -232,7 +243,7 @@ func _ejecutar(todas: Dictionary) -> void:
 		# 2) Las 4 rotaciones, MISMO factor de escala UNIFORME (X=Y, ley del proyecto).
 		var escalados: Array[Dictionary] = [_escalar(bruto_0, escala_pieza)]
 		for rot: int in [90, 180, 270]:
-			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot)), 0.0)
+			grupo.rotation = Vector3(0.0, deg_to_rad(float(rot) + giro_base), 0.0)
 			var bruto: Dictionary = await _renderizar_bruto()
 			escalados.append(_escalar(bruto, escala_pieza))
 
@@ -240,13 +251,20 @@ func _ejecutar(todas: Dictionary) -> void:
 		var imagenes: Array[Image] = compuesto["imagenes"]
 		var ancla_final: Vector2 = compuesto["ancla"]
 
+		# `pasos_giro`: cuántos cuartos de vuelta viene girado el modelo respecto a la convención del
+		# proyecto (el frente mirando al SUR de la pantalla). Se compensa AQUÍ, al repartir las cuatro
+		# vistas ya renderizadas — girar el grupo antes del render no surte efecto en este pipeline
+		# (comprobado: la vista 0 salía igual con y sin giro). Los modelos generados por IA vienen
+		# orientados a capricho, así que esto es una propiedad del modelo, no un apaño.
+		var pasos: int = int(receta.get("pasos_giro", 0))
 		for i: int in ROTACIONES.size():
 			var ruta: String = "%s%s_%d.png" % [salida, id, ROTACIONES[i]]
-			var err: Error = (imagenes[i] as Image).save_png(ProjectSettings.globalize_path(ruta))
+			var origen_i: int = posmod(i + pasos, ROTACIONES.size())
+			var err: Error = (imagenes[origen_i] as Image).save_png(ProjectSettings.globalize_path(ruta))
 			if err != OK:
 				push_error("[BANCOS/BARRERA] save_png '%s' fallo (error %d)" % [ruta, err])
-			var alto_medido: int = _medir_alto(imagenes[i] as Image)
-			var ancho_medido: int = _medir_ancho(imagenes[i] as Image)
+			var alto_medido: int = _medir_alto(imagenes[origen_i] as Image)
+			var ancho_medido: int = _medir_ancho(imagenes[origen_i] as Image)
 			var ancho_celdas_medido: float = float(ancho_medido) / float(Proyeccion.ANCHO_ROMBO)
 			print("[BANCOS/BARRERA]   %s_%d.png: lienzo %dx%d px, ancla en (%.1f, %.1f), alto medido=%dpx, ancho medido=%dpx (%.3f celdas)" % [
 				id, ROTACIONES[i], compuesto["ancho"], compuesto["alto"],

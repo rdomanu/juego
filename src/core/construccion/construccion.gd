@@ -31,6 +31,10 @@ class_name Construccion extends Node
 ## Story: production/epics/construccion/story-001-nucleo-rejilla-validacion.md · TR-construction-001/002 · ADR-0004
 
 ## Ruta del config de tuning (generado por tools/build_config_construccion.gd; fallback a defaults).
+## Se preloadea en vez de usar el `class_name`: en headless "en frio" el class_name no siempre
+## resuelve (gotcha conocido del proyecto).
+const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
+
 const RUTA_CONFIG := "res://datos/config/construccion.tres"
 const ConfigConstruccionScript := preload("res://src/core/construccion/config_construccion.gd")
 ## La paleta de pintura (30 colores data-driven) — de aquí sale el BLANCO por defecto de las paredes.
@@ -1938,16 +1942,28 @@ func sitios_sentables_de_sala(sala_id: StringName) -> Array[Vector2]:
 		)
 		var origen: Vector2 = centro_de_celda(huella[0])
 		var paso: Vector2 = centro_de_celda(huella[0] + eje) - origen
-		# Los asientos no están en el CENTRO de la celda: el mueble tiene fondo y su asiento cae en
-		# la mitad TRASERA. Sin este empujón los sentados aparecían plantados DELANTE del banco
-		# (verificado in-game, `_diag_banco_75`). Un cuarto de celda hacia atrás, en el eje
-		# perpendicular al del mueble.
-		var atras: Vector2i = Vector2i(-eje.y, -eje.x) if eje.x != 0 else Vector2i(-1, 0)
-		var empujon: Vector2 = (centro_de_celda(huella[0] + atras) - origen) * 0.25
 		var celdas: float = float(huella.size())
-		for i: int in plazas:
-			var desvio: float = (float(i) + 0.5) * celdas / float(plazas) - 0.5
-			sitios.append(origen + paso * desvio + empujon)
+		# DÓNDE se sienta cada uno: medido sobre el PNG del mueble, no repartido con una fórmula.
+		# El usuario lo cazó ("no encaja perfecto la persona que se sienta con el lugar exacto del
+		# asiento"): los cojines no están equiespaciados en pantalla — la proyección iso acerca unos
+		# y aleja otros, y los reposabrazos comen ancho. `centros_de_asiento` los busca en el dibujo.
+		var textura: Texture2D = load(_ruta_sprite_comodidad(elemento["catalogo"], 0)) as Texture2D
+		var asientos: PackedVector2Array = (
+			AnclajeSpriteScript.centros_de_asiento(textura, plazas) if textura != null
+			else PackedVector2Array()
+		)
+		if asientos.size() == plazas:
+			# El píxel (0,0) del PNG cae en `centro_huella − centro_base`; un asiento medido en
+			# (sx, sy) cae, por tanto, en ese punto más (sx, sy).
+			var centro_huella: Vector2 = origen + paso * ((celdas - 1.0) * 0.5)
+			var base: Vector2 = AnclajeSpriteScript.centro_base(textura)
+			for asiento: Vector2 in asientos:
+				sitios.append(centro_huella + asiento - base)
+		else:
+			# Sin textura legible (tests con catálogos de mentira): reparto uniforme por el eje.
+			for i: int in plazas:
+				var desvio: float = (float(i) + 0.5) * celdas / float(plazas) - 0.5
+				sitios.append(origen + paso * desvio)
 	return sitios
 
 

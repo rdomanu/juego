@@ -3273,3 +3273,35 @@ a 1 celda EXACTA.
   sienta SOBRE el asiento) pero no está calibrado contra el fondo real de cada mueble.
 - PENDIENTE de decidir: precios/aporte de los bancos (150 € y 240 € se fijaron para 3 plazas en 3
   celdas; ahora son 3 plazas en 2 celdas) y si el banco de madera con 2 plazas en 1 celda cuadra.
+
+## 2026-08-10 (noche): asientos MEDIDOS del dibujo + 3 piezas nuevas de Summer
+- El usuario: "no encaja perfecto la persona que se sienta con el lugar exacto del asiento".
+  CIERTO: repartir las plazas uniformemente por el eje da puntos plausibles pero no los cojines
+  reales (la proyección iso acerca unos y aleja otros; los reposabrazos comen ancho).
+  ARREGLADO: `AnclajeSprite.centros_de_asiento(textura, plazas)` busca cada plaza en SU franja de
+  columnas — X = centro de la franja ocupada, Y = fila más ancha de la mitad inferior (la banda del
+  cojín). `Construccion.sitios_sentables_de_sala` la usa y cae de vuelta al reparto uniforme si no
+  hay textura (tests con catálogos de mentira). Cacheado por textura+plazas.
+  VERIFICADO en hoja: los 3 muñecos caen clavados en los 3 cojines del banco de aeropuerto.
+  Se elimina el empujón artificial de 1/4 de celda: ya no hace falta, el asiento medido está donde
+  toca. `construccion.gd` necesitó `const AnclajeSpriteScript := preload(...)` (el class_name no
+  resuelve en headless en frío).
+- Suite: 974/974 verde.
+- ENCARGOS A SUMMER (1,61 $ en total, 3 piezas de 0,54 $):
+  1. `banco_3plazas_largo_summer.glb` — pedido con ratio largo/alto 3,75 para llenar 3 celdas.
+     **FALLÓ el encargo**: devolvió ratio 2,00, igual que el viejo. Los generadores toman las
+     proporciones numéricas como inspiración, NO como especificación. A 3 celdas mide 145 px de
+     alto = 3,2 muñecos (enorme). DESCARTADO como banco de 3 celdas.
+  2. `banco_premium_madera_summer.glb` — BUENO: 3 asientos azules, reposabrazos y mesitas de
+     madera con taza y móvil cargando (idea del usuario: lo pro se nota en los extras). A 2 celdas
+     mide 78 px de alto = 1,7 muñecos, MÁS BAJO que el actual (2,2). Ratio 2,32.
+  3. `mesita_revistas_summer.glb` — BUENA a la primera: mesa cuadrada baja de madera con revistas.
+     Va en la 3ª celda junto al banco de 2 (idea del usuario para aprovechar el hueco).
+- ⚠️ PENDIENTE (lo dejo abierto y no oculto): el premium viene ORIENTADO AL REVÉS (respaldo a
+  cámara en la vista 0; la vista buena es la que hoy sale como 90). Intenté dos vías en
+  `_render_bancos_barrera.gd` —`giro_base_grados` antes del render y `pasos_giro` al repartir las 4
+  vistas— y NINGUNA surte efecto: las 4 vistas salen idénticas. Hay que averiguar dónde se aplica
+  de verdad la rotación en ese pipeline (sospecha: `_ejecutar` heredado de `render_mobiliario.gd`,
+  o `_componer` reordenando). Hasta entonces el premium NO se integra.
+- Los .glb nuevos están en `capturas/fuentes/bancos_espera/` SIN VERSIONAR (convención del repo
+  para las fuentes de arte). Son de pago: conviene decidir si se versionan.
