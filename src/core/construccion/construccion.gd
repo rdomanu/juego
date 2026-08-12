@@ -341,6 +341,37 @@ func equipamiento_de_sala(sala_id: StringName) -> float:
 	return aporte_de_sala(sala_id, "funcionario")
 
 
+## Qué factor de SATISFACCIÓN ofrecen los asientos de una sala de espera — lo consume Paciencia F3
+## para la nota de cada visita (decisión del usuario 2026-08-12: los asientos tienen DOS ejes, el
+## confort durante la espera y la nota al salir).
+##
+## Es una media PONDERADA POR PLAZAS, no una suma ni el máximo: lo que importa es en qué se sienta
+## la gente de verdad. Una sala con un banco premium de 2 plazas y seis básicos no da la nota del
+## premium, la da el promedio de lo que hay donde sentarse. Sin asientos → 1.0 (esperar de pie no
+## suma ni resta: el castigo de esperar ya lo aplica el factor de espera).
+##
+## Construcción solo MIDE (ADR-0001): en qué se convierte este número lo decide Paciencia.
+func factor_satisfaccion_de_sala(sala_id: StringName) -> float:
+	var suma: float = 0.0
+	var plazas_totales: int = 0
+	for elemento_id: StringName in _elementos:
+		if _elementos[elemento_id]["sala"] != sala_id:
+			continue
+		var comodidad: Resource = Datos.obtener_silencioso(
+			&"Comodidad", _elementos[elemento_id]["catalogo"]
+		)
+		if comodidad == null or comodidad.familia != "ciudadano":
+			continue
+		var plazas: int = int(comodidad.plazas)
+		if plazas <= 0:
+			continue   # la tele o el vending no son asientos: no puntúan aquí
+		suma += float(comodidad.factor_satisfaccion) * float(plazas)
+		plazas_totales += plazas
+	if plazas_totales <= 0:
+		return 1.0
+	return suma / float(plazas_totales)
+
+
 # ── Bienestar #13 (story bien-005): lo que hay montado en la sala de DESCANSO ────────────────
 
 ## Calidad instalada en la sala de descanso (familia "descanso"): lo consume Personal, que decide con

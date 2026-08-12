@@ -53,6 +53,17 @@ class_name Comodidad extends Resource
 @export var coste_mantenimiento_turno_eur: int = 0
 ## Cuánto aporta a su familia (confort o rendimiento). Se SUMA con el resto de objetos de la sala.
 @export var aporte: float = 1.0
+## Cuánto MEJORA LA NOTA de quien esperó aquí (Paciencia F3). Multiplica la puntuación de la visita,
+## junto al factor de espera y al de trato del agente: `base × espera × trato × asiento`.
+##
+## Es el SEGUNDO eje de los asientos (decisión del usuario 2026-08-12), y es distinto del `aporte`:
+##   · `aporte` (confort) actúa DURANTE la espera — la gente aguanta más antes de largarse;
+##   · `factor_satisfaccion` actúa AL TERMINAR — se van más contentos, y como la satisfacción de
+##     cierre alimenta el retorno de la DGP en Economía, invertir en asientos buenos TIENE RETORNO.
+##
+## `1.0` = neutro, que es lo que vale esperar de pie y lo que traen todos los objetos que no son
+## asientos. Solo lo suben los muebles donde uno se sienta.
+@export var factor_satisfaccion: float = 1.0
 ## Celdas que ocupa en la rejilla. Construcción LEE este campo al colocar: la celda de clic es el
 ## ANCLA y el cuerpo se extiende hacia +X `superficie - 1` celdas más (sin rotación ni formas en L —
 ## MVP, suficiente porque nada del catálogo mide más de 1×N). Bug corregido 2026-07-29 (petición del

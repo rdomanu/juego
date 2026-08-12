@@ -120,3 +120,66 @@ func test_el_aforo_cuenta_las_plazas_del_banco_no_el_mueble() -> void:
 		"el banco de %d plazas deberia descontar %d del aforo (vacia=%d, con banco=%d)"
 		% [plazas_banco, plazas_banco, caben_vacia, caben_con_banco]
 	).is_equal(maxi(caben_vacia - plazas_banco, 0))
+
+
+# ── Segundo eje de los asientos: la NOTA al salir (decisión del usuario 2026-08-12) ─────────────
+
+## 🔒 Los asientos tienen DOS ejes y son distintos: `aporte` (confort, actúa DURANTE la espera) y
+## `factor_satisfaccion` (actúa AL TERMINAR, sube la nota de la visita). Aquí se fija el segundo.
+func test_cada_banco_declara_su_factor_de_satisfaccion() -> void:
+	var esperado := {
+		&"banco_espera_basico": 1.05, &"banco_espera_medio": 1.12, &"banco_espera_pro": 1.20,
+	}
+	for id: StringName in esperado:
+		var comodidad: Resource = Datos.obtener_silencioso(&"Comodidad", id)
+		assert_object(comodidad).override_failure_message(
+			"no existe la comodidad %s" % id
+		).is_not_null()
+		assert_float(comodidad.factor_satisfaccion).override_failure_message(
+			"%s deberia tener factor_satisfaccion %.2f" % [id, esperado[id]]
+		).is_equal_approx(esperado[id], 0.001)
+	# Y el escalón tiene que ir a más: pagar más no puede dar menos nota.
+	assert_bool(
+		Datos.obtener_silencioso(&"Comodidad", &"banco_espera_basico").factor_satisfaccion
+		< Datos.obtener_silencioso(&"Comodidad", &"banco_espera_medio").factor_satisfaccion
+	).override_failure_message("el medio deberia puntuar mas que el basico").is_true()
+	assert_bool(
+		Datos.obtener_silencioso(&"Comodidad", &"banco_espera_medio").factor_satisfaccion
+		< Datos.obtener_silencioso(&"Comodidad", &"banco_espera_pro").factor_satisfaccion
+	).override_failure_message("el pro deberia puntuar mas que el medio").is_true()
+
+
+## Una sala SIN asientos no penaliza: da 1.0 neutro (el castigo de esperar ya lo aplica Paciencia
+## con su factor de espera; esto solo premia haber invertido en asientos).
+func test_sala_sin_asientos_da_factor_neutro() -> void:
+	var c: Node = _construccion()
+	var sala: StringName = c.construir_de_oficio_sala(&"sala_espera_odac", RECT_ESPERA)
+	assert_float(c.factor_satisfaccion_de_sala(sala)).is_equal_approx(1.0, 0.001)
+
+
+## Con un banco puesto, la sala ofrece EXACTAMENTE el factor de ese banco (media ponderada de uno).
+func test_la_sala_ofrece_el_factor_del_banco_instalado() -> void:
+	var c: Node = _construccion()
+	var sala: StringName = c.construir_de_oficio_sala(&"sala_espera_odac", RECT_ESPERA)
+	assert_str(String(
+		c.construir_de_oficio_elemento(&"banco_espera_pro", Vector2i(1, 1))
+	)).is_not_equal("")
+	assert_float(c.factor_satisfaccion_de_sala(sala)).override_failure_message(
+		"con un banco pro la sala deberia ofrecer 1.20"
+	).is_equal_approx(1.20, 0.001)
+
+
+## Mezclando bancos, la sala da la media PONDERADA POR PLAZAS: lo que cuenta es en qué se sienta la
+## gente, no cuántos muebles hay. Con un pro (1.20) y un basico (1.05), ambos de 2 plazas, sale 1.125.
+func test_la_sala_pondera_por_plazas() -> void:
+	var c: Node = _construccion()
+	var sala: StringName = c.construir_de_oficio_sala(&"sala_espera_odac", RECT_ESPERA)
+	assert_str(String(
+		c.construir_de_oficio_elemento(&"banco_espera_pro", Vector2i(1, 1))
+	)).is_not_equal("")
+	assert_str(String(
+		c.construir_de_oficio_elemento(&"banco_espera_basico", Vector2i(3, 1))
+	)).is_not_equal("")
+	assert_float(c.factor_satisfaccion_de_sala(sala)).override_failure_message(
+		"pro + basico, 2 plazas cada uno, deberia dar la media 1.125"
+	).is_equal_approx(1.125, 0.001)

@@ -613,10 +613,18 @@ func animo_de_persona(persona: RefCounted) -> StringName:
 ## paciencia que gastó esperando y se modula por el 🤝Trato del agente. El clamp final evita que un
 ## trato excelente dispare la escala por encima de 100.
 ## Ejemplos del GDD: sin espera y trato neutro → 80 · al límite con trato 0.7 → 28 · 80×1.3 → 100.
-func puntuacion_atendida(paciencia_consumida: float, factor_trato: float = 1.0) -> float:
+## `factor_asiento` (1.0 = de pie o sin asientos) es el SEGUNDO eje de los bancos, decidido con el
+## usuario el 2026-08-12: el confort ya hacía que la gente aguantara más DURANTE la espera; esto hace
+## que además se vaya más contenta AL SALIR. Y como la satisfacción de cierre alimenta el retorno de
+## la DGP (Economía), comprar buenos asientos pasa a tener retorno económico medible.
+func puntuacion_atendida(
+	paciencia_consumida: float, factor_trato: float = 1.0, factor_asiento: float = 1.0
+) -> float:
 	var consumida: float = clampf(paciencia_consumida, 0.0, 100.0)
 	var factor_espera: float = 1.0 - k_espera * (consumida / 100.0)
-	return clampf(puntuacion_base * factor_espera * factor_trato, 0.0, 100.0)
+	return clampf(
+		puntuacion_base * factor_espera * factor_trato * factor_asiento, 0.0, 100.0
+	)
 
 
 ## Paciencia que gastó esperando esta persona: 100 − la que le quedaba al ser llamada (o la que le
@@ -636,7 +644,25 @@ func paciencia_consumida_de(persona: RefCounted) -> float:
 func puntuacion_de_visita(persona: RefCounted) -> float:
 	if persona.estado == PersonaFlujoScript.ESTADO_ABANDONANDO:
 		return 0.0
-	return puntuacion_atendida(paciencia_consumida_de(persona), _factor_trato_de(persona))
+	return puntuacion_atendida(
+		paciencia_consumida_de(persona), _factor_trato_de(persona), _factor_asiento_de(persona)
+	)
+
+
+## En qué se sentó (o pudo sentarse) esta persona, como factor de satisfacción. Se pregunta a
+## Construcción por las salas de espera de SU servicio y se toma la mejor: es donde el jugador ha
+## invertido para ese servicio. Sin Construcción o sin salas → 1.0 neutro, igual que el trato.
+##
+## No se mira el asiento CONCRETO que ocupó a propósito: quién se sienta dónde es cosa de la capa
+## visual (`NPCsFlujo`), y Paciencia no debe depender de ella (ADR-0001). El confort ya funciona así.
+func _factor_asiento_de(persona: RefCounted) -> float:
+	if _construccion == null:
+		return 1.0
+	var salas: Array[StringName] = _construccion.salas_de_espera_de(persona.servicio())
+	var mejor: float = 1.0
+	for sala_id: StringName in salas:
+		mejor = maxf(mejor, _construccion.factor_satisfaccion_de_sala(sala_id))
+	return mejor
 
 
 ## El 🤝Trato del agente que la atiende (Personal F3). Sin Personal inyectado, sin puesto asignado o

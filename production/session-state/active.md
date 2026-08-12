@@ -3335,3 +3335,21 @@ Suite: 974/974 verde. Tests actualizados a la norma (leen las plazas del catálo
 PENDIENTE: precios (80/150/240 se fijaron para otro aforo) · el pro sigue pareciéndose al medio ·
 la mesita de revistas de Summer está descargada y sin integrar · verificación in-game con los 2
 sentados a la vez (la sonda solo pilló uno).
+
+## 2026-08-12: LOS ASIENTOS TIENEN DOS EJES (decisión de diseño del usuario)
+El usuario preguntó "¿qué se gana al subir de nivel de asiento?" y eligió los DOS ejes:
+1. **CONFORT** (`aporte`, ya existía y estaba implementado — el usuario creía que no):
+   `mult_paciencia = 1 − 0,02 × confort_sala` con suelo 0,6. Actúa DURANTE la espera: aguantan más
+   antes de largarse. Subido de 2 / 3,5 / 5 a **2 / 4 / 7** para que el salto de gama se note (el
+   espacio es el recurso escaso, así que el caro tiene que rendir más POR CELDA).
+2. **NOTA AL SALIR** (`factor_satisfaccion`, NUEVO): **1,05 / 1,12 / 1,20**. Multiplica la
+   puntuación de la visita junto al factor de espera y al de trato:
+   `puntuacion = base × espera × trato × asiento`. Encajó sin inventar sistema porque F3 ya era una
+   multiplicación de factores. **Y tiene retorno económico**: la satisfacción de CIERRE alimenta el
+   retorno de la DGP en Economía, así que comprar buenos asientos se traduce en dinero.
+Implementación: `Comodidad.factor_satisfaccion` (esquema) · `Construccion.factor_satisfaccion_de_sala`
+(media PONDERADA POR PLAZAS — lo que cuenta es en qué se sienta la gente, no cuántos muebles hay; sin
+asientos → 1,0 neutro) · `Paciencia.puntuacion_atendida(..., factor_asiento)` y `_factor_asiento_de`
+(pregunta por las salas de espera del SERVICIO y toma la mejor; NO mira el asiento concreto que ocupó
+—eso es de la capa visual y Paciencia no debe depender de ella, ADR-0001).
+7 tests nuevos (4 en bancos_multiplaza_test, 3 en paciencia_puntuacion_test). Suite 981/981 verde.

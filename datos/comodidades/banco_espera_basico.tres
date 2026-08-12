@@ -10,5 +10,6 @@ descripcion = "Banco corrido de dos plazas, madera sin tapizar."
 familia = "ciudadano"
 coste_construccion_eur = 80
 aporte = 2.0
+factor_satisfaccion = 1.05
 superficie = 1
 plazas = 2

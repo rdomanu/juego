@@ -74,3 +74,34 @@ func test_knobs_de_puntuacion_se_clampan() -> void:
 	sistema.aplicar_config(config)
 	assert_float(sistema.puntuacion_base).is_equal(100.0)
 	assert_float(sistema.k_espera).is_equal(1.0)
+
+
+# ── El asiento sube la nota (segundo eje, decisión del usuario 2026-08-12) ──────────────────────
+
+## 🔒 El factor de asiento MULTIPLICA la puntuación, junto a la espera y al trato. Es lo que hace que
+## invertir en bancos buenos tenga retorno: la satisfacción de cierre alimenta el dinero de la DGP.
+func test_el_asiento_sube_la_nota_de_la_visita() -> void:
+	var p: Node = _paciencia()
+	var sin_asiento: float = p.puntuacion_atendida(40.0, 1.0, 1.0)
+	var con_pro: float = p.puntuacion_atendida(40.0, 1.0, 1.20)
+	assert_bool(con_pro > sin_asiento).override_failure_message(
+		"esperar en un banco pro deberia puntuar mas que de pie (de pie=%.1f, pro=%.1f)"
+		% [sin_asiento, con_pro]
+	).is_true()
+	# Y es EXACTAMENTE un multiplicador, no un bonus fijo.
+	assert_float(con_pro).is_equal_approx(sin_asiento * 1.20, 0.001)
+
+
+## Sin pasar el factor, la puntuación es la de siempre: el parámetro es opcional y neutro por
+## defecto, así que nada de lo que ya existía cambia de valor.
+func test_sin_factor_de_asiento_la_nota_no_cambia() -> void:
+	var p: Node = _paciencia()
+	assert_float(p.puntuacion_atendida(40.0, 1.0)).is_equal_approx(
+		p.puntuacion_atendida(40.0, 1.0, 1.0), 0.001
+	)
+
+
+## El clamp de 100 sigue mandando: un asiento buenísimo no dispara la escala por encima del máximo.
+func test_el_asiento_no_pasa_de_cien() -> void:
+	var p: Node = _paciencia()
+	assert_float(p.puntuacion_atendida(0.0, 1.3, 1.20)).is_less_equal(100.0)
