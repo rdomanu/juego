@@ -30,12 +30,16 @@ func test_el_asiento_basico_sigue_siendo_una_plaza() -> void:
 	assert_int(c.plazas_sentadas_de(c.ASIENTO_BASICO)).is_equal(1)
 
 
-## Los tres bancos del encargo: 2 el basico, 3 el medio y el pro.
+## NORMA DEL PROYECTO (usuario, 2026-08-10): 1 CELDA = 2 PLAZAS. Los tres bancos son modulos de
+## una celda, asi que los tres sientan a dos. Un banco mas largo se hace ENCADENANDO modulos, no
+## agrandando el mueble — de ahi que la altura ya no dependa de la longitud.
+## Antes: 2 / 3 / 3 con huellas de 1 y 2 celdas, que rompia la distancia constante entre sentados.
 func test_cada_banco_declara_sus_plazas() -> void:
 	var c: Node = _construccion()
-	assert_int(c.plazas_sentadas_de(&"banco_espera_basico")).is_equal(2)
-	assert_int(c.plazas_sentadas_de(&"banco_espera_medio")).is_equal(3)
-	assert_int(c.plazas_sentadas_de(&"banco_espera_pro")).is_equal(3)
+	for id: StringName in [&"banco_espera_basico", &"banco_espera_medio", &"banco_espera_pro"]:
+		assert_int(c.plazas_sentadas_de(id)).override_failure_message(
+			"%s deberia declarar 2 plazas (norma 1 celda = 2 plazas)" % id
+		).is_equal(2)
 
 
 ## Lo que NO es para sentarse da 0 -- una papelera no es un banco por estar en la sala.
@@ -108,7 +112,11 @@ func test_el_aforo_cuenta_las_plazas_del_banco_no_el_mueble() -> void:
 			) != &"":
 				caben_con_banco += 1
 
+	# El banco descuenta del aforo TANTAS plazas como declare, no una por ser un mueble. Desde la
+	# norma "1 celda = 2 plazas" (2026-08-10) son DOS; antes eran tres. Se lee del catálogo para que
+	# el test no vuelva a caducar si la norma cambia.
+	var plazas_banco: int = con_banco.plazas_sentadas_de(&"banco_espera_medio")
 	assert_int(caben_con_banco).override_failure_message(
-		"el banco de 3 plazas deberia descontar 3 del aforo (vacia=%d, con banco=%d)"
-		% [caben_vacia, caben_con_banco]
-	).is_equal(maxi(caben_vacia - 3, 0))
+		"el banco de %d plazas deberia descontar %d del aforo (vacia=%d, con banco=%d)"
+		% [plazas_banco, plazas_banco, caben_vacia, caben_con_banco]
+	).is_equal(maxi(caben_vacia - plazas_banco, 0))

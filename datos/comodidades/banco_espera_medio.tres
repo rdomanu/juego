@@ -6,9 +6,9 @@
 script = ExtResource("1_banco")
 id = &"banco_espera_medio"
 nombre = "Banco de aeropuerto"
-descripcion = "Banco de tres plazas con estructura metalica y asientos acolchados."
+descripcion = "Banco de dos plazas con estructura metalica y asientos acolchados."
 familia = "ciudadano"
 coste_construccion_eur = 150
 aporte = 3.5
-superficie = 2
-plazas = 3
+superficie = 1
+plazas = 2

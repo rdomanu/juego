@@ -1943,27 +1943,23 @@ func sitios_sentables_de_sala(sala_id: StringName) -> Array[Vector2]:
 		var origen: Vector2 = centro_de_celda(huella[0])
 		var paso: Vector2 = centro_de_celda(huella[0] + eje) - origen
 		var celdas: float = float(huella.size())
-		# DÓNDE se sienta cada uno: medido sobre el PNG del mueble, no repartido con una fórmula.
-		# El usuario lo cazó ("no encaja perfecto la persona que se sienta con el lugar exacto del
-		# asiento"): los cojines no están equiespaciados en pantalla — la proyección iso acerca unos
-		# y aleja otros, y los reposabrazos comen ancho. `centros_de_asiento` los busca en el dibujo.
-		var textura: Texture2D = load(_ruta_sprite_comodidad(elemento["catalogo"], 0)) as Texture2D
-		var asientos: PackedVector2Array = (
-			AnclajeSpriteScript.centros_de_asiento(textura, plazas) if textura != null
-			else PackedVector2Array()
-		)
-		if asientos.size() == plazas:
-			# El píxel (0,0) del PNG cae en `centro_huella − centro_base`; un asiento medido en
-			# (sx, sy) cae, por tanto, en ese punto más (sx, sy).
-			var centro_huella: Vector2 = origen + paso * ((celdas - 1.0) * 0.5)
-			var base: Vector2 = AnclajeSpriteScript.centro_base(textura)
-			for asiento: Vector2 in asientos:
-				sitios.append(centro_huella + asiento - base)
-		else:
-			# Sin textura legible (tests con catálogos de mentira): reparto uniforme por el eje.
-			for i: int in plazas:
-				var desvio: float = (float(i) + 0.5) * celdas / float(plazas) - 0.5
-				sitios.append(origen + paso * desvio)
+		# DÓNDE se sienta cada uno: reparto uniforme por el eje del mueble. La plaza `i` de `n` cae
+		# a `(i + 0,5) · celdas / n − 0,5` celdas del centro de la primera celda de la huella.
+		#
+		# NORMA DEL PROYECTO (usuario, 2026-08-10): 1 celda = 2 PLAZAS. Con esa relación la fórmula
+		# deja las plazas a UN CUARTO y TRES CUARTOS de cada celda, y entonces la distancia entre
+		# dos sentados es SIEMPRE media celda: entre los dos de un mismo banco (0,25 → 0,75) y entre
+		# el último de un banco y el primero del de al lado (0,75 → 1,25). Requisito literal del
+		# usuario: *"si se ponen 2 bancos juntos la distancia entre npc y npc debe ser la misma, da
+		# igual que sea en varios bancos unidos o solo en 1"*.
+		#
+		# Se probó a MEDIR los cojines sobre el PNG (`AnclajeSprite.centros_de_asiento`) para que
+		# cada muñeco cayera clavado en su cojín, y se DESCARTÓ: los cojines del arte no caen a un
+		# cuarto y tres cuartos, así que respetarlos rompía la distancia constante. Manda la norma;
+		# el arte se elige para que sus asientos coincidan con ella.
+		for i: int in plazas:
+			var desvio: float = (float(i) + 0.5) * celdas / float(plazas) - 0.5
+			sitios.append(origen + paso * desvio)
 	return sitios
 
 

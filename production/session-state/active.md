@@ -3305,3 +3305,33 @@ a 1 celda EXACTA.
   o `_componer` reordenando). Hasta entonces el premium NO se integra.
 - Los .glb nuevos están en `capturas/fuentes/bancos_espera/` SIN VERSIONAR (convención del repo
   para las fuentes de arte). Son de pago: conviene decidir si se versionan.
+
+## 2026-08-12: GAMA DE BANCOS CERRADA — norma "1 celda = 2 plazas"
+NORMA FIJADA CON EL USUARIO (la clave de todo el lío de estas sesiones):
+- **1 celda = 1 módulo = 2 plazas.** Un banco más largo se hace ENCADENANDO módulos, nunca
+  agrandando el mueble. Así la ALTURA deja de depender de la LONGITUD, que era el nudo.
+- **Las plazas van a 1/4 y 3/4 de cada celda** -> la distancia entre dos sentados es SIEMPRE media
+  celda (20 px en X, 10 en Y, 22,4 px en recta), tanto dentro de un módulo como en la junta entre
+  dos. Requisito literal del usuario. La fórmula de reparto uniforme ya lo cumple cuando
+  plazas = 2 x celdas.
+- **Ninguna pieza puede PASARSE de su celda** (solaparía). Como el sprite es de píxeles enteros y
+  1 px = 0,025 celdas, el 1,000 exacto NO existe: se elige siempre el valor inmediatamente por
+  debajo. Quedan en 0,988 / 0,963 / 0,988.
+- **Techo de altura**: ningún mueble de sala de espera pasa de la ventanilla (1,31 muñecos).
+  Los tres quedan en 0,93 / 1,04 / 1,11.
+- Se DESCARTA medir los cojines del PNG (`AnclajeSprite.centros_de_asiento`, que sigue existiendo
+  sin usarse): los cojines del arte no caen a 1/4 y 3/4, así que respetarlos rompía la distancia
+  constante. Manda la norma; el arte se elige para encajar en ella.
+ARTE: los tres bancos son los modelos VIEJOS recalibrados (receta v8 en `_render_bancos_barrera`):
+banco_madera_summer 0,6715 · banco_espera_medio 0,6280 · banco_espera_pro 0,6492.
+Fichas: los tres con superficie 1 y plazas 2.
+ENCARGOS A SUMMER DESCARTADOS (3,22 $ en total, 6 piezas): los módulos nuevos (basico/medio/pro)
+y el banco de 3 plazas alargado son MÁS CUADRADOS que los viejos (ratio 1,40-1,81 contra 2,07-2,57)
+y dejan 21-34 % de hueco. Se quedan guardados en `capturas/fuentes/bancos_espera/` por si algún día
+cambia la escala. LECCIÓN: el arte se evalúa a 40 px con un muñeco sentado delante, NO en la vista
+de catálogo; y las proporciones NO se pueden pedir por texto a un generador (se pidió ratio 3,75 y
+devolvió 2,00). El número que hay que exigir para esta rejilla es **largo = 2,6 x alto**.
+Suite: 974/974 verde. Tests actualizados a la norma (leen las plazas del catálogo para no caducar).
+PENDIENTE: precios (80/150/240 se fijaron para otro aforo) · el pro sigue pareciéndose al medio ·
+la mesita de revistas de Summer está descargada y sin integrar · verificación in-game con los 2
+sentados a la vez (la sonda solo pilló uno).

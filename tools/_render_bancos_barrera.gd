@@ -67,15 +67,42 @@ const SALIDA_BARRERA := "res://capturas/fuentes/barrera_summer/renders/"
 ##   medio/pro: medían 1,56 celdas con 1,0125 -> 2,00 celdas con 1,2981 (×1,282)
 ##   madera:    medía  1,01 celdas con 0,6750 -> 1,00 celdas con 0,6683 (×0,990)
 const MODELOS_BANCOS: Array[Dictionary] = [
-	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 1.2981},
-	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 1.2981},
-	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.6683},
+	## RECETA v7 (2026-08-10, "NORMA DE ALTURA"): el mueble se calibra por su ALTURA con el
+	## ciudadano de pie (45 px) como patrón, y la huella en celdas sale DESPUÉS del largo que
+	## resulte — nunca al revés. Los bancos eran los únicos calibrados por su largo en celdas (para
+	## llenar la huella) y por eso la altura se disparó: medían 2,16-2,22 muñecos, casi como el
+	## coche patrulla (2,36) y un 65 % más que la ventanilla (1,31), que es el mostrador donde se
+	## atiende. TECHO DURO: ningún mueble de sala de espera pasa de la ventanilla.
+	## Objetivo elegido por el usuario: 1,24 muñecos -> ×0,58 sobre la v6 -> 1,2981 × 0,58 = 0,7529.
+	{"id": "banco_espera_medio", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 0.7529},
+	{"id": "banco_espera_pro", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 0.7529},
+	{"id": "banco_madera_summer", "ruta": CARPETA_BANCOS + "banco_madera_summer.glb", "ancho_objetivo_celdas": 0.6715},
 	## CANDIDATO 2026-08-10 (encargo a Summer): banco de 3 plazas pedido "muy alargado" para que
 	## ocupe 3 celdas sin dispararse de alto. Se calibra a 3 celdas de largo: 1,2981 daba 2,013
 	## celdas con un modelo casi idéntico, así que 1,2981 × 3 / 2,013 = 1,934.
 	{"id": "banco_3plazas_largo_summer", "ruta": CARPETA_BANCOS + "banco_3plazas_largo_summer.glb", "ancho_objetivo_celdas": 1.934},
 	## CANDIDATO a banco PREMIUM (encargo a Summer 2026-08-10, idea del usuario): 3 plazas azules con
 	## reposabrazos de madera y cargador — lo "pro" se nota en los extras, no en el tamaño. A 2 celdas.
+	## ── MODULOS v1 (2026-08-10) ────────────────────────────────────────────────────────────────
+	## NORMA DEL PROYECTO fijada con el usuario: 1 celda = 1 MODULO = 2 PLAZAS, y las dos plazas
+	## caen a 1/4 y 3/4 de la celda, de modo que la distancia entre dos sentados sea SIEMPRE media
+	## celda — dentro de un modulo y entre modulos encadenados. Un banco de N celdas es N modulos
+	## repetidos, asi que la ALTURA no depende de la longitud (ese era el nudo de todo el lio).
+	## Los tres se calibran a la MISMA altura (la del banco de madera que el usuario dio por buena).
+	## Calibrados en dos pasadas: con 0,6683 daban 54/58/51 px de alto; corregidos por regla de tres
+	## para que los tres queden en los 41 px (0,91 munecos) del banco de madera aprobado.
+	{"id": "modulo_basico", "ruta": CARPETA_BANCOS + "modulo_basico_summer.glb", "ancho_objetivo_celdas": 0.5074},
+	{"id": "modulo_medio", "ruta": CARPETA_BANCOS + "modulo_medio_summer.glb", "ancho_objetivo_celdas": 0.4724},
+	{"id": "modulo_pro", "ruta": CARPETA_BANCOS + "modulo_pro_summer.glb", "ancho_objetivo_celdas": 0.5373},
+	## Variante LLENA-CELDA de los mismos modulos: calibrados para que su largo sea 1 celda exacta
+	## (asi encadenan sin hueco). La altura sube: es la disyuntiva que decide el usuario.
+	{"id": "modulo_basico_llena", "ruta": CARPETA_BANCOS + "modulo_basico_summer.glb", "ancho_objetivo_celdas": 0.9910},
+	{"id": "modulo_medio_llena", "ruta": CARPETA_BANCOS + "modulo_medio_summer.glb", "ancho_objetivo_celdas": 0.9945},
+	{"id": "modulo_pro_llena", "ruta": CARPETA_BANCOS + "modulo_pro_summer.glb", "ancho_objetivo_celdas": 1.0006},
+	## Los modelos VIEJOS calibrados a la ALTURA BUENA (41 px): son mas alargados que los modulos
+	## nuevos (ratio 2,07 y 1,89 contra 1,40-1,81), asi que a la misma altura llenan mucho mas celda.
+	{"id": "viejo_medio_bajo", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 0.6280},
+	{"id": "viejo_pro_bajo", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 0.6492},
 	{"id": "banco_premium_madera_summer", "ruta": CARPETA_BANCOS + "banco_premium_madera_summer.glb", "ancho_objetivo_celdas": 1.228, "pasos_giro": 1},
 ]
 
