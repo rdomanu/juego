@@ -82,10 +82,10 @@ const CATEGORIAS: Array[Dictionary] = [
 	{"id": &"zonas", "nombre": "Zonas"},
 	{"id": &"herramientas", "nombre": "Herramientas"},
 ]
-## Cuánto se desplaza la fila de tarjetas por cada clic en ◀/▶ (Apéndice B: "paginación por flechas
-## visibles, no solo scroll de rueda").
-const PASO_PAGINACION_TARJETAS: float = 260.0
 const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
+## Las partes PURAS del panel (F1, 2026-08-15): filtro del buscador, texto de huella, derivaciones de
+## confort → "+N%". Ver la cabecera de `src/ui/logica_panel_construccion.gd`.
+const LogicaPanelConstruccionScript := preload("res://src/ui/logica_panel_construccion.gd")
 ## Lado (en píxeles) de cada muestra de color de la rejilla de la paleta.
 const LADO_MUESTRA := Vector2(26.0, 20.0)
 
@@ -174,32 +174,87 @@ var _atenuador: ColorRect
 ## el comentario largo en `_crear_ui`. La barra/atenuador se quedan SIN esta transformada a
 ## propósito (overlay de pantalla fija).
 var _capa_preview: CanvasLayer
-## Contenedor MADRE de toda la barra de construcción (pestañas + fila de tarjetas + submenús de
-## pincel): UN solo nodo que `_actualizar_visibilidad` enciende/apaga entero, igual que hacía la
-## `HFlowContainer` de antes — el nombre se conserva por eso, aunque ya no es un flow (2026-08-07,
-## rediseño con el kit de Summer: `design/ux/plan-maestro-ui.md` §2 y Apéndice B).
+## Contenedor MADRE de toda la barra de construcción (buscador + toggle + columna de categorías +
+## rejilla de tarjetas + ficha + submenús de pincel): UN solo nodo que `_actualizar_visibilidad`
+## enciende/apaga entero. El nombre se conserva de la barra anterior (2026-08-07) aunque el layout ya
+## no es un flow — reskin F0/F1 (2026-08-15, maquetas `design/ux/maquetas-menu-2026-08/menu_v2_moderno.png`
+## y `menu_v3_completo.png`): panel claro, tarjetas blancas con sombra, columna de categorías a la
+## izquierda, ficha del seleccionado a la derecha. Ver `design/ux/menu-construccion-spec.md`.
 var _fila_herramientas: Control
-## La fila de PESTAÑAS de categoría (Salas·Muebles·Muros y suelos·Zonas·Herramientas) + el hueco
-## elástico + el botón Demoler anclado al borde derecho (Apéndice B: "ancla el borde de pantalla,
-## Fitts's Law" — aquí el borde derecho DEL PANEL, que es lo que el wireframe pedía).
-var _fila_pestanas: HBoxContainer
-## La fila de tarjetas de la categoría ACTIVA, dentro de un `ScrollContainer` con flechas propias
-## (Apéndice B: "paginación por flechas visibles, no solo scroll de rueda" — regla del proyecto de
-## no depender solo de hover/rueda). TODAS las tarjetas viven SIEMPRE colgadas de aquí; las de las
-## categorías no activas van OCULTAS (`_mostrar_categoria` solo alterna `visible` — un `BoxContainer`
-## ignora a los hijos ocultos en el layout). Nada de descolgar nodos: una tarjeta sin padre no se
-## libera al morir el modo (eran los 56 huérfanos por instancia que cazó gdUnit en la suite).
+## El buscador (LineEdit en pastilla, fila superior de la maqueta): filtra las tarjetas de la
+## categoría activa por nombre EN VIVO (`_texto_busqueda` + `LogicaPanelConstruccion.tarjeta_visible`,
+## ver `_refrescar_tarjetas_visibles`).
+var _buscador: LineEdit
+## Lo que hay escrito en `_buscador`, ya cacheado (evita leer `_buscador.text` en cada tarjeta al
+## refrescar la visibilidad — un solo `String` por refresco, no N lecturas de nodo).
+var _texto_busqueda: String = ""
+## Botón "Función" del toggle segmentado (fila superior): agrupa por lo que YA modela `CATEGORIAS`
+## (salas/muebles/muros y suelos/zonas/herramientas). Siempre activo y el único operativo hoy.
+var _boton_funcion: Button
+## Botón "Sala" del toggle: agrupar por tipo de sala NO está modelado en el catálogo (`Comodidad` no
+## referencia "en qué sala vive", solo `familia`) — deshabilitado con tooltip "Próximamente" hasta que
+## exista ese dato (ver el informe de la tarea F1, apartado "próximamente").
+var _boton_sala: Button
+## La COLUMNA de categorías (Salas·Muebles·Muros y suelos·Zonas·Herramientas), a la izquierda del
+## panel (maqueta v2: pastillas verticales, la activa en azul de acento). Reemplaza a la fila
+## horizontal de pestañas del reskin anterior; `_pestanas_categoria`/`_categoria_de_herramienta` son
+## el mismo diccionario de siempre, solo cambia CÓMO se construye y pinta cada botón.
+var _columna_categorias: VBoxContainer
+## La REJILLA de tarjetas de la categoría ACTIVA (y que además coincidan con `_texto_busqueda`),
+## dentro de un `ScrollContainer` VERTICAL (la maqueta cabe en una fila con 5 categorías × varias
+## tarjetas cada una; con el buscador reduciendo la lista, el scroll vertical + su barra arrastrable
+## es la afordancia visible que pide el proyecto — ya no faltan flechas de paginación horizontal
+## porque ya no hay una sola fila que paginar). TODAS las tarjetas viven SIEMPRE colgadas de aquí; las
+## que no tocan (categoría distinta o no casan con la búsqueda) van OCULTAS — un `GridContainer`
+## ignora a los hijos ocultos en el layout, así que nunca hace falta descolgar nodos (los huérfanos
+## por instancia que cazó gdUnit en la suite, en el reskin anterior).
 var _scroll_tarjetas: ScrollContainer
-var _fila_tarjetas: HBoxContainer
-var _boton_pagina_izq: Button
-var _boton_pagina_der: Button
+var _fila_tarjetas: GridContainer
 ## La casilla "Con paredes" (2026-07-30) vive dentro de la categoría "Muros y suelos" — un control
 ## que no es una herramienta seleccionable, así que no pasa por `_anadir_herramienta`.
 var _casilla_con_paredes: CheckBox
 ## Lo que se lee en una categoría sin tarjetas todavía (hoy, "Herramientas": el hueco ya existe en
 ## el layout para cuando llegue algo que meter ahí — Sección 2 de `plan-maestro-ui.md`, "escala sin
-## rediseño"). Mejor un aviso honesto que una pestaña que parece rota.
+## rediseño") O cuando la búsqueda no encuentra nada en la categoría activa. Mejor un aviso honesto
+## que una rejilla que parece rota.
 var _lbl_categoria_vacia: Label
+## ── LA FICHA DEL SELECCIONADO (columna derecha de la maqueta) ──────────────────────────────────
+var _panel_ficha: PanelContainer
+var _ficha_sprite: TextureRect
+var _ficha_nombre: Label
+var _ficha_precio: Label
+var _ficha_huella: Label
+var _ficha_extra: Label
+## Filas completas (icono/rótulo + barra), para poder OCULTAR la fila entera cuando el campo no
+## existe en el esquema `Comodidad` del objeto seleccionado (p. ej. un escritorio no tiene
+## `factor_satisfaccion` con sentido de "asiento" — instrucción de la tarea: "si una comodidad no
+## tiene un campo, oculta esa barra").
+var _ficha_fila_confort: Control
+var _ficha_barra_confort: Control
+var _ficha_fila_nota: Control
+var _ficha_barra_nota: Control
+var _ficha_fila_paciencia: Control
+var _ficha_barra_paciencia: Control
+## Lo que se ve en la ficha sin nada seleccionado todavía (arranque del modo, o herramienta sin
+## ficha propia como Muro/Puerta/Pintar) — mismo criterio honesto que `_lbl_categoria_vacia`.
+var _ficha_vacia_lbl: Label
+## Mover/Clonar/Demoler (columna de iconos, borde derecho de la maqueta). Mover y Clonar NO son
+## mecánicas que existan hoy (instrucción de la tarea: no implementar mecánicas nuevas en esta
+## pasada) — quedan deshabilitados con tooltip "Próximamente". Demoler SÍ existe: es la MISMA
+## herramienta `&"demoler"` de siempre, solo que su botón vive aquí en vez de anclado a la fila de
+## pestañas del reskin anterior — `_botones_herramienta[&"demoler"]` sigue apuntando a él.
+var _boton_mover: Button
+var _boton_clonar: Button
+## nombre por herramienta (StringName → String), la etiqueta LIMPIA (sin precio incrustado, a
+## diferencia del `texto` que aceptaba el reskin anterior) — la lee el buscador
+## (`LogicaPanelConstruccion.tarjeta_visible`) y la tarjeta/ficha para el rótulo.
+var _nombre_por_herramienta: Dictionary = {}
+## herramienta (StringName) → Dictionary de su ficha: `{"precio": String, "huella": String,
+## "extra": String, "comodidad": Comodidad}` (las tres claves de texto siempre presentes, aunque
+## vacías; `"comodidad"` solo si el id resuelve a un recurso `Comodidad` del catálogo — de ahí salen
+## las tres barras). Poblado en `_anadir_herramienta`/`_registrar_ficha`; leído por
+## `_actualizar_ficha` y por la tarjeta al construirse.
+var _datos_ficha: Dictionary = {}
 var _lbl_estado: Label
 var _boton_modo: Button
 ## El PanelContainer raíz de la barra: SOLO visible con el modo activo (opción A del veredicto
@@ -1045,6 +1100,11 @@ func _fijar_herramienta(id: StringName, es_sala: bool) -> void:
 	# alguno al hacer clic (comportamiento nativo de `toggle_mode`), aquí se sobrescribe siempre.
 	for boton_id: StringName in _botones_herramienta:
 		(_botones_herramienta[boton_id] as Button).button_pressed = boton_id == id
+	# LA FICHA DEL SELECCIONADO (F1, 2026-08-15): misma fuente de verdad que el resaltado de arriba
+	# -- cualquier camino que ponga una herramienta en la mano (clic en tarjeta, menú contextual de
+	# sala, "pedir puerta") repinta la ficha, no solo el clic directo en la rejilla.
+	if _panel_ficha != null:
+		_actualizar_ficha(id)
 
 
 # ── Preview fantasma (dibujo en _process con guarda de celda — ADR-0001) ─────────────────────
@@ -1720,6 +1780,9 @@ const COMODIDADES_ROTACION_DIRECTA: Array[StringName] = [
 	# propósito.
 	&"escritorio_trabajo", &"silla_oficina", &"silla_espera_madera", &"silla_espera_azul",
 	&"silla_espera_comoda", &"vending",
+	# Bancos de espera (2026-08-15): 4 vistas reales `comodidad_banco_espera_*_{0,90,180,270}.png`
+	# — sin esta entrada, su tarjeta del panel salía con el icono genérico en vez del sprite.
+	&"banco_espera_basico", &"banco_espera_medio", &"banco_espera_pro",
 ]
 
 ## LOS ASIENTOS DE ESPERA POR TIER, COMO TARJETAS (2026-08-08 — playtest: "no puedo elegir... los
@@ -2045,6 +2108,7 @@ func _crear_ui() -> void:
 	_preview_texto.add_theme_constant_override("outline_size", 4)
 	_capa_preview.add_child(_preview_texto)
 
+	# ── EL PANEL NUEVO (F1, 2026-08-15 — maquetas `menu_v2_moderno.png`/`menu_v3_completo.png`) ────
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	# Gotcha de anclas (el bug del "menú invisible"): anclada abajo, la barra debe CRECER HACIA
@@ -2055,93 +2119,170 @@ func _crear_ui() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	panel.offset_top = 0.0
 	panel.offset_bottom = 0.0
-	# El TEMA del kit (2026-08-07): se aplica al PANEL, no a cada botón suelto — así hereda el
-	# `default_font`/`default_font_size` (Kenney Future) TODO lo que cuelgue de aquí sin tocarlo
-	# nodo a nodo. Las piezas con arte propio (pestañas/tarjetas/demoler) piden ADEMÁS su
-	# `theme_type_variation` explícita (ver `_construir_pestana_categoria`/`_construir_tarjeta`).
+	# El TEMA del kit (2026-08-07) sigue aplicado al PANEL — hereda `default_font`/`default_font_size`
+	# (Kenney Future) todo lo que cuelgue de aquí. La fuente NO cambia con este reskin (decisión de
+	# arte pendiente, ver el informe de la tarea) — lo que cambia es el FONDO/las FORMAS, vía las
+	# fábricas `moderno_*` de `KitUIComisario` (paleta clara, tarjetas con sombra — F0).
 	panel.theme = KitUIComisarioScript.tema()
-	# Mismo relleno plano deliberado que la fila de acciones del HUD (opción A del veredicto
-	# 2026-08-09, ver `KitUIComisario.COLOR_FONDO_BARRA_INFERIOR`): cosidas sin costura, y fuera
-	# el gris por defecto del motor.
+	# Panel CLARO (maqueta v2) con "hombro" redondeado arriba — solo arriba: el panel se apoya en el
+	# borde inferior real de la pantalla, así que abajo no hay esquina que enseñar.
 	var estilo_fondo := StyleBoxFlat.new()
-	estilo_fondo.bg_color = KitUIComisarioScript.COLOR_FONDO_BARRA_INFERIOR
+	estilo_fondo.bg_color = KitUIComisarioScript.MOD_COLOR_PANEL
+	estilo_fondo.corner_radius_top_left = int(KitUIComisarioScript.MOD_RADIO_TARJETA)
+	estilo_fondo.corner_radius_top_right = int(KitUIComisarioScript.MOD_RADIO_TARJETA)
+	estilo_fondo.content_margin_left = 16.0
+	estilo_fondo.content_margin_right = 16.0
+	estilo_fondo.content_margin_top = 10.0
+	estilo_fondo.content_margin_bottom = 14.0
 	panel.add_theme_stylebox_override("panel", estilo_fondo)
 	capa.add_child(panel)
 	_panel_raiz = panel
 	_panel_raiz.visible = false   # colapsado = invisible; lo gobierna `_actualizar_visibilidad`
 	var caja := VBoxContainer.new()
+	caja.add_theme_constant_override("separation", 8)
 	panel.add_child(caja)
-	var fila_superior := HBoxContainer.new()
-	fila_superior.add_theme_constant_override("separation", 8)
-	caja.add_child(fila_superior)
+	var fila_estado := HBoxContainer.new()
+	fila_estado.add_theme_constant_override("separation", 8)
+	caja.add_child(fila_estado)
 	_boton_modo = Button.new()
 	# Sin el emoji 🔨 (2026-08-09): renderiza como emoji de COLOR del sistema e ignora el tema —
 	# el mismo gotcha que el ⏸ del módulo de velocidad del HUD.
 	_boton_modo.text = "Construir (B)"
 	_boton_modo.focus_mode = Control.FOCUS_NONE
 	_boton_modo.pressed.connect(_alternar_modo)
-	fila_superior.add_child(_boton_modo)
+	fila_estado.add_child(_boton_modo)
 	_lbl_estado = Label.new()
 	_lbl_estado.add_theme_font_size_override("font_size", 11)
-	_lbl_estado.modulate = Color(1, 1, 1, 0.7)
-	fila_superior.add_child(_lbl_estado)
+	_lbl_estado.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	fila_estado.add_child(_lbl_estado)
 
-	# ── LA BARRA NUEVA: PESTAÑAS DE CATEGORÍA + TARJETAS (2026-08-07) ────────────────────────────
 	_fila_herramientas = VBoxContainer.new()
+	_fila_herramientas.add_theme_constant_override("separation", 10)
 	caja.add_child(_fila_herramientas)
 
-	_fila_pestanas = HBoxContainer.new()
-	_fila_pestanas.add_theme_constant_override("separation", 6)
-	_fila_herramientas.add_child(_fila_pestanas)
+	# ── FILA SUPERIOR: buscador · toggle Función/Sala (maqueta v2, fila de arriba) ───────────────
+	# SIN pastilla de presupuesto (instrucción de la tarea: el dinero vive en el HUD superior desde
+	# la fase 2 — este panel ya no es quien lo enseña).
+	var fila_superior := HBoxContainer.new()
+	fila_superior.add_theme_constant_override("separation", 10)
+	_fila_herramientas.add_child(fila_superior)
+
+	var pastilla_buscador := KitUIComisarioScript.moderno_pastilla(KitUIComisarioScript.MOD_COLOR_TARJETA, 38.0)
+	pastilla_buscador.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pastilla_buscador.custom_minimum_size.x = 200.0
+	fila_superior.add_child(pastilla_buscador)
+	var margen_buscador := MarginContainer.new()
+	margen_buscador.add_theme_constant_override("margin_left", 14)
+	margen_buscador.add_theme_constant_override("margin_right", 14)
+	pastilla_buscador.add_child(margen_buscador)
+	_buscador = LineEdit.new()
+	_buscador.placeholder_text = "Buscar mueble"
+	_buscador.clear_button_enabled = true
+	_buscador.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+	_buscador.add_theme_color_override("font_placeholder_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	# Sin caja propia (StyleBoxEmpty): la pastilla de fuera YA es el fondo redondeado -- un
+	# `LineEdit` normal traería su propio cuadro recto encima y se verían dos bordes.
+	var estilo_buscador_vacio := StyleBoxEmpty.new()
+	_buscador.add_theme_stylebox_override("normal", estilo_buscador_vacio)
+	_buscador.add_theme_stylebox_override("focus", estilo_buscador_vacio)
+	# FILTRO EN VIVO (instrucción de la tarea): cada tecla recalcula qué tarjetas casan, vía
+	# `LogicaPanelConstruccionScript.tarjeta_visible` (la parte PURA y testeada) -- ver
+	# `_refrescar_tarjetas_visibles`.
+	_buscador.text_changed.connect(func(texto: String) -> void:
+		_texto_busqueda = texto
+		_refrescar_tarjetas_visibles()
+	)
+	margen_buscador.add_child(_buscador)
+
+	# TOGGLE Función/Sala (maqueta v2): "Sala" deshabilitada -- agrupar por tipo de sala NO está
+	# modelado en el catálogo hoy (`Comodidad` no referencia "en qué sala vive", solo `familia`,
+	# que no es una relación 1:1 limpia con `TipoSala`). Ver el informe de la tarea, "próximamente".
+	var opciones_toggle: Array[Dictionary] = [
+		{"id": &"funcion", "texto": "Función", "habilitado": true},
+		{
+			"id": &"sala", "texto": "Sala", "habilitado": false,
+			"tooltip": "Próximamente — agrupar por tipo de sala aún no está modelado en el catálogo",
+		},
+	]
+	var toggle := KitUIComisarioScript.toggle_segmentado(opciones_toggle, 38.0)
+	fila_superior.add_child(toggle)
+	_boton_funcion = toggle.find_child("Opcion_funcion", true, false) as Button
+	_boton_sala = toggle.find_child("Opcion_sala", true, false) as Button
+	if _boton_funcion != null:
+		_boton_funcion.button_pressed = true   # única agrupación operativa hoy — ver la cabecera del var
+
+	# ── EL CUERPO: columna de categorías · rejilla de tarjetas · ficha (maqueta v2, fila central) ──
+	var fila_cuerpo := HBoxContainer.new()
+	fila_cuerpo.add_theme_constant_override("separation", 12)
+	fila_cuerpo.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_fila_herramientas.add_child(fila_cuerpo)
+
+	# Columna de categorías (izquierda): mismas 5 `CATEGORIAS` de siempre (Salas·Muebles·Muros y
+	# suelos·Zonas·Herramientas) -- la maqueta ilustra otra taxonomía (Asientos/Almacenaje/…) que NO
+	# existe en el catálogo real (`Comodidad.familia` es ciudadano/funcionario/descanso/iluminacion,
+	# no esas categorías de tienda); usar las 5 reales es la lectura honesta de la instrucción de la
+	# tarea ("deriva las categorías del catálogo real... que nada de lo que hoy se puede hacer se
+	# quede sin sitio") — ver el informe de la tarea para el detalle de esta decisión.
+	_columna_categorias = VBoxContainer.new()
+	_columna_categorias.add_theme_constant_override("separation", 6)
+	_columna_categorias.custom_minimum_size.x = 168.0
+	fila_cuerpo.add_child(_columna_categorias)
 	for categoria: Dictionary in CATEGORIAS:
-		_fila_pestanas.add_child(
-			_construir_pestana_categoria(categoria["id"], categoria["nombre"])
+		_columna_categorias.add_child(
+			_construir_categoria_lateral(categoria["id"], categoria["nombre"])
 		)
-	var hueco_elastico := Control.new()
-	hueco_elastico.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hueco_elastico.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_fila_pestanas.add_child(hueco_elastico)
-	# DEMOLER anclado al borde derecho, FUERA de las pestañas (Apéndice B, Fitts's Law): acción
-	# destructiva de alta frecuencia, siempre en el mismo sitio pase lo que pase la categoría activa.
-	_anadir_herramienta("Demoler", &"demoler", false, &"", &"papelera")
-	_fila_pestanas.add_child(_botones_herramienta[&"demoler"])
 
-	var fila_tarjetas_paginada := HBoxContainer.new()
-	fila_tarjetas_paginada.add_theme_constant_override("separation", 4)
-	_fila_herramientas.add_child(fila_tarjetas_paginada)
-	_boton_pagina_izq = Button.new()
-	_boton_pagina_izq.text = "◀"
-	_boton_pagina_izq.focus_mode = Control.FOCUS_NONE
-	_boton_pagina_izq.pressed.connect(
-		func() -> void: _paginar_tarjetas(-PASO_PAGINACION_TARJETAS)
-	)
-	fila_tarjetas_paginada.add_child(_boton_pagina_izq)
+	# Rejilla de tarjetas (centro)
+	var columna_rejilla := VBoxContainer.new()
+	columna_rejilla.add_theme_constant_override("separation", 6)
+	columna_rejilla.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columna_rejilla.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fila_cuerpo.add_child(columna_rejilla)
 	_scroll_tarjetas = ScrollContainer.new()
-	_scroll_tarjetas.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll_tarjetas.custom_minimum_size = Vector2(0.0, 124.0)
+	_scroll_tarjetas.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll_tarjetas.custom_minimum_size = Vector2(0.0, 196.0)
 	_scroll_tarjetas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fila_tarjetas_paginada.add_child(_scroll_tarjetas)
-	_fila_tarjetas = HBoxContainer.new()
-	_fila_tarjetas.add_theme_constant_override("separation", 6)
+	_scroll_tarjetas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columna_rejilla.add_child(_scroll_tarjetas)
+	# `GridContainer`, no la `HBoxContainer` de una sola fila del reskin anterior (el catálogo ya no
+	# cabe en una fila con el buscador reduciendo lo visible): el scroll pasa a VERTICAL, con su
+	# barra arrastrable como afordancia visible (ya no hacen falta flechas ◀/▶ -- no hay una sola
+	# fila que paginar). Todas las tarjetas cuelgan SIEMPRE de aquí; `_refrescar_tarjetas_visibles`
+	# solo alterna `visible` (mismo criterio "sin huérfanos" que el reskin anterior).
+	_fila_tarjetas = GridContainer.new()
+	_fila_tarjetas.columns = 6
+	_fila_tarjetas.add_theme_constant_override("h_separation", 10)
+	_fila_tarjetas.add_theme_constant_override("v_separation", 10)
 	_scroll_tarjetas.add_child(_fila_tarjetas)
-	_boton_pagina_der = Button.new()
-	_boton_pagina_der.text = "▶"
-	_boton_pagina_der.focus_mode = Control.FOCUS_NONE
-	_boton_pagina_der.pressed.connect(
-		func() -> void: _paginar_tarjetas(PASO_PAGINACION_TARJETAS)
-	)
-	fila_tarjetas_paginada.add_child(_boton_pagina_der)
-
 	_lbl_categoria_vacia = Label.new()
-	_lbl_categoria_vacia.text = "Todavía no hay nada aquí — vuelve pronto"
+	_lbl_categoria_vacia.text = "Nada por aquí — prueba otra categoría o borra la búsqueda"
 	_lbl_categoria_vacia.add_theme_font_size_override("font_size", 12)
-	_lbl_categoria_vacia.modulate = Color(1, 1, 1, 0.6)
+	_lbl_categoria_vacia.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
 	_lbl_categoria_vacia.visible = false
-	_fila_herramientas.add_child(_lbl_categoria_vacia)
+	columna_rejilla.add_child(_lbl_categoria_vacia)
+	_casilla_con_paredes = CheckBox.new()
+	_casilla_con_paredes.text = "Con paredes"
+	_casilla_con_paredes.focus_mode = Control.FOCUS_NONE
+	_casilla_con_paredes.tooltip_text = "Si esta marcado, la sala que dibujes nacera cerrada con muros"
+	_casilla_con_paredes.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+	_casilla_con_paredes.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
+	columna_rejilla.add_child(_casilla_con_paredes)
+
+	# Ficha del seleccionado + Mover/Clonar/Demoler (derecha)
+	_construir_columna_derecha(fila_cuerpo)
 
 	# Los tipos se LEEN del catálogo — la UI nunca hardcodea costes/nombres (regla del GDD).
 	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
-		_anadir_herramienta(tipo_sala.nombre, tipo_sala.id, true, &"salas", &"plano")
+		# Precio de sala = "Desde" + nota "€/celda" (honesto: el coste real depende del área que se
+		# dibuje, `Construccion.coste_por_celda × área` -- ver `costo_estimado_sala`) en vez de un
+		# número fijo engañoso.
+		_anadir_herramienta(
+			tipo_sala.nombre, tipo_sala.id, true, &"salas", &"plano", null,
+			{
+				"precio": "Desde %d €" % tipo_sala.coste_construccion_eur,
+				"extra": "+%.0f €/celda de superficie" % _construccion.coste_por_celda,
+			}
+		)
 	for tipo_puesto: Resource in Datos.obtener_todos(&"TipoPuesto"):
 		if tipo_puesto.servicio == "Seguridad":
 			continue   # la entrada/seguridad es fija (CO11) — no construible en el MVP
@@ -2151,70 +2292,94 @@ func _crear_ui() -> void:
 		# no la rotación que el jugador vaya a elegir con R); `celdas`=1 no afecta a qué textura sale,
 		# solo al `paso` del ancla que aquí no se usa. `icono_id` "sillon" se conserva como FALLBACK
 		# (ver `_anadir_herramienta`) para el caso sin sprite propio.
+		# HUELLA REAL (instrucción de la tarea): la ventanilla reserva `superficie` (ancho) ×
+		# (`fondo_detras` + 1 + `fondo_delante`) celdas -- "los 3 elementos como 1 solo... 2×3"
+		# (decisión del usuario 2026-08-03, ver la cabecera de `TipoPuesto.fondo_detras`).
+		var celdas_puesto: int = (
+			tipo_puesto.superficie * (tipo_puesto.fondo_detras + 1 + tipo_puesto.fondo_delante)
+		)
 		_anadir_herramienta(
-			"%s (%d €)" % [tipo_puesto.nombre, tipo_puesto.coste_construccion_eur], tipo_puesto.id,
-			false, &"muebles", &"sillon", _sprite_de_herramienta(tipo_puesto.id, 0, 1).get("textura")
+			tipo_puesto.nombre, tipo_puesto.id, false, &"muebles", &"sillon",
+			_sprite_de_herramienta(tipo_puesto.id, 0, 1).get("textura"),
+			{
+				"precio": "%d €" % tipo_puesto.coste_construccion_eur,
+				"huella": LogicaPanelConstruccionScript.texto_huella(
+					celdas_puesto, tipo_puesto.plazas_agente
+				),
+			}
 		)
 	_anadir_herramienta(
-		"Asiento (%.0f €)" % _construccion.coste_asiento_basico, _construccion.ASIENTO_BASICO,
-		false, &"muebles", &"sillon",
-		_sprite_de_herramienta(_construccion.ASIENTO_BASICO, 0, 1).get("textura")
+		"Asiento", _construccion.ASIENTO_BASICO, false, &"muebles", &"sillon",
+		# La silla de verdad que construye este botón (`silla_espera_o_defecto`) — el resolvedor
+		# genérico no la conoce y la tarjeta salía con el icono genérico (2026-08-15).
+		MesaAtencionScript.textura_silla_espera(),
+		{
+			"precio": "%.0f €" % _construccion.coste_asiento_basico,
+			"huella": LogicaPanelConstruccionScript.texto_huella(1, 1),
+		}
 	)
 	# LOS ASIENTOS DE ESPERA POR TIER (2026-08-08, ver la cabecera de `ASIENTOS_ESPERA_EN_BARRA`):
 	# el catálogo manda el nombre y el precio (misma regla que el bucle de `TipoPuesto` de arriba),
 	# la miniatura sale del mismo `_sprite_de_herramienta` que ya pinta el fantasma de colocación —
 	# el mismo camino que YA usa `Main._al_elegir_del_menu_sala` para colocar estas comodidades
 	# (`activar_con_herramienta` con un id de `Comodidad`), así que construirlas desde aquí no es un
-	# camino nuevo, es la MISMA acción con una segunda puerta de entrada.
+	# camino nuevo, es la MISMA acción con una segunda puerta de entrada. Aquí es además de donde
+	# sale la FICHA (Confort/Nota al salir/Paciencia extra, F1): se guarda la `Comodidad` entera en
+	# `ficha["comodidad"]` para que `_actualizar_ficha` lea sus campos reales.
 	for id_asiento: StringName in ASIENTOS_ESPERA_EN_BARRA:
 		var comodidad_asiento: Resource = Datos.obtener_silencioso(&"Comodidad", id_asiento)
 		if comodidad_asiento == null:
 			continue   # red de seguridad: un id de la lista sin `.tres` en el catálogo no rompe la UI
-		var etiqueta_asiento: String = "%s (%d €)" % [
-			comodidad_asiento.nombre, comodidad_asiento.coste_construccion_eur
-		]
-		if comodidad_asiento.plazas > 1:
-			etiqueta_asiento += " · %d plazas" % comodidad_asiento.plazas
 		_anadir_herramienta(
-			etiqueta_asiento,
-			id_asiento, false, &"muebles", &"sillon",
-			_sprite_de_herramienta(id_asiento, 0, 1).get("textura")
+			comodidad_asiento.nombre, id_asiento, false, &"muebles", &"sillon",
+			_sprite_de_herramienta(id_asiento, 0, 1).get("textura"),
+			{
+				"precio": "%d €" % comodidad_asiento.coste_construccion_eur,
+				"huella": LogicaPanelConstruccionScript.texto_huella(
+					comodidad_asiento.superficie, comodidad_asiento.plazas
+				),
+				"comodidad": comodidad_asiento,
+			}
 		)
 	# Muro LIBRE (2026-07-30 — Fase A del modelo Prison Architect): se pinta por arista, no por
 	# celda, así que no es "es_sala" (no dibuja un rectángulo) ni un elemento normal (no ocupa celda).
 	_anadir_herramienta(
-		"Muro (%.0f €)" % _construccion.coste_muro, &"muro", false, &"muros_suelos", &"muro"
+		"Muro", &"muro", false, &"muros_suelos", &"muro", null,
+		{"precio": "%.0f €/tramo" % _construccion.coste_muro}
 	)
 	# PUERTA y VENTANA (FASE D, 2026-07-30): no levantan tabique nuevo, CONVIERTEN uno ya construido
-	# — por eso no llevan un coste propio en el rótulo (el gasto fue el muro; abrir el hueco es
-	# gratis, ver `Construccion.fijar_tipo_de_muro`).
-	_anadir_herramienta("Puerta", &"puerta", false, &"muros_suelos", &"muro")
-	_anadir_herramienta("Ventana", &"ventana", false, &"muros_suelos", &"muro")
+	# — por eso no llevan un coste propio (el gasto fue el muro; abrir el hueco es gratis, ver
+	# `Construccion.fijar_tipo_de_muro`).
+	_anadir_herramienta(
+		"Puerta", &"puerta", false, &"muros_suelos", &"muro", null,
+		{"precio": "Gratis (abre un hueco)"}
+	)
+	_anadir_herramienta(
+		"Ventana", &"ventana", false, &"muros_suelos", &"muro", null,
+		{"precio": "Gratis (abre un hueco)"}
+	)
 	# PINCEL DE PINTURA (2026-08-04): gratis, como abrir un hueco — pintar no es obra, es acabado.
 	# Dos botones (pared / suelo) porque el gesto es distinto: arista contra celda (ver la cabecera).
 	_anadir_herramienta(
-		"Pintar pared", HERRAMIENTA_PINTAR_PARED, false, &"muros_suelos", &"rodillo"
+		"Pintar pared", HERRAMIENTA_PINTAR_PARED, false, &"muros_suelos", &"rodillo", null,
+		{"precio": "Gratis"}
 	)
 	_anadir_herramienta(
-		"Pintar suelo", HERRAMIENTA_PINTAR_SUELO, false, &"muros_suelos", &"rodillo"
+		"Pintar suelo", HERRAMIENTA_PINTAR_SUELO, false, &"muros_suelos", &"rodillo", null,
+		{"precio": "Gratis"}
 	)
 	# FASE C (2026-07-30): marcar ZONAS dentro de lo que has cerrado con muros. Un boton por tipo de
 	# sala del catalogo, con el prefijo "zona:" en el id para distinguirlo del pincel que DIBUJA la
 	# sala como rectangulo (que sigue existiendo: son dos formas validas de construir).
-	for tipo_sala: Resource in Datos.obtener_todos(&"TipoSala"):
+	for tipo_sala_zona: Resource in Datos.obtener_todos(&"TipoSala"):
 		_anadir_herramienta(
-			"Zona: %s" % tipo_sala.nombre, StringName("zona:" + String(tipo_sala.id)), false,
-			&"zonas", &"pin"
+			tipo_sala_zona.nombre, StringName("zona:" + String(tipo_sala_zona.id)), false,
+			&"zonas", &"pin", null, {"precio": "Gratis (marca un hueco ya cerrado)"}
 		)
-	_casilla_con_paredes = CheckBox.new()
-	_casilla_con_paredes.text = "Con paredes"
-	_casilla_con_paredes.focus_mode = Control.FOCUS_NONE
-	_casilla_con_paredes.tooltip_text = "Si esta marcado, la sala que dibujes nacera cerrada con muros"
-	_casilla_con_paredes.toggled.connect(func(activo: bool) -> void: _nueva_sala_con_paredes = activo)
-	_fila_herramientas.add_child(_casilla_con_paredes)
 	# "Herramientas" nace vacía a propósito (Sección 2 de `plan-maestro-ui.md`: el hueco ya existe
 	# en el layout para cuando llegue algo que meter ahí) — no se registra ninguna tarjeta aquí.
 	_mostrar_categoria(&"salas")
+	_actualizar_ficha(&"")
 
 	# ── SUBMENÚ DEL PINCEL: la rejilla de 30 muestras ─────────────────────────────────────────
 	# Va en una fila PROPIA debajo de las herramientas (no mezclada entre los botones): es el menú
@@ -2254,24 +2419,25 @@ func _crear_ui() -> void:
 	capa.add_child(_dialogo_cascada)
 
 
-## Registra una herramienta seleccionable. `categoria` la cuelga de esa pestaña (vacía = no entra en
-## ninguna fila de tarjetas — hoy solo Demoler, que vive anclada fuera de las pestañas). `icono_id`
-## es una clave de `KitUIComisario.ICONOS`; `&""` = sin icono (fila de texto solo, fallback honesto
-## si algún día se añade una herramienta sin pictograma todavía). `textura_miniatura` (2026-08-08):
-## un sprite REAL (`Texture2D`) que sustituye al pictograma de `icono_id` — usada por los MUEBLES
-## (ver el bucle de `TipoPuesto`/`ASIENTO_BASICO` en `_crear_ui`, resuelta con `_sprite_de_herramienta`,
-## la MISMA función que ya pinta el fantasma de colocación). `icono_id` se conserva como FALLBACK si
-## `textura_miniatura` es `null` (una herramienta sin arte propio, p.ej. `ASIENTO_BASICO`) — nunca al
-## revés: si hay sprite real, manda sobre el pictograma genérico.
+## Registra una herramienta seleccionable (una tarjeta de la rejilla). `categoria` la cuelga de esa
+## pestaña (vacía = no entra en la rejilla — hoy solo Demoler y las herramientas del panel lateral,
+## registradas aparte por `_registrar_herramienta_icono`, NUNCA por esta función). `icono_id` es una
+## clave de `KitUIComisario.ICONOS`, fallback si `textura_miniatura` (un sprite REAL, resuelto con
+## `_sprite_de_herramienta` — la MISMA función que pinta el fantasma de colocación) es `null`.
+## `ficha` es el `Dictionary` que lee `_actualizar_ficha`: `{"precio": String, "huella": String,
+## "extra": String, "comodidad": Comodidad}` — todas las claves opcionales.
 func _anadir_herramienta(
 	texto: String, id: StringName, es_sala: bool, categoria: StringName = &"",
-	icono_id: StringName = &"", textura_miniatura: Texture2D = null
+	icono_id: StringName = &"", textura_miniatura: Texture2D = null, ficha: Dictionary = {}
 ) -> void:
-	var variante: StringName = (
-		KitUIComisarioScript.VARIANTE_BOTON_DEMOLER if id == &"demoler"
-		else KitUIComisarioScript.VARIANTE_TARJETA
-	)
-	var boton := _construir_boton_con_icono(texto, icono_id, variante, textura_miniatura)
+	_nombre_por_herramienta[id] = texto
+	var textura_ficha: Texture2D = textura_miniatura
+	if textura_ficha == null and icono_id != &"":
+		textura_ficha = KitUIComisarioScript.icono(icono_id)
+	var ficha_completa: Dictionary = ficha.duplicate()
+	ficha_completa["textura"] = textura_ficha
+	_datos_ficha[id] = ficha_completa
+	var boton := _construir_tarjeta_moderna(texto, icono_id, textura_miniatura, String(ficha.get("precio", "")))
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id, es_sala))
 	_botones_herramienta[id] = boton
 	if categoria != &"":
@@ -2279,189 +2445,173 @@ func _anadir_herramienta(
 			_tarjetas_por_categoria[categoria] = []
 		(_tarjetas_por_categoria[categoria] as Array).append(boton)
 		_categoria_de_herramienta[id] = categoria
-		# La tarjeta se cuelga YA de la fila (oculta hasta que `_mostrar_categoria` active su
-		# pestaña) — ver la nota de `_scroll_tarjetas`: sin nodos sueltos no hay huérfanos.
+		# La tarjeta se cuelga YA de la rejilla (oculta hasta que `_refrescar_tarjetas_visibles` la
+		# active) — sin nodos sueltos no hay huérfanos (los 56 que cazó gdUnit en el reskin anterior).
 		boton.visible = false
 		_fila_tarjetas.add_child(boton)
 
 
-## Fracción de la altura del botón que ocupa la BANDA INFERIOR clara del arte (`tarjeta_normal.png`/
-## `pestana_normal.png`, `assets/ui/kit/` — medida a ojo sobre el PNG fuente por el usuario 2026-08-08:
-## "la banda ocupa el ~22% inferior"). Repartida como `size_flags_stretch_ratio` de un `VBoxContainer`
-## (proporción, NO píxeles fijos): vale igual a 84×84 (tarjeta) que a 112×74 (pestaña) — las dos
-## formas que usa este mismo botón — y sigue valiendo si el kit cambia de tamaño en disco otra vez.
-const FRACCION_BANDA_INFERIOR: float = 0.22
+## Ancho fijo de cada tarjeta de la rejilla (columnas parejas del `GridContainer`). El ALTO NO es
+## fijo a propósito: un `VBoxContainer` crece con el nombre en vez de recortarlo -- regla dura del
+## proyecto ("PROHIBIDO ningún rótulo cortado o fuera de su recuadro"; la barra vieja recortaba con
+## "…" y eso murió con este reskin). Con nombres del catálogo actual (máx. "Puesto ODAC avanzado")
+## dos líneas a 11px bastan siempre; si el catálogo trae un día un nombre mucho más largo, la
+## tarjeta crece en vez de cortar -- una rejilla un pelín desigual es preferible a un dato oculto.
+const ANCHO_TARJETA_MODERNA: float = 134.0
+## Alto FIJO de la tarjeta. Un `Button` NO es un contenedor: su hijo no lo hace crecer (bug cazado
+## en la primera captura: el VBox se colapsaba a ancho 0 y los nombres salían en vertical, una
+## letra por línea). La tarjeta declara su tamaño y el contenido se ancla a su rect completo.
+const ALTO_TARJETA_MODERNA: float = 150.0
 
-## Zonas de alto FIJO en píxeles para el camino de TARJETA (84×120, no pestaña -- ver
-## `_construir_boton_con_icono`): sustituyen a `FRACCION_BANDA_INFERIOR` en ese camino porque una
-## proporción del alto total no garantiza píxeles suficientes para una fuente de tamaño fijo (bug
-## "los nombres no se ven" -- `design/ux/spec-tarjetas-2026-08-08.md` §0-A, §1.2). El camino de
-## PESTAÑA (112×74, `_construir_pestana_categoria`) sigue usando `FRACCION_BANDA_INFERIOR` sin
-## cambios -- sus rótulos son cortos y no forman parte de este bug.
-const ALTO_ZONA_ICONO_TARJETA: float = 68.0
-const SEPARACION_ICONO_ROTULO_TARJETA: float = 4.0
-const ALTO_BANDA_ROTULO_TARJETA: float = 32.0
-const TAMANO_MINIMO_ICONO_TARJETA := Vector2(32.0, 32.0)
-
-## Un botón "en blanco" (sin `text`/`icon` propios de `Button` — ver la nota de la cabecera del
-## archivo sobre por qué NO se usa `Button.icon`/alineación vertical nativa: la referencia de motor
-## de esta versión no confirma esa API en 4.6, así que el icono+rótulo se dibuja a mano encima con
-## un `VBoxContainer` hijo, `mouse_filter = IGNORE` para que el clic siga siendo del `Button`).
-##
-## RÓTULOS EN LA BANDA INFERIOR (auditoría 2026-08-08): antes icono+rótulo compartían un único
-## `VBoxContainer` centrado en TODO el contenido — con un nombre largo, el rótulo crecía hacia arriba
-## y pisaba el icono/pestaña (los dos flecos cazados en la captura del usuario). Ahora el contenido se
-## reparte en DOS zonas de altura proporcional (`FRACCION_BANDA_INFERIOR`): la zona CUADRADA superior
-## para el icono/miniatura, la banda clara inferior para el rótulo — cada una la porción del arte que
-## ya trae dibujada para eso. `textura_miniatura` (sprite real, p.ej. el mueble en mano) manda sobre
-## `icono_id` (pictograma de `KitUIComisario`) cuando ambos llegan — ver la cabecera de
-## `_anadir_herramienta`.
-func _construir_boton_con_icono(
-	texto: String, icono_id: StringName, variante: StringName, textura_miniatura: Texture2D = null,
-	tamano: Vector2 = Vector2(84.0, 120.0)
+## La tarjeta blanca con sombra de la rejilla de catálogo (maqueta v2, F0/F1): miniatura arriba,
+## nombre y precio debajo. Selección = borde de acento 3px (`toggle_mode` nativo decide cuál de los
+## dos estilos se pinta -- sigue siendo la ÚNICA fuente de verdad de "seleccionada", igual que en el
+## reskin anterior con el arte 9-slice).
+func _construir_tarjeta_moderna(
+	texto: String, icono_id: StringName, textura_miniatura: Texture2D, precio: String
 ) -> Button:
 	var boton := Button.new()
 	boton.text = ""
 	boton.focus_mode = Control.FOCUS_NONE
-	boton.toggle_mode = true   # el estado "pressed" del tema ES el arte de "seleccionada/activa"
-	boton.theme_type_variation = variante
-	boton.custom_minimum_size = tamano
-	boton.tooltip_text = texto   # nombre completo siempre disponible, aunque el rótulo se recorte
-	# `clip_contents` en el BOTÓN, no solo en `contenido` (diagnóstico 2026-08-08, sonda
-	# `_diag_tarjeta_rects`): con un nombre largo (p.ej. "Oficina de Documentación", 4 líneas
-	# envueltas a 68px de ancho), el `Label.get_combined_minimum_size()` de la etiqueta reporta la
-	# altura de las 4 líneas (57px), NO el suelo de `ALTO_BANDA_ROTULO_TARJETA` (32px) -- ese suelo
-	# es un MÍNIMO, no un TECHO. Ese mínimo mayor se propaga hacia arriba (`contenido` 129px,
-	# `margen` 145px) y, como los anclajes de `margen` solo pueden CRECER para respetar el mínimo de
-	# su hijo (nunca encoger por debajo), `margen` acaba más alto que el propio `boton` (120px) y el
-	# rótulo se dibuja fuera de la tarjeta, sobre el fondo del juego. Sin `clip_contents` aquí no hay
-	# nada que recorte ese desbordamiento -- es el límite REAL de la tarjeta, coincide con el arte.
-	boton.clip_contents = true
-	# Camino de PESTAÑA (112×74) vs camino de TARJETA (84×120): la pestaña sigue con la banda
-	# proporcional de siempre (`FRACCION_BANDA_INFERIOR`), la tarjeta pasa a zonas de alto fijo
-	# (`design/ux/spec-tarjetas-2026-08-08.md` §4) — sus rótulos largos son los del bug reportado.
-	var es_pestana: bool = variante == KitUIComisarioScript.VARIANTE_PESTANA
+	boton.toggle_mode = true
+	boton.custom_minimum_size = Vector2(ANCHO_TARJETA_MODERNA, ALTO_TARJETA_MODERNA)
+	boton.tooltip_text = texto   # nombre completo siempre disponible aunque el rótulo envuelva
 
-	# Envuelve el contenido en un margen de 8px (mismo valor que `content_margin_*` de
-	# `sb_tarj_n`/`sb_tarj_h`/`sb_tarj_s`/`sb_tarj_b` en `theme_comisario.tres`) en vez de anclarlo
-	# directo al rect completo del botón — fix de causa raíz §0-B: sin este margen, un hijo expansivo
-	# empuja contra el borde literal del 9-slice en vez de dejar aire.
-	var margen := MarginContainer.new()
-	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margen.add_theme_constant_override("margin_left", 8)
-	margen.add_theme_constant_override("margin_right", 8)
-	margen.add_theme_constant_override("margin_top", 8)
-	margen.add_theme_constant_override("margin_bottom", 8)
-	boton.add_child(margen)
+	var estilo_normal := StyleBoxFlat.new()
+	estilo_normal.bg_color = KitUIComisarioScript.MOD_COLOR_TARJETA
+	estilo_normal.set_corner_radius_all(int(KitUIComisarioScript.MOD_RADIO_TARJETA))
+	estilo_normal.shadow_size = 8
+	estilo_normal.shadow_color = Color(0.02, 0.03, 0.06, 0.10)
+	estilo_normal.shadow_offset = Vector2(0.0, 3.0)
+	estilo_normal.content_margin_left = 8.0
+	estilo_normal.content_margin_right = 8.0
+	estilo_normal.content_margin_top = 8.0
+	estilo_normal.content_margin_bottom = 8.0
+	var estilo_seleccionada: StyleBoxFlat = estilo_normal.duplicate()
+	estilo_seleccionada.set_border_width_all(3)
+	estilo_seleccionada.border_color = KitUIComisarioScript.MOD_COLOR_ACENTO
+	boton.add_theme_stylebox_override("normal", estilo_normal)
+	boton.add_theme_stylebox_override("hover", estilo_normal)
+	boton.add_theme_stylebox_override("pressed", estilo_seleccionada)
 
 	var contenido := VBoxContainer.new()
 	contenido.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	contenido.clip_contents = true   # cinturón de seguridad: nada se dibuja fuera de la tarjeta
-	contenido.add_theme_constant_override(
-		"separation", 2 if es_pestana else int(SEPARACION_ICONO_ROTULO_TARJETA)
-	)
-	margen.add_child(contenido)
+	contenido.add_theme_constant_override("separation", 4)
+	boton.add_child(contenido)
+	# ANCLADO AL RECT COMPLETO del botón (con el margen de la tarjeta): sin esto el VBox no recibe
+	# ancho del Button (que no es contenedor) y se colapsa — ver ALTO_TARJETA_MODERNA.
+	contenido.set_anchors_preset(Control.PRESET_FULL_RECT)
+	contenido.offset_left = 8.0
+	contenido.offset_top = 8.0
+	contenido.offset_right = -8.0
+	contenido.offset_bottom = -8.0
 
-	# ZONA CUADRADA superior: icono/miniatura, centrada y con aspecto preservado (nunca deformada).
 	var textura: Texture2D = textura_miniatura
 	if textura == null and icono_id != &"":
 		textura = KitUIComisarioScript.icono(icono_id)
 	if textura != null:
 		var rect := TextureRect.new()
 		rect.texture = textura
+		rect.custom_minimum_size = Vector2(0.0, 56.0)
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if es_pestana:
-			rect.custom_minimum_size = Vector2(24.0, 24.0)
-			rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			rect.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
-		else:
-			# Zona de alto FIJO (68px, no proporcional): el suelo de 32×32 evita que un icono
-			# pequeño se pierda en una zona más generosa; el alto real de la zona lo fija
-			# `custom_minimum_size.y` + `SIZE_FILL` (no expansivo) para que sean siempre 68px.
-			rect.custom_minimum_size = TAMANO_MINIMO_ICONO_TARJETA
-			rect.custom_minimum_size.y = ALTO_ZONA_ICONO_TARJETA
-			rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			rect.size_flags_vertical = Control.SIZE_FILL
 		contenido.add_child(rect)
-	else:
-		# Sin icono ni miniatura (hoy no ocurre — ver la cabecera de `_anadir_herramienta` — pero deja
-		# el rótulo cayendo en la banda de todos modos, no centrado en todo el botón).
-		var hueco := Control.new()
-		hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if es_pestana:
-			hueco.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			hueco.size_flags_stretch_ratio = 1.0 - FRACCION_BANDA_INFERIOR
-		else:
-			hueco.custom_minimum_size = TAMANO_MINIMO_ICONO_TARJETA
-			hueco.custom_minimum_size.y = ALTO_ZONA_ICONO_TARJETA
-			hueco.size_flags_vertical = Control.SIZE_FILL
-		contenido.add_child(hueco)
 
-	# LA BANDA INFERIOR clara del arte: el rótulo, SOLO ahí. `autowrap` (WORD_SMART en el camino de
-	# tarjeta, OFF sin cambios en pestaña) + `clip_contents` (no `TextServer.OVERRUN_TRIM_ELLIPSIS`:
-	# no está confirmado en `docs/engine-reference/godot/` para 4.6 — regla del proyecto de no
-	# adivinar API post-cutoff sin verificar, así que el corte es plano, sin puntos suspensivos) en
-	# vez de dejarlo desbordar sobre el icono o fuera de la tarjeta.
 	var etiqueta := Label.new()
-	etiqueta.name = "RotuloBoton"   # localizable con find_child: _mostrar_categoria le cambia el color
+	etiqueta.name = "RotuloTarjeta"
 	etiqueta.text = texto
+	# 10 y no 11: con la fuente ancha del kit, "DOCUMENTACIÓN" a 11px no cabía en la tarjeta y el
+	# autowrap partía la palabra ("DOCUMENTACI-ÓN") — regla dura: ningún rótulo roto.
 	etiqueta.add_theme_font_size_override("font_size", 10)
-	# COLOR EXPLÍCITO (2026-08-08, bug "las letras están en blanco y no se ven"): un Label HIJO no
-	# hereda los font_color por estado del Button (esos solo pintan su texto nativo) — sin esto sale
-	# con el blanco por defecto de Godot, invisible sobre pestaña/tarjeta claras. Navy del kit salvo
-	# sobre el arte rojo de Demoler (ahí blanco, como su variante del theme). La pestaña ACTIVA
-	# (arte azul marino) se pasa a blanco en _mostrar_categoria.
-	etiqueta.add_theme_color_override(
-		"font_color",
-		Color.WHITE if variante == KitUIComisarioScript.VARIANTE_BOTON_DEMOLER
-		else KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
-	)
+	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	etiqueta.clip_contents = true
+	# `autowrap` WORD_SMART, SIN `clip_contents` (a diferencia del reskin anterior): con alto NO fijo,
+	# la tarjeta crece para enseñar el nombre entero -- ver la cabecera de `ANCHO_TARJETA_MODERNA`.
+	etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if es_pestana:
-		etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		etiqueta.autowrap_mode = TextServer.AUTOWRAP_OFF
-		etiqueta.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		etiqueta.size_flags_stretch_ratio = FRACCION_BANDA_INFERIOR
-	else:
-		# Banda de alto FIJO (32px, no proporcional -- la causa raíz de "los nombres no se ven").
-		# `TOP`: si el nombre no cabe en 2 líneas, el recorte se come SIEMPRE la parte de abajo,
-		# nunca un semi-carácter arriba y otro abajo como pasaría centrado.
-		etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		etiqueta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		etiqueta.custom_minimum_size.y = ALTO_BANDA_ROTULO_TARJETA
-		etiqueta.size_flags_vertical = Control.SIZE_FILL
 	contenido.add_child(etiqueta)
+
+	if precio != "":
+		var lbl_precio := Label.new()
+		lbl_precio.text = precio
+		lbl_precio.add_theme_font_size_override("font_size", 11)
+		lbl_precio.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_ACENTO)
+		lbl_precio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl_precio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl_precio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		contenido.add_child(lbl_precio)
 	return boton
 
 
-## El botón de una PESTAÑA de categoría (no es una `_herramienta`: cambia qué tarjetas se ven).
-func _construir_pestana_categoria(id: StringName, nombre: String) -> Button:
+## El botón de una CATEGORÍA de la columna lateral (maqueta v2): pastilla ancha, icono + nombre,
+## fondo blanco normal / acento azul activa. No es una `_herramienta` (no pasa por `_botones_herramienta`
+## ni `_fijar_herramienta`): cambia qué tarjetas enseña la rejilla, igual que la pestaña horizontal
+## del reskin anterior — solo cambia CÓMO se pinta y que ahora vive en vertical.
+func _construir_categoria_lateral(id: StringName, nombre: String) -> Button:
+	var boton := Button.new()
+	boton.text = ""
+	boton.toggle_mode = true
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.custom_minimum_size = Vector2(0.0, 42.0)
+	boton.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	boton.tooltip_text = nombre
+	var radio: int = int(KitUIComisarioScript.MOD_RADIO_PEQUENO)
+	var estilo_normal := StyleBoxFlat.new()
+	estilo_normal.bg_color = KitUIComisarioScript.MOD_COLOR_TARJETA
+	estilo_normal.set_corner_radius_all(radio)
+	estilo_normal.content_margin_left = 12.0
+	estilo_normal.content_margin_right = 12.0
+	var estilo_activo := StyleBoxFlat.new()
+	estilo_activo.bg_color = KitUIComisarioScript.MOD_COLOR_ACENTO
+	estilo_activo.set_corner_radius_all(radio)
+	estilo_activo.content_margin_left = 12.0
+	estilo_activo.content_margin_right = 12.0
+	boton.add_theme_stylebox_override("normal", estilo_normal)
+	boton.add_theme_stylebox_override("hover", estilo_normal)
+	boton.add_theme_stylebox_override("pressed", estilo_activo)
+
+	var fila := HBoxContainer.new()
+	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_theme_constant_override("separation", 8)
+	fila.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	boton.add_child(fila)
+
 	var icono_id: StringName = KitUIComisarioScript.ICONO_POR_CATEGORIA.get(id, &"")
-	var boton := _construir_boton_con_icono(
-		nombre, icono_id, KitUIComisarioScript.VARIANTE_PESTANA, null, Vector2(112.0, 74.0)
-	)
+	var textura: Texture2D = KitUIComisarioScript.icono(icono_id)
+	if textura != null:
+		var rect := TextureRect.new()
+		rect.name = "IconoCategoria"
+		rect.texture = textura
+		rect.custom_minimum_size = Vector2(20.0, 20.0)
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.modulate = KitUIComisarioScript.MOD_COLOR_TINTA
+		fila.add_child(rect)
+
+	var etiqueta := Label.new()
+	etiqueta.name = "RotuloCategoria"
+	etiqueta.text = nombre
+	etiqueta.add_theme_font_size_override("font_size", 13)
+	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+	etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	etiqueta.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(etiqueta)
+
 	boton.pressed.connect(func() -> void: _mostrar_categoria(id))
 	_pestanas_categoria[id] = boton
 	return boton
 
 
-## Cambia qué fila de tarjetas se ve. NO reinstancia ni descuelga nada: todas las tarjetas son
-## hijas fijas de `_fila_tarjetas` (ver `_anadir_herramienta`) y aquí solo se alterna su `visible`
-## (los `BoxContainer` ignoran a los hijos ocultos, así que el layout queda igual que recolgando).
+## Cambia qué categoría está activa: repinta la columna lateral y reaplica el filtro (categoría +
+## buscador, `_refrescar_tarjetas_visibles`). NO reinstancia ni descuelga tarjetas.
 func _mostrar_categoria(categoria: StringName) -> void:
 	_categoria_activa = categoria
-	var tarjetas: Array = _tarjetas_por_categoria.get(categoria, [])
-	for hijo: Node in _fila_tarjetas.get_children():
-		hijo.visible = tarjetas.has(hijo)
-	_lbl_categoria_vacia.visible = tarjetas.is_empty()
-	_scroll_tarjetas.visible = not tarjetas.is_empty()
-	_scroll_tarjetas.scroll_horizontal = 0
+	_refrescar_tarjetas_visibles()
+	if _scroll_tarjetas != null:
+		_scroll_tarjetas.scroll_vertical = 0
 	# La casilla "Con paredes" es del MISMO sitio que el pincel de muro/puerta/ventana: solo tiene
 	# sentido con la categoría "Muros y suelos" activa (2026-08-07 — antes vivía suelta en la barra
 	# entera, sin relación visible con lo que decide).
@@ -2469,22 +2619,270 @@ func _mostrar_categoria(categoria: StringName) -> void:
 		_casilla_con_paredes.visible = categoria == &"muros_suelos"
 	for id: StringName in _pestanas_categoria:
 		var activa: bool = id == categoria
-		var pestana: Button = _pestanas_categoria[id] as Button
-		pestana.button_pressed = activa
-		# El rótulo hijo no hereda font_pressed_color del Button (ver _construir_boton_con_icono):
-		# blanco sobre el arte azul marino de la pestaña activa, navy sobre las claras.
-		var rotulo: Label = pestana.find_child("RotuloBoton", true, false) as Label
+		var boton: Button = _pestanas_categoria[id] as Button
+		boton.button_pressed = activa
+		# Los hijos (icono/rótulo) no heredan `font_color`/`modulate` por estado del `Button` (esos
+		# solo pintan su texto/icono nativo) — blanco sobre el fondo de acento activo, tinta sobre
+		# el blanco normal.
+		var color: Color = Color.WHITE if activa else KitUIComisarioScript.MOD_COLOR_TINTA
+		var rotulo: Label = boton.find_child("RotuloCategoria", true, false) as Label
 		if rotulo != null:
-			rotulo.add_theme_color_override(
-				"font_color",
-				Color.WHITE if activa else KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
-			)
+			rotulo.add_theme_color_override("font_color", color)
+		var icono: TextureRect = boton.find_child("IconoCategoria", true, false) as TextureRect
+		if icono != null:
+			icono.modulate = color
 
 
-func _paginar_tarjetas(delta: float) -> void:
-	_scroll_tarjetas.scroll_horizontal = int(
-		clampf(_scroll_tarjetas.scroll_horizontal + delta, 0.0, 100000.0)
+## Aplica la regla de visibilidad de CADA tarjeta de la rejilla: categoría activa Y (si hay texto en
+## el buscador) el nombre lo contiene -- `LogicaPanelConstruccionScript.tarjeta_visible`, la parte
+## PURA y testeada (ver `tests/unit/ui/logica_panel_construccion_test.gd`). Se llama al cambiar de
+## categoría Y al escribir en el buscador: son las dos cosas que pueden dejar la rejilla vacía.
+func _refrescar_tarjetas_visibles() -> void:
+	var alguna_visible: bool = false
+	for id: StringName in _botones_herramienta.keys():
+		var categoria: StringName = _categoria_de_herramienta.get(id, &"")
+		if categoria == &"":
+			continue   # herramientas fuera de la rejilla (Demoler, panel lateral) no pasan por aquí
+		var boton: Button = _botones_herramienta[id] as Button
+		var nombre: String = String(_nombre_por_herramienta.get(id, ""))
+		var visible: bool = LogicaPanelConstruccionScript.tarjeta_visible(
+			categoria, _categoria_activa, nombre, _texto_busqueda
+		)
+		boton.visible = visible
+		alguna_visible = alguna_visible or visible
+	if _lbl_categoria_vacia != null:
+		_lbl_categoria_vacia.visible = not alguna_visible
+	if _scroll_tarjetas != null:
+		_scroll_tarjetas.visible = alguna_visible
+
+
+## Registra una herramienta cuyo control es un ICONO REDONDO (hoy: Demoler) en vez de una tarjeta de
+## catálogo -- vive FUERA de la rejilla y de las categorías (igual que "demoler" en el reskin
+## anterior, ver `HERRAMIENTAS_FUERA_DE_PESTANA` en `tests/unit/main/modo_construccion_barra_categorias_test.gd`):
+## no se cuelga de `_tarjetas_por_categoria`/`_categoria_de_herramienta`, solo de `_botones_herramienta`
+## (para que `_fijar_herramienta` la marque "pressed" igual que cualquier otra).
+func _registrar_herramienta_icono(id: StringName, icono_id: StringName, tooltip: String) -> Button:
+	var boton := KitUIComisarioScript.moderno_boton_icono(KitUIComisarioScript.icono(icono_id), tooltip)
+	boton.toggle_mode = true
+	var estilo_activo := StyleBoxFlat.new()
+	estilo_activo.bg_color = (
+		KitUIComisarioScript.MOD_COLOR_ROJO if id == &"demoler" else KitUIComisarioScript.MOD_COLOR_ACENTO
 	)
+	estilo_activo.set_corner_radius_all(22)
+	estilo_activo.shadow_size = 6
+	estilo_activo.shadow_color = Color(0.02, 0.03, 0.06, 0.10)
+	estilo_activo.shadow_offset = Vector2(0.0, 2.0)
+	boton.add_theme_stylebox_override("pressed", estilo_activo)
+	boton.pressed.connect(func() -> void: _fijar_herramienta(id, false))
+	_nombre_por_herramienta[id] = tooltip
+	_botones_herramienta[id] = boton
+	return boton
+
+
+## Una fila de MÉTRICA de la ficha (Confort/Nota al salir/Paciencia extra, maqueta v2): nombre +
+## valor "+N%"/"N/N" arriba, barra debajo (`KitUIComisario.moderno_barra_progreso`). Devuelve la fila
+## completa (para poder ocultarla entera cuando el objeto no tiene ese campo); la barra cuelga con
+## nombre `"Barra"` y el valor con nombre `"Valor"` -- `_actualizar_ficha` los localiza con
+## `find_child` en vez de sumar una `var` de clase por cada una de las tres métricas.
+func _construir_fila_metrica(nombre_metrica: String, color: Color) -> VBoxContainer:
+	var fila := VBoxContainer.new()
+	fila.add_theme_constant_override("separation", 2)
+	var cabecera := HBoxContainer.new()
+	cabecera.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(cabecera)
+	var etiqueta := Label.new()
+	etiqueta.text = nombre_metrica
+	etiqueta.add_theme_font_size_override("font_size", 11)
+	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	etiqueta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cabecera.add_child(etiqueta)
+	var valor := Label.new()
+	valor.name = "Valor"
+	valor.add_theme_font_size_override("font_size", 11)
+	valor.add_theme_color_override("font_color", color)
+	valor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cabecera.add_child(valor)
+	var barra: Control = KitUIComisarioScript.moderno_barra_progreso(0.0, color, 176.0, 6.0)
+	barra.name = "Barra"
+	fila.add_child(barra)
+	return fila
+
+
+## La columna DERECHA del cuerpo (maqueta v2): la ficha del seleccionado (tarjeta blanca con sombra)
+## + la columna de iconos Mover/Clonar/Demoler. Mover y Clonar NO son mecánicas que existan hoy
+## (instrucción de la tarea: no implementar mecánicas nuevas en esta pasada) -- quedan
+## deshabilitadas con tooltip "Próximamente". Demoler SÍ existe: es la MISMA herramienta `&"demoler"`
+## de siempre (`_registrar_herramienta_icono`), solo que su botón vive aquí en vez de anclado a la
+## fila de pestañas del reskin anterior.
+func _construir_columna_derecha(fila_cuerpo: HBoxContainer) -> void:
+	var columna := HBoxContainer.new()
+	columna.add_theme_constant_override("separation", 8)
+	fila_cuerpo.add_child(columna)
+
+	_panel_ficha = KitUIComisarioScript.moderno_tarjeta(false)
+	_panel_ficha.custom_minimum_size = Vector2(210.0, 0.0)
+	var estilo_ficha: StyleBoxFlat = _panel_ficha.get_theme_stylebox("panel") as StyleBoxFlat
+	if estilo_ficha != null:
+		estilo_ficha.content_margin_left = 14.0
+		estilo_ficha.content_margin_right = 14.0
+		estilo_ficha.content_margin_top = 14.0
+		estilo_ficha.content_margin_bottom = 14.0
+	columna.add_child(_panel_ficha)
+
+	var contenido_ficha := VBoxContainer.new()
+	contenido_ficha.add_theme_constant_override("separation", 8)
+	contenido_ficha.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel_ficha.add_child(contenido_ficha)
+
+	_ficha_vacia_lbl = Label.new()
+	_ficha_vacia_lbl.text = "Elige algo del catálogo para ver su ficha"
+	_ficha_vacia_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ficha_vacia_lbl.add_theme_font_size_override("font_size", 12)
+	_ficha_vacia_lbl.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	contenido_ficha.add_child(_ficha_vacia_lbl)
+
+	_ficha_sprite = TextureRect.new()
+	_ficha_sprite.custom_minimum_size = Vector2(0.0, 96.0)
+	_ficha_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_ficha_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_ficha_sprite.visible = false
+	contenido_ficha.add_child(_ficha_sprite)
+
+	_ficha_nombre = Label.new()
+	_ficha_nombre.add_theme_font_size_override("font_size", 15)
+	_ficha_nombre.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+	_ficha_nombre.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ficha_nombre.visible = false
+	contenido_ficha.add_child(_ficha_nombre)
+
+	_ficha_precio = Label.new()
+	_ficha_precio.add_theme_font_size_override("font_size", 14)
+	_ficha_precio.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_ACENTO)
+	_ficha_precio.visible = false
+	contenido_ficha.add_child(_ficha_precio)
+
+	_ficha_huella = Label.new()
+	_ficha_huella.add_theme_font_size_override("font_size", 11)
+	_ficha_huella.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	_ficha_huella.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ficha_huella.visible = false
+	contenido_ficha.add_child(_ficha_huella)
+
+	_ficha_extra = Label.new()
+	_ficha_extra.add_theme_font_size_override("font_size", 11)
+	_ficha_extra.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+	_ficha_extra.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ficha_extra.visible = false
+	contenido_ficha.add_child(_ficha_extra)
+
+	_ficha_fila_confort = _construir_fila_metrica("Confort", KitUIComisarioScript.MOD_COLOR_ACENTO)
+	_ficha_barra_confort = _ficha_fila_confort.find_child("Barra", true, false) as Control
+	_ficha_fila_confort.visible = false
+	contenido_ficha.add_child(_ficha_fila_confort)
+
+	_ficha_fila_nota = _construir_fila_metrica("Nota al salir", KitUIComisarioScript.MOD_COLOR_VERDE)
+	_ficha_barra_nota = _ficha_fila_nota.find_child("Barra", true, false) as Control
+	_ficha_fila_nota.visible = false
+	contenido_ficha.add_child(_ficha_fila_nota)
+
+	_ficha_fila_paciencia = _construir_fila_metrica("Paciencia extra", KitUIComisarioScript.MOD_COLOR_AMBAR)
+	_ficha_barra_paciencia = _ficha_fila_paciencia.find_child("Barra", true, false) as Control
+	_ficha_fila_paciencia.visible = false
+	contenido_ficha.add_child(_ficha_fila_paciencia)
+
+	var columna_iconos := VBoxContainer.new()
+	columna_iconos.add_theme_constant_override("separation", 8)
+	columna.add_child(columna_iconos)
+	# "candado" (icono existente del kit, ver `KitUIComisario.ICONOS`): no hay pictograma propio de
+	# "mover"/"clonar" todavía -- un candado se lee razonablemente como "bloqueado/no disponible" sin
+	# encargar arte nuevo para un botón que hoy no hace nada (ver el informe de la tarea).
+	_boton_mover = KitUIComisarioScript.moderno_boton_icono(
+		KitUIComisarioScript.icono(&"candado"),
+		"Próximamente — mover un elemento ya construido no existe todavía", false
+	)
+	columna_iconos.add_child(_boton_mover)
+	_boton_clonar = KitUIComisarioScript.moderno_boton_icono(
+		KitUIComisarioScript.icono(&"candado"),
+		"Próximamente — clonar un elemento ya construido no existe todavía", false
+	)
+	columna_iconos.add_child(_boton_clonar)
+	columna_iconos.add_child(
+		_registrar_herramienta_icono(&"demoler", &"papelera", "Demoler (clic para armar la herramienta)")
+	)
+
+
+## Repinta la ficha del seleccionado (columna derecha, maqueta v2) a partir de `_datos_ficha[id]`.
+## `id == &""` (nada en la mano, o al arrancar el modo) muestra el aviso vacío -- mismo criterio
+## honesto que `_lbl_categoria_vacia`. Las tres barras (Confort/Nota al salir/Paciencia extra) SOLO
+## aparecen si `id` trae una `Comodidad` real en `ficha["comodidad"]` -- duck-typing con
+## `"factor_satisfaccion" in comodidad` en vez de `is Comodidad`: el gotcha de `class_name` en
+## headless frío del proyecto (ver la cabecera de `Datos`) hace que comparar por tipo no sea fiable
+## en todos los arranques, y preguntar por el campo de verdad es exactamente lo que pide la tarea
+## ("si una comodidad no tiene un campo, oculta esa barra").
+func _actualizar_ficha(id: StringName) -> void:
+	if _panel_ficha == null:
+		return
+	var ficha: Dictionary = _datos_ficha.get(id, {})
+	var nombre: String = String(_nombre_por_herramienta.get(id, ""))
+	var hay_algo: bool = id != &"" and nombre != ""
+	_ficha_vacia_lbl.visible = not hay_algo
+	_ficha_sprite.visible = hay_algo and ficha.get("textura") != null
+	_ficha_nombre.visible = hay_algo
+	_ficha_precio.visible = hay_algo and String(ficha.get("precio", "")) != ""
+	if not hay_algo:
+		_ficha_huella.visible = false
+		_ficha_extra.visible = false
+		_ficha_fila_confort.visible = false
+		_ficha_fila_nota.visible = false
+		_ficha_fila_paciencia.visible = false
+		return
+
+	_ficha_nombre.text = nombre
+	_ficha_sprite.texture = ficha.get("textura")
+	_ficha_precio.text = String(ficha.get("precio", ""))
+	var huella: String = String(ficha.get("huella", ""))
+	_ficha_huella.text = huella
+	_ficha_huella.visible = huella != ""
+	var extra: String = String(ficha.get("extra", ""))
+	_ficha_extra.text = extra
+	_ficha_extra.visible = extra != ""
+
+	var comodidad: Resource = ficha.get("comodidad")
+	var es_comodidad: bool = comodidad != null and "factor_satisfaccion" in comodidad
+	_ficha_fila_confort.visible = es_comodidad
+	_ficha_fila_nota.visible = es_comodidad
+	_ficha_fila_paciencia.visible = es_comodidad
+	if not es_comodidad:
+		return
+
+	var aporte: float = float(comodidad.aporte)
+	var fraccion_conf: float = LogicaPanelConstruccionScript.fraccion_confort(aporte)
+	KitUIComisarioScript.moderno_actualizar_barra_progreso(
+		_ficha_barra_confort, fraccion_conf, KitUIComisarioScript.MOD_COLOR_ACENTO
+	)
+	var valor_confort: Label = _ficha_fila_confort.find_child("Valor", true, false) as Label
+	if valor_confort != null:
+		valor_confort.text = "%d/%d" % [
+			int(round(aporte)), int(LogicaPanelConstruccionScript.TOPE_CONFORT_BARRA)
+		]
+
+	var pct_nota: int = LogicaPanelConstruccionScript.porcentaje_nota_al_salir(comodidad.factor_satisfaccion)
+	KitUIComisarioScript.moderno_actualizar_barra_progreso(
+		_ficha_barra_nota, clampf(float(pct_nota) / 100.0, 0.0, 1.0), KitUIComisarioScript.MOD_COLOR_VERDE
+	)
+	var valor_nota: Label = _ficha_fila_nota.find_child("Valor", true, false) as Label
+	if valor_nota != null:
+		valor_nota.text = "%+d%%" % pct_nota
+
+	var pct_paciencia: int = LogicaPanelConstruccionScript.porcentaje_paciencia_extra(aporte)
+	KitUIComisarioScript.moderno_actualizar_barra_progreso(
+		_ficha_barra_paciencia, clampf(float(pct_paciencia) / 100.0, 0.0, 1.0),
+		KitUIComisarioScript.MOD_COLOR_AMBAR
+	)
+	var valor_paciencia: Label = _ficha_fila_paciencia.find_child("Valor", true, false) as Label
+	if valor_paciencia != null:
+		valor_paciencia.text = "%+d%%" % pct_paciencia
 
 
 func _actualizar_visibilidad() -> void:

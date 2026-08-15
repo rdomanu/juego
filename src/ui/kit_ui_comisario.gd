@@ -131,3 +131,231 @@ static func modulo_barra_superior(id: StringName) -> Texture2D:
 	var textura: Texture2D = load(RUTA_ICONOS + nombre_archivo) as Texture2D
 	_modulos_barra_cache[id] = textura
 	return textura
+
+
+# ══ KIT MODERNO — panel de construcción v2 (2026-08-15) ═══════════════════════════════════════════
+## Segunda paleta visual, EN PARALELO a la del piloto de Summer de arriba (`VARIANTE_*`/`ICONOS`): el
+## lenguaje "Two Point Campus / Sims 4" de las maquetas aprobadas
+## (`design/ux/maquetas-menu-2026-08/menu_v2_moderno.png` y `menu_v3_completo.png`) — panel claro,
+## tarjetas blancas con sombra suave, esquinas muy redondeadas, un único acento azul. Lo estrena el
+## panel de construcción (F1, `ModoConstruccion._crear_ui`); ver `design/ux/menu-construccion-spec.md`.
+##
+## Prefijo `MOD_`/`moderno_` a propósito: NO sustituye al kit del piloto (HUD superior, modales siguen
+## en la paleta navy/pixel-art de arriba) -- conviven mientras el resto de pantallas no migre.
+##
+## La FUENTE sigue siendo la del `Theme` de este mismo fichero (`tema()`, Kenney Future) -- las
+## maquetas prototipan con Segoe UI, pero la tipografía definitiva del kit es una decisión de ARTE
+## pendiente (anotado en el informe de la tarea F0/F1): estas fábricas NO cargan una fuente propia,
+## heredan la que ya trae `panel.theme = KitUIComisario.tema()` en quien las usa.
+##
+## Colores muestreados de la maqueta (`design/ux/maquetas-menu-2026-08/maqueta_menu_v2.py`).
+const MOD_COLOR_PANEL := Color(0.933, 0.953, 0.976, 1.0)          # panel claro (238,243,249)
+const MOD_COLOR_TARJETA := Color(1.0, 1.0, 1.0, 1.0)               # tarjetas blancas
+const MOD_COLOR_TINTA := Color(0.141, 0.188, 0.259, 1.0)           # texto principal (36,48,66)
+const MOD_COLOR_GRIS := Color(0.478, 0.533, 0.612, 1.0)            # texto secundario (122,136,156)
+const MOD_COLOR_LINEA := Color(0.871, 0.898, 0.933, 1.0)           # línea/raíl (222,229,238)
+const MOD_COLOR_ACENTO := Color(0.184, 0.424, 0.878, 1.0)          # acento azul policía (47,108,224)
+const MOD_COLOR_ACENTO_SUAVE := Color(0.910, 0.941, 0.996, 1.0)    # azul suave (232,240,254)
+const MOD_COLOR_VERDE := Color(0.133, 0.627, 0.369, 1.0)           # estado válido/positivo (34,160,94)
+const MOD_COLOR_AMBAR := Color(0.941, 0.620, 0.173, 1.0)           # aviso (240,158,44)
+const MOD_COLOR_ROJO := Color(0.886, 0.345, 0.322, 1.0)            # inválido/negativo (226,88,82)
+
+## Radio de esquina de una tarjeta grande (ficha, tarjeta de catálogo). La maqueta pide "14-20"; 16
+## es el punto medio.
+const MOD_RADIO_TARJETA: float = 16.0
+## Radio de esquina de piezas más pequeñas (botones de categoría, chips).
+const MOD_RADIO_PEQUENO: float = 14.0
+
+
+## Tarjeta blanca con sombra suave (StyleBoxFlat: `shadow_size` ~8, alfa ~0.10, `shadow_offset`
+## (0,3) -- valores literales de la maqueta), el bloque base de la pieza nueva: rejilla de objetos,
+## ficha del seleccionado, fondo del buscador. `seleccionada` añade el borde de acento de 3px (regla
+## de la maqueta: "borde acento 3px + leve realce") -- es SOLO el refuerzo visual; quien la usa debe
+## seguir marcando la selección con estado real (`Button.button_pressed`), nunca con este borde a
+## solas, por accesibilidad (daltonismo -- el proyecto exige forma/estado además de color).
+static func moderno_tarjeta(seleccionada: bool = false, radio: float = MOD_RADIO_TARJETA) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = MOD_COLOR_TARJETA
+	estilo.set_corner_radius_all(int(radio))
+	estilo.shadow_size = 8
+	estilo.shadow_color = Color(0.02, 0.03, 0.06, 0.10)
+	estilo.shadow_offset = Vector2(0.0, 3.0)
+	if seleccionada:
+		estilo.set_border_width_all(3)
+		estilo.border_color = MOD_COLOR_ACENTO
+	panel.add_theme_stylebox_override("panel", estilo)
+	return panel
+
+
+## Pastilla (radio = mitad de la altura): fondo del buscador, un chip de estado, un toggle
+## segmentado. `alto` fija el radio real -- una pastilla de 38px de alto pide radio 19, no un número
+## suelto copiado de la maqueta.
+static func moderno_pastilla(color_fondo: Color = MOD_COLOR_TARJETA, alto: float = 38.0) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = color_fondo
+	estilo.set_corner_radius_all(int(alto / 2.0))
+	panel.add_theme_stylebox_override("panel", estilo)
+	panel.custom_minimum_size.y = alto
+	return panel
+
+
+## Chip de estado: un punto de color + texto, en una pastilla. El texto va SIEMPRE junto al punto
+## (regla de accesibilidad transversal del proyecto, daltónicos): el color es refuerzo, nunca la
+## única señal.
+static func moderno_chip_estado(texto: String, color_punto: Color) -> PanelContainer:
+	var pastilla := moderno_pastilla(MOD_COLOR_PANEL, 28.0)
+	var fila := HBoxContainer.new()
+	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_theme_constant_override("separation", 6)
+	pastilla.add_child(fila)
+	var punto := Panel.new()
+	punto.custom_minimum_size = Vector2(8.0, 8.0)
+	punto.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var estilo_punto := StyleBoxFlat.new()
+	estilo_punto.bg_color = color_punto
+	estilo_punto.set_corner_radius_all(4)
+	punto.add_theme_stylebox_override("panel", estilo_punto)
+	fila.add_child(punto)
+	var etiqueta := Label.new()
+	etiqueta.text = texto
+	etiqueta.add_theme_color_override("font_color", MOD_COLOR_TINTA)
+	etiqueta.add_theme_font_size_override("font_size", 12)
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fila.add_child(etiqueta)
+	return pastilla
+
+
+## Barra de progreso hecha con dos `Panel` anidados (StyleBoxFlat -- NUNCA el tema por defecto de
+## `ProgressBar`, pedido explícito de la tarea): un raíl (`MOD_COLOR_LINEA`) de fondo y un relleno
+## que ocupa `fraccion` (clamp 0-1) del ancho, en `color`. Devuelve el `Control` raíz; para
+## actualizarla más tarde (dato reactivo -- la ficha cambia de objeto sin reconstruir nada) usa
+## `moderno_actualizar_barra_progreso` sobre el MISMO nodo devuelto aquí.
+static func moderno_barra_progreso(
+	fraccion: float, color: Color, ancho: float = 140.0, alto: float = 8.0
+) -> Control:
+	var raiz := Control.new()
+	raiz.custom_minimum_size = Vector2(ancho, alto)
+	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rail := Panel.new()
+	rail.name = "Rail"
+	rail.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var estilo_rail := StyleBoxFlat.new()
+	estilo_rail.bg_color = MOD_COLOR_LINEA
+	estilo_rail.set_corner_radius_all(int(alto / 2.0))
+	rail.add_theme_stylebox_override("panel", estilo_rail)
+	raiz.add_child(rail)
+	var relleno := Panel.new()
+	relleno.name = "Relleno"
+	relleno.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relleno.position = Vector2.ZERO
+	relleno.size = Vector2(ancho * clampf(fraccion, 0.0, 1.0), alto)
+	var estilo_relleno := StyleBoxFlat.new()
+	estilo_relleno.bg_color = color
+	estilo_relleno.set_corner_radius_all(int(alto / 2.0))
+	relleno.add_theme_stylebox_override("panel", estilo_relleno)
+	raiz.add_child(relleno)
+	return raiz
+
+
+## Actualiza en sitio una barra creada por `moderno_barra_progreso` -- busca su hijo `"Relleno"` por
+## nombre, no guarda estado propio en quien llama. `color` en `Color(0,0,0,0)` (por defecto)
+## conserva el color que ya tenía el relleno.
+static func moderno_actualizar_barra_progreso(
+	barra: Control, fraccion: float, color: Color = Color(0.0, 0.0, 0.0, 0.0)
+) -> void:
+	var relleno: Panel = barra.get_node_or_null("Relleno") as Panel
+	if relleno == null:
+		return
+	var ancho: float = barra.custom_minimum_size.x
+	var alto: float = barra.custom_minimum_size.y
+	relleno.size = Vector2(ancho * clampf(fraccion, 0.0, 1.0), alto)
+	if color.a > 0.0:
+		var estilo: StyleBoxFlat = relleno.get_theme_stylebox("panel") as StyleBoxFlat
+		if estilo != null:
+			estilo.bg_color = color
+
+
+## Botón redondo de icono (Mover/Clonar/Demoler de la ficha, F1): pastilla circular con sombra y el
+## pictograma centrado. `habilitado = false` lo deja atenuado y OBLIGA a un `tooltip` que explique
+## por qué -- nunca un botón que no hace nada sin decir el motivo (mismo criterio que
+## `ModoConstruccion._lbl_categoria_vacia`/los motivos de rechazo del pincel de puertas).
+static func moderno_boton_icono(
+	icono: Texture2D, tooltip: String, habilitado: bool = true, lado: float = 44.0
+) -> Button:
+	var boton := Button.new()
+	boton.text = ""
+	boton.custom_minimum_size = Vector2(lado, lado)
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.disabled = not habilitado
+	boton.tooltip_text = tooltip
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = MOD_COLOR_TARJETA if habilitado else MOD_COLOR_PANEL
+	estilo.set_corner_radius_all(int(lado / 2.0))
+	estilo.shadow_size = 6
+	estilo.shadow_color = Color(0.02, 0.03, 0.06, 0.10)
+	estilo.shadow_offset = Vector2(0.0, 2.0)
+	boton.add_theme_stylebox_override("normal", estilo)
+	boton.add_theme_stylebox_override("hover", estilo)
+	boton.add_theme_stylebox_override("disabled", estilo)
+	if icono != null:
+		var rect := TextureRect.new()
+		rect.texture = icono
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.modulate = MOD_COLOR_TINTA if habilitado else MOD_COLOR_GRIS
+		rect.custom_minimum_size = Vector2(20.0, 20.0)
+		rect.set_anchors_preset(Control.PRESET_CENTER)
+		rect.position = Vector2((lado - 20.0) / 2.0, (lado - 20.0) / 2.0)
+		rect.size = Vector2(20.0, 20.0)
+		boton.add_child(rect)
+	return boton
+
+
+## Pastilla partida en N opciones (toggle Función/Sala del panel de construcción): una fila de
+## `Button` en `toggle_mode` dentro de una pastilla exterior -- la opción activa lleva fondo de
+## acento y texto blanco, el resto texto tinta sobre transparente. `opciones` es
+## `[{"id": StringName, "texto": String, "habilitado": bool, "tooltip": String}]` (las tres últimas
+## claves opcionales); devuelve la pastilla exterior con cada botón colgado como hijo con nombre
+## `"Opcion_" + id` -- el llamante conecta `pressed` y alterna `button_pressed` a mano (este kit no
+## sabe qué debe pasar al elegir una opción, solo construye el control).
+static func toggle_segmentado(opciones: Array[Dictionary], alto: float = 38.0) -> PanelContainer:
+	var pastilla := moderno_pastilla(MOD_COLOR_PANEL, alto)
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 2)
+	pastilla.add_child(fila)
+	var radio_interior: int = int((alto - 6.0) / 2.0)
+	for opcion: Dictionary in opciones:
+		var id: StringName = opcion.get("id", &"")
+		var boton := Button.new()
+		boton.name = "Opcion_%s" % id
+		boton.text = String(opcion.get("texto", ""))
+		boton.toggle_mode = true
+		boton.focus_mode = Control.FOCUS_NONE
+		boton.disabled = not bool(opcion.get("habilitado", true))
+		if opcion.has("tooltip"):
+			boton.tooltip_text = String(opcion["tooltip"])
+		var estilo_normal := StyleBoxFlat.new()
+		estilo_normal.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		estilo_normal.set_corner_radius_all(radio_interior)
+		# Aire horizontal dentro de cada opción: sin él, la pastilla activa queda pegada al texto
+		# de la vecina (cazado en la primera captura del panel).
+		estilo_normal.content_margin_left = 16.0
+		estilo_normal.content_margin_right = 16.0
+		estilo_normal.content_margin_top = 4.0
+		estilo_normal.content_margin_bottom = 4.0
+		var estilo_activo: StyleBoxFlat = estilo_normal.duplicate()
+		estilo_activo.bg_color = MOD_COLOR_ACENTO
+		boton.add_theme_stylebox_override("normal", estilo_normal)
+		boton.add_theme_stylebox_override("hover", estilo_normal)
+		boton.add_theme_stylebox_override("disabled", estilo_normal)
+		boton.add_theme_stylebox_override("pressed", estilo_activo)
+		boton.add_theme_color_override("font_color", MOD_COLOR_TINTA)
+		boton.add_theme_color_override("font_pressed_color", Color.WHITE)
+		boton.add_theme_color_override("font_disabled_color", MOD_COLOR_GRIS)
+		boton.add_theme_font_size_override("font_size", 13)
+		fila.add_child(boton)
+	return pastilla

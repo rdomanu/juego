@@ -3470,3 +3470,21 @@ construcción estilo Sims (SIN selector de planta) → ③ fotomontaje pared def
   (decisión: primero aplicar, luego diseñar lo demás con el kit).
 - EN MARCHA: agente Sonnet (ui-programmer) con F0+F1; verificación final con suite + captura de
   ventana auditada. Vigilar atascos (patrón ~25-40 tool-uses).
+
+## 2026-08-15 (cierre por apagado): PANEL DE CONSTRUCCIÓN MODERNO — implementado, captura buena
+- F0+F1 IMPLEMENTADOS (agente Sonnet 4 atascos + remate de Fable): kit moderno en
+  kit_ui_comisario.gd (tarjeta/pastilla/chip/barra/toggle), panel nuevo en modo_construccion.gd
+  (buscador vivo + toggle Función/Sala[deshab.] + categorías laterales + rejilla de tarjetas con
+  scroll + ficha con barras Confort/Nota/Paciencia + spec en design/ux/menu-construccion-spec.md).
+- ARREGLOS DE FABLE tras auditar capturas: (1) Button NO es contenedor → contenido anclado
+  PRESET_FULL_RECT + ALTO_TARJETA_MODERNA fijo (los nombres salían en vertical); (2) márgenes del
+  toggle_segmentado; (3) ANCHO_TARJETA 116→134 (DOCUMENTACIÓN partía palabra); (4) bancos añadidos
+  a COMODIDADES_ROTACION_DIRECTA (miniatura genérica → sprite real); (5) tarjeta Asiento usa
+  textura_silla_espera(); fuente nombre tarjeta 11→10.
+- CAPTURA FINAL BUENA: scratchpad panel_implementado.png (auditada: ni un texto roto, miniaturas
+  reales, ficha OK). Sonda: tools/_diag_panel_construccion_v2.{gd,tscn}.
+- ⚠️ PENDIENTE AL VOLVER (¡PRIMERO!): re-ejecutar SUITE COMPLETA + arranque (el último run se
+  perdió por un error del entorno; la base previa a los 5 retoques de estilo estaba 1035/1035
+  verde). Si verde → enseñar panel_implementado.png al usuario → push con su OK → F2 (HUD
+  superior, maqueta v3) → F3 (Personal/Horario/detalle mesa/avisos con el kit).
+- HUD superior viejo sigue en pantalla (F2 sin empezar, correcto por fases).
