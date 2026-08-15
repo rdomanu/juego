@@ -648,7 +648,11 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	# LA SOMBRA SE QUEDA EN EL SUELO (2026-08-14): el bote y el vaivén son licencia del CUERPO al
 	# andar, no de la sombra de contacto. La pinta `CapaSombras` (nunca un hijo del visual — gotcha
 	# de la bolsa) leyendo esta meta: el `destino` SIN el bote, arrime del puesto incluido.
-	visual.set_meta(&"pos_suelo_sombra", destino)
+	# 🐛 EN GLOBALES (2026-08-15, cazado por el usuario EN VIVO: "las sombras van por otro lado
+	# distinto al npc"): `destino` es LOCAL de `_capa_escena`, que cuelga desplazada dentro de la
+	# bolsa — CapaSombras vive en (0,0) y dibuja la meta tal cual, así que la sombra salía corrida
+	# exactamente el desplazamiento de la capa. Se guarda ya convertida a globales.
+	visual.set_meta(&"pos_suelo_sombra", _capa_escena.to_global(destino))
 	# Un muñeco de SPRITE avanza su ciclo de fotogramas; el de piezas mueve sus piezas. Los dos con
 	# la MISMA fase, así que caminan al mismo ritmo.
 	var cuerpo: Node2D = _cuerpo_sprite(visual)

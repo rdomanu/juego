@@ -207,6 +207,25 @@ var _celda_pintada_anterior: Vector2i = Vector2i(-999, -999)
 var _celda_preview_anterior: Vector2i = Vector2i(-999, -999)
 var _orientacion_anterior: int = -1
 
+## ── PINCEL SIMS DE PIEZAS/GOMA (2026-08-15 · mismo motor que el pincel de muro de Construcción)
+## PRESS ancla (no coloca), DRAG traza en línea con el eje clavado a la PRIMERA dirección, RELEASE
+## compromete todo el trazo de una vez. Solo las PIEZAS (`CATALOGO_PIEZAS`) y la goma
+## (`HERRAMIENTA_BORRAR`) pasan por aquí: las brochas de `SUPERFICIES` siguen pintando celda a celda
+## mientras arrastras (`_pintando`, sin cambios) — pintar un área no tiene el concepto de "línea
+## recta" que clavar, así que no le hace falta este gesto.
+## ¿Hay un trazo de pieza/goma en curso? Independiente de `_pintando` (las superficies).
+var _trazando_pieza: bool = false
+## La celda donde se pulsó — el ancla del trazo. No cambia durante el arrastre.
+var _ancla_trazo_pieza: Vector2i = Vector2i.ZERO
+## Eje al que se ha CLAVADO el trazo ("x"/"y"; "" = aún no se ha apartado del ancla). Lo fija la
+## PRIMERA celda distinta del ancla (la dirección PREDOMINANTE del desplazamiento — con la
+## proyección isométrica, un arrastre "horizontal" en pantalla mueve fila Y columna a la vez, ver la
+## cabecera de `Proyeccion`) y no cambia hasta soltar.
+var _eje_trazo_pieza: String = ""
+## La coordenada del trazo en el EJE LIBRE (columna si el eje es "x", fila si es "y"). Con esto + el
+## ancla se reconstruye la línea entera (mismo patrón que `ModoConstruccion._hasta_arrastre_muro`).
+var _hasta_trazo_pieza: int = 0
+
 ## celda -> {"id": StringName, "rotacion": int}
 var _piezas: Dictionary[Vector2i, Dictionary] = {}
 ## celda -> tipo (StringName de `SUPERFICIES`)
@@ -237,6 +256,12 @@ var _capa_preview: CanvasLayer
 var _preview_sprite: Sprite2D
 var _preview_caja: Polygon2D
 var _preview_triangulo: Polygon2D
+## El fantasma del TRAZO ENTERO del pincel Sims (2026-08-15): un `Sprite2D` fantasma por celda del
+## trazo, colgados de este contenedor — se RECONSTRUYE por completo cada vez que el trazo cambia
+## (nueva celda, cambio de eje, R) porque el número de piezas del fantasma varía con la longitud del
+## trazo; no hay un pool fijo que llevar la cuenta de altas/bajas (mismo criterio que
+## `ModoConstruccion.PreviewMayusPintura`: recalcular la lista entera es más simple).
+var _capa_fantasma_trazo: Node2D
 
 
 func configurar(tam_celda: int, origen: Vector2, mundo_profundo: Node2D) -> void:
@@ -299,6 +324,11 @@ func _unhandled_input(evento: InputEvent) -> void:
 			_orientacion = ORIENTACIONES_CICLO[
 				(ORIENTACIONES_CICLO.find(_orientacion) + 1) % ORIENTACIONES_CICLO.size()
 			]
+			# R SIGUE ROTANDO DURANTE EL TRAZO (2026-08-15): re-fantasma con la nueva orientación —
+			# lo que se va a colocar al soltar tiene que verse YA girado, no solo lo que se coloque
+			# DESPUÉS de rotar.
+			if _trazando_pieza:
+				_refrescar_fantasma_trazo_pieza()
 			get_viewport().set_input_as_handled()
 			return
 		if (evento as InputEventKey).keycode == KEY_F8:
@@ -307,6 +337,10 @@ func _unhandled_input(evento: InputEvent) -> void:
 			return
 	if evento is InputEventMouseMotion and _pintando:
 		_pintar_o_borrar_en(_celda_de_evento((evento as InputEventMouseMotion).position))
+		get_viewport().set_input_as_handled()
+		return
+	if evento is InputEventMouseMotion and _trazando_pieza:
+		_extender_trazo_pieza(_celda_de_evento((evento as InputEventMouseMotion).position))
 		get_viewport().set_input_as_handled()
 		return
 	if not (evento is InputEventMouseButton):
@@ -318,21 +352,39 @@ func _unhandled_input(evento: InputEvent) -> void:
 	if boton.pressed:
 		_al_pulsar(celda)
 	else:
+		if _trazando_pieza:
+			_aplicar_trazo_pieza()
+			_trazando_pieza = false
+			_eje_trazo_pieza = ""
+			_limpiar_fantasma_trazo_pieza()
 		_pintando = false
 		_celda_pintada_anterior = Vector2i(-999, -999)
 
 
 ## TODA herramienta es arrastrable (2026-08-08, encargo "no puedo seleccionar una celda, mantener
-## pulsado y arrastrar para que se haga una línea entera") -- antes solo superficie/goma pasaban por
-## aquí; una PIEZA se colocaba una sola vez con el clic y soltar/arrastrar no hacía nada más. Ahora
-## el mismo pincel de siempre (`_pintando` + la guarda de `_celda_pintada_anterior`, que ya evita
-## repetir la MISMA celda) sirve para las tres cosas -- ver `_pintar_o_borrar_en`.
+## pulsado y arrastrar para que se haga una línea entera").
+##
+## 🔄 REESCRITO (2026-08-15, gesto Sims — mismo motor que el pincel de muro de `ModoConstruccion`):
+## las brochas de SUPERFICIE (`SUPERFICIES`) siguen pintando celda a celda mientras arrastras
+## (`_pintando`, sin cambios — pintar un área no tiene "línea recta" que clavar). Las PIEZAS
+## (`CATALOGO_PIEZAS`) y la GOMA (`HERRAMIENTA_BORRAR`) pasan al gesto de trazo: el press solo
+## ANCLA (`_trazando_pieza`), NO coloca/borra todavía — eso pasa al SOLTAR (`_aplicar_trazo_pieza`,
+## en `_unhandled_input`), con el trazo entero ya visto en el fantasma. Un clic SIN arrastre sigue
+## colocando una sola pieza (`_aplicar_trazo_pieza` delega en `_colocar_pieza_en`/`_borrar_en` si el
+## eje nunca llegó a clavarse) — el comportamiento de siempre.
 func _al_pulsar(celda: Vector2i) -> void:
 	if _herramienta == &"":
 		return
-	_pintando = true
-	_celda_pintada_anterior = Vector2i(-999, -999)
-	_pintar_o_borrar_en(celda)
+	if SUPERFICIES.has(_herramienta):
+		_pintando = true
+		_celda_pintada_anterior = Vector2i(-999, -999)
+		_pintar_o_borrar_en(celda)
+		return
+	_trazando_pieza = true
+	_ancla_trazo_pieza = celda
+	_eje_trazo_pieza = ""
+	_hasta_trazo_pieza = 0
+	_refrescar_fantasma_trazo_pieza()
 
 
 func _pintar_o_borrar_en(celda: Vector2i) -> void:
@@ -352,6 +404,178 @@ func _pintar_o_borrar_en(celda: Vector2i) -> void:
 		# mantiene: sigue siendo el punto de entrada que usan los tests y `_al_pulsar` de un solo
 		# clic, sin arrastre).
 		_colocar_pieza_en(celda)
+
+
+# ── Pincel Sims de piezas/goma (2026-08-15) ──────────────────────────────────────────────────────
+
+## Extiende el trazo hasta `celda` -- clava el EJE a la PRIMERA dirección que se aparte del ancla
+## (mismo patrón que `ModoConstruccion._pintar_arista_muro`, aquí sobre CELDAS en vez de aristas):
+## una vez clavado, la componente PERPENDICULAR se ignora -- el trazo sale SIEMPRE recto, aunque el
+## cursor se desvíe (jitter del ratón, o el propio salto diagonal de la proyección isométrica: un
+## arrastre horizontal en PANTALLA mueve fila Y columna a la vez en el plano lógico).
+func _extender_trazo_pieza(celda: Vector2i) -> void:
+	if not _trazando_pieza:
+		return
+	if celda == _ancla_trazo_pieza and _eje_trazo_pieza == "":
+		return   # sigue en el ancla: nada que clavar todavía
+	if _eje_trazo_pieza == "":
+		var delta: Vector2i = celda - _ancla_trazo_pieza
+		# Se clava al eje de MAYOR desplazamiento (la dirección predominante) -- "el primer eje que
+		# cambia" no basta, porque con la proyección isométrica los dos casi siempre cambian juntos.
+		_eje_trazo_pieza = "x" if absi(delta.x) >= absi(delta.y) else "y"
+	_hasta_trazo_pieza = celda.x if _eje_trazo_pieza == "x" else celda.y
+	_refrescar_fantasma_trazo_pieza()
+
+
+## Las celdas del trazo actual, del ancla al final, en orden -- vacío si no hay trazo vivo; una sola
+## celda (el ancla) si el eje nunca llegó a clavarse (el cursor no se ha movido de celda todavía).
+## Es lo que se previsualiza (fantasma) y lo que se aplica al soltar (mismo patrón que
+## `ModoConstruccion._aristas_de_la_linea`).
+func _celdas_del_trazo_pieza() -> Array[Vector2i]:
+	var celdas: Array[Vector2i] = []
+	if not _trazando_pieza:
+		return celdas
+	if _eje_trazo_pieza == "":
+		celdas.append(_ancla_trazo_pieza)
+		return celdas
+	var fija: int = _ancla_trazo_pieza.y if _eje_trazo_pieza == "x" else _ancla_trazo_pieza.x
+	var desde: int = _ancla_trazo_pieza.x if _eje_trazo_pieza == "x" else _ancla_trazo_pieza.y
+	var ini: int = mini(desde, _hasta_trazo_pieza)
+	var fin: int = maxi(desde, _hasta_trazo_pieza)
+	for v: int in range(ini, fin + 1):
+		celdas.append(Vector2i(v, fija) if _eje_trazo_pieza == "x" else Vector2i(fija, v))
+	return celdas
+
+
+## TIRA EL TRAZO A MEDIAS, sin colocar/borrar nada (red de seguridad, mismo patrón que
+## `ModoConstruccion._descartar_trazo_muro`): si el botón ya no está físicamente pulsado y aquí
+## seguimos creyendo que hay un trazo vivo, el evento de soltar se lo llevó otro (la paleta, un
+## diálogo) -- se TIRA, no se aplica. Ningún clic puede quedarse guardado esperando a materializarse
+## más tarde.
+func _descartar_trazo_pieza() -> void:
+	_trazando_pieza = false
+	_eje_trazo_pieza = ""
+	_limpiar_fantasma_trazo_pieza()
+
+
+## Aplica de una vez todo el trazo. Se llama AL SOLTAR el botón, nunca antes.
+##
+## Sin arrastre real (`_eje_trazo_pieza` nunca se clavó) delega en `_colocar_pieza_en`/`_borrar_en`
+## -- EXACTAMENTE el mismo camino que un clic suelto de siempre (conserva su aviso, su emisión de
+## `layout_cambiado`, y el contrato que ya usan los tests que las llaman directo). Con un trazo de
+## verdad, coloca/borra SOLO las celdas VÁLIDAS (las de dentro del rect jugable se saltan, con el
+## mismo veto de siempre) -- nunca revienta ni corta el resto por una celda mala.
+func _aplicar_trazo_pieza() -> void:
+	if _herramienta == HERRAMIENTA_BORRAR:
+		if _eje_trazo_pieza == "":
+			_borrar_en(_ancla_trazo_pieza)
+			return
+		var borradas := 0
+		for celda: Vector2i in _celdas_del_trazo_pieza():
+			if not _celda_valida(celda):
+				continue
+			var habia: bool = _piezas.has(celda) or _superficies.has(celda)
+			_borrar_en(celda)
+			if habia:
+				borradas += 1
+		if borradas > 0:
+			_avisar("%d celdas borradas" % borradas)
+		return
+	if not CATALOGO_PIEZAS.has(_herramienta):
+		return
+	if _eje_trazo_pieza == "":
+		_colocar_pieza_en(_ancla_trazo_pieza)
+		return
+	_colocar_trazo_piezas(_celdas_del_trazo_pieza())
+
+
+## El paso EXACTO de pantalla al recorrer UNA celda en la dirección `paso_logico` del plano lógico
+## (`Vector2i(1,0)`/`Vector2i(0,1)`, la misma convención que `Construccion._paso_de`).
+##
+## 🐛 FIX "DIENTES DE 2PX" (2026-08-15, medido al píxel): antes cada pieza del trazo se posicionaba
+## con `Proyeccion.centro_iso(celda)` INDEPENDIENTE por celda -- con el ancla lejos del origen (el
+## entorno vive en coordenadas negativas/grandes) el `.round()` final de cada pieza podía caer a un
+## lado distinto que el de su vecina en la MISMA fila de muro, y la línea salía con dientes. Sumando
+## este paso ENTERO al ancla, celda a celda (`_colocar_trazo_piezas`/`_refrescar_fantasma_trazo_
+## pieza`), la cadena es matemática acumulada EXACTA hasta el último redondeo -- uno por pieza, igual
+## que antes, pero sobre una base sin arrastre de error. Siempre enteros: `paso_logico` solo vale
+## (±1,0) o (0,±1), así que la fórmula de `Proyeccion.proyectar` para esos valores no pasa por
+## ninguna división que pueda perder precisión.
+static func _paso_pantalla_de(paso_logico: Vector2i) -> Vector2:
+	return Vector2(
+		float(paso_logico.x - paso_logico.y) * Proyeccion.MEDIO_ANCHO,
+		float(paso_logico.x + paso_logico.y) * Proyeccion.MEDIO_ALTO
+	)
+
+
+## Coloca TODAS las celdas válidas del trazo, con el id/rotación que lleva la herramienta -- ver la
+## cabecera de `_paso_pantalla_de` para la matemática acumulada que evita los "dientes".
+func _colocar_trazo_piezas(celdas: Array[Vector2i]) -> void:
+	var colocadas := 0
+	var centro_ancla: Vector2 = Proyeccion.centro_iso(_ancla_trazo_pieza)
+	var paso_logico: Vector2i = Vector2i(1, 0) if _eje_trazo_pieza == "x" else Vector2i(0, 1)
+	var paso_pantalla: Vector2 = _paso_pantalla_de(paso_logico)
+	for celda: Vector2i in celdas:
+		if not _celda_valida(celda):
+			continue
+		var i: int = (
+			(celda - _ancla_trazo_pieza).x if _eje_trazo_pieza == "x" else (celda - _ancla_trazo_pieza).y
+		)
+		_piezas[celda] = {"id": _herramienta, "rotacion": _orientacion}
+		_refrescar_pieza_visual(celda, centro_ancla + paso_pantalla * float(i))
+		colocadas += 1
+	if colocadas > 0:
+		_avisar("%s × %d colocadas" % [NOMBRES_PIEZA.get(_herramienta, String(_herramienta)), colocadas])
+		layout_cambiado.emit()
+	else:
+		_avisar("Eso es del edificio -- fuera de mi alcance")
+
+
+func _limpiar_fantasma_trazo_pieza() -> void:
+	if _capa_fantasma_trazo == null:
+		return
+	for hijo: Node in _capa_fantasma_trazo.get_children():
+		hijo.queue_free()
+
+
+## Reconstruye el fantasma con TODAS las celdas del trazo actual, semitransparentes -- verde/rojo
+## según SU PROPIA validez individual (a diferencia del trazo de muro de Construcción, aquí no hay
+## "todo o nada": cada celda se coloca por separado y las de dentro del edificio simplemente se
+## saltan al soltar, así que el fantasma cuenta esa misma historia celda a celda). Posiciones con la
+## MISMA matemática acumulada que `_colocar_trazo_piezas` -- el fantasma tiene que caer EXACTAMENTE
+## donde va a caer la pieza de verdad.
+func _refrescar_fantasma_trazo_pieza() -> void:
+	_limpiar_fantasma_trazo_pieza()
+	if _capa_fantasma_trazo == null or _herramienta == HERRAMIENTA_BORRAR:
+		return
+	if not CATALOGO_PIEZAS.has(_herramienta):
+		return
+	var celdas: Array[Vector2i] = _celdas_del_trazo_pieza()
+	if celdas.is_empty():
+		return
+	var textura: Texture2D = EntornoExteriorScript.textura_de_pieza(String(_herramienta), _orientacion)
+	if textura == null:
+		return
+	var centro_ancla: Vector2 = Proyeccion.centro_iso(_ancla_trazo_pieza)
+	var paso_logico: Vector2i = Vector2i(1, 0) if _eje_trazo_pieza == "x" else Vector2i(0, 1)
+	var paso_pantalla: Vector2 = _paso_pantalla_de(paso_logico)
+	var escala_kit: bool = EntornoExteriorScript.CONSTRUCCION_TODAS.has(_herramienta)
+	for celda: Vector2i in celdas:
+		var valido: bool = _celda_valida(celda)
+		var i: int = (
+			(celda - _ancla_trazo_pieza).x if _eje_trazo_pieza == "x" else (celda - _ancla_trazo_pieza).y
+		)
+		var sprite := Sprite2D.new()
+		sprite.texture = textura
+		AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
+		if escala_kit:
+			sprite.scale = Vector2(ESCALA_KIT, ESCALA_KIT)
+		sprite.modulate = COLOR_FANTASMA_PIEZA if valido else COLOR_FANTASMA_INVALIDO
+		sprite.position = (
+			centro_ancla + paso_pantalla * float(i) + AnclajeSpriteScript.desvio_rejilla(textura)
+			+ _desvio_arista(_herramienta, _orientacion)
+		).round()
+		_capa_fantasma_trazo.add_child(sprite)
 
 
 # ── Piezas ────────────────────────────────────────────────────────────────────────────────────
@@ -422,7 +646,13 @@ func _desvio_arista(id: StringName, rotacion: int) -> Vector2:
 	return Proyeccion.proyectar(direccion * medio)
 
 
-func _refrescar_pieza_visual(celda: Vector2i) -> void:
+## `centro_iso`: por defecto `Vector2.INF` = "calcúlalo tú" (`Proyeccion.centro_iso(celda)`, el
+## camino de SIEMPRE — clic suelto, carga de disco, importar). El trazo del pincel Sims
+## (`_colocar_trazo_piezas`, 2026-08-15 · fix "dientes de 2px") pasa el centro YA acumulado desde el
+## ancla del trazo con matemática exacta (ver `_paso_pantalla_de`): cada pieza calculada de forma
+## INDEPENDIENTE vía `Proyeccion.centro_iso(celda_absoluta)` podía redondear a un lado distinto que
+## su vecina de la misma fila — la cadena de sumas relativas al ancla no arrastra ese error.
+func _refrescar_pieza_visual(celda: Vector2i, centro_iso: Vector2 = Vector2.INF) -> void:
 	if _nodos_pieza.has(celda):
 		_nodos_pieza[celda].queue_free()
 		_nodos_pieza.erase(celda)
@@ -438,15 +668,17 @@ func _refrescar_pieza_visual(celda: Vector2i) -> void:
 	AnclajeSpriteScript.aplicar(sprite, Vector2i(1, 0), 1)
 	if EntornoExteriorScript.CONSTRUCCION_TODAS.has(StringName(id)):
 		sprite.scale = Vector2(ESCALA_KIT, ESCALA_KIT)   # ver `ESCALA_KIT`
+	var centro: Vector2 = centro_iso if centro_iso != Vector2.INF else Proyeccion.centro_iso(celda)
 	# ALINEACIÓN A LA CUADRÍCULA (2026-08-09, "las casas empiezan en mitad de una celda"): las
 	# piezas con huella PAR (casa 6, coche 2, carretera 6) se corren media celda para que sus
 	# bordes caigan sobre bordes de celda; las de huella impar (farola 1) siguen centradas.
 	# `.round()`: la posición final SIEMPRE en píxel entero. Con decimales (el ancla medida y los
 	# desvíos son floats) cada módulo redondea por su lado y en una fila de muros aparecen dientes
 	# de 1-2px en el borde — el defecto que reportó el usuario ("veo huecos arriba y abajo de las
-	# uniones"), medido en la captura: saltos de 2px justo en cada unión.
+	# uniones"), medido en la captura: saltos de 2px justo en cada unión. `centro_iso` (arriba) es
+	# la otra mitad del fix: la base que se redondea ya viene sin arrastre de error de por medio.
 	sprite.position = (
-		_origen + Proyeccion.centro_iso(celda) + AnclajeSpriteScript.desvio_rejilla(textura)
+		_origen + centro + AnclajeSpriteScript.desvio_rejilla(textura)
 		+ _desvio_arista(StringName(id), int(pieza["rotacion"]))
 	).round()
 	if PIEZAS_PLANAS.has(StringName(id)):
@@ -664,11 +896,15 @@ func _actualizar_visibilidad() -> void:
 		_preview_sprite.visible = false
 		_preview_caja.visible = false
 		_preview_triangulo.visible = false
+		_descartar_trazo_pieza()
 
 
 func _fijar_herramienta(id: StringName) -> void:
 	_herramienta = id
 	_pintando = false
+	# Cambiar de herramienta a MEDIO TRAZO lo tira (2026-08-15) -- mismo criterio que
+	# `ModoConstruccion._cancelar`: nada que el jugador no haya visto termina en el layout.
+	_descartar_trazo_pieza()
 	# 🐛 Sin esto: pintar cesped en una celda y CAMBIAR de herramienta (a la goma, por ejemplo) y
 	# volver a pulsar la MISMA celda se tomaba como "repetición del mismo arrastre" (la guarda de
 	# `_pintar_o_borrar_en` compara contra la última celda pintada, sin importar con qué herramienta)
@@ -957,16 +1193,32 @@ func _crear_preview() -> void:
 	_preview_triangulo.color = Color(0.25, 0.55, 1.0, 0.85)
 	_preview_triangulo.visible = false
 	_capa_preview.add_child(_preview_triangulo)
+	_capa_fantasma_trazo = Node2D.new()
+	_capa_fantasma_trazo.name = "FantasmaTrazoPieza"
+	_capa_preview.add_child(_capa_fantasma_trazo)
 
 
 func _process(_delta: float) -> void:
 	if _capa_preview != null:
 		_capa_preview.transform = get_canvas_transform()
+	# RED DE SEGURIDAD DEL TRAZO (2026-08-15, mismo patrón que
+	# `ModoConstruccion._arrastrando_muro`/`_process`): si el botón ya no está físicamente pulsado y
+	# aquí seguimos creyendo que hay un trazo vivo, el evento de soltar se lo llevó otro (la paleta,
+	# un diálogo). Se TIRA, no se aplica.
+	if _trazando_pieza and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_descartar_trazo_pieza()
 	if not _activo or _herramienta == &"":
 		_preview_sprite.visible = false
 		_preview_caja.visible = false
 		_preview_triangulo.visible = false
 		_celda_preview_anterior = Vector2i(-999, -999)
+		return
+	if _trazando_pieza:
+		# El fantasma del trazo completo (`_refrescar_fantasma_trazo_pieza`, disparado por el propio
+		# arrastre en `_extender_trazo_pieza`/R) sustituye al fantasma de UNA celda mientras dura.
+		_preview_sprite.visible = false
+		_preview_triangulo.visible = false
+		_preview_caja.visible = false
 		return
 	var celda: Vector2i = _celda_de_evento(get_viewport().get_mouse_position())
 	if celda == _celda_preview_anterior and _orientacion == _orientacion_anterior:

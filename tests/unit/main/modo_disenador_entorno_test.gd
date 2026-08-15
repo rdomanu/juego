@@ -290,15 +290,24 @@ func _evento_movimiento(pos: Vector2) -> InputEventMouseMotion:
 	return evento
 
 
-## Pulsar en A, arrastrar (motion) por B y C, soltar -- las 3 posiciones caen en 3 celdas lógicas
-## distintas (mover +80px en X cambia columna Y fila de `Proyeccion.celda_de_iso`) y las 3 fuera
-## del rect jugable 24×13.
+## Pulsar en A, arrastrar (motion) por B y C, soltar.
+##
+## 🔄 REESCRITO (2026-08-15, gesto Sims de piezas/goma): el paso ya NO es un desplazamiento
+## horizontal cualquiera en pantalla (+80px en X movía columna Y fila a la vez -- válido para el
+## pincel VIEJO de "pinta lo que pises", pero el pincel NUEVO de piezas/goma CLAVA el eje a la
+## primera dirección, así que hace falta un paso que sea una línea recta de VERDAD en el plano
+## lógico). `PASO_CELDA_X` = una celda exacta en +columna, fila fija (ver la cabecera de
+## `Proyeccion`: `Δiso = ((Δu-Δv)*MEDIO_ANCHO, (Δu+Δv)*MEDIO_ALTO)`, con Δu=1,Δv=0). Las 3
+## posiciones siguen cayendo en 3 celdas lógicas distintas, ahora en LÍNEA RECTA (misma fila), y las
+## 3 fuera del rect jugable 24×13.
+const PASO_CELDA_X := Vector2(40.0, 20.0)
+
 func _simular_arrastre(modo: ModoDisenadorEntorno) -> void:
 	var a := Vector2(2000.0, 2000.0)
 	modo._unhandled_input(_evento_boton(a, true))
-	modo._unhandled_input(_evento_movimiento(a + Vector2(80.0, 0.0)))
-	modo._unhandled_input(_evento_movimiento(a + Vector2(160.0, 0.0)))
-	modo._unhandled_input(_evento_boton(a + Vector2(160.0, 0.0), false))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X * 2))
+	modo._unhandled_input(_evento_boton(a + PASO_CELDA_X * 2, false))
 
 
 func test_arrastre_real_pinta_3_celdas_de_superficie() -> void:
@@ -327,3 +336,89 @@ func test_arrastre_real_con_goma_borra_lo_pintado() -> void:
 	modo._fijar_herramienta(ModoDisenadorEntorno.HERRAMIENTA_BORRAR)
 	_simular_arrastre(modo)
 	assert_int(modo._superficies.size()).is_equal(0)
+
+
+# ── PINCEL SIMS DE PIEZAS/GOMA (2026-08-15): press ancla (no coloca), drag traza con el eje
+# clavado + fantasma, release compromete todo el trazo de una vez -- mismo motor que el pincel de
+# muro de `ModoConstruccion`.
+
+## 🔒 AC central del gesto: nada se compromete MIENTRAS se arrastra -- solo al soltar.
+func test_trazo_pieza_no_coloca_nada_hasta_soltar() -> void:
+	var modo: ModoDisenadorEntorno = _modo()
+	modo._activo = true
+	modo._fijar_herramienta(&"farola")
+	var a := Vector2(2000.0, 2000.0)
+	modo._unhandled_input(_evento_boton(a, true))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X * 2))
+	assert_int(modo._piezas.size()).is_equal(0)
+
+
+## Clic SIN arrastre sigue colocando UNA sola pieza (comportamiento de siempre, conservado).
+func test_clic_sin_arrastre_coloca_una_sola_pieza() -> void:
+	var modo: ModoDisenadorEntorno = _modo()
+	modo._activo = true
+	modo._fijar_herramienta(&"farola")
+	var a := Vector2(2000.0, 2000.0)
+	modo._unhandled_input(_evento_boton(a, true))
+	modo._unhandled_input(_evento_boton(a, false))
+	assert_int(modo._piezas.size()).is_equal(1)
+
+
+## El eje se clava a la PRIMERA dirección y no lo suelta pase lo que pase después: una desviación
+## fuerte tras clavar el eje no hace que el trazo se salga de su fila/columna.
+func test_trazo_pieza_eje_clavado_mantiene_la_fila_fija() -> void:
+	var modo: ModoDisenadorEntorno = _modo()
+	modo._activo = true
+	modo._fijar_herramienta(&"farola")
+	var a := Vector2(2000.0, 2000.0)
+	modo._unhandled_input(_evento_boton(a, true))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X))              # clava el eje "x"
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X + Vector2(0.0, 500.0)))   # desviación fuerte
+	modo._unhandled_input(_evento_boton(a + PASO_CELDA_X + Vector2(0.0, 500.0), false))
+	assert_bool(modo._piezas.size() > 0).is_true()
+	var filas: Dictionary = {}
+	for celda: Vector2i in modo._piezas.keys():
+		filas[celda.y] = true
+	assert_int(filas.size()) \
+		.override_failure_message("todas las piezas del trazo tienen que caer en LA MISMA fila") \
+		.is_equal(1)
+
+
+## R sigue rotando durante el trazo: las piezas que se comprometen al soltar llevan la orientación
+## VIGENTE en ese momento, no la que había al pulsar.
+func test_r_durante_el_trazo_rota_lo_que_se_va_a_colocar() -> void:
+	var modo: ModoDisenadorEntorno = _modo()
+	modo._activo = true
+	modo._fijar_herramienta(&"farola")
+	var a := Vector2(2000.0, 2000.0)
+	modo._unhandled_input(_evento_boton(a, true))
+	modo._unhandled_input(_evento_movimiento(a + PASO_CELDA_X))
+	var tecla := InputEventKey.new()
+	tecla.keycode = KEY_R
+	tecla.pressed = true
+	modo._unhandled_input(tecla)
+	modo._unhandled_input(_evento_boton(a + PASO_CELDA_X, false))
+	var esperada: int = ModoDisenadorEntorno.ORIENTACIONES_CICLO[1]
+	assert_int(modo._orientacion).is_equal(esperada)
+	assert_bool(modo._piezas.size() > 0).is_true()
+	for celda: Vector2i in modo._piezas.keys():
+		assert_int(int(modo._piezas[celda]["rotacion"])).is_equal(esperada)
+
+
+## 🔒 REGRESIÓN "dientes de 2px" (2026-08-15, verificado al píxel): las posiciones de pantalla de
+## piezas CONSECUTIVAS del mismo trazo tienen que diferir EXACTAMENTE por el mismo paso -- si el
+## redondeo de una cayera a un lado distinto que el de su vecina, esta resta dejaría de ser idéntica.
+func test_trazo_pieza_posiciones_consecutivas_difieren_por_el_mismo_paso_exacto() -> void:
+	var modo: ModoDisenadorEntorno = _modo()
+	modo._activo = true
+	modo._fijar_herramienta(&"farola")
+	_simular_arrastre(modo)
+	assert_int(modo._piezas.size()).is_equal(3)
+
+	var celdas: Array = modo._piezas.keys()
+	celdas.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x)
+	var p0: Vector2 = (modo._nodos_pieza[celdas[0]] as Node2D).position
+	var p1: Vector2 = (modo._nodos_pieza[celdas[1]] as Node2D).position
+	var p2: Vector2 = (modo._nodos_pieza[celdas[2]] as Node2D).position
+	assert_vector(p1 - p0).is_equal(p2 - p1)

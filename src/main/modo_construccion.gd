@@ -22,6 +22,12 @@ signal activado_cambiado(activo: bool)
 const COLOR_VALIDO := Color(0.4, 1.0, 0.4, 0.4)
 const COLOR_INVALIDO := Color(1.0, 0.35, 0.35, 0.4)
 const COLOR_DEMOLER := Color(1.0, 0.6, 0.2, 0.4)
+## Rojo MÁS SATURADO que `COLOR_INVALIDO` (2026-08-15 · fantasma del trazo completo de muro): cuando
+## el trazo ENTERO se pinta en rojo porque ALGÚN tramo falla, el tramo culpable en concreto usa este
+## rojo más intenso — así el jugador ve de un vistazo CUÁL de los tramos es el que sobra, no solo que
+## "algo" del trazo no vale. Ver `_color_de_tramo_muro`. El alfa real lo fuerza `PreviewMayusPintura`
+## (ver `ALFA_RELLENO`/`ALFA_BORDE`); solo el matiz (rgb) importa aquí.
+const COLOR_INVALIDO_INTENSO := Color(0.85, 0.05, 0.05, 1.0)
 const COLOR_BOTON_ACTIVO := Color(1.0, 0.85, 0.35)
 ## ── FANTASMA CON SPRITE REAL (quick-spec 2026-08-04 §4) ────────────────────────────────────────
 ## Alfa del fantasma cuando lleva el SPRITE de verdad del mueble en vez de la caja gris genérica:
@@ -123,6 +129,9 @@ var _celda_anterior: Vector2i = Vector2i(-999, -999)
 var _orientacion: int = 0
 var _herramienta_anterior: StringName = &"-"
 var _arrastre_anterior: bool = false
+## Estado de `_arrastrando_muro` en el último frame (2026-08-15 · fantasma del trazo completo) —
+## entra en la misma guarda que celda/herramienta/arrastre-de-sala/lado/mayús, ver `_process`.
+var _arrastrando_muro_anterior: bool = false
 ## Lado resaltado por el pincel de muro en el último frame (para que la guarda del preview también
 ## redibuje al cambiar de LADO dentro de la misma celda, no solo al cambiar de celda).
 var _lado_anterior: StringName = &"-"
@@ -412,26 +421,40 @@ class PreviewMayusPintura extends Node2D:
 	const ALFA_RELLENO: float = 0.35
 	const ALFA_BORDE: float = 0.9
 	var _poligonos: Array[PackedVector2Array] = []
-	var _color: Color = Color.WHITE
+	var _colores: Array[Color] = []
 
-	## Sustituye la lista de polígonos a pintar (tramos o celdas) por otra, ya proyectada a pantalla.
+	## Sustituye la lista de polígonos a pintar (tramos o celdas) por otra, ya proyectada a pantalla,
+	## TODOS del mismo color (el caso de siempre: el pincel de pintura con MAYÚS).
 	func fijar(poligonos: Array[PackedVector2Array], nuevo_color: Color) -> void:
+		var colores: Array[Color] = []
+		colores.resize(poligonos.size())
+		colores.fill(nuevo_color)
+		fijar_multicolor(poligonos, colores)
+
+	## Igual que `fijar`, pero CADA polígono lleva SU PROPIO color (2026-08-15 · fantasma del trazo
+	## de muro, modo construcción "estilo Los Sims"): el pincel de muro pinta en verde los tramos de
+	## un trazo válido y en rojo los que no — un solo color no basta para señalar CUÁL tramo falla.
+	## `colores` tiene que tener el mismo tamaño que `poligonos` (uno a uno, mismo índice).
+	func fijar_multicolor(poligonos: Array[PackedVector2Array], colores: Array[Color]) -> void:
 		_poligonos = poligonos
-		_color = nuevo_color
+		_colores = colores
 		queue_redraw()
 
-	## Apaga el fantasma: MAYÚS suelta, cambio de herramienta, o nada que abarcar (muro suelto que no
-	## es fachada bajo el pincel de pared, por ejemplo).
+	## Apaga el fantasma: MAYÚS suelta, cambio de herramienta, trazo descartado, o nada que abarcar
+	## (muro suelto que no es fachada bajo el pincel de pared, por ejemplo).
 	func limpiar() -> void:
 		if _poligonos.is_empty():
 			return
 		_poligonos = []
+		_colores = []
 		queue_redraw()
 
 	func _draw() -> void:
-		var relleno := Color(_color.r, _color.g, _color.b, ALFA_RELLENO)
-		var borde := Color(_color.r, _color.g, _color.b, ALFA_BORDE)
-		for poligono: PackedVector2Array in _poligonos:
+		for i: int in _poligonos.size():
+			var color: Color = _colores[i] if i < _colores.size() else Color.WHITE
+			var relleno := Color(color.r, color.g, color.b, ALFA_RELLENO)
+			var borde := Color(color.r, color.g, color.b, ALFA_BORDE)
+			var poligono: PackedVector2Array = _poligonos[i]
 			draw_colored_polygon(poligono, relleno)
 			var cerrado: PackedVector2Array = poligono.duplicate()
 			cerrado.append(poligono[0])
@@ -924,6 +947,11 @@ func _descartar_trazo_muro() -> void:
 	_arrastrando_muro = false
 	_eje_arrastre_muro = ""   # el trazo termina: el proximo elige su propio eje
 	_arista_arrastre_anterior = ""
+	# Apaga el fantasma del trazo completo (2026-08-15): SIN esto, un release/cancelacion sobre la
+	# MISMA celda con la que ya se estaba pintando el fantasma no dispara el redibujado de `_process`
+	# (su guarda solo mira celda/herramienta/arrastre-de-SALA/lado/mayus -- `_arrastrando_muro` no
+	# entra ahi), y el ultimo trazo se quedaria pintado un frame de mas encima del muro ya construido.
+	_preview_mayus.limpiar()
 
 
 ## Cancela por capas: primero el arrastre (sala O muro), luego suelta la herramienta, luego sale del modo.
@@ -1082,10 +1110,15 @@ func _process(delta: float) -> void:
 	# MAYÚS entra en la guarda (2026-08-05, tarea 2): sin esto, pulsar/soltar MAYÚS sobre la MISMA
 	# celda no dispararía ningún redibujado — la guarda solo miraba celda/herramienta/arrastre/lado.
 	var mayus: bool = Input.is_key_pressed(KEY_SHIFT)
+	# `_arrastrando_muro` ENTRA EN LA GUARDA (2026-08-15 · fantasma del trazo completo): sin esto,
+	# EMPEZAR o TERMINAR un arrastre de muro con el ratón EN VIVO parado sobre la misma celda (el
+	# picking de aquí es un POLL, no el punto del evento) no disparaba ningún redibujado — el
+	# resaltado de UNA sola arista se quedaba pintado, colgado, encima/al lado del fantasma del
+	# trazo nuevo (cazado con la sonda visual `tools/_diag_fantasma_trazo_muro.gd`).
 	if (
 		celda == _celda_anterior and _herramienta == _herramienta_anterior
 		and _arrastrando == _arrastre_anterior and lado == _lado_anterior
-		and mayus == _mayus_anterior
+		and mayus == _mayus_anterior and _arrastrando_muro == _arrastrando_muro_anterior
 	):
 		return
 	_celda_anterior = celda
@@ -1093,6 +1126,7 @@ func _process(delta: float) -> void:
 	_arrastre_anterior = _arrastrando
 	_lado_anterior = lado
 	_mayus_anterior = mayus
+	_arrastrando_muro_anterior = _arrastrando_muro
 	_preview_caja.visible = true
 	_preview_texto.visible = true
 	# Por defecto, apagado: solo `_refrescar_preview_elemento` lo enciende cuando la herramienta en
@@ -1105,8 +1139,16 @@ func _process(delta: float) -> void:
 		_refrescar_preview_demoler(celda, lado)
 		_preview_mayus.limpiar()
 	elif _herramienta == &"muro":
-		_refrescar_preview_muro(celda, lado)
-		_preview_mayus.limpiar()
+		if _arrastrando_muro:
+			# El TRAZO ENTERO ya se está pintando en cada evento de movimiento (`_pintar_arista_muro`
+			# → `_refrescar_preview_linea_muro`, con el punto DEL EVENTO — nunca el poll en vivo de
+			# aquí). El resaltado de UNA sola arista (`_preview_caja`/`_preview_texto`) se apaga: el
+			# fantasma multi-tramo (`_preview_mayus`) lo sustituye entero, no se suman los dos.
+			_preview_caja.visible = false
+			_preview_texto.visible = false
+		else:
+			_refrescar_preview_muro(celda, lado)
+			_preview_mayus.limpiar()
 	elif _herramienta == &"puerta" or _herramienta == &"ventana":
 		_refrescar_preview_puerta_ventana(celda, lado)
 		_preview_mayus.limpiar()
@@ -1142,17 +1184,20 @@ func _refrescar_preview_demoler(celda: Vector2i, lado: StringName) -> void:
 ## del edificio o si no hay caja — mismo lenguaje visual verde/rojo que el resto de herramientas.
 func _refrescar_preview_muro(celda: Vector2i, lado: StringName) -> void:
 	var ya_hay: bool = _construccion.hay_muro(celda, lado)
-	var en_edificio: bool = _arista_en_edificio(celda, lado)
 	var con_caja: bool = _construccion.puede_pagar(_construccion.coste_muro)
-	var valido: bool = not ya_hay and en_edificio and con_caja
+	# ÚNICA fuente de verdad (2026-08-15): `Construccion.puede_construir_muro` — antes esto duplicaba
+	# la comprobación de "dentro del edificio" en `_arista_en_edificio` (eliminada), con un comentario
+	# admitiendo la duplicación. El desglose de MOTIVO (ya_hay / sin caja / fuera del edificio) sigue
+	# viviendo aquí porque es puramente informativo para el texto del fantasma.
+	var valido: bool = _construccion.puede_construir_muro(celda, lado)
 	_colocar_caja_arista(celda, lado, COLOR_VALIDO if valido else COLOR_INVALIDO)
 	var motivo: String = "Arrastra para tabique"
 	if ya_hay:
 		motivo = "Ya hay muro"
-	elif not en_edificio:
-		motivo = "Fuera del edificio"
 	elif not con_caja:
 		motivo = "Sin caja"
+	elif not valido:
+		motivo = "Fuera del edificio"
 	_preview_texto.text = "%.0f € · %s" % [_construccion.coste_muro, motivo]
 
 
@@ -1355,38 +1400,115 @@ func _aristas_de_la_linea() -> Array:
 	return salida
 
 
+## El motivo corto de por qué UN tramo del trazo no vale — para el aviso al soltar sobre un trazo
+## invalido (`_aplicar_linea_muro`) y para el texto en vivo del fantasma (`_refrescar_preview_linea_
+## muro`). No repite `Construccion._arista_dentro_del_edificio` (privado): si ya hay muro o si sobra
+## caja pero el tramo sigue sin valer, por descarte solo puede ser "fuera del edificio" — mismo
+## desglose que ya hacia `_refrescar_preview_muro` para el hover de una sola arista.
+func _motivo_muro_invalido(celda: Vector2i, lado: StringName) -> String:
+	if _construyendo_arrastre_muro:
+		if _construccion.hay_muro(celda, lado):
+			return "ya hay muro ahi"
+		if not _construccion.puede_pagar(_construccion.coste_muro):
+			return "sin caja"
+		return "fuera del edificio"
+	if not _construccion.hay_muro(celda, lado):
+		return "ahi no hay muro"
+	return "la fachada no se toca"
+
+
 ## Aplica de una vez toda la linea trazada. Se llama AL SOLTAR el boton, nunca antes.
+##
+## DOS PASADAS (2026-08-15 · modo construcción "estilo Los Sims" — fantasma del trazo COMPLETO):
+## primero se VALIDA el tramo ENTERO con `puede_construir_muro`/`puede_demoler_muro` — la MISMA API
+## pura que ya pintó el fantasma en rojo mientras arrastrabas. Si algún tramo falla, NO SE CONSTRUYE
+## NADA: soltar sobre un trazo que el jugador ya vio en rojo no es una sorpresa, es un "cancelar por
+## las buenas" con el motivo explicado en la barra de estado. Solo si TODO el trazo pasa se aplica de
+## verdad, en una segunda pasada — así el trazo se compromete COMO BLOQUE, nunca a medias.
 func _aplicar_linea_muro() -> void:
 	var aristas: Array = _aristas_de_la_linea()
 	if aristas.is_empty():
 		return
-	var puestos: int = 0
-	var sin_caja: bool = false
-	for arista: Array in aristas:
-		if _construyendo_arrastre_muro:
+	if _construyendo_arrastre_muro:
+		for arista: Array in aristas:
+			if not _construccion.puede_construir_muro(arista[0], arista[1]):
+				_lbl_estado.text = "Trazo no válido (%s): no se construyó nada" % _motivo_muro_invalido(
+					arista[0], arista[1]
+				)
+				return
+		var puestos: int = 0
+		for arista: Array in aristas:
 			if _construccion.construir_muro(arista[0], arista[1]):
 				puestos += 1
-			elif not _construccion.hay_muro(arista[0], arista[1]):
-				sin_caja = true   # no habia muro y aun asi fallo: se acabo el dinero
-		else:
-			if _construccion.demoler_muro(arista[0], arista[1]):
-				puestos += 1
-	if sin_caja:
-		_lbl_estado.text = "Se acabo el dinero: puestos %d tramos de %d" % [puestos, aristas.size()]
-	elif _construyendo_arrastre_muro:
 		_lbl_estado.text = "%d tramos de muro" % puestos
 	else:
-		_lbl_estado.text = "%d tramos derribados" % puestos
+		for arista: Array in aristas:
+			if not _construccion.puede_demoler_muro(arista[0], arista[1]):
+				_lbl_estado.text = "Trazo no válido (%s): no se derribó nada" % _motivo_muro_invalido(
+					arista[0], arista[1]
+				)
+				return
+		var derribados: int = 0
+		for arista: Array in aristas:
+			if _construccion.demoler_muro(arista[0], arista[1]):
+				derribados += 1
+		_lbl_estado.text = "%d tramos derribados" % derribados
 
 
-## Mientras arrastras: dice cuantos tramos llevas y lo que van a costar. Sin esto no hay forma de
-## saber el gasto de un trazo largo (cada tramo son `coste_muro` euros).
+## El color de UN tramo del fantasma, según sea válido EN SÍ MISMO y según el veredicto del trazo
+## ENTERO: el trazo se construye o no se construye COMO BLOQUE (`_aplicar_linea_muro`, dos pasadas),
+## así que el fantasma cuenta esa misma historia — si ALGÚN tramo falla, el trazo ENTERO se pinta en
+## el color de "no" (nunca un tono de "casi"), y el tramo culpable en concreto se resalta MÁS
+## INTENSO para que el jugador vea de un vistazo cuál es el que sobra (`COLOR_INVALIDO_INTENSO`).
+func _color_de_tramo_muro(valido_individual: bool, valido_trazo: bool) -> Color:
+	if valido_trazo:
+		return COLOR_VALIDO if _construyendo_arrastre_muro else COLOR_DEMOLER
+	return COLOR_INVALIDO if valido_individual else COLOR_INVALIDO_INTENSO
+
+
+## El fantasma del TRAZO COMPLETO mientras arrastras (2026-08-15 · modo construcción "estilo Los
+## Sims"): TODAS las aristas de `_aristas_de_la_linea()`, cada una como un quad semitransparente
+## (mismo patrón que `PreviewMayusPintura` — reutilizada, no una clase nueva), coloreadas según la
+## validez del TRAMO ENTERO (`_color_de_tramo_muro`). También actualiza la etiqueta de coste en vivo
+## (`_lbl_estado`, la misma que ya usaba esto solo para el texto).
 func _refrescar_preview_linea_muro() -> void:
 	var aristas: Array = _aristas_de_la_linea()
 	if aristas.is_empty():
+		_preview_mayus.limpiar()
 		return
+	var quads: Array[PackedVector2Array] = []
+	var validos: Array[bool] = []
+	var valido_trazo: bool = true
+	var arista_culpable: Array = []   # la PRIMERA que falla — la que explica el "no" del trazo entero
+	for arista: Array in aristas:
+		var celda: Vector2i = arista[0]
+		var lado: StringName = arista[1]
+		var ok: bool = (
+			_construccion.puede_construir_muro(celda, lado) if _construyendo_arrastre_muro
+			else _construccion.puede_demoler_muro(celda, lado)
+		)
+		validos.append(ok)
+		if not ok:
+			valido_trazo = false
+			if arista_culpable.is_empty():
+				arista_culpable = arista
+		quads.append(_quad_de_clave_muro(_construccion.clave_de_muro(celda, lado), ParedesSalas.ALTO_PARED))
+	var colores: Array[Color] = []
+	for ok: bool in validos:
+		colores.append(_color_de_tramo_muro(ok, valido_trazo))
+	_preview_mayus.fijar_multicolor(quads, colores)
 	if not _construyendo_arrastre_muro:
-		_lbl_estado.text = "Derribar %d tramos" % aristas.size()
+		_lbl_estado.text = (
+			"Derribar %d tramos" % aristas.size() if valido_trazo
+			else "Trazo no válido: %s (no se derribará nada)" % _motivo_muro_invalido(
+				arista_culpable[0], arista_culpable[1]
+			)
+		)
+		return
+	if not valido_trazo:
+		_lbl_estado.text = "Trazo no válido: %s (no se construirá nada)" % _motivo_muro_invalido(
+			arista_culpable[0], arista_culpable[1]
+		)
 		return
 	var nuevos: int = 0
 	for arista: Array in aristas:
@@ -1459,24 +1581,6 @@ func _celda_lado_de_muro_en(punto_mundo: Vector2) -> Array:
 func _celda_bajo_cursor_consciente_de_muros() -> Vector2i:
 	var par: Array = _celda_lado_de_muro_en(get_global_mouse_position())
 	return par[0]
-
-
-## Duplicado A PROPÓSITO de `Construccion._arista_dentro_del_edificio` (privado — la tarea prohíbe
-## tocar `construccion.gd`): SOLO para pintar el fantasma del color correcto en el borde del
-## edificio. La autoridad real la sigue teniendo `construir_muro`, que vuelve a comprobarlo al
-## construir de verdad — esto es puramente informativo (mismo criterio que `_superficie_de_herramienta`).
-func _arista_en_edificio(celda: Vector2i, lado: StringName) -> bool:
-	var vecino: Vector2i = celda
-	match lado:
-		&"izquierda":
-			vecino = celda + Vector2i(-1, 0)
-		&"derecha":
-			vecino = celda + Vector2i(1, 0)
-		&"arriba":
-			vecino = celda + Vector2i(0, -1)
-		&"abajo":
-			vecino = celda + Vector2i(0, 1)
-	return _celda_en_edificio(celda) or _celda_en_edificio(vecino)
 
 
 ## ¿Esa celda cae dentro de la rejilla del edificio? (mismo cálculo que `Construccion._celda_en_edificio`).

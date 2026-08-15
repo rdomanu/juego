@@ -3429,3 +3429,30 @@ del viewport**. La sonda `_diag_sombras` ya se queda 15 s quieta para capturarla
   kit; el Building Kit (79 glb) solo aporta 22 piezas decorativas manuales del diseñador de
   entorno; la garita/tejados/barricadas del kit siguen sin usar; el defecto "dientes de 2 px"
   sigue sin arreglo activo (dos parches desactivados por veredicto del usuario 2026-08-09).
+
+## 2026-08-15 (tarde): DECISIÓN — segundas plantas APLAZADAS del todo
+El usuario descarta incluso la "base mínima" auditada (save con planta:0, claves p0:, proyección
+con offset, dimensiones indexables, ADR): las comisarías van PREDISEÑADAS por nivel y no se
+expanden, así que las plantas pertenecen al diseño de futuras comisarías (sistema #26 Escalado).
+La auditoría completa de supuestos de planta única (por sistema, con S/M/L y los 5 pasos de base
+mínima) quedó en el informe del agente de esta sesión — recuperarla de ahí si el tema vuelve.
+Cola vigente: ① verificar Fase 1 del pincel (agente escribiendo) → ② maqueta del menú de
+construcción estilo Sims (SIN selector de planta) → ③ fotomontaje pared definitiva kit-vs-código.
+
+## 2026-08-15 (noche): FASE 1 DEL PINCEL ENTREGADA + sombra de NPC en su sitio
+- Pincel de muros estilo Sims COMPLETO: fantasma del trazo entero semitransparente (verde/rojo
+  por validez del TRAMO COMPLETO) + coste en vivo + construir al soltar en dos pasadas +
+  `Construccion.puede_construir_muro/puede_demoler_muro` públicas y puras (fin de la lógica
+  duplicada en la UI). El pincel del F12 pasa al MISMO gesto (ancla+eje clavado+fantasma+aplicar
+  al soltar) con matemática acumulada — el "diente de 2 px" de los muros del kit era un bug de
+  COLOCACIÓN (redondeo por celda), verificado con spike al píxel (pendiente del kit 0,4997 ≈ 0,5;
+  0 saltos al encadenar con paso exacto; la costura por unión es el CANTO del módulo = panelado).
+- Agente Sonnet: 5 atascos (~25-40 tool-uses el patrón) + 3 Godots colgados; verificación final
+  hecha por Fable. Suite 1009/1009 verde (13 tests nuevos). Arranque limpio.
+- 🐛 cazado EN VIVO por el usuario: la sombra del NPC salía corrida — `pos_suelo_sombra` se
+  guardaba en LOCALES de _capa_escena y CapaSombras la dibujaba como global. Arreglado
+  (to_global) y medido en ventana: 22 unidades más oscura bajo los pies, en su sitio.
+- Defecto menor conocido: el fantasma del trazo se dibuja POR ENCIMA del HUD superior cuando el
+  muro cae en el borde norte de la pantalla (capa de preview vs capa del HUD) — apuntado, sin
+  arreglar.
+- Capturas de verificación en scratchpad: fantasma_arrastre.png / muro_final.png / ventana_sonda.

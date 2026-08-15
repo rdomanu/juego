@@ -1257,29 +1257,50 @@ func levantar_fachada(ancho_puerta: int = 2) -> void:
 	_refrescar_visual()
 
 
-## Levanta un muro en esa arista, cobrándolo (gate E4 de Economía, igual que todo lo que se
-## construye). Devuelve si se levantó: `false` si ya había uno, si la arista cae fuera del edificio
-## o si no hay caja. Sin dinero no se construye — no se entra en números rojos por levantar tabiques.
-func construir_muro(celda: Vector2i, lado: StringName) -> bool:
+## ¿Se PODRÍA levantar un muro en esa arista AHORA MISMO? PURA (no muta nada, no cobra): ÚNICA
+## fuente de verdad de la validez de un tramo, la comparte `construir_muro` (que la reconsulta antes
+## de cobrar) y el FANTASMA DEL TRAZO de `ModoConstruccion` (2026-08-15 — modo construcción "estilo
+## Los Sims": el fantasma pinta en vivo, arista por arista, si el tramo se podrá construir de
+## verdad, sin duplicar esta cuenta en la UI como hacía `ModoConstruccion._arista_en_edificio`
+## —eliminada— antes de esta fecha).
+func puede_construir_muro(celda: Vector2i, lado: StringName) -> bool:
 	var clave: String = clave_de_muro(celda, lado)
 	if clave == "" or _muros.has(clave):
 		return false
 	if not _arista_dentro_del_edificio(clave):
 		return false
-	if not _pagar(coste_muro):
+	return puede_pagar(coste_muro)
+
+
+## Levanta un muro en esa arista, cobrándolo (gate E4 de Economía, igual que todo lo que se
+## construye). Devuelve si se levantó: `false` si ya había uno, si la arista cae fuera del edificio
+## o si no hay caja. Sin dinero no se construye — no se entra en números rojos por levantar tabiques.
+func construir_muro(celda: Vector2i, lado: StringName) -> bool:
+	if not puede_construir_muro(celda, lado):
 		return false
-	_muros[clave] = TABIQUE
+	if not _pagar(coste_muro):
+		return false   # ventana de carrera entre `puede_pagar` y `cobrar`: no debería darse, pero no se fía
+	_muros[clave_de_muro(celda, lado)] = TABIQUE
 	_refrescar_visual()
 	return true
 
 
+## ¿Se PODRÍA demoler el muro de esa arista AHORA MISMO? PURA (no muta, no abona): `false` si no hay
+## muro que tirar o si es fachada (`_muros_fijos` — el plano de la comisaría no es obra del jugador).
+## Misma pareja que `puede_construir_muro`: la usa `demoler_muro` por dentro y el fantasma del trazo
+## en modo demoler (botón derecho del pincel de muro).
+func puede_demoler_muro(celda: Vector2i, lado: StringName) -> bool:
+	var clave: String = clave_de_muro(celda, lado)
+	if clave == "" or not _muros.has(clave):
+		return false
+	return not _muros_fijos.has(clave)
+
+
 ## Derriba un muro, devolviendo el mismo porcentaje que el resto de demoliciones (F4).
 func demoler_muro(celda: Vector2i, lado: StringName) -> bool:
-	var clave: String = clave_de_muro(celda, lado)
-	if not _muros.has(clave):
+	if not puede_demoler_muro(celda, lado):
 		return false
-	if _muros_fijos.has(clave):
-		return false   # la fachada del edificio no se derriba: es el plano, no obra tuya
+	var clave: String = clave_de_muro(celda, lado)
 	_muros.erase(clave)
 	# La pintura se va con la pared: si mañana levantas otro tabique en esa misma arista, nace BLANCO
 	# como cualquier pared nueva — no hereda el color del que derribaste. Se borran LAS DOS CARAS
