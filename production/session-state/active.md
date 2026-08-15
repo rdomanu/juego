@@ -3456,3 +3456,17 @@ construcción estilo Sims (SIN selector de planta) → ③ fotomontaje pared def
   muro cae en el borde norte de la pantalla (capa de preview vs capa del HUD) — apuntado, sin
   arreglar.
 - Capturas de verificación en scratchpad: fantasma_arrastre.png / muro_final.png / ventana_sonda.
+
+## 2026-08-15 (noche 2): UI MODERNA APROBADA — arranca la implementación por fases
+- El usuario APRUEBA la dirección "moderno Two Point/Sims" (maqueta v2 del panel de construcción
+  y v3 con el HUD superior a juego: pastillas, tarjetas blancas con sombra suave, acento azul,
+  chips de estado, dinero arriba). Las variantes temáticas A/B/C (expediente/táctico/juguete) NO
+  gustaron — lección: el usuario quiere lenguaje de juego moderno, no disfraces.
+- Maquetas y scripts guardados en design/ux/maquetas-menu-2026-08/ (12 archivos).
+- captura_ventana.ps1 promovida a tools/ con parámetro -Salida (herramienta de verificación).
+- PLAN DE IMPLEMENTACIÓN (aprobado): F0 kit_ui_moderno (componentes reutilizables) → F1 panel de
+  construcción (mata rótulos truncados; dinero fuera del panel) → F2 HUD superior → F3 resto de
+  pantallas (Personal, Horario, detalle de mesa, avisos) DISEÑÁNDOLAS ENTONCES con el kit probado
+  (decisión: primero aplicar, luego diseñar lo demás con el kit).
+- EN MARCHA: agente Sonnet (ui-programmer) con F0+F1; verificación final con suite + captura de
+  ventana auditada. Vigilar atascos (patrón ~25-40 tool-uses).
