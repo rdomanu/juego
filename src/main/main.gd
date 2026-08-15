@@ -66,6 +66,7 @@ const FlujoScript := preload("res://src/core/flujo/flujo.gd")
 const ImpresoraDocumentosScript := preload("res://src/core/impresora/impresora_documentos.gd")
 ## La capa cosmética de NPCs navegando (story flujo-008).
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
+const CapaSombrasScript := preload("res://src/main/capa_sombras.gd")
 const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 ## Documentación (story doc-002): el DUEÑO del horario del servicio — Flujo lo ejecuta y Demanda lo
 ## respeta, pero quien lo decide es este sistema (antes vivía prestado dentro de Flujo).
@@ -204,6 +205,8 @@ var _entorno_exterior: Node2D
 ## La bolsa de ordenación por PROFUNDIDAD (2026-08-03): paredes + mobiliario + ventanillas, todo lo
 ## que se apoya en el suelo y puede taparse entre sí. Ver el comentario largo de `_instanciar_mundo`.
 var _mundo_profundo: Node2D
+## La capa única de sombras de contacto (2026-08-14): hermana de la bolsa, z −1 (ver `CapaSombras`).
+var _capa_sombras: Node2D
 ## La cámara del juego (2026-08-04): rueda del ratón = zoom (ver `_cambiar_zoom`); desde 2026-08-07
 ## también WASD/flechas + arrastre con el botón central (ver `_procesar_pan_camara`).
 var _camara: Camera2D
@@ -651,6 +654,8 @@ func _instanciar_mundo() -> void:
 	_construccion = ConstruccionScript.new()
 	_construccion.name = "Construccion"
 	_construccion.usar_economia(_economia)
+	# ANTES de `montar_visual`: las sombras de los muebles se registran al crear cada pieza.
+	_construccion.usar_capa_sombras(_capa_sombras)
 	add_child(_construccion)
 	# Su capa de mobiliario ("Elementos") entra en la bolsa de profundidad; la tinta de suelo de las
 	# salas se queda colgando de Construcción, con su z −1 de siempre (nunca compite: va debajo).
@@ -741,6 +746,7 @@ func _instanciar_mundo() -> void:
 	_npcs.name = "NPCs"
 	# `_mundo_profundo` es la bolsa de profundidad: ahí cuelga NPCsFlujo sus CONTENEDORES de
 	# ventanilla (mobiliario) y, desde el 2026-08-06, también sus MUÑECOS QUE ANDAN — ver arriba.
+	_npcs.usar_capa_sombras(_capa_sombras)   # antes de configurar: los puestos registran su sombra
 	_npcs.configurar(
 		_flujo, _construccion, _personal, TAM_CELDA, pos_suelo, COLUMNAS, FILAS, _mundo_profundo
 	)
@@ -1495,6 +1501,12 @@ func _crear_mundo_profundo() -> void:
 	_mundo_profundo.name = "MundoProfundo"
 	_mundo_profundo.y_sort_enabled = true
 	add_child(_mundo_profundo)
+	# La capa ÚNICA de sombras de contacto (2026-08-14): HERMANA de la bolsa, nunca dentro — todo
+	# CanvasItem nacido en la carga dentro de la bolsa queda sin renderizar (gotcha cazado con
+	# sondas, ver la cabecera de `CapaSombras`). Su z −1 la deja sobre la tinta y bajo todo lo de pie.
+	_capa_sombras = CapaSombrasScript.new()
+	_capa_sombras.name = "CapaSombras"
+	add_child(_capa_sombras)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────

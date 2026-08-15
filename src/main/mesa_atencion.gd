@@ -439,6 +439,15 @@ static func hay_sprite_silla_espera() -> bool:
 	return ResourceLoader.exists(_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA))
 
 
+## La textura de la silla de espera, si hay sprite (sombra-contacto-2026-08-14: la mide
+## `Construccion._crear_pieza` para la sombra del asiento suelto). `null` sin arte —el asiento cae a
+## la silla de código— para que quien llame lo trate como "sin sombra que medir", nunca reviente.
+static func textura_silla_espera() -> Texture2D:
+	if not hay_sprite_silla_espera():
+		return null
+	return load(_ruta_sprite_silla(ID_SPRITE_SILLA_ESPERA, ROT_SILLA_ESPERA))
+
+
 static func _ruta_sprite_silla(id_silla: String, rotacion: int) -> String:
 	return "%s%s_%d.png" % [RUTA_SPRITES_MOBILIARIO, id_silla, rotacion]
 
@@ -621,6 +630,51 @@ static func construir(
 	# contenedor quedaban fuera del mecanismo de capas y su orden dependía del orden interno de
 	# este nodo, que además se intercambia entero con el policía en `_reconstruir_cuerpo_policia`.
 	return raiz
+
+
+## ── SOMBRA DE CONTACTO DEL MOSTRADOR (2026-08-14) ─────────────────────────────────────────────
+## `NPCsFlujo._asegurar_visual_puesto` necesita, para plantar la sombra bajo "Mesa", lo mismo que
+## necesitaría para dibujarla: LA MISMA textura que elige `construir()` (mismo `es_legado`/
+## `id_sprite_tier`/`frente`) y DÓNDE cae el centro de su huella. Se REPITE aquí la selección de id
+## de `construir()` (líneas 578-582) a propósito y no se reutiliza esa función: `construir()` ya
+## construye NODOS (con su rastro de bugs corregidos, ver la cabecera del fichero) y esto solo
+## necesita LEER qué textura tocaría, sin montar nada — mezclar los dos caminos sería acoplar una
+## consulta de solo lectura a la construcción real por el gusto de no repetir tres líneas.
+
+## Los SEMIEJES del mostrador que construirían estos mismos parámetros. `Vector2.ZERO` si el
+## mostrador no tiene sprite (el mostrador de código, sin PNG que medir): tratarlo como "sin sombra".
+static func semiejes_mostrador(
+	es_legado: bool = false, id_sprite_tier: String = "", frente: Vector2i = Vector2i(0, 1)
+) -> Vector2:
+	var textura: Texture2D = _textura_mostrador(es_legado, id_sprite_tier, frente)
+	return AnclajeSprite.semiejes_base(textura) if textura != null else Vector2.ZERO
+
+
+## El CENTRO GEOMÉTRICO de la huella del mostrador, en coordenadas LOCALES de "Mesa" (el nodo que
+## devuelve `construir()`). Misma cuenta que `Construccion._crear_pieza` usa para sus comodidades: el
+## "Tablero" ancla en la ÚLTIMA celda del cuerpo (`Proyeccion.delta_ultima_celda`), así que el centro
+## de las dos celdas está a MEDIO camino de ese delta.
+static func centro_mostrador(es_legado: bool = false, frente: Vector2i = Vector2i(0, 1)) -> Vector2:
+	var superficie: int = 1 if es_legado else 2
+	var paso_cuerpo: Vector2i = Vector2i(1, 0) if frente.x == 0 else Vector2i(0, 1)
+	return Proyeccion.delta_ultima_celda(paso_cuerpo, superficie) * 0.5
+
+
+## La textura que `construir()` cargaría con estos parámetros, o `null` si el tier no tiene sprite
+## (el camino de las cajas de código). Misma selección de id que `construir()` (líneas 578-582): el
+## tier pasado y disponible manda; si no, `ID_SPRITE_MOSTRADOR`/`ID_SPRITE_MOSTRADOR_2` de siempre.
+static func _textura_mostrador(
+	es_legado: bool, id_sprite_tier: String, frente: Vector2i
+) -> Texture2D:
+	var id_sprite: String = ID_SPRITE_MOSTRADOR if es_legado else ID_SPRITE_MOSTRADOR_2
+	if not es_legado and id_sprite_tier != "" and hay_sprite_mostrador(id_sprite_tier):
+		id_sprite = id_sprite_tier
+	if not hay_sprite_mostrador(id_sprite):
+		return null
+	var ruta: String = _ruta_sprite_mostrador(id_sprite, rotacion_de_frente(frente))
+	if not ResourceLoader.exists(ruta):
+		ruta = _ruta_sprite_mostrador(id_sprite)
+	return load(ruta)
 
 
 ## LA SILLA DEL CIUDADANO, suelta y ya colocada — la cuelga `NPCsFlujo._asegurar_visual_puesto` en

@@ -34,6 +34,8 @@ class_name Construccion extends Node
 ## Se preloadea en vez de usar el `class_name`: en headless "en frio" el class_name no siempre
 ## resuelve (gotcha conocido del proyecto).
 const AnclajeSpriteScript := preload("res://src/foundation/proyeccion/anclaje_sprite.gd")
+## Misma razón que `AnclajeSpriteScript` justo arriba (gotcha de `class_name` en frío).
+const SombraContactoScript := preload("res://src/foundation/proyeccion/sombra_contacto.gd")
 
 const RUTA_CONFIG := "res://datos/config/construccion.tres"
 const ConfigConstruccionScript := preload("res://src/core/construccion/config_construccion.gd")
@@ -196,6 +198,13 @@ func _ready() -> void:
 ## Inyecta Economía (dependency injection → testeable). Sin ella, construir avisa y no cobra.
 func usar_economia(economia: Node) -> void:
 	_economia = economia
+
+
+## Inyecta la capa única de sombras de contacto (`CapaSombras`; dependency injection → testeable).
+## Llamar ANTES de `montar_visual`: las piezas registran su sombra al crearse. Sin ella (tests
+## headless), las piezas no registran sombra y nada revienta.
+func usar_capa_sombras(capa: Node2D) -> void:
+	_capa_sombras = capa
 
 
 ## Inyecta Personal (dependency injection → testeable). Sin él, los puestos no se registran (aviso).
@@ -2564,6 +2573,11 @@ func load_state(d: Dictionary) -> void:
 
 var _capa_salas: TileMapLayer = null
 var _capa_elementos: Node2D = null
+## La capa única de sombras de contacto (`CapaSombras`, inyectada por Main ANTES de
+## `montar_visual`). `null` en tests headless: sin capa, las piezas simplemente no registran
+## sombra — nunca revienta. NO es un hijo de sombra por mueble: ver la cabecera de `CapaSombras`
+## (los CanvasItem nacidos en la carga dentro de la bolsa y-sort no se renderizan).
+var _capa_sombras: Node2D = null
 var _tam_celda: int = 40
 ## `tipo_sala_id -> source_id` del TileSet generado por código (un ATLAS de baldosas por tipo de
 ## sala; ver `_textura_de_celda`).
@@ -3245,12 +3259,25 @@ func _crear_pieza(
 	# pantalla. Sprite si lo hay (`silla_espera`, la MISMA silla de espera que usa el lado del
 	# ciudadano en la ventanilla — ver `mesa_atencion.gd`), si no la de código de siempre.
 	if es_asiento and not de_techo:
+		# SOMBRA DE CONTACTO (2026-08-14, decisión visual cerrada con el usuario): se REGISTRA en la
+		# capa única (`CapaSombras`) anclada a `raiz` — nunca como hijo (ver el aviso en
+		# `_registrar_sombra_pieza`). Solo si hay sprite que medir: la silla de código (sin arte) se
+		# queda sin sombra, documentado en el informe de la pasada.
+		var textura_silla: Texture2D = MesaAtencionScript.textura_silla_espera()
+		if textura_silla != null:
+			_registrar_sombra_pieza(raiz, textura_silla, Vector2.ZERO)
 		raiz.add_child(MesaAtencionScript.silla_espera_o_defecto(Vector2(-20.0, 10.0), COLOR_SILLA_ESPERA))
 		return raiz
 	var sprites_comodidad: Dictionary = _sprites_comodidad()
 	if not de_techo and id_catalogo == COMODIDAD_SOFA_DESCANSO and _hay_sprite_asiento_sofa3(orientacion):
+		# El delta se calcula UNA vez y sirve para las dos cosas: la sombra va al centro de la huella
+		# (medio delta, misma cuenta que `Construccion._crear_pieza` ya usa para comodidades — ver la
+		# cabecera de `SombraContacto.crear_sprite`) y el sprite se ancla en la ÚLTIMA celda (delta
+		# entero, regla de composites de siempre).
+		var delta_sofa: Vector2 = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
+		_registrar_sombra_pieza(raiz, load(_ruta_sprite_asiento_sofa3(orientacion)), delta_sofa * 0.5)
 		var sprite_pieza: Node2D = _pieza_sprite_asiento_sofa3(orientacion, celdas)
-		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas)
+		sprite_pieza.position = delta_sofa
 		raiz.add_child(sprite_pieza)
 	elif (
 		not de_techo and sprites_comodidad.has(id_catalogo)
@@ -3265,11 +3292,21 @@ func _crear_pieza(
 		# RESERVA sigue siendo 2 (`_celdas_de`, sin tocar) — son dos cuentas distintas a propósito,
 		# mismo patrón que ya separa huella de colocación y huella de obstáculo en los puestos.
 		var celdas_visual: int = 1 if id_catalogo == COMODIDAD_ESTANTERIA_ESQUINA else celdas
+		var paso_comodidad: Vector2i = _paso_de(orientacion)
+		var delta_comodidad: Vector2 = Proyeccion.delta_ultima_celda(paso_comodidad, celdas_visual)
+		# SOMBRA (2026-08-14): centro geométrico de la huella (medio delta), SIN el desvío de arrimado
+		# a pared que recibe el sprite más abajo — la sombra marca la CELDA que ocupa el mueble, no el
+		# dibujo corrido contra la pared; decisión tomada para no duplicar aquí la cuenta de
+		# `desvio_arrimado`/`desvio_arrimado_esquina` (documentado en el informe de la pasada).
+		var rotacion_comodidad: int = rotacion_sprite_comodidad(sprites_comodidad[id_catalogo], orientacion)
+		_registrar_sombra_pieza(
+			raiz, load(_ruta_sprite_comodidad(id_catalogo, rotacion_comodidad)), delta_comodidad * 0.5
+		)
 		var sprite_pieza: Node2D = _pieza_sprite_comodidad(
-			id_catalogo, sprites_comodidad[id_catalogo], _paso_de(orientacion), celdas_visual,
+			id_catalogo, sprites_comodidad[id_catalogo], paso_comodidad, celdas_visual,
 			orientacion
 		)
-		sprite_pieza.position = Proyeccion.delta_ultima_celda(_paso_de(orientacion), celdas_visual)
+		sprite_pieza.position = delta_comodidad
 		raiz.add_child(sprite_pieza)
 	else:
 		var caja := PiezaIso.new()
@@ -3298,6 +3335,22 @@ func _crear_pieza(
 		etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		raiz.add_child(etiqueta)
 	return raiz
+
+
+## La SOMBRA DE CONTACTO de una pieza con sprite: se REGISTRA en la capa única (`CapaSombras`)
+## anclada a `raiz`, con `centro_local` como desplazamiento (el centro geométrico de la huella).
+## ⚠️ NUNCA volver al hijo de sombra por mueble: un CanvasItem nacido en la carga dentro de la
+## bolsa y-sort no se renderiza en este árbol (gotcha 2026-08-14, cazado con sondas — ver la
+## cabecera de `CapaSombras`). `semiejes_para_mueble`: la medida de apoyo con su suelo mínimo —
+## sin él, los muebles de patas finas (silla de madera 5,25 px, estantería suelta 2,75) proyectaban
+## sombras invisibles de puro pequeñas. Sin capa inyectada (tests headless): no-op.
+func _registrar_sombra_pieza(raiz: Node2D, textura: Texture2D, centro_local: Vector2) -> void:
+	if _capa_sombras == null:
+		return
+	_capa_sombras.registrar_mueble(
+		raiz, centro_local,
+		SombraContactoScript.semiejes_para_mueble(AnclajeSpriteScript.semiejes_base(textura))
+	)
 
 
 ## ¿Hay un sprite renderizado para esta comodidad, en la rotación que le toca a esta `orientacion`?

@@ -23,6 +23,8 @@ const ImpresoraDocumentosScript := preload("res://src/core/impresora/impresora_d
 ## La señal de prohibido sobre la cabeza de quien está BLOQUEADO sin camino real a su destino
 ## (bug 2026-08-03, compartida con `NPCCiudadano`).
 const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
+## La elipse de sombra de contacto (2026-08-14), para la del mostrador de cada puesto.
+const SombraContactoScript := preload("res://src/foundation/proyeccion/sombra_contacto.gd")
 
 ## Colores placeholder por servicio (los mismos tonos que las salas de Construcción).
 const COLOR_DOC := Color(0.35, 0.55, 0.9)
@@ -89,6 +91,8 @@ var _flujo: Node = null
 var _construccion: Node = null
 var _personal: Node = null
 var _paciencia: Node = null
+## La capa única de sombras de contacto (`CapaSombras`, inyectada por Main). `null` en headless.
+var _capa_sombras: Node2D = null
 ## El viaje del papel (GDD impresora-documentos-tramite.md). Sin ella cableada, ningún puesto hace el
 ## viaje visual: se degrada a "no hay papel que buscar", igual que el propio módulo si no la inyectan.
 var _impresora: Node = null
@@ -150,6 +154,7 @@ var _capa_descansos: Node2D = null
 ## personaje va EN MEDIO: el RESPALDO de la silla de espera partida (`MesaAtencion.
 ## silla_ciudadano_respaldo`). Necesita capa propia —y no compartir la de su asiento— porque
 ## `_insertar_en_capa` ordena por capa y dos hijos con la MISMA capa quedarían en orden indefinido.
+##
 const CAPA_FONDO: int = 0
 const CAPA_PERSONAJE: int = 1
 const CAPA_FRENTE: int = 2
@@ -436,6 +441,13 @@ func usar_paciencia(paciencia: Node) -> void:
 	_paciencia = paciencia
 
 
+## Inyecta la capa única de sombras de contacto (`CapaSombras`; ver su cabecera — las sombras NO
+## son hijos de los visuales ni de los contenedores de puesto). Llamar ANTES de `configurar`: los
+## puestos registran la sombra de su mostrador al montarse. Sin ella (tests headless), no-op.
+func usar_capa_sombras(capa: Node2D) -> void:
+	_capa_sombras = capa
+
+
 ## Inyecta el viaje del papel (GDD impresora-documentos-tramite.md): sin ella, ningún funcionario se
 ## levanta a por el documento (cosmético puro, FL5 — nunca decide nada de la simulación).
 func usar_impresora(impresora: Node) -> void:
@@ -633,6 +645,10 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 	var fase: float = recorrido / LARGO_ZANCADA * PI
 	visual.position = destino - Vector2(0.0, MunecoScript.bote(fase, andando))
 	visual.rotation = sin(fase) * VAIVEN_PASO * andando
+	# LA SOMBRA SE QUEDA EN EL SUELO (2026-08-14): el bote y el vaivén son licencia del CUERPO al
+	# andar, no de la sombra de contacto. La pinta `CapaSombras` (nunca un hijo del visual — gotcha
+	# de la bolsa) leyendo esta meta: el `destino` SIN el bote, arrime del puesto incluido.
+	visual.set_meta(&"pos_suelo_sombra", destino)
 	# Un muñeco de SPRITE avanza su ciclo de fotogramas; el de piezas mueve sus piezas. Los dos con
 	# la MISMA fase, así que caminan al mismo ritmo.
 	var cuerpo: Node2D = _cuerpo_sprite(visual)
@@ -643,6 +659,8 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 		# ahora andan con esa postura"*. La silla se reserva al ELEGIR destino, no al llegar; el que
 		# sabe si ha llegado es el movimiento, no el modelo.
 		var sentado: bool = bool(visual.get_meta(&"sentado", false)) and andando < 0.2
+		# Sentado (de verdad: sentado Y parado) no proyecta sombra — el asiento pone la suya.
+		visual.set_meta(&"sombra_visible", not sentado)
 		# 🐛 DE ESPALDAS EN LA VENTANILLA (2026-08-09, usuario: *"los ciudadanos cuando hacen los
 		# trámites salen de espaldas, no se giran en ningún momento muchos de ellos, otros sí"*).
 		# La dirección solo se recalcula al MOVERSE (ver el bloque de abajo), así que quien llegaba
@@ -662,6 +680,8 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 			)
 		MunecoScript.animar_sprite(cuerpo, fase, andando, sentado)
 	else:
+		# El muñeco de PIEZAS no lleva sombra de contacto (decisión v1: solo los de sprite).
+		visual.set_meta(&"sombra_visible", false)
 		MunecoScript.animar(visual, fase, andando)
 	# El papel va EN LA MANO y acompaña al paso, y de espaldas se esconde tras el cuerpo
 	# (2026-08-09) — ver `Muneco.colocar_papel`. Si el muñeco no lleva papel, no hace nada.
@@ -694,6 +714,10 @@ func colocar_muneco(visual: Node2D, punto_cuadrado: Vector2) -> void:
 ## viajes de descanso/incorporación: el cuerpo se queda en el plano lógico y su muñeco viene aquí.
 func registrar_muneco(muneco: Node2D) -> void:
 	_capa_escena.add_child(muneco)
+	# Su sombra de contacto la pinta la capa única leyendo las metas que deja `colocar_muneco`
+	# (`pos_suelo_sombra`/`sombra_visible`) — nunca un hijo del visual (gotcha de la bolsa, 2026-08-14).
+	if _capa_sombras != null:
+		_capa_sombras.registrar_muneco(muneco)
 
 
 ## ¿Está SENTADO este ciudadano ahora mismo? Dos casos, y los dos son "tiene una silla debajo":
@@ -2069,6 +2093,22 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	var frente: Vector2i = _construccion.frente_de_orientacion(
 		_construccion.orientacion_de_elemento(puesto_id)
 	)
+	# `es_legado`/`tier` se calculan UNA vez y sirven para dos cosas: la sombra del mostrador (justo
+	# abajo, vía `CapaSombras`) y la llamada a `MesaAtencionScript.construir` de más abajo — mismos
+	# parámetros, ni un valor distinto entre lo que se mide y lo que se dibuja.
+	var es_legado: bool = _construccion.es_huella_legado(puesto_id)
+	var tier: String = String(_construccion.catalogo_de_elemento(puesto_id))
+	# SOMBRA DE CONTACTO DEL MOSTRADOR (2026-08-14): se REGISTRA en la capa única (`CapaSombras`)
+	# anclada al contenedor del puesto — NUNCA como hijo del contenedor (los CanvasItem nacidos en
+	# la carga dentro de la bolsa no se renderizan; y el z −1 de la capa ya la deja debajo de todo,
+	# sin necesitar capa del ADR-0005). `Vector2.ZERO` ⇒ mostrador de código, sin sprite que medir
+	# — se queda sin sombra (documentado en el informe de la pasada).
+	var semiejes_mesa: Vector2 = MesaAtencionScript.semiejes_mostrador(es_legado, tier, frente)
+	if semiejes_mesa != Vector2.ZERO and _capa_sombras != null:
+		_capa_sombras.registrar_mueble(
+			contenedor, MesaAtencionScript.centro_mostrador(es_legado, frente),
+			SombraContactoScript.semiejes_para_mueble(semiejes_mesa)
+		)
 	var sitio_funcionario: Vector2 = MesaAtencionScript.desvio_funcionario(frente)
 	var silla_funcionario: Node2D = MesaAtencionScript.silla_funcionario_o_defecto(
 		sitio_funcionario.normalized() * 20.0
@@ -2088,11 +2128,7 @@ func _asegurar_visual_puesto(puesto_id: StringName, celda: Vector2i) -> void:
 	# si no hay PNG con ese nombre (`puesto_doc_general`/`puesto_tie`/`puesto_odac`, que siguen sin
 	# tener uno propio, se quedan en "ventanilla_basica" exactamente como hasta hoy).
 	_insertar_en_capa(
-		contenedor, MesaAtencionScript.construir(
-			_construccion.es_huella_legado(puesto_id),
-			String(_construccion.catalogo_de_elemento(puesto_id)),
-			frente
-		),
+		contenedor, MesaAtencionScript.construir(es_legado, tier, frente),
 		CAPA_PERSONAJE
 	)
 	policia.position = sitio_funcionario

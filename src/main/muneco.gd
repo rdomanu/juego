@@ -136,6 +136,10 @@ static func hay_sprites(prefijo: String, alto: int) -> bool:
 ## en (0,0), que es el punto de la celda donde pisa.
 static func construir_sprite(prefijo: String, alto: int) -> Node2D:
 	var raiz := Node2D.new()
+	# SOMBRA DE CONTACTO (2026-08-14): NO es un hijo de este nodo — la pinta la capa única
+	# `CapaSombras` (un CanvasItem nacido en la carga dentro de la bolsa y-sort no se renderiza,
+	# gotcha cazado con sondas). `NPCsFlujo.colocar_muneco` deja en el VISUAL las metas
+	# `pos_suelo_sombra` (el destino SIN el bote del paso) y `sombra_visible` (false sentado).
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
 	sprite.centered = false
@@ -206,6 +210,8 @@ static func construir_sprite_sentado(prefijo: String, alto: int, mirando_hacia: 
 	raiz.set_meta(&"direccion", indice)
 	raiz.set_meta(&"sentado", true)
 	_poner_sprite(raiz, indice, 0, true)
+	# Sentado no proyecta sombra de contacto propia (el asiento pone la suya) — y como este visual
+	# nunca se registra en `CapaSombras` (solo se registran los andantes), no hay nada que apagar.
 	return raiz
 
 

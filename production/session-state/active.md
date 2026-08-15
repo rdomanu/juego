@@ -3353,3 +3353,79 @@ asientos → 1,0 neutro) · `Paciencia.puntuacion_atendida(..., factor_asiento)`
 (pregunta por las salas de espera del SERVICIO y toma la mejor; NO mira el asiento concreto que ocupó
 —eso es de la capa visual y Paciencia no debe depender de ella, ADR-0001).
 7 tests nuevos (4 en bancos_multiplaza_test, 3 en paciencia_puntuacion_test). Suite 981/981 verde.
+
+## 2026-08-14: SOMBRAS DE CONTACTO — decisión B (30%) + test blindaje de huella
+Sesión nueva (Fable 5 coordina; Sonnet 5 ejecuta; el usuario descartó Antigravity: no ofrece
+modelos Claude 5 y el BYOK no funciona en Windows — se sigue en Claude Code).
+DECISIONES DEL USUARIO:
+- Sombra de contacto bajo muebles y NPC: variante **B, alfa pico 0,30**, color (10,10,15),
+  caída (1−r²)^1,2. Elegida sobre hoja de 4 variantes (sin/18%/30%/45%) montada con sprites
+  reales a escala del juego. La elipse se define EN EL PLANO DEL SUELO y se proyecta
+  (eje u→(1,0.5), v→(−1,0.5) por px lógico) — una elipse alineada a pantalla queda descentrada
+  del mueble girado 45° (se vio en la propia hoja y se corrigió antes de enseñarla).
+- La sombra del NPC compensa el BOTE del andar (visual.position resta el bote en
+  npcs_flujo:634): el cuerpo bota, la mancha queda pegada al suelo. Sentado → sombra oculta.
+- Test nuevo que BLINDA la norma "ningún sprite se pasa de su huella" (hasta hoy se medía a
+  mano): mide todo el catálogo con AnclajeSprite.semiejes_base por orientación; tolerancia 0.
+EN MARCHA (2 agentes Sonnet 5 en paralelo):
+1. Implementación sombras: sombra_contacto.gd nuevo + construccion.gd (primer hijo del raiz,
+   semiejes de semiejes_base, centro geométrico de la huella) + muneco.gd/npcs_flujo.gd
+   (hijo "Sombra", compensación de bote) + CAPA_SOMBRA=-1 en puestos (mostrador; sentados sin
+   sombra) + ADR-0005 + tests. Suite puerto 6008.
+2. tests/unit/construccion/mobiliario_huella_test.gd. Suite puerto 6009.
+Hoja de decisión: scratchpad de la sesión (hoja_sombras.py / .png).
+PENDIENTE al volver los agentes: verificar informes CONTRA DISCO, sonda visual in-game con
+sombras (auditar yo antes de enseñar), commit por hito con verde.
+
+## 2026-08-14 (tarde): BUG GORDO CAZADO — sprites nacidos en la carga dentro de la bolsa NO se pintan
+El primer intento de sombras (Sprite2D hijo de cada mueble/muñeco) quedó implementado y con tests
+verdes… y EN PANTALLA no salía NI UNA sombra. Diagnóstico mío con sondas y muestreo de píxeles
+(nada de ojímetro):
+- Los nodos existían, visible=true, textura bien (alfa 0,996 en el centro), transform bien, cadena
+  de padres impecable (autopsia completa). Y cero efecto en píxeles.
+- MATRIZ DE PRUEBAS: fresco→bolsa PINTA · fresco→raíz real del mueble PINTA · duplicate() de una
+  víctima PINTA · la víctima original NO PINTA en ningún sitio (ni reparentada) y NO se cura
+  (queue_redraw, visible off/on, z_index=-1). Sin duplicados de muebles (descartado).
+- REGLA EMPÍRICA: todo CanvasItem creado DURANTE LA CARGA como descendiente de MundoProfundo
+  (y-sort anidado) queda permanentemente sin renderizar. Creado después, o fuera de la bolsa,
+  pinta siempre. NO reproducible en escena mínima (probado: 2 y-sort anidados, cámara desplazada,
+  reparenteo en el mismo frame — todo pinta en aislado). Causa raíz del motor: sin identificar.
+- Segundo hallazgo: semiejes_base mide las PATAS (silla madera 5,25×5,25; estantería 2,75 de
+  fondo) → sombra invisible de puro pequeña. Añadido SEMIEJE_MINIMO_MUEBLE=9.0 +
+  semiejes_para_mueble() en sombra_contacto.gd.
+- LECCIÓN DE PROCESO: los tests de estructura del agente estaban verdes con las sombras invisibles.
+  La verificación visual/numérica de PÍXELES es obligatoria para todo lo que pinte en pantalla.
+REDISEÑO EN MARCHA (encargado al agente con spec detallada): CapaSombras única (Node2D, z=-1,
+HERMANA de MundoProfundo, territorio probado-seguro) que dibuja todas las elipses en _draw() desde
+un registro con weakrefs; muebles se registran al crearse, colocar_muneco deja meta
+pos_suelo_sombra (destino sin bote). Criterio de éxito NUMÉRICO en la sonda _diag_sombras.
+Sondas de esta cacería: _diag_sombras (radiografía+bisecciones), _diag_sombra_aislada,
+_diag_semiejes_sombra — desechables.
+
+## 2026-08-15: SOMBRAS EN EL JUEGO (CapaSombras) + huella BLINDADA Y EN VERDE
+CIERRE de la cacería de ayer — el fantasma era EL INSTRUMENTO: `get_viewport().get_texture().
+get_image()` en el renderer Compatibility PIERDE contenido (los "nodos envenenados" pintaban
+PERFECTAMENTE en la ventana real; verificado con PrintWindow + muestreo de píxeles). Lección
+grabada a fuego: **verificación visual = captura de la VENTANA (PrintWindow), nunca el volcado
+del viewport**. La sonda `_diag_sombras` ya se queda 15 s quieta para capturarla desde fuera y el
+`.ps1` de captura está en el scratchpad de la sesión (captura_ventana.ps1).
+- El rediseño CapaSombras SE QUEDA (aunque el motivo original fuera fantasma): una capa única
+  z=−1 hermana de la bolsa, registro con weakrefs, cero nodos por mueble, orden garantizado por z.
+  Suelo mínimo de semiejes (9 px lógicos) para muebles de patas finas.
+- Verificación numérica en ventana real: sombra de silla medida (64,73,90) vs suelo (68,78,96) —
+  coincide con la predicción teórica de la curva B a ese radio. En suelos claros se lee clara;
+  en salas oscuras queda sutil (knob: SombraContacto.ALFA_PICO si el usuario quiere más).
+- RECALIBRADO de los 2 infractores de huella (pedido expreso del usuario): banco_espera_pro
+  (receta v9 en _render_bancos_barrera: 0,6492→0,6332) y escritorio_trabajo (la receta canónica
+  resultó ser _render_biblioteca_fichajes, objetivo_px 58→49; el escritorio encoge ~15%, hoja
+  antes/después en scratchpad hoja_recalibrado.png, PENDIENTE del OK visual del usuario).
+  Medidos tras promover+import: ambos 0,988 celdas máx en las 4 vistas.
+- SUITE: **996/996 verde, Exit code 0** (era 981 + 1 huella + 8 sombra_contacto + 5 muneco_sombra
+  + 1 más de la suite previa). Arranque limpio.
+- Agente-gotcha nuevo: el agente implementador murió por watchdog (600 s sin progreso) tras 4
+  atascos; el rediseño lo ejecutó Fable directamente.
+- Informe de PAREDES (pregunta del usuario, agente verificado): las paredes JUGABLES (salas,
+  fachada, muros del pincel) son 100% dibujo por código (TramoPared.draw_colored_polygon), CERO
+  kit; el Building Kit (79 glb) solo aporta 22 piezas decorativas manuales del diseñador de
+  entorno; la garita/tejados/barricadas del kit siguen sin usar; el defecto "dientes de 2 px"
+  sigue sin arreglo activo (dos parches desactivados por veredicto del usuario 2026-08-09).

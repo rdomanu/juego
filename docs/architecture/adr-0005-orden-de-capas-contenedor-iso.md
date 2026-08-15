@@ -100,6 +100,22 @@ Vive en `MesaAtencion` (`FONDO_BASE_SILLA_*_PX` → `ARRIME_*` → `CELDA_FUNCIO
 `CELDA_CIUDADANO` → `DESVIO_DIBUJO_CIUDADANO`), una sola cadena para silla y persona: quien se
 sienta va SIEMPRE donde su silla.
 
+## Enmienda 2026-08-14 — sombras de contacto: FUERA del contenedor (y de la bolsa)
+
+Las sombras de contacto (elipse difuminada bajo mobiliario y NPCs, decisión visual cerrada con el
+usuario) NO se dibujan como hijos del contenedor de puesto ni de ningún visual. Se intentó primero
+(con una `CAPA_SOMBRA = −1` de este mecanismo) y se descubrió un gotcha del árbol real, cazado con
+sondas y muestreo de píxeles: **un CanvasItem creado durante la carga como descendiente de
+`MundoProfundo` (la bolsa y-sort) queda permanentemente sin renderizar** — propiedades y textura
+perfectas, cero píxeles, incurable (ni reparentar, ni `queue_redraw`, ni `visible` off/on; un
+`duplicate()` del mismo nodo sí pinta). No reproducible en escena mínima.
+
+La solución vive fuera del alcance de este ADR: `CapaSombras` (hermana de la bolsa, `z_index = −1`)
+pinta TODAS las sombras del juego en un único `_draw()` desde un registro (ver su cabecera). Como
+el `z_index` manda sobre el y-sort, toda sombra queda por debajo de cualquier cosa de pie sin
+declarar capa. Este ADR sigue rigiendo, intacto, el orden de los hijos VISIBLES del contenedor;
+la sombra del mostrador se registra en la capa única con el contenedor como ancla.
+
 ## Alternativas descartadas
 
 - `z_index` por hijo: funciona, pero desperdiga la decisión por cada llamada y ya demostró ser
