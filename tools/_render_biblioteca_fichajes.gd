@@ -23,7 +23,7 @@ extends "res://tools/render_mobiliario.gd"
 ## (fichaje, no integración: audita primero Summer/el usuario, integra después otro encargo).
 
 const CARPETA_ORIGEN := "res://capturas/fuentes/biblioteca_summer/"
-const CARPETA_SCRATCH := "C:/Users/manur/AppData/Local/Temp/claude/C--Users-manur-juego/215a563b-bfbe-4c01-85e5-a766c08242b0/scratchpad/"
+const CARPETA_SCRATCH := "C:/Users/manur/AppData/Local/Temp/claude/C--Users-manur-juego/aad5e0e0-a0be-4878-b068-20ca5cee13c8/scratchpad/renders_recalibrado/"
 
 const ALTO_MUNECO_PX: float = 44.0
 const ALTO_MUNECO_M: float = 1.70
@@ -34,7 +34,10 @@ const FACTOR_PRESENCIA: float = 1.25
 ## fijo). `modo`="alto": `objetivo_px` se CALCULA de `altura_m * PX_POR_METRO * FACTOR_PRESENCIA`
 ## (no se escribe a mano, para que quede trazado el metro real detrás del pixel).
 const MODELOS: Array[Dictionary] = [
-	{"id": "escritorio_trabajo", "archivo": "escritorio_trabajo.glb", "modo": "ancho", "objetivo_px": 58.0, "celdas_footprint": 2},
+	# RECALIBRADO 2026-08-15: con 58 px el dibujo medía 1,163 celdas en el plano del suelo (90°/180°)
+	# y la norma de huella es ≤ 1 celda estricta (lo cazó `mobiliario_huella_test`, tolerancia 0).
+	# 58 × (0,985 / 1,163) ≈ 49. Verificar tras el render con ese mismo test.
+	{"id": "escritorio_trabajo", "archivo": "escritorio_trabajo.glb", "modo": "ancho", "objetivo_px": 49.0, "celdas_footprint": 1},
 	{"id": "silla_oficina", "archivo": "silla_oficina.glb", "modo": "alto", "altura_m": 1.00, "celdas_footprint": 1},
 	{"id": "vending_nueva", "archivo": "vending_nueva.glb", "modo": "alto", "altura_m": 1.83, "celdas_footprint": 1},
 ]

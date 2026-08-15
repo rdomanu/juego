@@ -102,7 +102,10 @@ const MODELOS_BANCOS: Array[Dictionary] = [
 	## Los modelos VIEJOS calibrados a la ALTURA BUENA (41 px): son mas alargados que los modulos
 	## nuevos (ratio 2,07 y 1,89 contra 1,40-1,81), asi que a la misma altura llenan mucho mas celda.
 	{"id": "viejo_medio_bajo", "ruta": CARPETA_BANCOS + "banco_espera_medio.glb", "ancho_objetivo_celdas": 0.6280},
-	{"id": "viejo_pro_bajo", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 0.6492},
+	# RECALIBRADO 2026-08-15 (receta v9): con 0,6492 el dibujo medía 1,013 celdas en 180°/270° y la
+	# norma es ≤ 1 estricta (mobiliario_huella_test, tolerancia 0; las notas de sesión solo habían
+	# verificado 0°/90°). 0,6492 × (0,988 / 1,013) = 0,6332.
+	{"id": "viejo_pro_bajo", "ruta": CARPETA_BANCOS + "banco_espera_pro.glb", "ancho_objetivo_celdas": 0.6332},
 	{"id": "banco_premium_madera_summer", "ruta": CARPETA_BANCOS + "banco_premium_madera_summer.glb", "ancho_objetivo_celdas": 1.228, "pasos_giro": 1},
 ]
 
