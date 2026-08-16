@@ -2135,6 +2135,10 @@ func _crear_ui() -> void:
 	estilo_fondo.content_margin_top = 10.0
 	estilo_fondo.content_margin_bottom = 14.0
 	panel.add_theme_stylebox_override("panel", estilo_fondo)
+	# LA TIPOGRAFÍA MODERNA DE GOLPE (decisión del usuario 2026-08-16, "menu_v3_completo.png es la
+	# buena"): el Theme del kit pone Segoe UI a TODO lo que cuelga del panel — sin él, cada control
+	# heredaba la pixelada en mayúsculas del tema global y el panel se veía "antiguo" pese al reskin.
+	panel.theme = KitUIComisarioScript.moderno_tema()
 	capa.add_child(panel)
 	_panel_raiz = panel
 	_panel_raiz.visible = false   # colapsado = invisible; lo gobierna `_actualizar_visibilidad`
@@ -2437,7 +2441,10 @@ func _anadir_herramienta(
 	var ficha_completa: Dictionary = ficha.duplicate()
 	ficha_completa["textura"] = textura_ficha
 	_datos_ficha[id] = ficha_completa
-	var boton := _construir_tarjeta_moderna(texto, icono_id, textura_miniatura, String(ficha.get("precio", "")))
+	var boton := _construir_tarjeta_moderna(
+		texto, icono_id, textura_miniatura, String(ficha.get("precio", "")),
+		String(ficha.get("huella", ""))
+	)
 	boton.pressed.connect(func() -> void: _fijar_herramienta(id, es_sala))
 	_botones_herramienta[id] = boton
 	if categoria != &"":
@@ -2461,14 +2468,15 @@ const ANCHO_TARJETA_MODERNA: float = 134.0
 ## Alto FIJO de la tarjeta. Un `Button` NO es un contenedor: su hijo no lo hace crecer (bug cazado
 ## en la primera captura: el VBox se colapsaba a ancho 0 y los nombres salían en vertical, una
 ## letra por línea). La tarjeta declara su tamaño y el contenido se ancla a su rect completo.
-const ALTO_TARJETA_MODERNA: float = 150.0
+const ALTO_TARJETA_MODERNA: float = 164.0
 
 ## La tarjeta blanca con sombra de la rejilla de catálogo (maqueta v2, F0/F1): miniatura arriba,
 ## nombre y precio debajo. Selección = borde de acento 3px (`toggle_mode` nativo decide cuál de los
 ## dos estilos se pinta -- sigue siendo la ÚNICA fuente de verdad de "seleccionada", igual que en el
 ## reskin anterior con el arte 9-slice).
 func _construir_tarjeta_moderna(
-	texto: String, icono_id: StringName, textura_miniatura: Texture2D, precio: String
+	texto: String, icono_id: StringName, textura_miniatura: Texture2D, precio: String,
+	huella: String = ""
 ) -> Button:
 	var boton := Button.new()
 	boton.text = ""
@@ -2521,9 +2529,8 @@ func _construir_tarjeta_moderna(
 	var etiqueta := Label.new()
 	etiqueta.name = "RotuloTarjeta"
 	etiqueta.text = texto
-	# 10 y no 11: con la fuente ancha del kit, "DOCUMENTACIÓN" a 11px no cabía en la tarjeta y el
-	# autowrap partía la palabra ("DOCUMENTACI-ÓN") — regla dura: ningún rótulo roto.
-	etiqueta.add_theme_font_size_override("font_size", 10)
+	etiqueta.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
+	etiqueta.add_theme_font_size_override("font_size", 13)
 	etiqueta.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
 	etiqueta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# `autowrap` WORD_SMART, SIN `clip_contents` (a diferencia del reskin anterior): con alto NO fijo,
@@ -2535,12 +2542,23 @@ func _construir_tarjeta_moderna(
 	if precio != "":
 		var lbl_precio := Label.new()
 		lbl_precio.text = precio
-		lbl_precio.add_theme_font_size_override("font_size", 11)
+		lbl_precio.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
+		lbl_precio.add_theme_font_size_override("font_size", 13)
 		lbl_precio.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_ACENTO)
 		lbl_precio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl_precio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl_precio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		contenido.add_child(lbl_precio)
+	# La línea gris de huella ("1 celda · 2 plazas") — el dato que las miniaturas de los Sims no
+	# dan y su comunidad lleva años pidiendo; la maqueta v2 lo trae en cada tarjeta.
+	if huella != "":
+		var lbl_huella := Label.new()
+		lbl_huella.text = huella
+		lbl_huella.add_theme_font_size_override("font_size", 11)
+		lbl_huella.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_GRIS)
+		lbl_huella.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl_huella.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		contenido.add_child(lbl_huella)
 	return boton
 
 
@@ -2577,18 +2595,9 @@ func _construir_categoria_lateral(id: StringName, nombre: String) -> Button:
 	fila.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	boton.add_child(fila)
 
-	var icono_id: StringName = KitUIComisarioScript.ICONO_POR_CATEGORIA.get(id, &"")
-	var textura: Texture2D = KitUIComisarioScript.icono(icono_id)
-	if textura != null:
-		var rect := TextureRect.new()
-		rect.name = "IconoCategoria"
-		rect.texture = textura
-		rect.custom_minimum_size = Vector2(20.0, 20.0)
-		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rect.modulate = KitUIComisarioScript.MOD_COLOR_TINTA
-		fila.add_child(rect)
+	# SIN pictograma (2026-08-16): los iconos del kit viejo son manchas oscuras al lado de la
+	# tipografía moderna (auditado en captura contra la maqueta aprobada). La categoría es solo
+	# texto hasta que exista un set de iconos de línea del lenguaje nuevo (tarea de arte futura).
 
 	var etiqueta := Label.new()
 	etiqueta.name = "RotuloCategoria"

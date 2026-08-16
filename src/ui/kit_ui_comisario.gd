@@ -143,10 +143,13 @@ static func modulo_barra_superior(id: StringName) -> Texture2D:
 ## Prefijo `MOD_`/`moderno_` a propósito: NO sustituye al kit del piloto (HUD superior, modales siguen
 ## en la paleta navy/pixel-art de arriba) -- conviven mientras el resto de pantallas no migre.
 ##
-## La FUENTE sigue siendo la del `Theme` de este mismo fichero (`tema()`, Kenney Future) -- las
-## maquetas prototipan con Segoe UI, pero la tipografía definitiva del kit es una decisión de ARTE
-## pendiente (anotado en el informe de la tarea F0/F1): estas fábricas NO cargan una fuente propia,
-## heredan la que ya trae `panel.theme = KitUIComisario.tema()` en quien las usa.
+## LA FUENTE MODERNA (decisión del usuario 2026-08-16: "menu_v3_completo.png es la buena" — y esa
+## maqueta está compuesta en Segoe UI): `moderno_tema()` carga Segoe UI como `SystemFont` y quien
+## monte una pantalla moderna lo aplica a su raíz (`panel.theme = KitUIComisario.moderno_tema()`)
+## para que TODO herede la tipografía de golpe. `SystemFont` vale porque el proyecto es SOLO
+## Windows (technical-preferences); si algún día se portea, se sustituye aquí por una fuente
+## empaquetada (un solo sitio). El kit viejo (`tema()`, Kenney Future) sigue intacto para el HUD
+## pixel mientras no migre (F2).
 ##
 ## Colores muestreados de la maqueta (`design/ux/maquetas-menu-2026-08/maqueta_menu_v2.py`).
 const MOD_COLOR_PANEL := Color(0.933, 0.953, 0.976, 1.0)          # panel claro (238,243,249)
@@ -173,6 +176,36 @@ const MOD_RADIO_PEQUENO: float = 14.0
 ## de la maqueta: "borde acento 3px + leve realce") -- es SOLO el refuerzo visual; quien la usa debe
 ## seguir marcando la selección con estado real (`Button.button_pressed`), nunca con este borde a
 ## solas, por accesibilidad (daltonismo -- el proyecto exige forma/estado además de color).
+## La fuente del lenguaje moderno, cacheada. `negrita` = el peso seminegrita (600) con el que la
+## maqueta compone nombres, precios y botones; el resto va en regular.
+static var _fuente_moderna: SystemFont = null
+static var _fuente_moderna_negrita: SystemFont = null
+
+static func moderno_fuente(negrita: bool = false) -> Font:
+	if negrita:
+		if _fuente_moderna_negrita == null:
+			_fuente_moderna_negrita = SystemFont.new()
+			_fuente_moderna_negrita.font_names = PackedStringArray(["Segoe UI"])
+			_fuente_moderna_negrita.font_weight = 600
+		return _fuente_moderna_negrita
+	if _fuente_moderna == null:
+		_fuente_moderna = SystemFont.new()
+		_fuente_moderna.font_names = PackedStringArray(["Segoe UI"])
+	return _fuente_moderna
+
+
+## El Theme de las pantallas modernas, cacheado: fuente Segoe UI por defecto para TODO control que
+## cuelgue de la raíz que lo reciba. Los tamaños/pesos concretos siguen siendo overrides puntuales.
+static var _tema_moderno: Theme = null
+
+static func moderno_tema() -> Theme:
+	if _tema_moderno == null:
+		_tema_moderno = Theme.new()
+		_tema_moderno.default_font = moderno_fuente()
+		_tema_moderno.default_font_size = 13
+	return _tema_moderno
+
+
 static func moderno_tarjeta(seleccionada: bool = false, radio: float = MOD_RADIO_TARJETA) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var estilo := StyleBoxFlat.new()
