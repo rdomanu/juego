@@ -12,10 +12,15 @@ public class CapVentana {
   public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdc, uint flags);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 }
 "@
 Add-Type -TypeDefinition $codigo
 Add-Type -AssemblyName System.Drawing
+# DPI-aware SIEMPRE (2026-08-18): sin esto, con el monitor a 125% Windows "virtualiza" GetWindowRect
+# (devuelve la ventana ENCOGIDA) y PrintWindow entrega solo la esquina superior izquierda — un dia
+# entero creyendo que la UI se recortaba cuando lo recortado era LA CAPTURA.
+[CapVentana]::SetProcessDPIAware() | Out-Null
 
 $proc = Get-Process | Where-Object { $_.ProcessName -like 'Godot*' -and $_.MainWindowTitle -like 'Comisario*' } | Select-Object -First 1
 if (-not $proc) { Write-Output 'SIN ventana Comisario'; exit 1 }

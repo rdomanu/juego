@@ -67,6 +67,7 @@ const ImpresoraDocumentosScript := preload("res://src/core/impresora/impresora_d
 ## La capa cosmética de NPCs navegando (story flujo-008).
 const NPCsFlujoScript := preload("res://src/main/npcs_flujo.gd")
 const CapaSombrasScript := preload("res://src/main/capa_sombras.gd")
+const MarcadorVentanillaScript := preload("res://src/main/marcador_ventanilla.gd")
 const PacienciaScript := preload("res://src/feature/paciencia/paciencia.gd")
 ## Documentación (story doc-002): el DUEÑO del horario del servicio — Flujo lo ejecuta y Demanda lo
 ## respeta, pero quien lo decide es este sistema (antes vivía prestado dentro de Flujo).
@@ -207,6 +208,8 @@ var _entorno_exterior: Node2D
 var _mundo_profundo: Node2D
 ## La capa única de sombras de contacto (2026-08-14): hermana de la bolsa, z −1 (ver `CapaSombras`).
 var _capa_sombras: Node2D
+## El realce de la ventanilla seleccionada (F3, 2026-08-18): hermana de la bolsa, z 400.
+var _marcador_ventanilla: Node2D
 ## La cámara del juego (2026-08-04): rueda del ratón = zoom (ver `_cambiar_zoom`); desde 2026-08-07
 ## también WASD/flechas + arrastre con el botón central (ver `_procesar_pan_camara`).
 var _camara: Camera2D
@@ -415,6 +418,9 @@ func _ready() -> void:
 	_panel_ventanilla.name = "PanelVentanilla"
 	_panel_ventanilla.configurar(_flujo, _personal, _construccion, _odac, _documentacion)
 	add_child(_panel_ventanilla)
+	# El realce del mundo se inyecta aparte: la capa nace con la bolsa (`_crear_mundo_profundo`,
+	# que corre antes que este bloque), el panel solo la enciende/apaga (ver `MarcadorVentanilla`).
+	_panel_ventanilla.usar_marcador(_marcador_ventanilla)
 	var panel_odac: CanvasLayer = PanelODACScript.new()
 	panel_odac.name = "PanelODAC"
 	panel_odac.configurar(_odac, _flujo, _personal)
@@ -1507,6 +1513,12 @@ func _crear_mundo_profundo() -> void:
 	_capa_sombras = CapaSombrasScript.new()
 	_capa_sombras.name = "CapaSombras"
 	add_child(_capa_sombras)
+	# El realce de la ventanilla cuya ficha está abierta (F3, 2026-08-18): MISMO criterio que la
+	# capa de sombras — hermana de la bolsa, nunca dentro (su z 400 lo deja por encima de todo lo
+	# que pisa el suelo). Lo enciende/apaga PanelVentanilla vía `usar_marcador`.
+	_marcador_ventanilla = MarcadorVentanillaScript.new()
+	_marcador_ventanilla.name = "MarcadorVentanilla"
+	add_child(_marcador_ventanilla)
 
 
 # ── Suelo (TileMapLayer — NUNCA TileMap, deprecado) ──────────────────────────────────────────
