@@ -173,6 +173,10 @@ const MOD_COLOR_VERDE_SUAVE := Color(0.886, 0.957, 0.918, 1.0)
 ## "COSTE TOTAL DE PEONADA HOY" de la pantalla de Horario (F3, `maqueta_horario.py::ROJO_SUAVE`).
 ## El texto de encima va en `MOD_COLOR_ROJO`, que sobre este fondo sí contrasta.
 const MOD_COLOR_ROJO_SUAVE := Color(0.980, 0.890, 0.882, 1.0)
+## Ámbar SUAVE de fondo (252,238,219) — la pastilla circular del icono de un aviso ámbar en la pila
+## de toasts (F3, `maqueta_avisos.py::AMBAR_SUAVE`). Gemelo de `MOD_COLOR_ROJO_SUAVE`/
+## `MOD_COLOR_ACENTO_SUAVE`: fondo tenue sobre el que el glifo en `MOD_COLOR_AMBAR_TEXTO` contrasta.
+const MOD_COLOR_AMBAR_SUAVE := Color(0.988, 0.933, 0.859, 1.0)
 ## Ámbar OSCURECIDO, SOLO para texto de cuerpo sobre `MOD_COLOR_PANEL` (F3, 2026-08-17): el ámbar de
 ## aviso (240,158,44) sobre panel claro no llega al contraste mínimo de
 ## `design/ux/accessibility-requirements.md`; esta variante (181,112,15) sí. El punto de un chip o
@@ -549,6 +553,12 @@ class GlifoModerno extends Control:
 		## valores nuevos van SIEMPRE al final: nadie lo serializa, pero el orden es contrato de
 		## `GLIFO_POR_CATEGORIA` y de los tests.
 		TRIANGULO_ABAJO,
+		## Los 3 iconos de SEVERIDAD de la pila de avisos (F3, `maqueta_avisos.py`): forma DISTINTA
+		## por severidad, nunca solo el color (accesibilidad transversal). Calcados de
+		## `icono_critico`/`icono_aviso`/`icono_info` del mockup, con el trazo del kit.
+		TRIANGULO_ALERTA, GLOBO_AVISO, CIRCULO_INFO,
+		## La "×" de cerrar — el botón propio de un aviso persistente.
+		ASPA,
 	}
 	## Grosor de trazo común de los glifos de línea (la maqueta compone con líneas de 2px a 24px de
 	## lienzo; 1.8 es el equivalente a 16-18px sin que el trazo empaste).
@@ -592,6 +602,14 @@ class GlifoModerno extends Control:
 				_dibujar_pared(0.5, true)
 			Tipo.TRIANGULO_ABAJO:
 				_dibujar_triangulo_abajo()
+			Tipo.TRIANGULO_ALERTA:
+				_dibujar_triangulo_alerta()
+			Tipo.GLOBO_AVISO:
+				_dibujar_globo_aviso()
+			Tipo.CIRCULO_INFO:
+				_dibujar_circulo_info()
+			Tipo.ASPA:
+				_dibujar_aspa()
 
 	## El rectángulo útil del lienzo: cuadrado centrado con 1px de aire para que el trazo no se coma
 	## el borde (todos los glifos nuevos parten de aquí -- un solo sitio donde ajustar el encuadre).
@@ -743,6 +761,62 @@ class GlifoModerno extends Control:
 			Vector2(centro.x + r, centro.y - r * 0.45),
 			Vector2(centro.x, centro.y + r * 0.65),
 		]), color)
+
+	## Centro y radio útil de los glifos de severidad (todos parten del mismo encuadre: el cuadrado
+	## del `_marco`, para que triángulo, globo y círculo se vean del MISMO tamaño en la pila).
+	func _centro_radio() -> Array:
+		var m: Rect2 = _marco()
+		return [m.position + m.size * 0.5, m.size.x * 0.5]
+
+	## TRIÁNGULO DE ALERTA con "!" (severidad CRÍTICA) -- calcado de `maqueta_avisos.py::icono_critico`
+	## (mismas proporciones: vértice arriba, base al 0,8 del radio, exclamación centrada).
+	func _dibujar_triangulo_alerta() -> void:
+		var datos: Array = _centro_radio()
+		var c: Vector2 = datos[0]
+		var r: float = datos[1]
+		draw_polyline(PackedVector2Array([
+			Vector2(c.x, c.y - r),
+			Vector2(c.x - r * 0.95, c.y + r * 0.8),
+			Vector2(c.x + r * 0.95, c.y + r * 0.8),
+			Vector2(c.x, c.y - r),
+		]), color, TRAZO, true)
+		draw_line(Vector2(c.x, c.y - r * 0.32), Vector2(c.x, c.y + r * 0.22), color, TRAZO, true)
+		draw_circle(Vector2(c.x, c.y + r * 0.48), maxf(1.2, r * 0.11), color)
+
+	## GLOBO DE DIÁLOGO con "!" (severidad AVISO) -- `maqueta_avisos.py::icono_aviso`: cuerpo
+	## rectangular con el rabito abajo-izquierda (el mismo lenguaje que el icono de queja del kit).
+	func _dibujar_globo_aviso() -> void:
+		var datos: Array = _centro_radio()
+		var c: Vector2 = datos[0]
+		var r: float = datos[1]
+		draw_rect(
+			Rect2(c.x - r, c.y - r * 0.85, r * 2.0, r * 1.4), color, false, TRAZO
+		)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(c.x - r * 0.25, c.y + r * 0.5),
+			Vector2(c.x + r * 0.15, c.y + r * 0.5),
+			Vector2(c.x - r * 0.05, c.y + r * 1.05),
+		]), color)
+		draw_line(Vector2(c.x, c.y - r * 0.52), Vector2(c.x, c.y + r * 0.02), color, TRAZO, true)
+		draw_circle(Vector2(c.x, c.y + r * 0.24), maxf(1.1, r * 0.10), color)
+
+	## CÍRCULO con "i" (severidad INFO) -- `maqueta_avisos.py::icono_info`: punto arriba y palo abajo,
+	## en ese orden (una "i" al revés se lee como "!" y confundiría las dos severidades).
+	func _dibujar_circulo_info() -> void:
+		var datos: Array = _centro_radio()
+		var c: Vector2 = datos[0]
+		var r: float = datos[1]
+		draw_arc(c, r - TRAZO * 0.5, 0.0, TAU, 26, color, TRAZO, true)
+		draw_circle(Vector2(c.x, c.y - r * 0.40), maxf(1.1, r * 0.10), color)
+		draw_line(Vector2(c.x, c.y - r * 0.05), Vector2(c.x, c.y + r * 0.50), color, TRAZO, true)
+
+	## ASPA "×" (el botón de cerrar de un aviso persistente): dos trazos en diagonal.
+	func _dibujar_aspa() -> void:
+		var m: Rect2 = _marco()
+		var a: Vector2 = m.position
+		var b: Vector2 = m.position + m.size
+		draw_line(a, b, color, TRAZO, true)
+		draw_line(Vector2(b.x, a.y), Vector2(a.x, b.y), color, TRAZO, true)
 
 	## Círculo + manecillas (hora corta arriba, minutero más largo hacia la derecha) -- calcado del
 	## mockup ejecutable (`maqueta_hud_v3.py`, `d0.ellipse` + 2 `d0.line`), sin depender de ningún PNG.

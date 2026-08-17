@@ -88,6 +88,9 @@ const ODACScript := preload("res://src/feature/odac/odac.gd")
 const PanelODACScript := preload("res://src/main/panel_odac.gd")
 ## La ficha de una ventanilla al pulsar sobre ella (detalle tipo tycoon).
 const PanelVentanillaScript := preload("res://src/main/panel_ventanilla.gd")
+## La PILA DE AVISOS (F3, 2026-08-18): los eventos del bus que el jugador tiene que enterarse aunque
+## no esté mirando dónde pasaron. Se conecta ella sola al bus (ver `AvisosComisario.configurar`).
+const AvisosComisarioScript := preload("res://src/ui/avisos_comisario.gd")
 ## El modal del Comisario (2026-07-28): sin él, quedarse sin dinero BLOQUEABA la partida.
 const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
 ## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
@@ -174,6 +177,8 @@ var _paciencia: Node
 var _documentacion: Node
 var _odac: Node
 var _panel_ventanilla: CanvasLayer
+## La pila de avisos (toasts). No se le habla desde aquí: escucha el bus por su cuenta.
+var _avisos: CanvasLayer
 var _panel_horario: CanvasLayer
 var _npcs: Node2D
 var _panel_personal: CanvasLayer
@@ -421,6 +426,20 @@ func _ready() -> void:
 	# El realce del mundo se inyecta aparte: la capa nace con la bolsa (`_crear_mundo_profundo`,
 	# que corre antes que este bloque), el panel solo la enciende/apaga (ver `MarcadorVentanilla`).
 	_panel_ventanilla.usar_marcador(_marcador_ventanilla)
+	# La PILA DE AVISOS (F3, `design/ux/menu-avisos-spec.md`, maqueta `maqueta_avisos.png`): una
+	# deuda, una reclamación o una baja se enteran solas, sin que el jugador esté mirando el sitio.
+	# El MAPEO señal→severidad vive dentro del propio sistema (`configurar`), no aquí: es una decisión
+	# de UX y el texto se compone con los datos de cada señal. Main solo le inyecta con qué trabajar.
+	# Solo ESCUCHA, jamás muta (ADR-0001). No confundir con `HudComisario.avisar()`, que es el
+	# feedback CONTEXTUAL de una acción del jugador y sigue viviendo en el HUD.
+	_avisos = AvisosComisarioScript.new()
+	_avisos.name = "AvisosComisario"
+	add_child(_avisos)
+	_avisos.configurar(EventBus)
+	# La ficha de ventanilla comparte esquina: con ella abierta, la pila se aparta a su izquierda.
+	_avisos.usar_ficha(_panel_ventanilla)
+	# Solo para traducir "doc_1" a "DNI 1" en el aviso de una incidencia de plantilla.
+	_avisos.usar_personal(_personal)
 	var panel_odac: CanvasLayer = PanelODACScript.new()
 	panel_odac.name = "PanelODAC"
 	panel_odac.configurar(_odac, _flujo, _personal)

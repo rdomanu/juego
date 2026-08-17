@@ -285,6 +285,15 @@ func _crear_chip_estado() -> HBoxContainer:
 	return fila
 
 
+## Coordenada X del borde IZQUIERDO que ocupa (u ocuparía) la ficha, en píxeles de viewport. La pila
+## de avisos (`AvisosComisario`) la usa para apartarse a su izquierda mientras la ficha está abierta,
+## en vez de copiarse el `ANCHO_FICHA` a mano. Se calcula del viewport y NO del `_panel` a propósito:
+## así responde bien aunque se pregunte en el mismo frame en que la ficha se abre (el panel todavía
+## no se ha recolocado en ese instante).
+func borde_izquierdo() -> float:
+	return get_viewport().get_visible_rect().size.x - ANCHO_FICHA - MARGEN_LATERAL
+
+
 ## Recoloca la ficha contra el tamaño REAL del viewport: pegada a la derecha, POR DEBAJO de la barra
 ## flotante del HUD (para no tapar el saldo) y POR ENCIMA de la franja de acciones.
 func _recolocar_panel() -> void:
