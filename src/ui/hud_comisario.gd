@@ -499,17 +499,11 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 			_boton_3x = boton
 
 
-## Formato de saldo de la spec §1.3-[3] ("1.240 €"): miles con punto y SIN decimales — los céntimos
-## no aportan en un tycoon y "3000.00 €" desbordaba la placa por la derecha (auditoría 2026-08-09).
+## Formato de saldo de la spec §1.3-[3] ("1.240 €"). La lógica vive ahora en
+## `KitUIComisario.formato_euros` (promovida 2026-08-17 al necesitarla también el panel de
+## Personal); este atajo se queda porque todo el refresco del HUD ya habla en estos términos.
 func _formato_euros(saldo: float) -> String:
-	var negativo: bool = saldo < 0.0
-	var texto: String = str(absi(roundi(saldo)))
-	var con_miles: String = ""
-	while texto.length() > 3:
-		con_miles = "." + texto.substr(texto.length() - 3) + con_miles
-		texto = texto.substr(0, texto.length() - 3)
-	con_miles = texto + con_miles
-	return ("-" if negativo else "") + con_miles + " €"
+	return KitUIComisarioScript.formato_euros(saldo)
 
 
 func _construir_modulo_saldo(fila: HBoxContainer) -> void:

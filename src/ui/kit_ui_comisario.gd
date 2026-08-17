@@ -169,6 +169,19 @@ const MOD_COLOR_ROJO := Color(0.886, 0.345, 0.322, 1.0)            # inválido/n
 ## que `MOD_COLOR_VERDE` pero aclarado a fondo de insignia (226,244,234), calcado del mockup ejecutable
 ## `design/ux/maquetas-menu-2026-08/maqueta_hud_v3.py`.
 const MOD_COLOR_VERDE_SUAVE := Color(0.886, 0.957, 0.918, 1.0)
+## Ámbar OSCURECIDO, SOLO para texto de cuerpo sobre `MOD_COLOR_PANEL` (F3, 2026-08-17): el ámbar de
+## aviso (240,158,44) sobre panel claro no llega al contraste mínimo de
+## `design/ux/accessibility-requirements.md`; esta variante (181,112,15) sí. El punto de un chip o
+## el relleno de una barra siguen usando `MOD_COLOR_AMBAR` (formas grandes, no texto).
+const MOD_COLOR_AMBAR_TEXTO := Color(0.710, 0.439, 0.059, 1.0)
+## Azul CLARO distinto del acento (92,156,235) para el estado "cubriendo" de un agente (F3): tiene
+## que leerse como "está, pero de prestado" sin confundirse con el azul de acento de la propia UI.
+const MOD_COLOR_AZUL_CUBRIENDO := Color(0.361, 0.612, 0.922, 1.0)
+## Grises de relleno neutro de la maqueta: `GRIS_SUAVE` (231,233,237) para un botón deshabilitado y
+## `GRIS_MUY_SUAVE` (243,245,248) para el hueco de una tarjeta que está siendo arrastrada o el velo
+## de un slot no válido durante un arrastre.
+const MOD_COLOR_GRIS_SUAVE := Color(0.906, 0.914, 0.929, 1.0)
+const MOD_COLOR_GRIS_MUY_SUAVE := Color(0.953, 0.961, 0.973, 1.0)
 
 ## Radio de esquina de una tarjeta grande (ficha, tarjeta de catálogo). La maqueta pide "14-20"; 16
 ## es el punto medio.
@@ -361,6 +374,100 @@ static func moderno_boton_icono(
 	return boton
 
 
+# ── Botón PASTILLA de texto (F3, pantalla Personal — `maqueta_personal.py::boton_pill`) ──────────
+## Los 4 estilos de la maqueta. Son `StringName` y no un enum para que el llamante los escriba tal
+## cual sin importar la clase (mismo criterio que los ids de `ICONOS`).
+const MOD_BOTON_PRIMARIO := &"primario"          # acento macizo + texto blanco (acción principal)
+const MOD_BOTON_SECUNDARIO := &"secundario"      # tarjeta blanca + borde línea + tinta
+const MOD_BOTON_PELIGRO := &"peligro"            # tarjeta blanca + borde línea + texto ROJO (despedir)
+const MOD_BOTON_DESHABILITADO := &"deshabilitado" # gris suave + texto gris (y `disabled = true`)
+
+
+## Botón de texto en forma de pastilla (radio = mitad del alto), los cuatro estilos de la maqueta
+## `maqueta_personal.png`. `con_flecha` añade el triángulo "▾" DIBUJADO (`GlifoModerno`), nunca el
+## carácter unicode: la fuente del sistema no lo trae y sale como tofu (cazado en la iteración 2 de
+## la maqueta). Siempre `focus_mode = FOCUS_NONE` (gotcha del proyecto: si no, la barra espaciadora
+## "pulsa" el botón enfocado en vez de pausar el juego).
+##
+## Ejemplo:
+##     var b := KitUIComisario.moderno_boton_pastilla("Mover a", KitUIComisario.MOD_BOTON_SECUNDARIO, 34.0, true)
+##     b.pressed.connect(_abrir_desplegable)
+static func moderno_boton_pastilla(
+	texto: String, estilo_id: StringName = MOD_BOTON_SECUNDARIO, alto: float = 30.0,
+	con_flecha: bool = false, tam_fuente: int = 12
+) -> Button:
+	var boton := Button.new()
+	boton.text = texto
+	boton.focus_mode = Control.FOCUS_NONE
+	boton.custom_minimum_size.y = alto
+	boton.add_theme_font_size_override("font_size", tam_fuente)
+	boton.add_theme_font_override("font", moderno_fuente(true))
+	var color_fondo: Color = MOD_COLOR_TARJETA
+	var color_texto: Color = MOD_COLOR_TINTA
+	var con_borde: bool = false
+	match estilo_id:
+		MOD_BOTON_PRIMARIO:
+			color_fondo = MOD_COLOR_ACENTO
+			color_texto = Color.WHITE
+		MOD_BOTON_PELIGRO:
+			color_texto = MOD_COLOR_ROJO
+			con_borde = true
+		MOD_BOTON_DESHABILITADO:
+			color_fondo = MOD_COLOR_GRIS_SUAVE
+			color_texto = MOD_COLOR_GRIS
+			boton.disabled = true
+		_:
+			con_borde = true
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = color_fondo
+	estilo.set_corner_radius_all(int(alto / 2.0))
+	estilo.content_margin_left = 14.0
+	estilo.content_margin_right = 14.0 + (18.0 if con_flecha else 0.0)   # hueco reservado a la flecha
+	estilo.content_margin_top = 4.0
+	estilo.content_margin_bottom = 4.0
+	if con_borde:
+		estilo.set_border_width_all(1)
+		estilo.border_color = MOD_COLOR_LINEA
+	boton.add_theme_stylebox_override("normal", estilo)
+	boton.add_theme_stylebox_override("hover", estilo)
+	boton.add_theme_stylebox_override("pressed", estilo)
+	boton.add_theme_stylebox_override("disabled", estilo)
+	boton.add_theme_color_override("font_color", color_texto)
+	boton.add_theme_color_override("font_hover_color", color_texto)
+	boton.add_theme_color_override("font_pressed_color", color_texto)
+	boton.add_theme_color_override("font_disabled_color", MOD_COLOR_GRIS)
+	if con_flecha:
+		# `Button` NO es un contenedor (gotcha del proyecto): el hijo se ancla a mano. Centro-derecha
+		# con offsets simétricos — el mismo patrón que el icono de `moderno_boton_icono`.
+		var flecha: Control = moderno_glifo(GlifoModerno.Tipo.TRIANGULO_ABAJO, color_texto, 10.0)
+		flecha.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		flecha.offset_left = -20.0
+		flecha.offset_top = -5.0
+		flecha.offset_right = -10.0
+		flecha.offset_bottom = 5.0
+		boton.add_child(flecha)
+	return boton
+
+
+## Borde DISCONTINUO redondeado (el hueco "arrastra aquí" de un puesto vacante, F3): un `Control`
+## decorativo que se cuelga como hijo de la tarjeta/panel y se dibuja encima de su rectángulo
+## completo. `StyleBoxFlat` no sabe hacer bordes a trazos — de ahí el `_draw()` propio. El color y el
+## grosor son mutables en caliente (`borde.color = ...; borde.queue_redraw()`), mismo patrón "dato
+## reactivo" que `moderno_actualizar_barra_progreso`.
+##
+## Ejemplo (dentro de un `PanelContainer`, que estira a TODOS sus hijos al rectángulo del panel):
+##     slot.add_child(KitUIComisario.moderno_borde_punteado())
+static func moderno_borde_punteado(
+	color: Color = MOD_COLOR_GRIS, radio: float = MOD_RADIO_PEQUENO, grosor: float = 2.0
+) -> Control:
+	var borde := BordePunteadoModerno.new()
+	borde.color = color
+	borde.radio = radio
+	borde.grosor = grosor
+	borde.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return borde
+
+
 ## Pastilla partida en N opciones (toggle Función/Sala del panel de construcción): una fila de
 ## `Button` en `toggle_mode` dentro de una ÚNICA pastilla exterior BLANCA -- la opción activa lleva
 ## fondo `MOD_COLOR_ACENTO_SUAVE` con texto `MOD_COLOR_ACENTO` (azul suave), el resto texto tinta
@@ -433,6 +540,11 @@ class GlifoModerno extends Control:
 		RELOJ, PAUSA, PLAY1, PLAY2, PLAY3,
 		PLANO, SILLON, MURO, PIN, LLAVE, LUPA, PERSONA, DOCUMENTO,
 		PARED_ENTERA, PARED_BAJA, PARED_AUTO,
+		## Flecha "▾" MACIZA de un desplegable (F3, pantalla Personal). Se DIBUJA porque el glifo
+		## unicode ▾ no está en la fuente del sistema y sale como tofu (cazado en la maqueta). Los
+		## valores nuevos van SIEMPRE al final: nadie lo serializa, pero el orden es contrato de
+		## `GLIFO_POR_CATEGORIA` y de los tests.
+		TRIANGULO_ABAJO,
 	}
 	## Grosor de trazo común de los glifos de línea (la maqueta compone con líneas de 2px a 24px de
 	## lienzo; 1.8 es el equivalente a 16-18px sin que el trazo empaste).
@@ -474,6 +586,8 @@ class GlifoModerno extends Control:
 				_dibujar_pared(0.5, false)
 			Tipo.PARED_AUTO:
 				_dibujar_pared(0.5, true)
+			Tipo.TRIANGULO_ABAJO:
+				_dibujar_triangulo_abajo()
 
 	## El rectángulo útil del lienzo: cuadrado centrado con 1px de aire para que el trazo no se coma
 	## el borde (todos los glifos nuevos parten de aquí -- un solo sitio donde ajustar el encuadre).
@@ -613,6 +727,19 @@ class GlifoModerno extends Control:
 				var t1: float = i / 3.0 + 0.24
 				draw_line(ca.lerp(cb, t0), ca.lerp(cb, t1), color, TRAZO, true)
 
+	## Triángulo MACIZO apuntando abajo — la flecha de un desplegable, calcada de
+	## `maqueta_personal.py::triangulo_abajo` (mismas proporciones: base arriba, punta al 65 % del
+	## radio hacia abajo).
+	func _dibujar_triangulo_abajo() -> void:
+		var m: Rect2 = _marco()
+		var centro: Vector2 = m.position + m.size * 0.5
+		var r: float = m.size.x * 0.5
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(centro.x - r, centro.y - r * 0.45),
+			Vector2(centro.x + r, centro.y - r * 0.45),
+			Vector2(centro.x, centro.y + r * 0.65),
+		]), color)
+
 	## Círculo + manecillas (hora corta arriba, minutero más largo hacia la derecha) -- calcado del
 	## mockup ejecutable (`maqueta_hud_v3.py`, `d0.ellipse` + 2 `d0.line`), sin depender de ningún PNG.
 	func _dibujar_reloj() -> void:
@@ -646,6 +773,47 @@ class GlifoModerno extends Control:
 			]), color)
 
 
+## El `Control` decorativo que dibuja el borde a trazos de `moderno_borde_punteado` (F3): tramos
+## rectos discontinuos + las cuatro esquinas en arco CONTINUO (misma aproximación que la maqueta
+## `maqueta_personal.py::rect_punteado`, donde PIL tampoco tiene "dashed rounded rect" nativo).
+class BordePunteadoModerno extends Control:
+	var color: Color = Color(0.478, 0.533, 0.612, 1.0)
+	var radio: float = 14.0
+	var grosor: float = 2.0
+	## Largo del trazo y del hueco, en píxeles (los de la maqueta: 6 y 5).
+	var guion: float = 6.0
+	var hueco: float = 5.0
+
+	func _draw() -> void:
+		var r: float = minf(radio, minf(size.x, size.y) * 0.5)
+		# Media pluma de margen: dibujar justo en 0 / `size` recorta el trazo a la mitad.
+		var margen: float = grosor * 0.5
+		_tramo_horizontal(r, margen)
+		_tramo_horizontal(r, size.y - margen)
+		_tramo_vertical(r, margen)
+		_tramo_vertical(r, size.x - margen)
+		# Esquinas: arco continuo de 90° (un trazo corto que no merece partirse).
+		var pasos: int = 6
+		draw_arc(Vector2(r, r), r, PI, PI * 1.5, pasos, color, grosor, true)
+		draw_arc(Vector2(size.x - r, r), r, PI * 1.5, TAU, pasos, color, grosor, true)
+		draw_arc(Vector2(size.x - r, size.y - r), r, 0.0, PI * 0.5, pasos, color, grosor, true)
+		draw_arc(Vector2(r, size.y - r), r, PI * 0.5, PI, pasos, color, grosor, true)
+
+	func _tramo_horizontal(r: float, y: float) -> void:
+		var x: float = r
+		while x < size.x - r:
+			var siguiente: float = minf(x + guion, size.x - r)
+			draw_line(Vector2(x, y), Vector2(siguiente, y), color, grosor, true)
+			x = siguiente + hueco
+
+	func _tramo_vertical(r: float, x: float) -> void:
+		var y: float = r
+		while y < size.y - r:
+			var siguiente: float = minf(y + guion, size.y - r)
+			draw_line(Vector2(x, y), Vector2(x, siguiente), color, grosor, true)
+			y = siguiente + hueco
+
+
 ## Glifo VECTORIAL por categoría de la barra de construcción -- gemelo moderno de
 ## `ICONO_POR_CATEGORIA` (que apunta a los PNG del piloto de Summer): mismas 5 claves, pero
 ## resolviendo a un `GlifoModerno.Tipo`. Vive aquí, después de la clase, porque un `const` no puede
@@ -672,8 +840,12 @@ static func moderno_glifo(tipo: int, color: Color = MOD_COLOR_TINTA, lado: float
 
 ## Insignia circular con un símbolo corto centrado (el marcador "€" del saldo del HUD, F2). Genérico
 ## por si otra pantalla necesita el mismo patrón (círculo de acento + carácter).
+## `tam_fuente` en 0 (por defecto) lo deduce del diámetro (40 % del lado, la proporción de los avatares
+## de `maqueta_personal.py::avatar_inicial`): así el MISMO helper sirve al avatar de 32 px de una
+## tarjeta y al de 64 px de la ficha sin que la letra se quede enana (F3, 2026-08-17).
 static func moderno_circulo_simbolo(
-	simbolo: String, color_fondo: Color, color_texto: Color, lado: float = 32.0
+	simbolo: String, color_fondo: Color, color_texto: Color, lado: float = 32.0,
+	tam_fuente: int = 0
 ) -> Control:
 	var circulo := PanelContainer.new()
 	circulo.custom_minimum_size = Vector2(lado, lado)
@@ -688,8 +860,26 @@ static func moderno_circulo_simbolo(
 	var etiqueta := Label.new()
 	etiqueta.text = simbolo
 	etiqueta.add_theme_font_override("font", moderno_fuente(true))
-	etiqueta.add_theme_font_size_override("font_size", 14)
+	# El `maxf(14, ...)` conserva EXACTAMENTE el tamaño de antes (14) en las insignias pequeñas ya
+	# existentes del HUD (lado 32 → 12.8 sería un cambio silencioso de aspecto en pantalla ajena).
+	etiqueta.add_theme_font_size_override(
+		"font_size", tam_fuente if tam_fuente > 0 else int(maxf(14.0, lado * 0.4))
+	)
 	etiqueta.add_theme_color_override("font_color", color_texto)
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	centro.add_child(etiqueta)
 	return circulo
+
+
+## Formato de dinero de TODA la UI ("1.240 €"): miles con punto y SIN decimales — los céntimos no
+## existen de cara al jugador. Nació como `HudComisario._formato_euros` (spec §1.3-[3]); promovido
+## aquí el 2026-08-17 al necesitarlo también el panel de Personal (fuente única, como los colores).
+static func formato_euros(valor: float) -> String:
+	var negativo: bool = valor < 0.0
+	var texto: String = str(int(roundf(absf(valor))))
+	var con_miles: String = ""
+	while texto.length() > 3:
+		con_miles = "." + texto.substr(texto.length() - 3) + con_miles
+		texto = texto.substr(0, texto.length() - 3)
+	con_miles = texto + con_miles
+	return ("-" if negativo else "") + con_miles + " €"
