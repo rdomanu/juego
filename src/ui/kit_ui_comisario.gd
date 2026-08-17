@@ -140,8 +140,11 @@ static func modulo_barra_superior(id: StringName) -> Texture2D:
 ## tarjetas blancas con sombra suave, esquinas muy redondeadas, un único acento azul. Lo estrena el
 ## panel de construcción (F1, `ModoConstruccion._crear_ui`); ver `design/ux/menu-construccion-spec.md`.
 ##
-## Prefijo `MOD_`/`moderno_` a propósito: NO sustituye al kit del piloto (HUD superior, modales siguen
-## en la paleta navy/pixel-art de arriba) -- conviven mientras el resto de pantallas no migre.
+## Prefijo `MOD_`/`moderno_` a propósito: NO sustituye al kit del piloto (los modales siguen en la
+## paleta navy/pixel-art de arriba) -- conviven mientras el resto de pantallas no migre. El HUD
+## superior SÍ migró aquí (F2, 2026-08-16, `design/ux/maquetas-menu-2026-08/menu_v3_completo.png`):
+## `HudComisario._construir_panel_superior`/`_construir_panel_acciones` son ahora consumidores de
+## este kit moderno, igual que `ModoConstruccion`.
 ##
 ## LA FUENTE MODERNA (decisión del usuario 2026-08-16: "menu_v3_completo.png es la buena" — y esa
 ## maqueta está compuesta en Segoe UI): `moderno_tema()` carga Segoe UI como `SystemFont` y quien
@@ -162,6 +165,10 @@ const MOD_COLOR_ACENTO_SUAVE := Color(0.910, 0.941, 0.996, 1.0)    # azul suave 
 const MOD_COLOR_VERDE := Color(0.133, 0.627, 0.369, 1.0)           # estado válido/positivo (34,160,94)
 const MOD_COLOR_AMBAR := Color(0.941, 0.620, 0.173, 1.0)           # aviso (240,158,44)
 const MOD_COLOR_ROJO := Color(0.886, 0.345, 0.322, 1.0)            # inválido/negativo (226,88,82)
+## Verde suave para insignias circulares (marcador "€" del HUD superior, F2 2026-08-16) — mismo verde
+## que `MOD_COLOR_VERDE` pero aclarado a fondo de insignia (226,244,234), calcado del mockup ejecutable
+## `design/ux/maquetas-menu-2026-08/maqueta_hud_v3.py`.
+const MOD_COLOR_VERDE_SUAVE := Color(0.886, 0.957, 0.918, 1.0)
 
 ## Radio de esquina de una tarjeta grande (ficha, tarjeta de catálogo). La maqueta pide "14-20"; 16
 ## es el punto medio.
@@ -206,10 +213,12 @@ static func moderno_tema() -> Theme:
 	return _tema_moderno
 
 
-static func moderno_tarjeta(seleccionada: bool = false, radio: float = MOD_RADIO_TARJETA) -> PanelContainer:
+static func moderno_tarjeta(
+	seleccionada: bool = false, radio: float = MOD_RADIO_TARJETA, color_fondo: Color = MOD_COLOR_TARJETA
+) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var estilo := StyleBoxFlat.new()
-	estilo.bg_color = MOD_COLOR_TARJETA
+	estilo.bg_color = color_fondo
 	estilo.set_corner_radius_all(int(radio))
 	estilo.shadow_size = 8
 	estilo.shadow_color = Color(0.02, 0.03, 0.06, 0.10)
@@ -392,3 +401,96 @@ static func toggle_segmentado(opciones: Array[Dictionary], alto: float = 38.0) -
 		boton.add_theme_font_size_override("font_size", 13)
 		fila.add_child(boton)
 	return pastilla
+
+
+## Un `Control` con `_draw()` propio -- pictogramas VECTORIALES del kit moderno (F2, reskin del HUD
+## superior, 2026-08-16). Evita las dos trampas ya cazadas en este proyecto: un emoji (⏸/▶ arrastran
+## la fuente COLOR del sistema, ignoran `modulate`/`font_color` -- fix ya documentado en
+## `HudComisario._construir_modulo_velocidad`) o un PNG nuevo que Summer aún no ha entregado (reloj,
+## play/pausa). `color` es mutable en caliente (`color = ...; queue_redraw()`), mismo patrón "dato
+## reactivo" que `moderno_actualizar_barra_progreso`.
+class GlifoModerno extends Control:
+	enum Tipo { RELOJ, PAUSA, PLAY1, PLAY2, PLAY3 }
+	var tipo: int = Tipo.RELOJ
+	var color: Color = Color(0.141, 0.188, 0.259, 1.0)
+
+	func _draw() -> void:
+		match tipo:
+			Tipo.RELOJ:
+				_dibujar_reloj()
+			Tipo.PAUSA:
+				_dibujar_pausa()
+			Tipo.PLAY1:
+				_dibujar_play(1)
+			Tipo.PLAY2:
+				_dibujar_play(2)
+			Tipo.PLAY3:
+				_dibujar_play(3)
+
+	## Círculo + manecillas (hora corta arriba, minutero más largo hacia la derecha) -- calcado del
+	## mockup ejecutable (`maqueta_hud_v3.py`, `d0.ellipse` + 2 `d0.line`), sin depender de ningún PNG.
+	func _dibujar_reloj() -> void:
+		var radio: float = minf(size.x, size.y) * 0.5 - 1.5
+		var centro: Vector2 = size * 0.5
+		draw_arc(centro, radio, 0.0, TAU, 28, color, 1.8, true)
+		draw_line(centro, centro + Vector2(0.0, -radio * 0.55), color, 1.8, true)
+		draw_line(centro, centro + Vector2(radio * 0.42, radio * 0.18), color, 1.8, true)
+
+	## Dos barras verticales -- el glifo "II" de pausa.
+	func _dibujar_pausa() -> void:
+		var ancho_barra: float = size.x * 0.16
+		var alto_barra: float = size.y * 0.62
+		var y: float = (size.y - alto_barra) * 0.5
+		draw_rect(Rect2(size.x * 0.5 - ancho_barra - 2.0, y, ancho_barra, alto_barra), color)
+		draw_rect(Rect2(size.x * 0.5 + 2.0, y, ancho_barra, alto_barra), color)
+
+	## `n` triángulos "▶" en fila -- 1/2/3 según la velocidad (1×/2×/3×).
+	func _dibujar_play(n: int) -> void:
+		var lado: float = size.y * 0.6
+		var paso: float = lado * 0.8
+		var total: float = paso * (n - 1) + lado * 0.55
+		var x0: float = (size.x - total) * 0.5
+		var y_centro: float = size.y * 0.5
+		for i in n:
+			var cx: float = x0 + i * paso
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(cx, y_centro - lado * 0.5),
+				Vector2(cx, y_centro + lado * 0.5),
+				Vector2(cx + lado * 0.55, y_centro),
+			]), color)
+
+
+## Fábrica de `GlifoModerno` -- tamaño cuadrado `lado`, sin recibir clics (decorativo, el `Button` que
+## lo tapa encima es quien procesa el input, mismo criterio que los iconos de `_crear_chip_plano`).
+static func moderno_glifo(tipo: int, color: Color = MOD_COLOR_TINTA, lado: float = 22.0) -> Control:
+	var glifo := GlifoModerno.new()
+	glifo.tipo = tipo
+	glifo.color = color
+	glifo.custom_minimum_size = Vector2(lado, lado)
+	glifo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return glifo
+
+
+## Insignia circular con un símbolo corto centrado (el marcador "€" del saldo del HUD, F2). Genérico
+## por si otra pantalla necesita el mismo patrón (círculo de acento + carácter).
+static func moderno_circulo_simbolo(
+	simbolo: String, color_fondo: Color, color_texto: Color, lado: float = 32.0
+) -> Control:
+	var circulo := PanelContainer.new()
+	circulo.custom_minimum_size = Vector2(lado, lado)
+	circulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = color_fondo
+	estilo.set_corner_radius_all(int(lado / 2.0))
+	circulo.add_theme_stylebox_override("panel", estilo)
+	var centro := CenterContainer.new()
+	centro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	circulo.add_child(centro)
+	var etiqueta := Label.new()
+	etiqueta.text = simbolo
+	etiqueta.add_theme_font_override("font", moderno_fuente(true))
+	etiqueta.add_theme_font_size_override("font_size", 14)
+	etiqueta.add_theme_color_override("font_color", color_texto)
+	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	centro.add_child(etiqueta)
+	return circulo

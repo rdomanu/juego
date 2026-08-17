@@ -1,39 +1,46 @@
 class_name HudComisario
 extends CanvasLayer
-## HudComisario — reconstrucción TOTAL del HUD (encargo 2026-08-08: "te di la posibilidad de
-## hacerlo de nuevo del todo -- estás parcheando"). Sustituye ENTERO el HUD provisional de
-## `main.gd` (el `_crear_hud` de tiempo-009 + el `_crear_barra_superior` de la Fase 2 del
-## 2026-08-08 mismo). El ÚNICO plano es `design/ux/hud-design.md` — layout §1-2, estados §3,
-## eliminaciones §4, contrato de datos §5, wireframes §6. Este archivo la sigue sin re-decidir nada
-## que la spec ya cerrara; donde la spec deja un hueco (§5) o donde el arte real no da para el
-## número pedido, queda anotado explícitamente en el propio código (grep "DESVIACIÓN"/"GAP").
+## HudComisario — RESKIN F2 (2026-08-16): mismo contrato de datos y los mismos constructores que la
+## reconstrucción total del 2026-08-08 (`design/ux/hud-design.md` §1-2/§5/§6 sigue siendo el plano
+## de LAYOUT/CONTRATO), pero el ASPECTO visual migra del piloto 9-slice/pixel-art de Summer al KIT
+## MODERNO claro (`KitUIComisario.moderno_*`, ya estrenado por `ModoConstruccion` F1) para clavar
+## `design/ux/maquetas-menu-2026-08/menu_v3_completo.png` (geometría/colores exactos en el mockup
+## ejecutable hermano, `maqueta_hud_v3.py`, de la misma carpeta). SOLO cambian los constructores
+## (`_construir_*`/`_crear_*`/`_boton_pildora`/`_etiqueta`/`_espaciador_familia`) y las constantes de
+## layout/paleta; el contrato (`configurar`/`refrescar`/`avisar`/`ocultar_acciones`, las 6 señales,
+## los nombres `_lbl_*`) es EL MISMO, byte a byte, que consumía `Main` antes de este reskin.
 ##
-## ── Árbol de nodos ────────────────────────────────────────────────────────────────────────────
+## ── Árbol de nodos (F2) ───────────────────────────────────────────────────────────────────────
 ## HudComisario (CanvasLayer)
-## ├─ PanelSuperior (Panel, tema BarraSuperior)      -- SIEMPRE visible (spec §1)
-## │   └─ Margen(19/22/20/44) → HBoxContainer "fila"
-## │       ├─ Módulo Reloj (Panel 9-slice ModuloReloj)      -- hora + "Sem N · Turno T"
-## │       ├─ Módulo Velocidad (Panel 9-slice ModuloVelocidad) -- 4 botones + pip ▾ activo
-## │       ├─ [espaciador familia 16px]
-## │       ├─ Módulo Saldo (Panel 9-slice ModuloSaldo)      -- saldo + Holgado/Justo/Negativo
-## │       ├─ [espaciador familia 16px]
-## │       ├─ Chip Satisfacción (icono_queja + 2 líneas)
-## │       ├─ Chip Demanda (icono_velocimetro + 2 líneas)
-## │       ├─ Chip Plantilla (icono_personal + 2 líneas)
-## │       ├─ Chip Documentación (icono_carpeta + 2 líneas)
-## │       ├─ [espaciador familia 16px]
-## │       ├─ (spacer elástico, SIZE_EXPAND_FILL)
-## │       └─ (reserva brújula, 140px fijos, sin contenido -- la brújula vive en su PROPIA capa
-## │            layer 10 montada por Main, esto solo evita que el HUD invada su hueco)
-## └─ PanelAcciones (Panel, tema por defecto -- mismo criterio visual que la barra de
-##     construcción justo debajo, sin `theme_type_variation`)   -- OCULTABLE (spec §2)
+## ├─ PanelSuperior (Panel, fondo transparente -- el color vivo está en la barra flotante interior)
+## │   -- SIEMPRE visible (spec §1)
+## │   └─ Margen(12 por lado, sin margen inferior) → "BarraFlotante" (tarjeta moderna: fondo
+## │       MOD_COLOR_PANEL, radio 20, sombra suave -- la pastilla clara que flota sobre el mundo)
+## │       └─ Margen(16/16/12/12) → HBoxContainer "fila"
+## │           ├─ Módulo Reloj (pastilla blanca: GlifoModerno.RELOJ + hora + "Sem N · Turno T")
+## │           ├─ Módulo Velocidad (pastilla blanca: 4 segmentos Pausa/1×/2×/3×, activo = pastilla
+## │           │    interior MOD_COLOR_ACENTO_SUAVE detrás del glifo -- MISMO dato que antes, ver
+## │           │    la cabecera de `_construir_modulo_velocidad`)
+## │           ├─ [espaciador familia]
+## │           ├─ Chip Satisfacción (mini-barra + 2 líneas) · Chip Demanda (punto de color + 2
+## │           │    líneas) · Chip Plantilla (icono + 2 líneas) · Chip Documentación (icono + 2 líneas)
+## │           ├─ [espaciador familia]
+## │           ├─ (spacer elástico, SIZE_EXPAND_FILL)
+## │           └─ Módulo Saldo (insignia "€" + saldo + Holgado/Justo/Negativo), pegado al borde
+## │                derecho de la barra (la brújula de depuración vive en su PROPIA CanvasLayer,
+## │                posicionada por debajo de esta barra por `Main._crear_brujula_orientacion` --
+## │                ya no necesita un hueco reservado aquí, verificado en `main.gd`)
+## └─ PanelAcciones (Panel, fondo plano `COLOR_FONDO_BARRA_INFERIOR` -- DELIBERADAMENTE oscuro
+##     todavía, ver la nota de contraste en `_construir_panel_acciones`)   -- OCULTABLE (spec §2)
 ##     └─ Margen(12/12/10/10) → HBoxContainer "fila"
 ##         ├─ Label aviso transitorio (SIZE_EXPAND_FILL, empuja las píldoras a la derecha)
-##         ├─ Píldora Personal (P) · Píldora Horario (H)
-##         ├─ [espaciador familia 16px]
+##         ├─ Píldora Construir (B, acento) · Píldora Personal (P) · Píldora Horario (H)
+##         ├─ [espaciador familia]
 ##         ├─ Píldora Guardar (F5) · Píldora Cargar (F9)
-##         ├─ [espaciador familia 16px]
+##         ├─ [espaciador familia]
 ##         └─ Píldora Paredes: <modo> (Home)
+##     Las píldoras ahora son pastillas blancas redondeadas con icono+texto en tinta (kit moderno,
+##     `_boton_pildora`) en vez del 9-slice/`theme_type_variation` del piloto.
 ##
 ## ── Contrato (ADR-0001: "la UI lee y ordena, nunca muta") ───────────────────────────────────────
 ## `configurar()` inyecta los sistemas Core de SOLO LECTURA (Economía/Demanda/Personal/Flujo/
@@ -42,7 +49,13 @@ extends CanvasLayer
 ## que sustituye (pull, no señales, mismo criterio de rendimiento que ya usaba el HUD viejo: barato
 ## a esta escala, ver la nota de refresco general de la spec §5). `Tiempo`/`EventBus` son
 ## autoloads: se leen DIRECTOS (`Tiempo.hhmm(...)`), sin inyección — mismo patrón que el resto de
-## `src/main`.
+## `src/main`. NINGUNA función `_refrescar_*` (ni `refrescar`/`configurar`/`avisar`/
+## `ocultar_acciones`) se toca en este reskin -- regla dura del encargo F2 ("reskin de
+## constructores"). Donde el nuevo layout necesita un dato reactivo que esas funciones NO exponen
+## (la fracción de la mini-barra de Satisfacción, el color del punto de Demanda), este archivo lo
+## resuelve con su PROPIO `_process()` (nuevo, ver más abajo) leyendo los mismos sistemas Core
+## inyectados o el `font_color` que la función bloqueada YA deja pintado en el Label vecino -- nunca
+## reimplementando el CÁLCULO (umbral/nivel), solo ESPEJANDO un valor que otro sitio ya decidió.
 ##
 ## Los 5 botones de acción NO ejecutan nada aquí: emiten señales y quien decide qué hacer (abrir un
 ## panel, guardar, ordenar el ciclo de paredes) sigue siendo `Main`, con los MISMOS callbacks que
@@ -50,14 +63,14 @@ extends CanvasLayer
 ## `_alternar_modo_paredes`) — "Signals for upward communication" (coding standards del proyecto:
 ## child→parent, nunca al revés).
 ##
-## ── GAPS del contrato §5, NO inventados (instrucción explícita de la story: "si de verdad no
-## existe, ese campo se omite y lo anotas") ──────────────────────────────────────────────────────
+## ── GAPS del contrato §5, NO inventados (heredados del reskin 2026-08-08, siguen vigentes: el
+## contrato de datos no cambia en F2) ─────────────────────────────────────────────────────────────
 ##   1. "Puerta Doc" (nº de turno llamado/mostrado) — no localizado en `flujo.gd`/`documentacion.
 ##      gd`. La línea 2 del chip Documentación se reduce a "N atendiendo" (degradación ya prevista
 ##      en la spec §1.3-[7]).
 ##   2. Bandera "sin guardar" (dirty) — no localizada en `save_manager.gd`. La píldora Guardar NO
 ##      lleva el punto "•"/tinte ámbar de §3 (necesitaría una bandera nueva en `SaveManager`, fuera
-##      del alcance de "reconstruir el HUD").
+##      del alcance de este reskin).
 ##   3. Semáforo 🔴/🟡/🟢 de "cola saturada" (§3) — necesitaría un getter PÚBLICO de aforo en
 ##      `Flujo` (hoy `_aforo_de` es privado, con guion bajo). Sin él, la UI tendría que inventarse
 ##      el umbral, que la propia spec prohíbe explícitamente ("el umbral concreto lo posee Flujo,
@@ -66,15 +79,28 @@ extends CanvasLayer
 ##      el color de semáforo. Follow-up: un `Flujo.aforo_de(servicio) -> int` público desbloquea
 ##      esto sin tocar nada más de este archivo.
 ##
-## ── DESVIACIÓN DE TAMAÑO, señalada explícitamente (no un olvido) ────────────────────────────────
-## La spec pide una franja superior de 52px con módulos de 40px de alto (§1.1). Los 3 PNG de
-## reloj/velocidad/saldo miden 234×98 / 178×98 / 238×98 REALES (medidos con `Read` + análisis de
-## varianza de color, no a ojo) y el icono/dibujo ocupa CASI TODO el alto nativo — un 9-slice
-## protege el ANCHO (hay margen plano a los lados para reloj/saldo) pero NO el ALTO sin aplastar el
-## dibujo (ver la cabecera larga de `sb_mod_reloj` en `theme_comisario.tres`). Se usan a su ALTURA
-## NATIVA (98px; panel total 164px = 22+98+44) — la MISMA cifra que ya verificó en pantalla el
-## piloto Fase 2, no una regresión nueva. Solo un PNG rediseñado con más aire vertical alrededor
-## del icono permitiría los 40px reales sin deformarlo — anotado para `art-director`/`ux-designer`.
+## ── DESVIACIONES DE F2, señaladas explícitamente (no un olvido) ────────────────────────────────
+##   A. El módulo Reloj de la maqueta muestra una sola línea ("Día 3 · 07:47"); el contrato real
+##      sigue escribiendo la hora y "Sem N · Turno T" en DOS Labels separados (`_refrescar_reloj`,
+##      bloqueada). Se apilan en dos líneas (hora grande arriba, semana/turno pequeño gris abajo) en
+##      vez de fundirlos en una — no se pierde información, pero el layout no es idéntico a la
+##      maqueta en este punto. `art-director`/`ux-designer`: si se quiere el formato "Día N", hace
+##      falta que `_refrescar_reloj` (fuera de alcance aquí) lo calcule.
+##   B. El glifo de velocidad NO cambia de color al activarse (la maqueta lo dibuja azul cuando
+##      está activo, gris si no) — `_refrescar_velocidad` (bloqueada) solo alterna
+##      `_pips_velocidad[i].modulate.a` (visibilidad de la pastilla interior) y
+##      `_boton_3x.theme_type_variation` (inerte aquí, ver la cabecera de
+##      `_construir_modulo_velocidad`), nunca un color de glifo. La pastilla interior
+##      (`MOD_COLOR_ACENTO_SUAVE`) sigue siendo una señal de estado clara por sí sola (forma +
+##      posición, no solo color -- cumple la regla de accesibilidad transversal del proyecto).
+##   C. `COLOR_HOLGADO`/`COLOR_JUSTO` (más abajo) se RETONALIZAN a los mismos verdes/ámbares del kit
+##      moderno (`MOD_COLOR_VERDE`/`MOD_COLOR_AMBAR`): los pasteles del piloto (pensados para leerse
+##      sobre el 9-slice navy oscuro) pierden contraste sobre la pastilla BLANCA del kit claro. Es
+##      un cambio de VALOR de constante, no de la lógica que las usa (`_refrescar_saldo`/
+##      `_refrescar_demanda`, bloqueadas, sin tocar).
+##   D. Los chips de Plantilla/Documentación llevan icono (kit `ICONOS`, `personal`/`carpeta`) para
+##      casar visualmente con la maqueta, aunque el texto de la story los describe sin icono — el
+##      icono ya existe en el catálogo y no añade coste de mantenimiento nuevo.
 
 # ── Señales (upward, child → parent — coding standards del proyecto) ────────────────────────────
 signal construccion_solicitada
@@ -89,37 +115,28 @@ const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
 const PersonaFlujoScript := preload("res://src/core/flujo/persona_flujo.gd")
 const AgenteScript := preload("res://src/core/personal/agente.gd")
 
-## Alto REAL del panel superior — ver "DESVIACIÓN DE TAMAÑO" arriba (no los 52px literales de la
-## spec). 22/44 son los `texture_margin_top`/`_bottom` de `sb_barra` en el tema (no tocar sin
-## revisar ese StyleBoxTexture); 98 es el alto nativo medido de los 3 PNG de módulo.
-const ALTO_MODULO: float = 98.0
-const ALTO_PANEL_SUPERIOR: float = 22.0 + ALTO_MODULO + 44.0
-## Anchos de los 3 módulos ilustrados (spec §1.2, tabla). Seguros para un 9-slice: el icono vive en
-## una franja izquierda fija (protegida por `texture_margin_left` del tema) y el resto de la card
-## es relleno plano que absorbe el ancho sin distorsión — salvo Velocidad, ver el aviso de
-## `sb_mod_vel` en el tema (los 3 círculos ocupan casi todo el ancho, compresión uniforme al 24%).
-const ANCHO_MODULO_RELOJ: float = 150.0
-const ANCHO_MODULO_VELOCIDAD: float = 135.0
-## 179: con el formato de la spec ("3.000 €", `_formato_euros`) el texto cabía en 165 pero el "€"
-## quedaba ROZANDO el bisel dorado de la placa (auditoría 2026-08-09) — 14px más de aire a la
-## derecha. Histórico: 145 recortaba "3000.00" (fix 2026-08-08, formato viejo con decimales).
-const ANCHO_MODULO_SALDO: float = 179.0
-## Margen izquierdo (px) que cada módulo 9-slice reserva para no tapar su propio icono — el mismo
-## valor que ya protege `texture_margin_left` del StyleBoxTexture del tema (ver `theme_comisario.
-## tres`, `sb_mod_reloj`/`sb_mod_saldo`): PINTADO EN LOS DOS SITIOS a propósito (uno mueve el
-## 9-slice, el otro mueve el CONTENIDO -- Labels/botones -- que va POR ENCIMA).
-const MARGEN_IZQ_RELOJ: int = 95
-const MARGEN_IZQ_SALDO: int = 88
-const MARGEN_IZQ_VELOCIDAD: int = 12
-## Los 4 chips de fondo plano (spec §1.2, tabla, filas 4-7) -- sin módulo de arte, viven encima del
-## fondo de la propia `BarraSuperior`.
-const ANCHO_CHIP_SATISFACCION: float = 175.0
-const ANCHO_CHIP_DEMANDA: float = 172.0
-const ANCHO_CHIP_PLANTILLA: float = 166.0
-const ANCHO_CHIP_DOCUMENTACION: float = 168.0
-## Reserva a la derecha para la brújula de depuración (spec §0/§1.2) -- Main la monta en su PROPIA
-## `CanvasLayer` (layer 10), este hueco solo evita que el HUD la invada visualmente.
-const ANCHO_RESERVA_BRUJULA: float = 140.0
+## Margen de la barra flotante a los bordes de pantalla (maqueta: "margen 12 de los bordes") y su
+## alto fijo (maqueta: "~64px de alto") -- reemplazan al 9-slice `sb_barra`/22-44 del piloto.
+const MARGEN_BARRA_FLOTANTE: float = 12.0
+const ALTO_BARRA_FLOTANTE: float = 64.0
+## Alto reservado del `PanelSuperior` (el `Control` transparente que aloja la barra flotante):
+## margen superior + alto de la barra -- no hace falta aire extra abajo, la barra es el borde.
+const ALTO_PANEL_SUPERIOR: float = MARGEN_BARRA_FLOTANTE + ALTO_BARRA_FLOTANTE
+## Alto de cada pastilla blanca interior (reloj/velocidad/chips/saldo) -- maqueta: `y1-y0 = 40`.
+const ALTO_PASTILLA: float = 40.0
+## Anchos de los módulos/chips (maqueta v3 + margen para los 2 Labels del contrato, que no se
+## funden en una sola línea -- ver DESVIACIÓN A de la cabecera del archivo).
+const ANCHO_MODULO_RELOJ: float = 190.0
+const ANCHO_MODULO_VELOCIDAD: float = 164.0
+## Ancho de cada uno de los 4 segmentos Pausa/1×/2×/3× dentro del módulo Velocidad.
+const ANCHO_SEGMENTO_VELOCIDAD: float = 36.0
+const ANCHO_MODULO_SALDO: float = 190.0
+## Los 4 chips de fondo blanco (spec §1.3, chips de estado) -- pastilla independiente cada uno,
+## dentro de la barra flotante (ya no "encima del fondo de la BarraSuperior" 9-slice del piloto).
+const ANCHO_CHIP_SATISFACCION: float = 190.0
+const ANCHO_CHIP_DEMANDA: float = 185.0
+const ANCHO_CHIP_PLANTILLA: float = 112.0
+const ANCHO_CHIP_DOCUMENTACION: float = 165.0
 ## 8px normal / 16px entre "familias" (Gestalt, spec §1.1) -- el helper `_espaciador_familia`
 ## aprovecha que `HBoxContainer.separation` YA pone 8px a cada lado de cualquier hijo (incluido uno
 ## vacío): un `Control` de ancho 0 entre dos chips da 8+8=16 sin duplicar la constante de spacing.
@@ -138,11 +155,14 @@ const ALTO_FRANJA_ACCIONES: float = 60.0
 ## Rojo crítico: EXACTAMENTE el mismo valor que `TarjetaObjeto/colors/font_disabled_color` del
 ## tema (spec §1.3-[3]: "el mismo rojo que ya usa TarjetaObjeto..."), reutilizado a propósito.
 const COLOR_ROJO_CRITICO := Color(0.75, 0.2, 0.18, 1.0)
-## Verde/ámbar: la spec NO da un hex para estos dos (solo dice "verde"/"ámbar", §1.3-[3]); se
-## reutilizan los mismos valores que ya usa `Main`/`Demanda` para BAJA/Holgado y MEDIA/Justo — es
-## el vocabulario de color ya asentado del proyecto, no una invención nueva de esta clase.
-const COLOR_HOLGADO := Color(0.55, 0.9, 0.55)
-const COLOR_JUSTO := Color(1.0, 0.8, 0.35)
+## Verde/ámbar — RETONALIZADOS en F2 (ver DESVIACIÓN C de la cabecera): los pasteles del piloto
+## (0.55/0.9/0.55 y 1.0/0.8/0.35) se leían bien sobre el 9-slice navy oscuro pero pierden contraste
+## sobre la pastilla BLANCA del kit moderno. Se igualan a `KitUIComisario.MOD_COLOR_VERDE`/
+## `MOD_COLOR_AMBAR` (mismo vocabulario "verde"/"ámbar" que ya usa el kit claro) — SOLO cambia el
+## valor de la constante; la lógica que la consume (`_refrescar_saldo`/`_refrescar_demanda`,
+## bloqueadas en este reskin) no se toca.
+const COLOR_HOLGADO := Color(0.133, 0.627, 0.369)   # = KitUIComisario.MOD_COLOR_VERDE
+const COLOR_JUSTO := Color(0.941, 0.620, 0.173)     # = KitUIComisario.MOD_COLOR_AMBAR
 ## Navy al 65% -- gemelo de `Main.COLOR_TENUE_HUD_CLARO`, mismo valor, con copia propia porque
 ## `main.gd` no tiene `class_name` (no es referenciable desde aquí) y esa constante, además,
 ## Main.md §4 la reasigna de alcance a "solo hints de construcción" -- este HUD necesita su propio
@@ -173,7 +193,10 @@ var _panel_acciones: Panel = null
 var _lbl_hora: Label = null
 var _lbl_fecha_turno: Label = null
 var _botones_velocidad: Array[Button] = []
-var _pips_velocidad: Array[Label] = []
+## F2: el "pip" YA NO es el triángulo ▾ — es la PASTILLA `MOD_COLOR_ACENTO_SUAVE` detrás del glifo
+## activo (maqueta v3). `_refrescar_velocidad` (bloqueada) solo toca `modulate.a`, que existe en
+## cualquier CanvasItem — el tipo se ensancha a `Control` sin tocar esa función.
+var _pips_velocidad: Array[Control] = []
 var _boton_3x: Button = null
 var _lbl_saldo: Label = null
 var _lbl_estado_fin: Label = null
@@ -252,36 +275,53 @@ func ocultar_acciones(oculto: bool) -> void:
 		_panel_acciones.visible = not oculto
 
 
-# ── Construcción — Panel superior (spec §1) ──────────────────────────────────────────────────────
+# ── Construcción — Panel superior (F2: la barra flotante clara de la maqueta v3) ─────────────────
 func _construir_panel_superior() -> void:
 	var panel := Panel.new()
 	panel.name = "PanelSuperior"
-	panel.theme = KitUIComisarioScript.tema()
-	panel.theme_type_variation = KitUIComisarioScript.VARIANTE_BARRA_SUPERIOR
+	# Tema MODERNO en la raíz (Segoe UI para todo lo de dentro) y fondo transparente: el color vivo
+	# es la barra flotante interior, no una franja de borde a borde.
+	panel.theme = KitUIComisarioScript.moderno_tema()
+	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	panel.grow_vertical = Control.GROW_DIRECTION_END
 	panel.custom_minimum_size = Vector2(0, ALTO_PANEL_SUPERIOR)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE   # el hueco transparente no roba clics al mundo
 	add_child(panel)
 	_panel_superior = panel
 
-	# Mismos 19/22/20/44 que `texture_margin_*` de `sb_barra`: el contenido no invade el borde/pie
-	# navy pintado por el 9-slice del fondo grande (independiente de los 3 módulos interiores).
 	var margen := MarginContainer.new()
 	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margen.add_theme_constant_override("margin_left", 19)
-	margen.add_theme_constant_override("margin_top", 22)
-	margen.add_theme_constant_override("margin_right", 20)
-	margen.add_theme_constant_override("margin_bottom", 44)
+	margen.add_theme_constant_override("margin_left", int(MARGEN_BARRA_FLOTANTE))
+	margen.add_theme_constant_override("margin_top", int(MARGEN_BARRA_FLOTANTE))
+	margen.add_theme_constant_override("margin_right", int(MARGEN_BARRA_FLOTANTE))
+	margen.add_theme_constant_override("margin_bottom", 0)
+	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(margen)
+
+	# La barra flotante: panel claro redondeado con sombra suave (misma receta que las tarjetas del
+	# kit pero en `MOD_COLOR_PANEL` — es el "suelo" sobre el que flotan las pastillas blancas).
+	var barra := PanelContainer.new()
+	barra.name = "BarraFlotante"
+	var estilo_barra := StyleBoxFlat.new()
+	estilo_barra.bg_color = KitUIComisarioScript.MOD_COLOR_PANEL
+	estilo_barra.set_corner_radius_all(20)
+	estilo_barra.shadow_size = 10
+	estilo_barra.shadow_color = Color(0.02, 0.03, 0.06, 0.12)
+	estilo_barra.shadow_offset = Vector2(0.0, 4.0)
+	estilo_barra.content_margin_left = 16.0
+	estilo_barra.content_margin_right = 16.0
+	estilo_barra.content_margin_top = 12.0
+	estilo_barra.content_margin_bottom = 12.0
+	barra.add_theme_stylebox_override("panel", estilo_barra)
+	margen.add_child(barra)
 
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", SEPARACION_NORMAL)
-	margen.add_child(fila)
+	barra.add_child(fila)
 
 	_construir_modulo_reloj(fila)
 	_construir_modulo_velocidad(fila)
-	fila.add_child(_espaciador_familia())
-	_construir_modulo_saldo(fila)
 	fila.add_child(_espaciador_familia())
 
 	var chip_sat := _crear_chip_plano(fila, &"queja", ANCHO_CHIP_SATISFACCION)
@@ -299,99 +339,117 @@ func _construir_panel_superior() -> void:
 	var chip_doc := _crear_chip_plano(fila, &"carpeta", ANCHO_CHIP_DOCUMENTACION)
 	_lbl_doc_cola = chip_doc["linea1"]
 	_lbl_doc_atendiendo = chip_doc["linea2"]
-	fila.add_child(_espaciador_familia())
 
+	# Elástico: empuja el saldo al borde derecho de la barra (maqueta v3: el dinero SIEMPRE al
+	# fondo a la derecha). La brújula de depuración vive en su propia CanvasLayer por debajo de
+	# esta cota — ya no hace falta reservarle hueco aquí (verificado en main.gd).
 	var elastico := Control.new()
 	elastico.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	elastico.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fila.add_child(elastico)
+	_construir_modulo_saldo(fila)
 
-	var reserva_brujula := Control.new()
-	reserva_brujula.name = "ReservaBrujula"
-	reserva_brujula.custom_minimum_size = Vector2(ANCHO_RESERVA_BRUJULA, 0)
-	reserva_brujula.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fila.add_child(reserva_brujula)
+
+## El glifo de reloj DIBUJADO (círculo + manecillas, tinta 2px) — icono de línea del lenguaje
+## moderno, nunca un emoji (regla de la maqueta v3; los emojis caen en la fuente de color del
+## sistema e ignoran `font_color`).
+class GlifoReloj extends Control:
+	func _init() -> void:
+		custom_minimum_size = Vector2(22.0, 22.0)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		var tinta: Color = KitUIComisario.MOD_COLOR_TINTA
+		var centro: Vector2 = size / 2.0
+		draw_arc(centro, 9.0, 0.0, TAU, 24, tinta, 2.0, true)
+		draw_line(centro, centro + Vector2(0.0, -5.0), tinta, 2.0)
+		draw_line(centro, centro + Vector2(3.5, 2.0), tinta, 2.0)
 
 
 func _construir_modulo_reloj(fila: HBoxContainer) -> void:
-	var contenido := _crear_modulo_9slice(
-		fila, KitUIComisarioScript.VARIANTE_MODULO_RELOJ, ANCHO_MODULO_RELOJ, MARGEN_IZQ_RELOJ
-	)
+	var pastilla := _pastilla_modulo("ModuloReloj", ANCHO_MODULO_RELOJ)
+	fila.add_child(pastilla)
+	var caja_h := HBoxContainer.new()
+	caja_h.add_theme_constant_override("separation", 8)
+	caja_h.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja_h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastilla.add_child(caja_h)
+	caja_h.add_child(GlifoReloj.new())
 	var caja := VBoxContainer.new()
 	caja.add_theme_constant_override("separation", 0)
-	contenido.add_child(caja)
-	_lbl_hora = _etiqueta(15, KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caja_h.add_child(caja)
+	_lbl_hora = _etiqueta(15, KitUIComisarioScript.MOD_COLOR_TINTA, true)
 	caja.add_child(_lbl_hora)
-	_lbl_fecha_turno = _etiqueta(10, COLOR_NAVY_TENUE)
-	_lbl_fecha_turno.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lbl_fecha_turno.clip_text = true
+	# Sin clip_text: con él, el mínimo del Label cae a 0 y el VBox lo estrecha al ancho de la hora
+	# ("Sem 1 · Turno 1" salía truncado). El ancho fijo que evita el baile ya lo pone la pastilla.
+	_lbl_fecha_turno = _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
 	caja.add_child(_lbl_fecha_turno)
+
+
+## La pastilla blanca base de un módulo de la barra (maqueta v3): blanca, radio = mitad del alto,
+## ancho mínimo fijo para que la barra no baile cuando cambian los textos.
+func _pastilla_modulo(nombre: String, ancho: float) -> PanelContainer:
+	var pastilla := KitUIComisarioScript.moderno_pastilla(
+		KitUIComisarioScript.MOD_COLOR_TARJETA, ALTO_PASTILLA
+	)
+	pastilla.name = nombre
+	pastilla.custom_minimum_size = Vector2(ancho, ALTO_PASTILLA)
+	pastilla.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return pastilla
 
 
 ## Módulo Velocidad (spec §1.3-[2]): 4 controles (Pausa/1×/2×/3×) + un triángulo "▾" bajo el
 ## actualmente activo -- NUNCA se recolorea el botón (serían transparentes sobre el mismo PNG
 ## estático, sin estado "pulsado" propio, spec dixit), el triángulo ES el respaldo no-color.
 func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
-	# SIN el PNG del modulo (fix 2026-08-08, veredicto del usuario "botones encima de otros"): el
-	# arte trae 3 circulos HORNEADOS y los botones reales encima daban vision doble. Panel limpio
-	# transparente; los botones son los unicos circulos que se ven.
-	var panel := Panel.new()
-	panel.name = "ModuloVelocidad"
-	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	panel.custom_minimum_size = Vector2(ANCHO_MODULO_VELOCIDAD, ALTO_MODULO)
-	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	fila.add_child(panel)
-	var margen_v := MarginContainer.new()
-	margen_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panel.add_child(margen_v)
-	var contenido := CenterContainer.new()
-	margen_v.add_child(contenido)
+	# F2 (maqueta v3): pastilla blanca con 4 SEGMENTOS; el activo lleva detrás una pastilla interior
+	# `MOD_COLOR_ACENTO_SUAVE` (esa pastilla ES el "pip" que `_refrescar_velocidad` enciende/apaga
+	# por `modulate.a` — mismo contrato que el triángulo ▾ del piloto, otra forma).
+	var pastilla := _pastilla_modulo("ModuloVelocidad", ANCHO_MODULO_VELOCIDAD)
+	fila.add_child(pastilla)
 	var fila_botones := HBoxContainer.new()
-	# 10px entre glifos: los botones ya no llevan relleno propio (styleboxes vacíos, ver abajo),
-	# así que esta separación es TODO el aire que hay entre ellos.
-	fila_botones.add_theme_constant_override("separation", 10)
-	contenido.add_child(fila_botones)
+	fila_botones.add_theme_constant_override("separation", 2)
+	fila_botones.alignment = BoxContainer.ALIGNMENT_CENTER
+	fila_botones.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastilla.add_child(fila_botones)
 
-	# "II" tipográfico y no "⏸" (fix 2026-08-09, auditoría de captura): el glifo ⏸ cae en la fuente
-	# de EMOJIS del sistema (cuadrado azul de color, ignora `font_color`) mientras ▶ se queda en
-	# presentación de texto navy — un botón con chip azul y tres glifos planos no son una familia.
+	# "II" tipográfico y no "⏸" (fix 2026-08-09, sigue vigente): el glifo ⏸ cae en la fuente de
+	# EMOJIS de color e ignora `font_color`; ▶ se queda en presentación de texto.
 	const GLIFOS := ["II", "▶", "▶▶", "▶▶▶"]
 	const TOOLTIPS := ["Pausa", "1×", "2×", "3×"]
 	for i in 4:
-		var caja_v := VBoxContainer.new()
-		caja_v.add_theme_constant_override("separation", 1)
-		caja_v.alignment = BoxContainer.ALIGNMENT_CENTER
+		var segmento := Control.new()
+		segmento.custom_minimum_size = Vector2(ANCHO_SEGMENTO_VELOCIDAD, ALTO_PASTILLA - 10.0)
+		fila_botones.add_child(segmento)
+
+		# La pastilla interior del ACTIVO (el pip): siempre en el árbol, alfa 0/1 — mismo criterio
+		# anti-reflow del piloto ("al pulsar se cambia de posición").
+		var pip := Panel.new()
+		pip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		var estilo_pip := StyleBoxFlat.new()
+		estilo_pip.bg_color = KitUIComisarioScript.MOD_COLOR_ACENTO_SUAVE
+		estilo_pip.set_corner_radius_all(int((ALTO_PASTILLA - 10.0) / 2.0))
+		pip.add_theme_stylebox_override("panel", estilo_pip)
+		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pip.modulate = Color(1, 1, 1, 0.0)
+		segmento.add_child(pip)
+
 		var boton := Button.new()
+		boton.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		boton.focus_mode = Control.FOCUS_NONE   # gotcha ya conocido: si no, Espacio lo "pulsa".
 		boton.text = GLIFOS[i]
 		boton.tooltip_text = TOOLTIPS[i]
 		boton.flat = true
-		boton.add_theme_font_size_override("font_size", 14)
-		boton.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-		# Sin las content margins del Button del tema (fix 2026-08-09, misma auditoría): `flat`
-		# esconde el DIBUJO del stylebox pero no sus márgenes — cada botón arrastraba ~16px de
-		# relleno y la fila respiraba desigual (el hueco ▶▶↔▶▶▶ parecía un agujero). Con el
-		# stylebox vacío el ancho es el del glifo y la separación del HBox manda de verdad.
+		boton.add_theme_font_size_override("font_size", 13)
+		boton.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+		boton.add_theme_color_override("font_hover_color", KitUIComisarioScript.MOD_COLOR_ACENTO)
 		for estado: String in ["normal", "hover", "pressed", "disabled", "focus"]:
 			boton.add_theme_stylebox_override(estado, StyleBoxEmpty.new())
-		boton.add_theme_color_override("font_hover_color", KitUIComisarioScript.COLOR_ACENTO_NAVY)
-		# Captura por valor (mismo patrón ya probado en el HUD viejo, `Main._crear_barra_superior`):
-		# cada iteración cierra sobre SU PROPIO `i`, no el último del bucle.
+		# Captura por valor: cada iteración cierra sobre SU PROPIO `i`, no el último del bucle.
 		boton.pressed.connect(func() -> void: Tiempo.fijar_velocidad(i as Tiempo.Velocidad))
-		caja_v.add_child(boton)
+		segmento.add_child(boton)
 
-		var pip := Label.new()
-		pip.text = "▾"
-		# 10px y no 8 (auditoría 2026-08-09): a 8px el triángulo era una mota que parecía suciedad.
-		pip.add_theme_font_size_override("font_size", 10)
-		pip.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-		pip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		# SIEMPRE visible con alfa (fix 2026-08-08: "al pulsar se cambia de posicion" — el toggle de
-		# visible reflowaba la fila); activo = opaco, inactivo = transparente. Mismo hueco siempre.
-		pip.modulate = Color(1, 1, 1, 0.0)
-		caja_v.add_child(pip)
-
-		fila_botones.add_child(caja_v)
 		_botones_velocidad.append(boton)
 		_pips_velocidad.append(pip)
 		if i == 3:
@@ -412,44 +470,46 @@ func _formato_euros(saldo: float) -> String:
 
 
 func _construir_modulo_saldo(fila: HBoxContainer) -> void:
-	var contenido := _crear_modulo_9slice(
-		fila, KitUIComisarioScript.VARIANTE_MODULO_SALDO, ANCHO_MODULO_SALDO, MARGEN_IZQ_SALDO
-	)
+	# F2 (maqueta v3): pastilla blanca con la insignia "€" en círculo verde suave + saldo grande +
+	# estado (Holgado/Justo/Negativo) debajo en su color — los colores los pone `_refrescar_saldo`
+	# (bloqueada), aquí solo se montan los Labels con los MISMOS nombres.
+	var pastilla := _pastilla_modulo("ModuloSaldo", ANCHO_MODULO_SALDO)
+	fila.add_child(pastilla)
+	var caja_h := HBoxContainer.new()
+	caja_h.add_theme_constant_override("separation", 8)
+	caja_h.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja_h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastilla.add_child(caja_h)
+
+	var insignia := Panel.new()
+	insignia.custom_minimum_size = Vector2(24.0, 24.0)
+	insignia.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	insignia.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var estilo_insignia := StyleBoxFlat.new()
+	estilo_insignia.bg_color = Color(0.886, 0.957, 0.918)   # verde muy suave (226,244,234), maqueta
+	estilo_insignia.set_corner_radius_all(12)
+	insignia.add_theme_stylebox_override("panel", estilo_insignia)
+	caja_h.add_child(insignia)
+	var euro := Label.new()
+	euro.text = "€"
+	euro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	euro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	euro.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	euro.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
+	euro.add_theme_font_size_override("font_size", 13)
+	euro.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_VERDE)
+	euro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	insignia.add_child(euro)
+
 	var caja := VBoxContainer.new()
 	caja.add_theme_constant_override("separation", 0)
-	contenido.add_child(caja)
-	_lbl_saldo = _etiqueta(16, KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caja_h.add_child(caja)
+	_lbl_saldo = _etiqueta(16, KitUIComisarioScript.MOD_COLOR_TINTA, true)
 	caja.add_child(_lbl_saldo)
-	_lbl_estado_fin = _etiqueta(10, KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	_lbl_estado_fin = _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
 	caja.add_child(_lbl_estado_fin)
-
-
-## Un módulo 9-slice REAL (`Panel` + `theme_type_variation`, ver la cabecera del archivo y la de
-## `sb_mod_reloj` en el tema): a diferencia del piloto Fase 2 (un `TextureRect` a tamaño nativo),
-## este SÍ se dimensiona al ancho pedido por la spec (`ancho`×`ALTO_MODULO`) -- el StyleBoxTexture
-## protege el icono con su `texture_margin_left` medido, el resto de la card se estira/encoge.
-func _crear_modulo_9slice(
-	fila: HBoxContainer, variante: StringName, ancho: float, margen_izq: int
-) -> CenterContainer:
-	var panel := Panel.new()
-	panel.name = "Modulo" + String(variante)
-	panel.theme = KitUIComisarioScript.tema()
-	panel.theme_type_variation = variante
-	panel.custom_minimum_size = Vector2(ancho, ALTO_MODULO)
-	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	fila.add_child(panel)
-
-	var margen := MarginContainer.new()
-	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margen.add_theme_constant_override("margin_left", margen_izq)
-	margen.add_theme_constant_override("margin_right", 10)
-	margen.add_theme_constant_override("margin_top", 6)
-	margen.add_theme_constant_override("margin_bottom", 6)
-	panel.add_child(margen)
-
-	var centro := CenterContainer.new()
-	margen.add_child(centro)
-	return centro
 
 
 ## Un chip de fondo plano (grupos 4-7, spec §1.3): icono pequeño (28×28, `KitUIComisario.icono`,
@@ -457,52 +517,53 @@ func _crear_modulo_9slice(
 ## pictograma pequeño SÍ tolera reescalado sin distorsión perceptible) + 2 líneas de texto.
 ## Devuelve `{"linea1": Label, "linea2": Label}` -- quien llama guarda las referencias que necesite.
 func _crear_chip_plano(fila: HBoxContainer, icono_id: StringName, ancho: float) -> Dictionary:
+	# F2: cada chip es una pastilla BLANCA independiente (maqueta v3), dos líneas (dato principal
+	# en seminegrita + secundario pequeño gris — así no se pierde ni un dato del HUD viejo).
+	var pastilla := _pastilla_modulo("Chip" + String(icono_id).capitalize(), ancho)
+	fila.add_child(pastilla)
 	var caja := HBoxContainer.new()
-	caja.name = "Chip" + String(icono_id).capitalize()
-	caja.custom_minimum_size = Vector2(ancho, 0)
 	caja.add_theme_constant_override("separation", 6)
-	caja.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	fila.add_child(caja)
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastilla.add_child(caja)
 
 	var icono := TextureRect.new()
 	icono.texture = KitUIComisarioScript.icono(icono_id)
-	# EXPAND_IGNORE_SIZE (fix 2026-08-08, cazado en captura): sin él, el mínimo del TextureRect es
-	# el tamaño NATIVO del PNG (~512px) y el icono revienta la barra — el mismo bug ya resuelto en
-	# las miniaturas de tarjetas. El custom_minimum_size de 28px solo manda con este expand_mode.
+	# EXPAND_IGNORE_SIZE (fix 2026-08-08, sigue vigente): sin él, el mínimo del TextureRect es el
+	# tamaño NATIVO del PNG (~512px) y el icono revienta la barra.
 	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icono.custom_minimum_size = Vector2(28, 28)
+	icono.custom_minimum_size = Vector2(20, 20)
 	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icono.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caja.add_child(icono)
 
 	var textos := VBoxContainer.new()
 	textos.add_theme_constant_override("separation", 0)
+	textos.alignment = BoxContainer.ALIGNMENT_CENTER
 	textos.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	textos.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caja.add_child(textos)
 
-	var linea1 := _etiqueta(13, KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
+	var linea1 := _etiqueta(12, KitUIComisarioScript.MOD_COLOR_TINTA, true)
 	linea1.clip_text = true
 	textos.add_child(linea1)
-	var linea2 := _etiqueta(11, COLOR_NAVY_TENUE)
-	linea2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var linea2 := _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
 	linea2.clip_text = true
 	textos.add_child(linea2)
 
 	return {"linea1": linea1, "linea2": linea2}
 
 
-## Una etiqueta del panel superior: tamaño pedido + color + contorno del MISMO navy (2px) -- el
-## contorno es lo que garantiza que se siga leyendo pase lo que pase con el color dinámico que le
-## ponga `refrescar()` (mismo criterio ya verificado en pantalla por el piloto Fase 2: un contorno
-## oscuro modulado por un color de estado sigue siendo mucho más oscuro que el fondo pastel).
-func _etiqueta(tam: int, color: Color) -> Label:
+## Una etiqueta del panel superior: tamaño + color (+ seminegrita opcional). F2: SIN el contorno
+## navy del piloto — sobre pastillas blancas del kit claro el contorno ensuciaba el trazo de la
+## fuente moderna; el contraste tinta-sobre-blanco ya cumple sobrado.
+func _etiqueta(tam: int, color: Color, negrita: bool = false) -> Label:
 	var etiqueta := Label.new()
+	if negrita:
+		etiqueta.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
 	etiqueta.add_theme_font_size_override("font_size", tam)
 	etiqueta.add_theme_color_override("font_color", color)
-	etiqueta.add_theme_color_override(
-		"font_outline_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
-	)
-	etiqueta.add_theme_constant_override("outline_size", 2)
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return etiqueta
 
@@ -521,7 +582,7 @@ func _espaciador_familia() -> Control:
 func _construir_panel_acciones() -> void:
 	var panel := Panel.new()
 	panel.name = "PanelAcciones"
-	panel.theme = KitUIComisarioScript.tema()
+	panel.theme = KitUIComisarioScript.moderno_tema()   # Segoe UI también en la franja de acciones
 	# Relleno plano deliberado en vez del gris por defecto del motor (opción A del veredicto
 	# 2026-08-09; ver `COLOR_FONDO_BARRA_INFERIOR`): la barra de construcción usa el MISMO color,
 	# así las dos franjas siguen cosidas sin costura como antes.
@@ -562,7 +623,8 @@ func _construir_panel_acciones() -> void:
 	# abierto la fila entera se oculta (`ocultar_acciones`, ya cableado) y manda la barra de
 	# pestañas+tarjetas.
 	var boton_construir := _boton_pildora(
-		&"plano", "Construir (B)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA, Color.WHITE
+		&"plano", "Construir (B)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA,
+		KitUIComisarioScript.MOD_COLOR_ACENTO
 	)
 	boton_construir.pressed.connect(func() -> void: construccion_solicitada.emit())
 	fila.add_child(boton_construir)
@@ -570,14 +632,16 @@ func _construir_panel_acciones() -> void:
 	_botones_acciones.append(boton_construir)
 
 	var boton_personal := _boton_pildora(
-		&"personal", "Personal (P)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA, Color.WHITE
+		&"personal", "Personal (P)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA,
+		KitUIComisarioScript.MOD_COLOR_TINTA
 	)
 	boton_personal.pressed.connect(func() -> void: personal_solicitado.emit())
 	fila.add_child(boton_personal)
 	_botones_acciones.append(boton_personal)
 
 	var boton_horario := _boton_pildora(
-		&"reloj", "Horario (H)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA, Color.WHITE
+		&"reloj", "Horario (H)", KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA,
+		KitUIComisarioScript.MOD_COLOR_TINTA
 	)
 	boton_horario.pressed.connect(func() -> void: horario_solicitado.emit())
 	fila.add_child(boton_horario)
@@ -585,7 +649,7 @@ func _construir_panel_acciones() -> void:
 
 	fila.add_child(_espaciador_familia())
 
-	var color_secundaria: Color = KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL
+	var color_secundaria: Color = KitUIComisarioScript.MOD_COLOR_TINTA
 	var boton_guardar := _boton_pildora(
 		&"disquete", "Guardar (F5)", KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA, color_secundaria
 	)
@@ -623,10 +687,22 @@ func _boton_pildora(
 	icono_id: StringName, texto: String, variante: StringName, color_texto: Color
 ) -> Button:
 	var boton := Button.new()
-	boton.theme = KitUIComisarioScript.tema()
-	boton.theme_type_variation = variante
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.custom_minimum_size = Vector2(0, 40)   # el ancho real se fija al final con el texto medido
+	# F2: pastilla BLANCA del kit moderno (la primaria con un filo de acento) en vez del 9-slice
+	# navy — sobre la franja oscura de acciones, las pastillas claras son las que "flotan".
+	var estilo := StyleBoxFlat.new()
+	estilo.bg_color = KitUIComisarioScript.MOD_COLOR_TARJETA
+	estilo.set_corner_radius_all(20)
+	if variante == KitUIComisarioScript.VARIANTE_PILDORA_PRIMARIA:
+		estilo.set_border_width_all(2)
+		estilo.border_color = KitUIComisarioScript.MOD_COLOR_ACENTO
+	var estilo_hover: StyleBoxFlat = estilo.duplicate()
+	estilo_hover.bg_color = KitUIComisarioScript.MOD_COLOR_ACENTO_SUAVE
+	for estado: String in ["normal", "disabled", "focus"]:
+		boton.add_theme_stylebox_override(estado, estilo)
+	boton.add_theme_stylebox_override("hover", estilo_hover)
+	boton.add_theme_stylebox_override("pressed", estilo_hover)
 
 	var margen := MarginContainer.new()
 	margen.mouse_filter = Control.MOUSE_FILTER_IGNORE
