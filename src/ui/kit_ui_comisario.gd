@@ -169,6 +169,10 @@ const MOD_COLOR_ROJO := Color(0.886, 0.345, 0.322, 1.0)            # inválido/n
 ## que `MOD_COLOR_VERDE` pero aclarado a fondo de insignia (226,244,234), calcado del mockup ejecutable
 ## `design/ux/maquetas-menu-2026-08/maqueta_hud_v3.py`.
 const MOD_COLOR_VERDE_SUAVE := Color(0.886, 0.957, 0.918, 1.0)
+## Rojo SUAVE de fondo (250,227,225) — el panel de un coste que duele sin ser un error: la tarjeta
+## "COSTE TOTAL DE PEONADA HOY" de la pantalla de Horario (F3, `maqueta_horario.py::ROJO_SUAVE`).
+## El texto de encima va en `MOD_COLOR_ROJO`, que sobre este fondo sí contrasta.
+const MOD_COLOR_ROJO_SUAVE := Color(0.980, 0.890, 0.882, 1.0)
 ## Ámbar OSCURECIDO, SOLO para texto de cuerpo sobre `MOD_COLOR_PANEL` (F3, 2026-08-17): el ámbar de
 ## aviso (240,158,44) sobre panel claro no llega al contraste mínimo de
 ## `design/ux/accessibility-requirements.md`; esta variante (181,112,15) sí. El punto de un chip o
@@ -869,6 +873,140 @@ static func moderno_circulo_simbolo(
 	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	centro.add_child(etiqueta)
 	return circulo
+
+
+# ── SLIDER moderno (F3, pantalla de Horario — `maqueta_horario.py::control_grande`) ───────────────
+## Alto del raíl de un slider moderno y lado del tirador (la maqueta: raíl de 10 px, tirador de 22).
+const MOD_ALTO_RAIL_SLIDER: float = 10.0
+const MOD_LADO_GRABBER_SLIDER: float = 22.0
+
+static var _grabbers_cache: Dictionary[String, ImageTexture] = {}
+
+
+## Viste un `Slider` (H o V) con el lenguaje moderno de la maqueta: raíl fino redondeado del color de
+## línea, tramo recorrido macizo en `color_relleno` (acento o ámbar según lo que mida el control) y
+## tirador CIRCULAR blanco con aro del mismo color. `focus_mode = FOCUS_NONE` siempre (gotcha del
+## proyecto: si no, la barra espaciadora "pulsa" el control enfocado en vez de pausar el juego).
+##
+## El tirador es una textura generada por código (`_textura_grabber`) porque el tema de un `Slider`
+## pide un `Texture2D` para el grabber, no un `StyleBox`; el kit no depende de ningún PNG nuevo.
+##
+## ⚠️ Nombres de ítem de tema de `Slider` (`slider`/`grabber_area`/`grabber`/`center_grabber`): son
+## los de la API estable desde 4.0, pero el proyecto va pinado a Godot 4.6 — si algún día un slider
+## sale con el raíl gordo del tema por defecto, verificar estos nombres contra
+## `docs/engine-reference/godot/` antes de tocar nada más.
+static func moderno_estilizar_slider(
+	slider: Slider, color_relleno: Color = MOD_COLOR_ACENTO,
+	alto_rail: float = MOD_ALTO_RAIL_SLIDER, lado_grabber: float = MOD_LADO_GRABBER_SLIDER
+) -> void:
+	slider.focus_mode = Control.FOCUS_NONE
+	slider.custom_minimum_size.y = maxf(slider.custom_minimum_size.y, lado_grabber)
+	var rail := StyleBoxFlat.new()
+	rail.bg_color = MOD_COLOR_LINEA
+	rail.set_corner_radius_all(int(alto_rail / 2.0))
+	rail.content_margin_top = alto_rail / 2.0
+	rail.content_margin_bottom = alto_rail / 2.0
+	var recorrido: StyleBoxFlat = rail.duplicate()
+	recorrido.bg_color = color_relleno
+	slider.add_theme_stylebox_override("slider", rail)
+	slider.add_theme_stylebox_override("grabber_area", recorrido)
+	slider.add_theme_stylebox_override("grabber_area_highlight", recorrido)
+	var tirador: ImageTexture = _textura_grabber(color_relleno, int(lado_grabber))
+	slider.add_theme_icon_override("grabber", tirador)
+	slider.add_theme_icon_override("grabber_highlight", tirador)
+	slider.add_theme_icon_override("grabber_disabled", tirador)
+	# Sin esto el tema por defecto baja el tirador con `grabber_offset` y queda descolgado del raíl.
+	slider.add_theme_constant_override("center_grabber", 1)
+	slider.add_theme_constant_override("grabber_offset", 0)
+
+
+## Círculo blanco con aro de color, generado a mano y CACHEADO por color+tamaño (varios sliders
+## comparten tirador). El borde se suaviza por distancia al centro: un círculo a pelo con `set_pixel`
+## sale con el canto de sierra y se nota mucho a 22 px.
+static func _textura_grabber(
+	color_aro: Color, lado: int = int(MOD_LADO_GRABBER_SLIDER), grosor: float = 3.0
+) -> ImageTexture:
+	var clave: String = "%s_%d_%.1f" % [color_aro.to_html(false), lado, grosor]
+	if _grabbers_cache.has(clave):
+		return _grabbers_cache[clave]
+	var imagen: Image = Image.create(lado, lado, false, Image.FORMAT_RGBA8)
+	var centro: float = lado / 2.0
+	var radio_exterior: float = centro - 0.5
+	var radio_interior: float = radio_exterior - grosor
+	for y: int in lado:
+		for x: int in lado:
+			var distancia: float = Vector2(x + 0.5 - centro, y + 0.5 - centro).length()
+			var alfa: float = clampf(radio_exterior - distancia + 0.5, 0.0, 1.0)
+			var mezcla: float = clampf(distancia - radio_interior + 0.5, 0.0, 1.0)
+			var color: Color = MOD_COLOR_TARJETA.lerp(color_aro, mezcla)
+			color.a = alfa
+			imagen.set_pixel(x, y, color)
+	var textura: ImageTexture = ImageTexture.create_from_image(imagen)
+	_grabbers_cache[clave] = textura
+	return textura
+
+
+# ── CASILLA de verificación moderna (F3, pantalla de Horario — `maqueta_horario.py::casilla`) ──────
+## Casilla cuadrada de esquinas redondeadas: vacía = solo borde gris; marcada = maciza de acento con
+## la "V" blanca. Se DIBUJA (`CasillaModerna._draw`) en vez de usar un `CheckBox`, porque el icono de
+## un `CheckBox` sale del tema global (pixel-art del kit viejo) y desentonaría con la pantalla
+## moderna. Es un `Button` en `toggle_mode`: el estado real vive en `button_pressed` (nunca solo el
+## color) y la señal es la nativa `toggled`.
+##
+## Ejemplo:
+##     var c := KitUIComisario.moderno_casilla(doc.puesto_de_tarde(id))
+##     c.toggled.connect(func(activa: bool) -> void: _ordenar_tarde(id, activa))
+static func moderno_casilla(marcada: bool, lado: float = 20.0) -> Button:
+	var casilla := CasillaModerna.new()
+	# Los colores se INYECTAN: una clase interna de GDScript no ve las constantes de la clase que la
+	# contiene, y cualificarlas con el `class_name` desde dentro es justo lo que falla en headless frío.
+	casilla.color_marcada = MOD_COLOR_ACENTO
+	casilla.color_marca = MOD_COLOR_TARJETA
+	casilla.toggle_mode = true
+	casilla.button_pressed = marcada
+	casilla.focus_mode = Control.FOCUS_NONE
+	casilla.custom_minimum_size = Vector2(lado, lado)
+	casilla.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	casilla.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	casilla.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	casilla.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	return casilla
+
+
+## El `Button` que se dibuja como la casilla de la maqueta. Vive aquí (y no en la pantalla) para que
+## cualquier pantalla moderna futura tenga la MISMA casilla sin copiar el `_draw`.
+class CasillaModerna extends Button:
+	## Color del borde de una casilla VACÍA (190,196,208) — el de la maqueta, más oscuro que el color
+	## de línea del kit para que un cuadrado hueco de 20 px se vea sobre tarjeta blanca.
+	var color_borde: Color = Color(0.745, 0.769, 0.816, 1.0)
+	## Relleno de la casilla marcada y color de la "V" (los inyecta `moderno_casilla`).
+	var color_marcada: Color = Color(0.184, 0.424, 0.878, 1.0)
+	var color_marca: Color = Color(1.0, 1.0, 1.0, 1.0)
+	const RADIO := 5
+
+	func _init() -> void:
+		toggled.connect(func(_activa: bool) -> void: queue_redraw())
+
+	func _draw() -> void:
+		var caja := Rect2(Vector2.ZERO, size)
+		var estilo := StyleBoxFlat.new()
+		estilo.set_corner_radius_all(RADIO)
+		if button_pressed:
+			estilo.bg_color = color_marcada
+		else:
+			estilo.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+			estilo.set_border_width_all(2)
+			estilo.border_color = color_borde
+		draw_style_box(estilo, caja)
+		if not button_pressed:
+			return
+		# La "V" de la maqueta: dos trazos con los mismos puntos relativos (0.22/0.55 → 0.42/0.75 →
+		# 0.80/0.25) para que la marca se vea igual a cualquier tamaño de casilla.
+		var p0 := Vector2(size.x * 0.22, size.y * 0.55)
+		var p1 := Vector2(size.x * 0.42, size.y * 0.75)
+		var p2 := Vector2(size.x * 0.80, size.y * 0.25)
+		draw_line(p0, p1, color_marca, 2.0, true)
+		draw_line(p1, p2, color_marca, 2.0, true)
 
 
 ## Formato de dinero de TODA la UI ("1.240 €"): miles con punto y SIN decimales — los céntimos no
