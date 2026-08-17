@@ -17,16 +17,20 @@ extends CanvasLayer
 ## │   └─ Margen(12 por lado, sin margen inferior) → "BarraFlotante" (tarjeta moderna: fondo
 ## │       MOD_COLOR_PANEL, radio 20, sombra suave -- la pastilla clara que flota sobre el mundo)
 ## │       └─ Margen(16/16/12/12) → HBoxContainer "fila"
-## │           ├─ Módulo Reloj (pastilla blanca: GlifoModerno.RELOJ + hora + "Sem N · Turno T")
+## │           ├─ Módulo Reloj (pastilla blanca: GlifoModerno.RELOJ + "Sem N · HH:MM" en UNA línea;
+## │           │    turno/mes/año en el tooltip)
 ## │           ├─ Módulo Velocidad (pastilla blanca: 4 segmentos Pausa/1×/2×/3×, activo = pastilla
 ## │           │    interior MOD_COLOR_ACENTO_SUAVE detrás del glifo -- MISMO dato que antes, ver
 ## │           │    la cabecera de `_construir_modulo_velocidad`)
 ## │           ├─ [espaciador familia]
-## │           ├─ Chip Satisfacción (mini-barra + 2 líneas) · Chip Demanda (punto de color + 2
-## │           │    líneas) · Chip Plantilla (icono + 2 líneas) · Chip Documentación (icono + 2 líneas)
+## │           ├─ Chip Satisfacción ("Satisfacción" + mini-barra + "NN%") · Chip Demanda (punto de
+## │           │    color + "Demanda baja/media/alta") · Chip Plantilla (glifo persona + "4/4") ·
+## │           │    Chip Documentación (glifo documento + "N en cola") — una sola línea de dato cada
+## │           │    uno (maqueta v3); el resto, en su tooltip
 ## │           ├─ [espaciador familia]
 ## │           ├─ (spacer elástico, SIZE_EXPAND_FILL)
-## │           └─ Módulo Saldo (insignia "€" + saldo + Holgado/Justo/Negativo), pegado al borde
+## │           └─ Módulo Saldo (insignia "€" + saldo; Holgado/Justo/Negativo en el tooltip y en el
+## │                código de color de cifra+insignia), pegado al borde
 ## │                derecho de la barra (la brújula de depuración vive en su PROPIA CanvasLayer,
 ## │                posicionada por debajo de esta barra por `Main._crear_brujula_orientacion` --
 ## │                ya no necesita un hueco reservado aquí, verificado en `main.gd`)
@@ -38,7 +42,8 @@ extends CanvasLayer
 ##         ├─ [espaciador familia]
 ##         ├─ Píldora Guardar (F5) · Píldora Cargar (F9)
 ##         ├─ [espaciador familia]
-##         └─ Píldora Paredes: <modo> (Home)
+##         └─ Píldora Paredes: SOLO glifo de pared en diagonal (el modo cambia el dibujo; nombre y
+##             tecla en el tooltip — referencia Los Sims, pedida por el usuario 2026-08-17)
 ##     Las píldoras ahora son pastillas blancas redondeadas con icono+texto en tinta (kit moderno,
 ##     `_boton_pildora`) en vez del 9-slice/`theme_type_variation` del piloto.
 ##
@@ -79,28 +84,35 @@ extends CanvasLayer
 ##      el color de semáforo. Follow-up: un `Flujo.aforo_de(servicio) -> int` público desbloquea
 ##      esto sin tocar nada más de este archivo.
 ##
-## ── DESVIACIONES DE F2, señaladas explícitamente (no un olvido) ────────────────────────────────
-##   A. El módulo Reloj de la maqueta muestra una sola línea ("Día 3 · 07:47"); el contrato real
-##      sigue escribiendo la hora y "Sem N · Turno T" en DOS Labels separados (`_refrescar_reloj`,
-##      bloqueada). Se apilan en dos líneas (hora grande arriba, semana/turno pequeño gris abajo) en
-##      vez de fundirlos en una — no se pierde información, pero el layout no es idéntico a la
-##      maqueta en este punto. `art-director`/`ux-designer`: si se quiere el formato "Día N", hace
-##      falta que `_refrescar_reloj` (fuera de alcance aquí) lo calcule.
-##   B. El glifo de velocidad NO cambia de color al activarse (la maqueta lo dibuja azul cuando
-##      está activo, gris si no) — `_refrescar_velocidad` (bloqueada) solo alterna
-##      `_pips_velocidad[i].modulate.a` (visibilidad de la pastilla interior) y
-##      `_boton_3x.theme_type_variation` (inerte aquí, ver la cabecera de
-##      `_construir_modulo_velocidad`), nunca un color de glifo. La pastilla interior
-##      (`MOD_COLOR_ACENTO_SUAVE`) sigue siendo una señal de estado clara por sí sola (forma +
-##      posición, no solo color -- cumple la regla de accesibilidad transversal del proyecto).
-##   C. `COLOR_HOLGADO`/`COLOR_JUSTO` (más abajo) se RETONALIZAN a los mismos verdes/ámbares del kit
-##      moderno (`MOD_COLOR_VERDE`/`MOD_COLOR_AMBAR`): los pasteles del piloto (pensados para leerse
-##      sobre el 9-slice navy oscuro) pierden contraste sobre la pastilla BLANCA del kit claro. Es
-##      un cambio de VALOR de constante, no de la lógica que las usa (`_refrescar_saldo`/
-##      `_refrescar_demanda`, bloqueadas, sin tocar).
-##   D. Los chips de Plantilla/Documentación llevan icono (kit `ICONOS`, `personal`/`carpeta`) para
-##      casar visualmente con la maqueta, aunque el texto de la story los describe sin icono — el
-##      icono ya existe en el catálogo y no añade coste de mantenimiento nuevo.
+## ── AJUSTE A LA MAQUETA (2026-08-17) — las desviaciones A/B/D de F2 quedan CERRADAS ────────────
+## Veredicto del usuario tras comparar el juego real con `menu_v3_completo.png`: "manda la maqueta".
+## Las desviaciones que F2 documentaba como aceptadas se eliminan donde chocaban con ella, y con
+## ellas cae la restricción vieja de "no tocar las funciones `_refrescar_*`" (autorizado hoy):
+##   A. CERRADA — el módulo Reloj es UNA sola línea, "Sem N · HH:MM" (16px seminegrita, tinta). Se usa
+##      "Sem N" y no el "Día 3" de la maqueta porque el modelo real de `Tiempo` NO tiene día: la
+##      jornada jugable es `Tiempo.semana` (avanza a cada medianoche). El nº de turno no se pierde:
+##      pasa al `tooltip_text` del propio módulo, junto con mes y año.
+##   B. SIGUE VIGENTE (única desviación abierta) — el glifo de velocidad no se recolorea al activarse;
+##      la señal es la pastilla interior `MOD_COLOR_ACENTO_SUAVE` (forma + posición, no solo color:
+##      cumple la regla de accesibilidad transversal del proyecto).
+##   C. SIGUE VIGENTE — `COLOR_HOLGADO`/`COLOR_JUSTO` retonalizados a los verdes/ámbares del kit
+##      moderno (los pasteles del piloto pierden contraste sobre pastilla blanca).
+##   D. CERRADA a la inversa — los chips ya NO usan los PNG del kit viejo (`ICONOS`): a 20px, al lado
+##      de la tipografía moderna, se leían como manchas oscuras. Pasan a glifos VECTORIALES de línea
+##      (`KitUIComisario.GlifoModerno.Tipo.PERSONA`/`DOCUMENTO`), el mismo lenguaje que el reloj.
+##
+## ── REGLA DE ORO DE ESTE AJUSTE: NINGÚN dato desaparece ────────────────────────────────────────
+## La maqueta enseña una sola línea por chip; todo lo que sale de la vista se recoloca en el
+## `tooltip_text` del módulo que lo poseía, nunca se deja de leer:
+##   · Reloj → tooltip "Turno T · Mes M · Año A"
+##   · Satisfacción → tooltip "Reclamaciones: N (M graves)"
+##   · Demanda → tooltip "Llegadas hoy: N"
+##   · Plantilla → tooltip "Nómina: N €/día" (o el motivo de la falta de cobertura)
+##   · Documentación → tooltip "N atendiendo"
+##   · Saldo → tooltip "Holgado/Justo/Negativo" + el código de COLOR se conserva en la cifra y en la
+##     insignia "€" (la señal de estado no se pierde al quitar el subtítulo).
+## Los tooltips exigen que la pastilla reciba ratón: las pastillas son `PanelContainer` con el
+## `mouse_filter` STOP por defecto y sus hijos IGNORE, así el hover cae siempre en la pastilla.
 
 # ── Señales (upward, child → parent — coding standards del proyecto) ────────────────────────────
 signal construccion_solicitada
@@ -124,19 +136,27 @@ const ALTO_BARRA_FLOTANTE: float = 64.0
 const ALTO_PANEL_SUPERIOR: float = MARGEN_BARRA_FLOTANTE + ALTO_BARRA_FLOTANTE
 ## Alto de cada pastilla blanca interior (reloj/velocidad/chips/saldo) -- maqueta: `y1-y0 = 40`.
 const ALTO_PASTILLA: float = 40.0
-## Anchos de los módulos/chips (maqueta v3 + margen para los 2 Labels del contrato, que no se
-## funden en una sola línea -- ver DESVIACIÓN A de la cabecera del archivo).
-const ANCHO_MODULO_RELOJ: float = 190.0
-const ANCHO_MODULO_VELOCIDAD: float = 164.0
+## Anchos de los módulos/chips — MEDIDOS del mockup ejecutable (`maqueta_hud_v3.py`: reloj 222,
+## velocidad 204, satisfacción 165, demanda 160, plantilla 92, docs 138, saldo 198) y ajustados a la
+## baja donde el texto real es más corto que el de la maqueta (ahora que cada chip enseña UNA línea).
+const ANCHO_MODULO_RELOJ: float = 178.0
+const ANCHO_MODULO_VELOCIDAD: float = 168.0
 ## Ancho de cada uno de los 4 segmentos Pausa/1×/2×/3× dentro del módulo Velocidad.
 const ANCHO_SEGMENTO_VELOCIDAD: float = 36.0
-const ANCHO_MODULO_SALDO: float = 190.0
+const ANCHO_MODULO_SALDO: float = 172.0
 ## Los 4 chips de fondo blanco (spec §1.3, chips de estado) -- pastilla independiente cada uno,
 ## dentro de la barra flotante (ya no "encima del fondo de la BarraSuperior" 9-slice del piloto).
-const ANCHO_CHIP_SATISFACCION: float = 190.0
-const ANCHO_CHIP_DEMANDA: float = 185.0
-const ANCHO_CHIP_PLANTILLA: float = 112.0
-const ANCHO_CHIP_DOCUMENTACION: float = 165.0
+const ANCHO_CHIP_SATISFACCION: float = 168.0
+const ANCHO_CHIP_DEMANDA: float = 158.0
+const ANCHO_CHIP_PLANTILLA: float = 96.0
+const ANCHO_CHIP_DOCUMENTACION: float = 142.0
+## Aire horizontal dentro de cada pastilla (maqueta: el contenido arranca a 14px del borde). El
+## módulo Velocidad usa menos (sus 4 segmentos de 36px ya llenan la pastilla).
+const PADDING_PASTILLA: float = 14.0
+const PADDING_PASTILLA_VELOCIDAD: float = 6.0
+## Mini-barra de Satisfacción (maqueta: 90×7 con radio completo, raíl `MOD_COLOR_LINEA`).
+const ANCHO_BARRA_SATISFACCION: float = 90.0
+const ALTO_BARRA_SATISFACCION: float = 7.0
 ## 8px normal / 16px entre "familias" (Gestalt, spec §1.1) -- el helper `_espaciador_familia`
 ## aprovecha que `HBoxContainer.separation` YA pone 8px a cada lado de cualquier hijo (incluido uno
 ## vacío): un `Control` de ancho 0 entre dos chips da 8+8=16 sin duplicar la constante de spacing.
@@ -172,9 +192,20 @@ const COLOR_NAVY_TENUE := Color(0.11, 0.2, 0.32, 0.65)
 const COLORES_NIVEL: Dictionary[StringName, Color] = {
 	&"BAJA": COLOR_HOLGADO, &"MEDIA": COLOR_JUSTO, &"ALTA": COLOR_ROJO_CRITICO,
 }
+## Rótulo del chip Demanda (maqueta v3: "Demanda baja" en TINTA, no el nivel en mayúsculas verde del
+## HUD viejo — el color lo lleva el punto de al lado, que es la señal de estado).
+const NOMBRES_NIVEL_DEMANDA: Dictionary[StringName, String] = {
+	&"BAJA": "Demanda baja", &"MEDIA": "Demanda media", &"ALTA": "Demanda alta",
+}
 ## Etiquetas del ciclo de paredes (mismo vocabulario que `Main.NOMBRES_MODO_PARED`).
 const NOMBRES_MODO_PARED: Dictionary[StringName, String] = {
 	&"auto": "Auto", &"todas": "Enteras", &"bajitas": "Bajitas",
+}
+## Glifo de pared que dibuja cada modo (botón Paredes solo-icono, 2026-08-17).
+const TIPO_GLIFO_PARED: Dictionary[StringName, int] = {
+	&"auto": KitUIComisarioScript.GlifoModerno.Tipo.PARED_AUTO,
+	&"todas": KitUIComisarioScript.GlifoModerno.Tipo.PARED_ENTERA,
+	&"bajitas": KitUIComisarioScript.GlifoModerno.Tipo.PARED_BAJA,
 }
 
 # ── Sistemas Core inyectados (ADR-0001: solo lectura) ────────────────────────────────────────────
@@ -190,31 +221,49 @@ var _paredes_salas: Node2D = null
 var _panel_superior: Panel = null
 var _panel_acciones: Panel = null
 
+## La pastilla del reloj: dueña del tooltip "Turno T · Mes M · Año A" (dato que la maqueta saca de la
+## vista al fundir el reloj en una sola línea). Mismo patrón para los 4 chips y el saldo.
+var _modulo_reloj: PanelContainer = null
 var _lbl_hora: Label = null
-var _lbl_fecha_turno: Label = null
 var _botones_velocidad: Array[Button] = []
 ## F2: el "pip" YA NO es el triángulo ▾ — es la PASTILLA `MOD_COLOR_ACENTO_SUAVE` detrás del glifo
 ## activo (maqueta v3). `_refrescar_velocidad` (bloqueada) solo toca `modulate.a`, que existe en
 ## cualquier CanvasItem — el tipo se ensancha a `Control` sin tocar esa función.
 var _pips_velocidad: Array[Control] = []
 var _boton_3x: Button = null
+
+var _modulo_saldo: PanelContainer = null
 var _lbl_saldo: Label = null
-var _lbl_estado_fin: Label = null
+## La insignia "€" y su estilo: se RECOLOREAN con el estado del saldo (verde/ámbar/rojo suaves) para
+## que el código de color no se pierda al quitar el subtítulo "Holgado/Justo" (regla de oro: nada se
+## pierde). El texto de la cifra sigue llevando el mismo color de estado que antes.
+var _lbl_euro: Label = null
+var _estilo_insignia_saldo: StyleBoxFlat = null
+
+var _chip_satisfaccion: PanelContainer = null
 var _lbl_satisfaccion: Label = null
-var _lbl_reclamaciones: Label = null
+## La mini-barra de Satisfacción (`KitUIComisario.moderno_barra_progreso`): se actualiza en sitio con
+## `moderno_actualizar_barra_progreso`, sin reconstruir nada.
+var _barra_satisfaccion: Control = null
+
+var _chip_demanda: PanelContainer = null
+var _punto_demanda: Panel = null
+var _estilo_punto_demanda: StyleBoxFlat = null
 var _lbl_demanda_nivel: Label = null
-var _lbl_llegadas: Label = null
+
+var _chip_plantilla: PanelContainer = null
 var _lbl_plantilla: Label = null
-var _lbl_nomina: Label = null
+
+var _chip_documentacion: PanelContainer = null
 var _lbl_doc_cola: Label = null
-var _lbl_doc_atendiendo: Label = null
 
 var _lbl_aviso: Label = null
 ## Los 5 botones de la franja de acciones, en el orden del wireframe (spec §6): Personal, Horario,
 ## Guardar, Cargar, Paredes. Expuesto para tests (mismo patrón que `_botones_herramienta` de
 ## `ModoConstruccion`) y para que `_refrescar_paredes` no tenga que buscar el botón por texto.
 var _botones_acciones: Array[Button] = []
-var _lbl_paredes: Label = null
+var _boton_paredes: Button = null
+var _glifo_paredes: KitUIComisarioScript.GlifoModerno = null
 
 
 func _ready() -> void:
@@ -323,22 +372,10 @@ func _construir_panel_superior() -> void:
 	_construir_modulo_reloj(fila)
 	_construir_modulo_velocidad(fila)
 	fila.add_child(_espaciador_familia())
-
-	var chip_sat := _crear_chip_plano(fila, &"queja", ANCHO_CHIP_SATISFACCION)
-	_lbl_satisfaccion = chip_sat["linea1"]
-	_lbl_reclamaciones = chip_sat["linea2"]
-
-	var chip_dem := _crear_chip_plano(fila, &"velocimetro", ANCHO_CHIP_DEMANDA)
-	_lbl_demanda_nivel = chip_dem["linea1"]
-	_lbl_llegadas = chip_dem["linea2"]
-
-	var chip_plantilla := _crear_chip_plano(fila, &"personal", ANCHO_CHIP_PLANTILLA)
-	_lbl_plantilla = chip_plantilla["linea1"]
-	_lbl_nomina = chip_plantilla["linea2"]
-
-	var chip_doc := _crear_chip_plano(fila, &"carpeta", ANCHO_CHIP_DOCUMENTACION)
-	_lbl_doc_cola = chip_doc["linea1"]
-	_lbl_doc_atendiendo = chip_doc["linea2"]
+	_construir_chip_satisfaccion(fila)
+	_construir_chip_demanda(fila)
+	_construir_chip_plantilla(fila)
+	_construir_chip_documentacion(fila)
 
 	# Elástico: empuja el saldo al borde derecho de la barra (maqueta v3: el dinero SIEMPRE al
 	# fondo a la derecha). La brújula de depuración vive en su propia CanvasLayer por debajo de
@@ -350,53 +387,57 @@ func _construir_panel_superior() -> void:
 	_construir_modulo_saldo(fila)
 
 
-## El glifo de reloj DIBUJADO (círculo + manecillas, tinta 2px) — icono de línea del lenguaje
-## moderno, nunca un emoji (regla de la maqueta v3; los emojis caen en la fuente de color del
-## sistema e ignoran `font_color`).
-class GlifoReloj extends Control:
-	func _init() -> void:
-		custom_minimum_size = Vector2(22.0, 22.0)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-	func _draw() -> void:
-		var tinta: Color = KitUIComisario.MOD_COLOR_TINTA
-		var centro: Vector2 = size / 2.0
-		draw_arc(centro, 9.0, 0.0, TAU, 24, tinta, 2.0, true)
-		draw_line(centro, centro + Vector2(0.0, -5.0), tinta, 2.0)
-		draw_line(centro, centro + Vector2(3.5, 2.0), tinta, 2.0)
-
-
+## El glifo de reloj ya NO es una clase local: es `KitUIComisario.GlifoModerno.Tipo.RELOJ`, el mismo
+## catálogo vectorial que estrenan las categorías del panel de construcción y los chips de aquí (un
+## solo sitio donde vive el dibujo de cada pictograma). Ver `_glifo`.
 func _construir_modulo_reloj(fila: HBoxContainer) -> void:
 	var pastilla := _pastilla_modulo("ModuloReloj", ANCHO_MODULO_RELOJ)
 	fila.add_child(pastilla)
-	var caja_h := HBoxContainer.new()
-	caja_h.add_theme_constant_override("separation", 8)
-	caja_h.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja_h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pastilla.add_child(caja_h)
-	caja_h.add_child(GlifoReloj.new())
-	var caja := VBoxContainer.new()
-	caja.add_theme_constant_override("separation", 0)
-	caja.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	caja_h.add_child(caja)
-	_lbl_hora = _etiqueta(15, KitUIComisarioScript.MOD_COLOR_TINTA, true)
-	caja.add_child(_lbl_hora)
-	# Sin clip_text: con él, el mínimo del Label cae a 0 y el VBox lo estrecha al ancho de la hora
-	# ("Sem 1 · Turno 1" salía truncado). El ancho fijo que evita el baile ya lo pone la pastilla.
-	_lbl_fecha_turno = _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
-	caja.add_child(_lbl_fecha_turno)
+	_modulo_reloj = pastilla
+	var caja_h := _fila_interior(pastilla, 8)
+	caja_h.add_child(_glifo(KitUIComisarioScript.GlifoModerno.Tipo.RELOJ, 20.0))
+	# UNA sola línea (maqueta v3, desviación A cerrada): "Sem N · HH:MM" en 16px seminegrita tinta.
+	_lbl_hora = _etiqueta(16, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_hora.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_hora)
 
 
 ## La pastilla blanca base de un módulo de la barra (maqueta v3): blanca, radio = mitad del alto,
-## ancho mínimo fijo para que la barra no baile cuando cambian los textos.
-func _pastilla_modulo(nombre: String, ancho: float) -> PanelContainer:
+## ancho mínimo fijo para que la barra no baile cuando cambian los textos y `padding_h` de aire
+## interior (la maqueta arranca el contenido a 14px del borde).
+func _pastilla_modulo(
+	nombre: String, ancho: float, padding_h: float = PADDING_PASTILLA
+) -> PanelContainer:
 	var pastilla := KitUIComisarioScript.moderno_pastilla(
 		KitUIComisarioScript.MOD_COLOR_TARJETA, ALTO_PASTILLA
 	)
 	pastilla.name = nombre
 	pastilla.custom_minimum_size = Vector2(ancho, ALTO_PASTILLA)
 	pastilla.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var estilo: StyleBoxFlat = pastilla.get_theme_stylebox("panel") as StyleBoxFlat
+	if estilo != null:
+		estilo.content_margin_left = padding_h
+		estilo.content_margin_right = padding_h
 	return pastilla
+
+
+## La fila interior de una pastilla: `HBoxContainer` centrado que NO recibe ratón — así el hover cae
+## en la pastilla (dueña del `tooltip_text`) y no en un hijo sin tooltip.
+func _fila_interior(pastilla: PanelContainer, separacion: int) -> HBoxContainer:
+	var caja := HBoxContainer.new()
+	caja.add_theme_constant_override("separation", separacion)
+	caja.alignment = BoxContainer.ALIGNMENT_CENTER
+	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pastilla.add_child(caja)
+	return caja
+
+
+## Un pictograma vectorial del kit moderno, centrado en vertical (atajo local sobre
+## `KitUIComisario.moderno_glifo` con el color de tinta y el encaje que usan todos los chips).
+func _glifo(tipo: int, lado: float, color: Color = KitUIComisarioScript.MOD_COLOR_TINTA) -> Control:
+	var glifo := KitUIComisarioScript.moderno_glifo(tipo, color, lado)
+	glifo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return glifo
 
 
 ## Módulo Velocidad (spec §1.3-[2]): 4 controles (Pausa/1×/2×/3×) + un triángulo "▾" bajo el
@@ -406,7 +447,9 @@ func _construir_modulo_velocidad(fila: HBoxContainer) -> void:
 	# F2 (maqueta v3): pastilla blanca con 4 SEGMENTOS; el activo lleva detrás una pastilla interior
 	# `MOD_COLOR_ACENTO_SUAVE` (esa pastilla ES el "pip" que `_refrescar_velocidad` enciende/apaga
 	# por `modulate.a` — mismo contrato que el triángulo ▾ del piloto, otra forma).
-	var pastilla := _pastilla_modulo("ModuloVelocidad", ANCHO_MODULO_VELOCIDAD)
+	var pastilla := _pastilla_modulo(
+		"ModuloVelocidad", ANCHO_MODULO_VELOCIDAD, PADDING_PASTILLA_VELOCIDAD
+	)
 	fila.add_child(pastilla)
 	var fila_botones := HBoxContainer.new()
 	fila_botones.add_theme_constant_override("separation", 2)
@@ -470,89 +513,111 @@ func _formato_euros(saldo: float) -> String:
 
 
 func _construir_modulo_saldo(fila: HBoxContainer) -> void:
-	# F2 (maqueta v3): pastilla blanca con la insignia "€" en círculo verde suave + saldo grande +
-	# estado (Holgado/Justo/Negativo) debajo en su color — los colores los pone `_refrescar_saldo`
-	# (bloqueada), aquí solo se montan los Labels con los MISMOS nombres.
+	# Maqueta v3: pastilla blanca con la insignia "€" en círculo verde suave + la cifra en 17px
+	# seminegrita. El estado (Holgado/Justo/Negativo) ya NO se escribe: vive en el tooltip y en el
+	# código de COLOR de la cifra + la insignia (`_refrescar_saldo`).
 	var pastilla := _pastilla_modulo("ModuloSaldo", ANCHO_MODULO_SALDO)
 	fila.add_child(pastilla)
-	var caja_h := HBoxContainer.new()
-	caja_h.add_theme_constant_override("separation", 8)
-	caja_h.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja_h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pastilla.add_child(caja_h)
+	_modulo_saldo = pastilla
+	var caja_h := _fila_interior(pastilla, 8)
 
 	var insignia := Panel.new()
-	insignia.custom_minimum_size = Vector2(24.0, 24.0)
+	insignia.custom_minimum_size = Vector2(26.0, 26.0)
 	insignia.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	insignia.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var estilo_insignia := StyleBoxFlat.new()
-	estilo_insignia.bg_color = Color(0.886, 0.957, 0.918)   # verde muy suave (226,244,234), maqueta
-	estilo_insignia.set_corner_radius_all(12)
-	insignia.add_theme_stylebox_override("panel", estilo_insignia)
+	_estilo_insignia_saldo = StyleBoxFlat.new()
+	_estilo_insignia_saldo.bg_color = KitUIComisarioScript.MOD_COLOR_VERDE_SUAVE
+	_estilo_insignia_saldo.set_corner_radius_all(13)
+	insignia.add_theme_stylebox_override("panel", _estilo_insignia_saldo)
 	caja_h.add_child(insignia)
-	var euro := Label.new()
-	euro.text = "€"
-	euro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	euro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	euro.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	euro.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
-	euro.add_theme_font_size_override("font_size", 13)
-	euro.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_VERDE)
-	euro.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	insignia.add_child(euro)
+	_lbl_euro = Label.new()
+	_lbl_euro.text = "€"
+	_lbl_euro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lbl_euro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_euro.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_lbl_euro.add_theme_font_override("font", KitUIComisarioScript.moderno_fuente(true))
+	_lbl_euro.add_theme_font_size_override("font_size", 14)
+	_lbl_euro.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_VERDE)
+	_lbl_euro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	insignia.add_child(_lbl_euro)
 
-	var caja := VBoxContainer.new()
-	caja.add_theme_constant_override("separation", 0)
-	caja.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	caja_h.add_child(caja)
-	_lbl_saldo = _etiqueta(16, KitUIComisarioScript.MOD_COLOR_TINTA, true)
-	caja.add_child(_lbl_saldo)
-	_lbl_estado_fin = _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
-	caja.add_child(_lbl_estado_fin)
+	_lbl_saldo = _etiqueta(17, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_saldo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_saldo)
 
 
-## Un chip de fondo plano (grupos 4-7, spec §1.3): icono pequeño (28×28, `KitUIComisario.icono`,
-## escalado con `STRETCH_KEEP_ASPECT_CENTERED` -- a diferencia de los módulos 9-slice, un icono
-## pictograma pequeño SÍ tolera reescalado sin distorsión perceptible) + 2 líneas de texto.
-## Devuelve `{"linea1": Label, "linea2": Label}` -- quien llama guarda las referencias que necesite.
-func _crear_chip_plano(fila: HBoxContainer, icono_id: StringName, ancho: float) -> Dictionary:
-	# F2: cada chip es una pastilla BLANCA independiente (maqueta v3), dos líneas (dato principal
-	# en seminegrita + secundario pequeño gris — así no se pierde ni un dato del HUD viejo).
-	var pastilla := _pastilla_modulo("Chip" + String(icono_id).capitalize(), ancho)
+## Chip SATISFACCIÓN (maqueta v3): rótulo pequeño gris arriba, mini-barra debajo y el porcentaje a la
+## derecha. Las reclamaciones (que el HUD viejo escribía como subtítulo) pasan al tooltip del chip.
+func _construir_chip_satisfaccion(fila: HBoxContainer) -> void:
+	var pastilla := _pastilla_modulo("ChipSatisfaccion", ANCHO_CHIP_SATISFACCION)
 	fila.add_child(pastilla)
-	var caja := HBoxContainer.new()
-	caja.add_theme_constant_override("separation", 6)
-	caja.alignment = BoxContainer.ALIGNMENT_CENTER
-	caja.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pastilla.add_child(caja)
+	_chip_satisfaccion = pastilla
+	var caja_h := _fila_interior(pastilla, 10)
 
-	var icono := TextureRect.new()
-	icono.texture = KitUIComisarioScript.icono(icono_id)
-	# EXPAND_IGNORE_SIZE (fix 2026-08-08, sigue vigente): sin él, el mínimo del TextureRect es el
-	# tamaño NATIVO del PNG (~512px) y el icono revienta la barra.
-	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icono.custom_minimum_size = Vector2(20, 20)
-	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icono.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	caja.add_child(icono)
+	var columna := VBoxContainer.new()
+	columna.add_theme_constant_override("separation", 4)
+	columna.alignment = BoxContainer.ALIGNMENT_CENTER
+	columna.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caja_h.add_child(columna)
+	var rotulo := _etiqueta(11, KitUIComisarioScript.MOD_COLOR_GRIS)
+	rotulo.text = "Satisfacción"
+	columna.add_child(rotulo)
+	_barra_satisfaccion = KitUIComisarioScript.moderno_barra_progreso(
+		0.0, KitUIComisarioScript.MOD_COLOR_ACENTO, ANCHO_BARRA_SATISFACCION, ALTO_BARRA_SATISFACCION
+	)
+	columna.add_child(_barra_satisfaccion)
 
-	var textos := VBoxContainer.new()
-	textos.add_theme_constant_override("separation", 0)
-	textos.alignment = BoxContainer.ALIGNMENT_CENTER
-	textos.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	textos.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	caja.add_child(textos)
+	_lbl_satisfaccion = _etiqueta(14, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_satisfaccion.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_satisfaccion)
 
-	var linea1 := _etiqueta(12, KitUIComisarioScript.MOD_COLOR_TINTA, true)
-	linea1.clip_text = true
-	textos.add_child(linea1)
-	var linea2 := _etiqueta(10, KitUIComisarioScript.MOD_COLOR_GRIS)
-	linea2.clip_text = true
-	textos.add_child(linea2)
 
-	return {"linea1": linea1, "linea2": linea2}
+## Chip DEMANDA (maqueta v3): punto de color según el nivel + "Demanda baja/media/alta" en tinta. Las
+## llegadas de hoy pasan al tooltip. El texto SIEMPRE dice el nivel: el color del punto es refuerzo,
+## nunca la única señal (regla de accesibilidad transversal del proyecto).
+func _construir_chip_demanda(fila: HBoxContainer) -> void:
+	var pastilla := _pastilla_modulo("ChipDemanda", ANCHO_CHIP_DEMANDA)
+	fila.add_child(pastilla)
+	_chip_demanda = pastilla
+	var caja_h := _fila_interior(pastilla, 9)
+
+	_punto_demanda = Panel.new()
+	_punto_demanda.custom_minimum_size = Vector2(12.0, 12.0)
+	_punto_demanda.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_punto_demanda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_estilo_punto_demanda = StyleBoxFlat.new()
+	_estilo_punto_demanda.bg_color = KitUIComisarioScript.MOD_COLOR_GRIS
+	_estilo_punto_demanda.set_corner_radius_all(6)
+	_punto_demanda.add_theme_stylebox_override("panel", _estilo_punto_demanda)
+	caja_h.add_child(_punto_demanda)
+
+	_lbl_demanda_nivel = _etiqueta(14, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_demanda_nivel.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_demanda_nivel)
+
+
+## Chip PLANTILLA (maqueta v3): glifo de persona + "4/4" a secas; la nómina pasa al tooltip.
+func _construir_chip_plantilla(fila: HBoxContainer) -> void:
+	var pastilla := _pastilla_modulo("ChipPlantilla", ANCHO_CHIP_PLANTILLA)
+	fila.add_child(pastilla)
+	_chip_plantilla = pastilla
+	var caja_h := _fila_interior(pastilla, 8)
+	caja_h.add_child(_glifo(KitUIComisarioScript.GlifoModerno.Tipo.PERSONA, 18.0))
+	_lbl_plantilla = _etiqueta(14, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_plantilla.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_plantilla)
+
+
+## Chip DOCUMENTACIÓN (maqueta v3): glifo de hoja + "N en cola"; "N atendiendo" pasa al tooltip.
+func _construir_chip_documentacion(fila: HBoxContainer) -> void:
+	var pastilla := _pastilla_modulo("ChipDocumentacion", ANCHO_CHIP_DOCUMENTACION)
+	fila.add_child(pastilla)
+	_chip_documentacion = pastilla
+	var caja_h := _fila_interior(pastilla, 8)
+	caja_h.add_child(_glifo(KitUIComisarioScript.GlifoModerno.Tipo.DOCUMENTO, 18.0))
+	_lbl_doc_cola = _etiqueta(14, KitUIComisarioScript.MOD_COLOR_TINTA, true)
+	_lbl_doc_cola.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caja_h.add_child(_lbl_doc_cola)
 
 
 ## Una etiqueta del panel superior: tamaño + color (+ seminegrita opcional). F2: SIN el contorno
@@ -666,17 +731,18 @@ func _construir_panel_acciones() -> void:
 
 	fila.add_child(_espaciador_familia())
 
+	# Paredes: SOLO el glifo de pared en diagonal (petición del usuario 2026-08-17, referencia el
+	# icono de muros de Los Sims) — el MODO vigente lo cuenta el propio dibujo (entera / bajita /
+	# bajita con coronación a trazos = Auto) y el nombre + la tecla viven en el tooltip.
 	var boton_paredes := _boton_pildora(
-		&"muro", "Paredes: Auto (Home)", KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA,
-		color_secundaria
+		&"", "", KitUIComisarioScript.VARIANTE_PILDORA_SECUNDARIA, color_secundaria,
+		KitUIComisarioScript.GlifoModerno.Tipo.PARED_AUTO
 	)
 	boton_paredes.pressed.connect(func() -> void: paredes_solicitado.emit())
 	fila.add_child(boton_paredes)
 	_botones_acciones.append(boton_paredes)
-	# El texto de esta píldora cambia con el modo de paredes (`_refrescar_paredes`); se guarda como
-	# metadato del propio botón (técnica nativa de Godot, `set_meta`/`get_meta`) en vez de inventar
-	# una struct — mismo espíritu que `_crear_chip_plano` devolviendo un `Dictionary` de labels.
-	_lbl_paredes = boton_paredes.get_meta(&"etiqueta_pildora") as Label
+	_boton_paredes = boton_paredes
+	_glifo_paredes = boton_paredes.get_meta(&"glifo_pildora") as KitUIComisarioScript.GlifoModerno
 
 
 ## Una píldora de acción: `Button` con contenido MANUAL (icono + texto en un `HBoxContainer` dentro
@@ -684,7 +750,8 @@ func _construir_panel_acciones() -> void:
 ## `spec-tarjetas-2026-08-08.md` §0-B (spec §2.2 lo pide explícitamente): el layout nativo icono+
 ## texto de `Button` ya dio problemas de solape en este proyecto con los StyleBoxTexture del kit.
 func _boton_pildora(
-	icono_id: StringName, texto: String, variante: StringName, color_texto: Color
+	icono_id: StringName, texto: String, variante: StringName, color_texto: Color,
+	glifo_tipo: int = -1
 ) -> Button:
 	var boton := Button.new()
 	boton.focus_mode = Control.FOCUS_NONE
@@ -710,6 +777,10 @@ func _boton_pildora(
 	margen.add_theme_constant_override("margin_right", 12)
 	margen.add_theme_constant_override("margin_top", 4)
 	margen.add_theme_constant_override("margin_bottom", 4)
+	# Button NO es contenedor: sin anclar a rect completo, el margen se queda arriba a la izquierda
+	# con su tamaño mínimo (gotcha ya cazado en las tarjetas del panel F1; recayó aquí en el reskin
+	# del 17 y lo vio el usuario en vivo).
+	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	boton.add_child(margen)
 
 	var fila := HBoxContainer.new()
@@ -718,39 +789,53 @@ func _boton_pildora(
 	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margen.add_child(fila)
 
-	var icono := TextureRect.new()
-	icono.texture = KitUIComisarioScript.icono(icono_id)
-	# Mismo fix EXPAND_IGNORE_SIZE que el chip (sin él, el icono nativo de ~512px aplastaba el
-	# layout de la píldora y el rótulo quedaba invisible fuera del botón).
-	icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icono.custom_minimum_size = Vector2(18, 18)
-	icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fila.add_child(icono)
+	# Con `glifo_tipo`, el pictograma es un glifo VECTORIAL del kit (mismo lenguaje que el resto del
+	# HUD moderno); si no, el PNG del kit clásico por `icono_id`.
+	if glifo_tipo >= 0:
+		var glifo: Control = KitUIComisarioScript.moderno_glifo(glifo_tipo, color_texto, 22.0)
+		fila.add_child(glifo)
+		boton.set_meta(&"glifo_pildora", glifo)
+	else:
+		var icono := TextureRect.new()
+		icono.texture = KitUIComisarioScript.icono(icono_id)
+		# Mismo fix EXPAND_IGNORE_SIZE que el chip (sin él, el icono nativo de ~512px aplastaba el
+		# layout de la píldora y el rótulo quedaba invisible fuera del botón).
+		icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icono.custom_minimum_size = Vector2(18, 18)
+		icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icono.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fila.add_child(icono)
 
-	var etiqueta := Label.new()
-	etiqueta.text = texto
-	etiqueta.add_theme_font_size_override("font_size", 11)
-	etiqueta.add_theme_color_override("font_color", color_texto)
-	etiqueta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fila.add_child(etiqueta)
+	var ancho_texto: float = 0.0
+	if texto != "":
+		# Tipografía del kit moderno a 13 (antes Label pelado a 11: se leía enano y desencajado del
+		# resto del HUD — señalado por el usuario en vivo, 2026-08-17).
+		var etiqueta: Label = _etiqueta(13, color_texto, true)
+		etiqueta.text = texto
+		etiqueta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		fila.add_child(etiqueta)
+		boton.set_meta(&"etiqueta_pildora", etiqueta)
+		ancho_texto = etiqueta.get_minimum_size().x
 
-	boton.set_meta(&"etiqueta_pildora", etiqueta)
 	# Un Button NO se dimensiona por hijos arbitrarios (el MarginContainer interno no cuenta para su
 	# minimo): sin esto las pildoras colapsaban al minimo del 9-slice y el contenido se solapaba.
 	# 58 = margenes internos (12+12) + icono 18 + separacion 6 + aire del 9-slice.
-	boton.custom_minimum_size.x = 58.0 + etiqueta.get_minimum_size().x
+	boton.custom_minimum_size.x = 58.0 + ancho_texto
 	return boton
 
 
 # ── Refresco (pull, una vez por frame — spec §5) ─────────────────────────────────────────────────
 
-## Reloj (spec §1.3-[1]): hora `HH:MM` + "Sem N · Turno T" -- `Tiempo` es autoload, se lee directo.
+## Reloj (spec §1.3-[1], AJUSTADO a la maqueta 2026-08-17): UNA línea "Sem N · HH:MM". Se dice "Sem"
+## y no "Día" porque el modelo real de `Tiempo` no tiene día — la jornada jugable es `Tiempo.semana`
+## (avanza a cada medianoche, ver `Tiempo._avanzar_calendario`). Turno/mes/año, que antes ocupaban una
+## segunda línea, van al tooltip del módulo: se siguen pudiendo leer. `Tiempo` es autoload, directo.
 func _refrescar_reloj() -> void:
-	_lbl_hora.text = Tiempo.hhmm(Tiempo.minutos_juego)
-	_lbl_fecha_turno.text = "Sem %d · Turno %d" % [
-		Tiempo.semana, Tiempo.turno_de(Tiempo.minutos_juego) + 1,
-	]
+	_lbl_hora.text = "Sem %d · %s" % [Tiempo.semana, Tiempo.hhmm(Tiempo.minutos_juego)]
+	if _modulo_reloj != null:
+		_modulo_reloj.tooltip_text = "Turno %d · Mes %d · Año %d" % [
+			Tiempo.turno_de(Tiempo.minutos_juego) + 1, Tiempo.mes, Tiempo.anio,
+		]
 
 
 ## Velocidad: el triángulo ▾ bajo el control activo + la variante de la píldora "3×" (Primaria si
@@ -773,57 +858,73 @@ func _refrescar_saldo() -> void:
 		return
 	var saldo: float = _economia.saldo_eur
 	_lbl_saldo.text = _formato_euros(saldo)
+	# El estado ya no se ESCRIBE (maqueta v3: solo insignia + cifra), pero no se pierde: va al tooltip
+	# del módulo Y sigue codificado en el color de la cifra y de la insignia "€".
+	var estado := "Holgado"
+	var color_estado: Color = COLOR_HOLGADO
 	if saldo < 0.0:
-		_lbl_saldo.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
-		_lbl_saldo.add_theme_constant_override("outline_size", 1)   # refuerzo WCAG, spec §1.3-[3]
-		_lbl_estado_fin.text = "Negativo"
-		_lbl_estado_fin.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
+		estado = "Negativo"
+		color_estado = COLOR_ROJO_CRITICO
 	elif saldo < _economia.umbral_holgura_ui:
-		_lbl_saldo.add_theme_color_override("font_color", COLOR_JUSTO)
-		_lbl_saldo.add_theme_constant_override("outline_size", 0)
-		_lbl_estado_fin.text = "Justo"
-		_lbl_estado_fin.add_theme_color_override("font_color", COLOR_JUSTO)
-	else:
-		_lbl_saldo.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-		_lbl_saldo.add_theme_constant_override("outline_size", 0)
-		_lbl_estado_fin.text = "Holgado"
-		_lbl_estado_fin.add_theme_color_override("font_color", COLOR_HOLGADO)
+		estado = "Justo"
+		color_estado = COLOR_JUSTO
+	_lbl_saldo.add_theme_color_override(
+		"font_color",
+		KitUIComisarioScript.MOD_COLOR_TINTA if estado == "Holgado" else color_estado
+	)
+	# Contorno solo en negativo (refuerzo WCAG, spec §1.3-[3]: la señal crítica no puede ser el color).
+	_lbl_saldo.add_theme_constant_override("outline_size", 1 if estado == "Negativo" else 0)
+	if _lbl_euro != null:
+		_lbl_euro.add_theme_color_override("font_color", color_estado)
+	if _estilo_insignia_saldo != null:
+		# Fondo de insignia = el color de estado muy lavado (misma receta que `MOD_COLOR_VERDE_SUAVE`,
+		# que es el verde de la maqueta aclarado): 18% de color sobre blanco.
+		_estilo_insignia_saldo.bg_color = Color.WHITE.lerp(color_estado, 0.18)
+	if _modulo_saldo != null:
+		_modulo_saldo.tooltip_text = "Saldo %s (umbral de holgura: %s)" % [
+			estado.to_lower(), _formato_euros(_economia.umbral_holgura_ui),
+		]
 
 
-## Satisfacción + reclamaciones (spec §1.3-[4]): banda 🔴🟡🟢 (mismo vocabulario que `ui-hud.md` F3,
-## umbrales de ánimo de `Paciencia`) + reclamaciones, en rojo si hay graves (§1.4: contorno = "negrita"
-## simulada, no hay peso bold real en la fuente).
+## Satisfacción (spec §1.3-[4], AJUSTADO a la maqueta): "NN%" + mini-barra. La banda de ánimo (los
+## umbrales los posee `Paciencia`, la UI NO los calcula) ya no se pinta con los emojis 🔴🟡🟢 —
+## prohibidos en este proyecto, la fuente de color del sistema ignora `font_color` — sino como COLOR
+## DEL RELLENO de la barra; el porcentaje numérico es la señal no-color. Las reclamaciones pasan al
+## tooltip del chip, con las graves señaladas por texto (no solo por color).
 func _refrescar_satisfaccion() -> void:
 	if _paciencia == null:
 		return
 	var sat: float = _paciencia.sat_global()
-	var banda: String = (
-		"🟢" if sat > _paciencia.umbral_animo_alto
-		else ("🔴" if sat < _paciencia.umbral_animo_bajo else "🟡")
-	)
-	_lbl_satisfaccion.text = "%s Satisf. %d%%" % [banda, roundi(sat)]
+	_lbl_satisfaccion.text = "%d%%" % roundi(sat)
+	var color_banda: Color = COLOR_JUSTO
+	if sat > _paciencia.umbral_animo_alto:
+		color_banda = COLOR_HOLGADO
+	elif sat < _paciencia.umbral_animo_bajo:
+		color_banda = COLOR_ROJO_CRITICO
+	if _barra_satisfaccion != null:
+		KitUIComisarioScript.moderno_actualizar_barra_progreso(
+			_barra_satisfaccion, clampf(sat / 100.0, 0.0, 1.0), color_banda
+		)
 	var graves: int = _paciencia.reclamaciones_graves_jornada
 	var texto := "Reclamaciones: %d" % _paciencia.reclamaciones_jornada
 	if graves > 0:
 		texto += " (%d grave%s)" % [graves, "" if graves == 1 else "s"]
-		_lbl_reclamaciones.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
-		_lbl_reclamaciones.add_theme_constant_override("outline_size", 1)
-	else:
-		_lbl_reclamaciones.add_theme_color_override("font_color", COLOR_NAVY_TENUE)
-		_lbl_reclamaciones.add_theme_constant_override("outline_size", 0)
-	_lbl_reclamaciones.text = texto
+	if _chip_satisfaccion != null:
+		_chip_satisfaccion.tooltip_text = texto
 
 
-## Demanda + llegadas hoy (spec §1.3-[5]).
+## Demanda (spec §1.3-[5], AJUSTADO a la maqueta): punto de color + "Demanda baja/media/alta" en
+## TINTA (el HUD viejo pintaba el nivel EN MAYÚSCULAS con el color en el propio texto). Las llegadas
+## de hoy pasan al tooltip del chip.
 func _refrescar_demanda() -> void:
 	if _demanda == null:
 		return
 	var nivel: StringName = _demanda.nivel_demanda()
-	_lbl_demanda_nivel.text = "Demanda: %s" % nivel
-	_lbl_demanda_nivel.add_theme_color_override(
-		"font_color", COLORES_NIVEL.get(nivel, KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-	)
-	_lbl_llegadas.text = "Llegadas hoy: %d" % _demanda.llegadas_hoy
+	_lbl_demanda_nivel.text = NOMBRES_NIVEL_DEMANDA.get(nivel, "Demanda %s" % String(nivel).to_lower())
+	if _estilo_punto_demanda != null:
+		_estilo_punto_demanda.bg_color = COLORES_NIVEL.get(nivel, KitUIComisarioScript.MOD_COLOR_GRIS)
+	if _chip_demanda != null:
+		_chip_demanda.tooltip_text = "Llegadas hoy: %d" % _demanda.llegadas_hoy
 
 
 ## Plantilla + nómina (spec §1.3-[6]/§3): "0/N" en rojo + "⚠ Sin cobertura" si nadie cubre.
@@ -840,15 +941,20 @@ func _refrescar_plantilla() -> void:
 		if agente.estado == AgenteScript.ESTADO_AUSENTE:
 			ausentes += 1
 	var cubiertos: int = total - ausentes
-	_lbl_plantilla.text = "Plantilla: %d/%d" % [cubiertos, total]
+	# Maqueta v3: "4/4" a secas (sin el rótulo "Plantilla:", que ya cuenta el glifo de persona).
+	_lbl_plantilla.text = "%d/%d" % [cubiertos, total]
+	var tooltip := "Plantilla cubierta: %d de %d · Nómina: %.0f €/día" % [cubiertos, total, nomina]
 	if cubiertos <= 0 and total > 0:
+		# Sin cobertura: la cifra se pinta en rojo Y el contorno la refuerza (la señal no es solo el
+		# color), y el motivo se explica en el tooltip — sin emoji "⚠" (prohibidos en esta UI).
 		_lbl_plantilla.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
-		_lbl_nomina.text = "⚠ Sin cobertura"
-		_lbl_nomina.add_theme_color_override("font_color", COLOR_ROJO_CRITICO)
+		_lbl_plantilla.add_theme_constant_override("outline_size", 1)
+		tooltip = "Sin cobertura: nadie cubre el turno · Nómina: %.0f €/día" % nomina
 	else:
-		_lbl_plantilla.add_theme_color_override("font_color", KitUIComisarioScript.COLOR_TEXTO_PRINCIPAL)
-		_lbl_nomina.text = "Nómina: %.0f €/día" % nomina
-		_lbl_nomina.add_theme_color_override("font_color", COLOR_NAVY_TENUE)
+		_lbl_plantilla.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
+		_lbl_plantilla.add_theme_constant_override("outline_size", 0)
+	if _chip_plantilla != null:
+		_chip_plantilla.tooltip_text = tooltip
 
 
 ## Documentación (spec §1.3-[7]/§3): cola total + "(+N fuera)" si hay cola exterior (`PersonaFlujo.
@@ -863,17 +969,28 @@ func _refrescar_documentacion() -> void:
 	for persona: RefCounted in cola:
 		if persona.estado == PersonaFlujoScript.ESTADO_ESPERANDO_FUERA:
 			fuera += 1
-	_lbl_doc_cola.text = "Doc: %d en cola%s" % [
+	# Maqueta v3: "N en cola" a secas (el glifo de hoja ya dice que es Documentación).
+	_lbl_doc_cola.text = "%d en cola%s" % [
 		cola.size(), (" (+%d fuera)" % fuera) if fuera > 0 else "",
 	]
-	_lbl_doc_atendiendo.text = "%d atendiendo" % _flujo.atendiendo_total()
+	if _chip_documentacion != null:
+		_chip_documentacion.tooltip_text = "Documentación: %d atendiendo%s" % [
+			_flujo.atendiendo_total(), (" · %d esperan fuera" % fuera) if fuera > 0 else "",
+		]
 
 
 ## El texto de la píldora Paredes (franja de acciones) -- la CICLA sigue siendo `Main.
 ## _alternar_modo_paredes` (vía la señal `paredes_solicitado`), esto solo pinta el modo actual.
+## El botón de Paredes es SOLO glifo (2026-08-17): el modo cambia el DIBUJO (entera/bajita/Auto) y
+## el tooltip lleva el nombre y la tecla — mismo reparto dato-visible/dato-en-tooltip que el resto
+## del HUD ajustado a la maqueta.
 func _refrescar_paredes() -> void:
-	if _paredes_salas == null or _lbl_paredes == null:
+	if _paredes_salas == null or _glifo_paredes == null:
 		return
-	_lbl_paredes.text = "Paredes: %s (Home)" % NOMBRES_MODO_PARED.get(
-		_paredes_salas.modo_altura, "?"
-	)
+	var modo: StringName = _paredes_salas.modo_altura
+	var tipo: int = TIPO_GLIFO_PARED.get(modo, KitUIComisarioScript.GlifoModerno.Tipo.PARED_AUTO)
+	if _glifo_paredes.tipo != tipo:
+		_glifo_paredes.tipo = tipo
+		_glifo_paredes.queue_redraw()
+	if _boton_paredes != null:
+		_boton_paredes.tooltip_text = "Paredes: %s (Home)" % NOMBRES_MODO_PARED.get(modo, "?")

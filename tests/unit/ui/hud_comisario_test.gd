@@ -25,20 +25,45 @@ func test_construye_los_7_grupos_de_la_franja_superior() -> void:
 	var hud := _hud()
 
 	assert_object(hud._lbl_hora).is_not_null()
-	assert_object(hud._lbl_fecha_turno).is_not_null()
 	assert_int(hud._botones_velocidad.size()).is_equal(4)
 	assert_int(hud._pips_velocidad.size()).is_equal(4)
 	assert_object(hud._boton_3x).is_not_null()
 	assert_object(hud._lbl_saldo).is_not_null()
-	assert_object(hud._lbl_estado_fin).is_not_null()
 	assert_object(hud._lbl_satisfaccion).is_not_null()
-	assert_object(hud._lbl_reclamaciones).is_not_null()
+	assert_object(hud._barra_satisfaccion).is_not_null()
 	assert_object(hud._lbl_demanda_nivel).is_not_null()
-	assert_object(hud._lbl_llegadas).is_not_null()
+	assert_object(hud._punto_demanda).is_not_null()
 	assert_object(hud._lbl_plantilla).is_not_null()
-	assert_object(hud._lbl_nomina).is_not_null()
 	assert_object(hud._lbl_doc_cola).is_not_null()
-	assert_object(hud._lbl_doc_atendiendo).is_not_null()
+
+
+## Los 5 módulos que llevan datos "de segunda fila" existen como pastilla propia -- son los DUEÑOS de
+## los tooltips donde vive lo que la maqueta v3 saca de la vista (turno/mes/año, reclamaciones,
+## llegadas, nómina, atendiendo, estado del saldo). Sustituye a los asserts de los Labels de subtítulo
+## (`_lbl_fecha_turno`/`_lbl_reclamaciones`/`_lbl_llegadas`/`_lbl_nomina`/`_lbl_doc_atendiendo`/
+## `_lbl_estado_fin`) que ese layout de dos líneas tenía y este ya no: prueba lo EQUIVALENTE, que
+## ningún dato se quede sin sitio donde leerse (ver "REGLA DE ORO" en la cabecera de `HudComisario`).
+func test_los_modulos_con_datos_en_tooltip_existen() -> void:
+	var hud := _hud()
+
+	assert_object(hud._modulo_reloj).is_not_null()
+	assert_object(hud._modulo_saldo).is_not_null()
+	assert_object(hud._chip_satisfaccion).is_not_null()
+	assert_object(hud._chip_demanda).is_not_null()
+	assert_object(hud._chip_plantilla).is_not_null()
+	assert_object(hud._chip_documentacion).is_not_null()
+
+
+## El reloj escribe el turno/mes/año en el tooltip de su módulo (dato que el layout de la maqueta
+## quita de la vista): tras un `refrescar()` el tooltip NO puede estar vacío.
+func test_el_reloj_deja_turno_mes_y_anio_en_el_tooltip() -> void:
+	var hud := _hud()
+
+	hud.refrescar()
+
+	assert_str(hud._modulo_reloj.tooltip_text).contains("Turno")
+	assert_str(hud._modulo_reloj.tooltip_text).contains("Mes")
+	assert_str(hud._modulo_reloj.tooltip_text).contains("Año")
 
 
 ## Las 6 píldoras de la franja de acciones nacen en el orden del wireframe (spec §6 + opción A del
@@ -50,7 +75,10 @@ func test_franja_de_acciones_tiene_las_6_pildoras_en_orden() -> void:
 	for boton: Button in hud._botones_acciones:
 		assert_object(boton).is_not_null()
 	assert_object(hud._lbl_aviso).is_not_null()
-	assert_object(hud._lbl_paredes).is_not_null()
+	# Paredes es SOLO glifo desde 2026-08-17 (referencia Los Sims): sin Label; el modo vive en el
+	# dibujo del glifo y el nombre+tecla en el tooltip del botón.
+	assert_object(hud._glifo_paredes).is_not_null()
+	assert_object(hud._boton_paredes).is_not_null()
 
 
 # ── Señales (upward communication, coding standards del proyecto) ───────────────────────────────

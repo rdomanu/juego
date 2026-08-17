@@ -2142,6 +2142,8 @@ func _crear_ui() -> void:
 	capa.add_child(panel)
 	_panel_raiz = panel
 	_panel_raiz.visible = false   # colapsado = invisible; lo gobierna `_actualizar_visibilidad`
+	# Redimensionar la ventana con el panel abierto también recoloca (ver `_recolocar_panel`).
+	get_viewport().size_changed.connect(_recolocar_panel)
 	var caja := VBoxContainer.new()
 	caja.add_theme_constant_override("separation", 8)
 	panel.add_child(caja)
@@ -2172,14 +2174,26 @@ func _crear_ui() -> void:
 	_fila_herramientas.add_child(fila_superior)
 
 	var pastilla_buscador := KitUIComisarioScript.moderno_pastilla(KitUIComisarioScript.MOD_COLOR_TARJETA, 38.0)
-	pastilla_buscador.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pastilla_buscador.custom_minimum_size.x = 200.0
+	# Ancho FIJO (maqueta v3): buscador compacto a la izquierda con el toggle pegado a su lado.
+	# Estirado a toda la fila (EXPAND_FILL) empujaba el toggle al borde derecho de la pantalla.
+	pastilla_buscador.custom_minimum_size.x = 340.0
 	fila_superior.add_child(pastilla_buscador)
 	var margen_buscador := MarginContainer.new()
 	margen_buscador.add_theme_constant_override("margin_left", 14)
 	margen_buscador.add_theme_constant_override("margin_right", 14)
 	pastilla_buscador.add_child(margen_buscador)
+	# LUPA (maqueta v3, 2026-08-17): glifo VECTORIAL gris dentro de la pastilla, a la izquierda del
+	# `LineEdit` — el kit moderno ya no tira de los PNG del piloto para pictogramas pequeños.
+	var fila_buscador := HBoxContainer.new()
+	fila_buscador.add_theme_constant_override("separation", 8)
+	margen_buscador.add_child(fila_buscador)
+	var lupa: Control = KitUIComisarioScript.moderno_glifo(
+		KitUIComisarioScript.GlifoModerno.Tipo.LUPA, KitUIComisarioScript.MOD_COLOR_GRIS, 16.0
+	)
+	lupa.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	fila_buscador.add_child(lupa)
 	_buscador = LineEdit.new()
+	_buscador.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_buscador.placeholder_text = "Buscar mueble"
 	_buscador.clear_button_enabled = true
 	_buscador.add_theme_color_override("font_color", KitUIComisarioScript.MOD_COLOR_TINTA)
@@ -2196,7 +2210,7 @@ func _crear_ui() -> void:
 		_texto_busqueda = texto
 		_refrescar_tarjetas_visibles()
 	)
-	margen_buscador.add_child(_buscador)
+	fila_buscador.add_child(_buscador)
 
 	# TOGGLE Función/Sala (maqueta v2): "Sala" deshabilitada -- agrupar por tipo de sala NO está
 	# modelado en el catálogo hoy (`Comodidad` no referencia "en qué sala vive", solo `familia`,
@@ -2595,9 +2609,20 @@ func _construir_categoria_lateral(id: StringName, nombre: String) -> Button:
 	fila.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	boton.add_child(fila)
 
-	# SIN pictograma (2026-08-16): los iconos del kit viejo son manchas oscuras al lado de la
-	# tipografía moderna (auditado en captura contra la maqueta aprobada). La categoría es solo
-	# texto hasta que exista un set de iconos de línea del lenguaje nuevo (tarea de arte futura).
+	# PICTOGRAMA VECTORIAL (2026-08-17): la nota vieja "SIN pictograma" queda OBSOLETA. El motivo por
+	# el que se quitó el icono sigue siendo válido —los PNG del kit del piloto son manchas oscuras al
+	# lado de la tipografía moderna— pero ya existe el set de LÍNEA que faltaba:
+	# `KitUIComisario.GlifoModerno` (trazo 1.8px, dibujado con `_draw()`), con un glifo por categoría
+	# en `GLIFO_POR_CATEGORIA` (plano/sillón/muro/pin/llave). Se pinta en tinta y `_mostrar_categoria`
+	# lo pasa a BLANCO cuando la categoría está activa (fondo de acento) — mismo repintado por estado
+	# que ya hacía con el rótulo. Nombre fijo `"GlifoCategoria"` porque ese repintado lo busca así.
+	if KitUIComisarioScript.GLIFO_POR_CATEGORIA.has(id):
+		var glifo: Control = KitUIComisarioScript.moderno_glifo(
+			KitUIComisarioScript.GLIFO_POR_CATEGORIA[id], KitUIComisarioScript.MOD_COLOR_TINTA, 18.0
+		)
+		glifo.name = "GlifoCategoria"
+		glifo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		fila.add_child(glifo)
 
 	var etiqueta := Label.new()
 	etiqueta.name = "RotuloCategoria"
@@ -2637,9 +2662,14 @@ func _mostrar_categoria(categoria: StringName) -> void:
 		var rotulo: Label = boton.find_child("RotuloCategoria", true, false) as Label
 		if rotulo != null:
 			rotulo.add_theme_color_override("font_color", color)
-		var icono: TextureRect = boton.find_child("IconoCategoria", true, false) as TextureRect
-		if icono != null:
-			icono.modulate = color
+		# El glifo vectorial se repinta cambiando SU color y forzando el redibujado (no `modulate`: el
+		# trazo se dibuja a mano en `_draw()`, así el blanco de la activa sale limpio, no lavado).
+		var glifo: KitUIComisarioScript.GlifoModerno = (
+			boton.find_child("GlifoCategoria", true, false) as KitUIComisarioScript.GlifoModerno
+		)
+		if glifo != null:
+			glifo.color = color
+			glifo.queue_redraw()
 
 
 ## Aplica la regla de visibilidad de CADA tarjeta de la rejilla: categoría activa Y (si hay texto en
@@ -2810,15 +2840,33 @@ func _construir_columna_derecha(fila_cuerpo: HBoxContainer) -> void:
 		KitUIComisarioScript.icono(&"candado"),
 		"Próximamente — mover un elemento ya construido no existe todavía", false
 	)
-	columna_iconos.add_child(_boton_mover)
+	columna_iconos.add_child(_icono_con_rotulo(_boton_mover, "Mover", KitUIComisarioScript.MOD_COLOR_GRIS))
 	_boton_clonar = KitUIComisarioScript.moderno_boton_icono(
 		KitUIComisarioScript.icono(&"candado"),
 		"Próximamente — clonar un elemento ya construido no existe todavía", false
 	)
-	columna_iconos.add_child(_boton_clonar)
-	columna_iconos.add_child(
-		_registrar_herramienta_icono(&"demoler", &"papelera", "Demoler (clic para armar la herramienta)")
-	)
+	columna_iconos.add_child(_icono_con_rotulo(_boton_clonar, "Clonar", KitUIComisarioScript.MOD_COLOR_GRIS))
+	columna_iconos.add_child(_icono_con_rotulo(
+		_registrar_herramienta_icono(&"demoler", &"papelera", "Demoler (clic para armar la herramienta)"),
+		"Demoler", KitUIComisarioScript.MOD_COLOR_ROJO
+	))
+
+
+## Círculo + rótulo debajo (columna Mover/Clonar/Demoler): la maqueta v3 etiqueta cada botón con su
+## nombre en pequeño — gris los deshabilitados, rojo Demoler.
+func _icono_con_rotulo(boton: Button, texto: String, color: Color) -> VBoxContainer:
+	var grupo := VBoxContainer.new()
+	grupo.add_theme_constant_override("separation", 2)
+	boton.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	grupo.add_child(boton)
+	var rotulo := Label.new()
+	rotulo.text = texto
+	rotulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rotulo.add_theme_font_size_override("font_size", 10)
+	rotulo.add_theme_color_override("font_color", color)
+	rotulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grupo.add_child(rotulo)
+	return grupo
 
 
 ## Repinta la ficha del seleccionado (columna derecha, maqueta v2) a partir de `_datos_ficha[id]`.
@@ -2894,11 +2942,32 @@ func _actualizar_ficha(id: StringName) -> void:
 		valor_paciencia.text = "%+d%%" % pct_paciencia
 
 
+## Recoloca la barra A MANO contra el borde inferior REAL del viewport. Bug "menú fantasma"
+## (capturas/menu abajo.PNG, 2026-08-17): el PanelContainer anclado abajo con
+## `grow_vertical = BEGIN` se quedaba A VECES con el alto de antes de poblarse (solo asomaba la
+## primera fila; el resto quedaba por debajo del borde) hasta que un resize de la ventana forzaba
+## el re-layout — los contenedores OCULTOS no re-miden a sus hijos, y este panel nace oculto.
+## Las anclas de un Control colgado de CanvasLayer ya han dado sustos parecidos en este proyecto
+## (gotcha conocido): el alto y la posición se fijan explícitos al mostrar y en cada resize.
+func _recolocar_panel() -> void:
+	if _panel_raiz == null or not _panel_raiz.visible:
+		return
+	var vista: Vector2 = _panel_raiz.get_viewport_rect().size
+	var alto_panel: float = _panel_raiz.get_combined_minimum_size().y
+	_panel_raiz.size = Vector2(vista.x, alto_panel)
+	_panel_raiz.position = Vector2(0.0, vista.y - alto_panel)
+
+
 func _actualizar_visibilidad() -> void:
 	# Colapsado = barra INVISIBLE del todo (opción A, 2026-08-09): la píldora "Construir (B)" de
 	# la fila de acciones del HUD es quien abre; ya no hay franja gris residente en pantalla.
 	if _panel_raiz != null:
 		_panel_raiz.visible = _activo
+		if _activo:
+			# Diferido: al pasar de oculto a visible los contenedores aún no han re-medido a sus
+			# hijos; recolocar en el mismo frame mediría un alto viejo (el bug de la captura
+			# `capturas/menu abajo.PNG`).
+			_recolocar_panel.call_deferred()
 	_fila_herramientas.visible = _activo
 	_atenuador.visible = _activo
 	# LA CUADRÍCULA VIVE Y MUERE CON EL MODO (2026-08-05 · quick-spec §3c). Este es el ÚNICO sitio

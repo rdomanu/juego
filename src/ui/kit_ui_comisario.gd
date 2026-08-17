@@ -349,25 +349,37 @@ static func moderno_boton_icono(
 		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rect.modulate = MOD_COLOR_TINTA if habilitado else MOD_COLOR_GRIS
-		rect.custom_minimum_size = Vector2(20.0, 20.0)
+		# Ancla al centro con offsets simétricos: fijar `position` a mano se deshace cuando el botón
+		# recibe su tamaño real (el ancla mueve el punto de referencia y el icono acababa en la
+		# esquina inferior derecha — cazado en captura contra la maqueta v3).
 		rect.set_anchors_preset(Control.PRESET_CENTER)
-		rect.position = Vector2((lado - 20.0) / 2.0, (lado - 20.0) / 2.0)
-		rect.size = Vector2(20.0, 20.0)
+		rect.offset_left = -10.0
+		rect.offset_top = -10.0
+		rect.offset_right = 10.0
+		rect.offset_bottom = 10.0
 		boton.add_child(rect)
 	return boton
 
 
 ## Pastilla partida en N opciones (toggle Función/Sala del panel de construcción): una fila de
-## `Button` en `toggle_mode` dentro de una pastilla exterior -- la opción activa lleva fondo de
-## acento y texto blanco, el resto texto tinta sobre transparente. `opciones` es
+## `Button` en `toggle_mode` dentro de una ÚNICA pastilla exterior BLANCA -- la opción activa lleva
+## fondo `MOD_COLOR_ACENTO_SUAVE` con texto `MOD_COLOR_ACENTO` (azul suave), el resto texto tinta
+## sobre transparente.
+##
+## Estilo corregido el 2026-08-17 contra la maqueta aprobada (`menu_v3_completo.png`): antes la
+## pastilla exterior era gris (`MOD_COLOR_PANEL`), los segmentos tenían 2px de hueco entre ellos y el
+## activo era azul MACIZO con texto blanco. La maqueta pide justo lo contrario: pastilla blanca, los
+## dos segmentos JUNTOS (separación 0) y el activo en azul suave. La API (parámetros, nombres de los
+## botones hijos `"Opcion_<id>"`) NO cambia -- su único consumidor, `ModoConstruccion._crear_ui`,
+## sigue funcionando sin tocarlo. `opciones` es
 ## `[{"id": StringName, "texto": String, "habilitado": bool, "tooltip": String}]` (las tres últimas
 ## claves opcionales); devuelve la pastilla exterior con cada botón colgado como hijo con nombre
 ## `"Opcion_" + id` -- el llamante conecta `pressed` y alterna `button_pressed` a mano (este kit no
 ## sabe qué debe pasar al elegir una opción, solo construye el control).
 static func toggle_segmentado(opciones: Array[Dictionary], alto: float = 38.0) -> PanelContainer:
-	var pastilla := moderno_pastilla(MOD_COLOR_PANEL, alto)
+	var pastilla := moderno_pastilla(MOD_COLOR_TARJETA, alto)
 	var fila := HBoxContainer.new()
-	fila.add_theme_constant_override("separation", 2)
+	fila.add_theme_constant_override("separation", 0)   # segmentos JUNTOS (maqueta v3)
 	pastilla.add_child(fila)
 	var radio_interior: int = int((alto - 6.0) / 2.0)
 	for opcion: Dictionary in opciones:
@@ -390,13 +402,13 @@ static func toggle_segmentado(opciones: Array[Dictionary], alto: float = 38.0) -
 		estilo_normal.content_margin_top = 4.0
 		estilo_normal.content_margin_bottom = 4.0
 		var estilo_activo: StyleBoxFlat = estilo_normal.duplicate()
-		estilo_activo.bg_color = MOD_COLOR_ACENTO
+		estilo_activo.bg_color = MOD_COLOR_ACENTO_SUAVE
 		boton.add_theme_stylebox_override("normal", estilo_normal)
 		boton.add_theme_stylebox_override("hover", estilo_normal)
 		boton.add_theme_stylebox_override("disabled", estilo_normal)
 		boton.add_theme_stylebox_override("pressed", estilo_activo)
 		boton.add_theme_color_override("font_color", MOD_COLOR_TINTA)
-		boton.add_theme_color_override("font_pressed_color", Color.WHITE)
+		boton.add_theme_color_override("font_pressed_color", MOD_COLOR_ACENTO)
 		boton.add_theme_color_override("font_disabled_color", MOD_COLOR_GRIS)
 		boton.add_theme_font_size_override("font_size", 13)
 		fila.add_child(boton)
@@ -409,8 +421,22 @@ static func toggle_segmentado(opciones: Array[Dictionary], alto: float = 38.0) -
 ## `HudComisario._construir_modulo_velocidad`) o un PNG nuevo que Summer aún no ha entregado (reloj,
 ## play/pausa). `color` es mutable en caliente (`color = ...; queue_redraw()`), mismo patrón "dato
 ## reactivo" que `moderno_actualizar_barra_progreso`.
+## AMPLIACIÓN 2026-08-17 (veredicto del usuario "manda la maqueta"): los 6 pictogramas de LÍNEA que
+## faltaban -- PLANO/SILLON/MURO/PIN/LLAVE (las 5 categorías del panel de construcción) y LUPA (el
+## buscador), más PERSONA/DOCUMENTO para los chips de Plantilla/Documentación del HUD. Sustituyen a
+## los PNG del kit viejo de Summer (`ICONOS`), que a 16-20px al lado de la tipografía moderna se leen
+## como manchas oscuras (auditado en captura el 2026-08-16). Todos se dibujan con trazo ~1.8px sobre
+## un lienzo cuadrado normalizado por `size`, así el MISMO glifo sirve a 16px (categoría) y a 22px
+## (módulo del HUD) sin retocar números.
 class GlifoModerno extends Control:
-	enum Tipo { RELOJ, PAUSA, PLAY1, PLAY2, PLAY3 }
+	enum Tipo {
+		RELOJ, PAUSA, PLAY1, PLAY2, PLAY3,
+		PLANO, SILLON, MURO, PIN, LLAVE, LUPA, PERSONA, DOCUMENTO,
+		PARED_ENTERA, PARED_BAJA, PARED_AUTO,
+	}
+	## Grosor de trazo común de los glifos de línea (la maqueta compone con líneas de 2px a 24px de
+	## lienzo; 1.8 es el equivalente a 16-18px sin que el trazo empaste).
+	const TRAZO: float = 1.8
 	var tipo: int = Tipo.RELOJ
 	var color: Color = Color(0.141, 0.188, 0.259, 1.0)
 
@@ -426,6 +452,166 @@ class GlifoModerno extends Control:
 				_dibujar_play(2)
 			Tipo.PLAY3:
 				_dibujar_play(3)
+			Tipo.PLANO:
+				_dibujar_plano()
+			Tipo.SILLON:
+				_dibujar_sillon()
+			Tipo.MURO:
+				_dibujar_muro()
+			Tipo.PIN:
+				_dibujar_pin()
+			Tipo.LLAVE:
+				_dibujar_llave()
+			Tipo.LUPA:
+				_dibujar_lupa()
+			Tipo.PERSONA:
+				_dibujar_persona()
+			Tipo.DOCUMENTO:
+				_dibujar_documento()
+			Tipo.PARED_ENTERA:
+				_dibujar_pared(1.0, false)
+			Tipo.PARED_BAJA:
+				_dibujar_pared(0.5, false)
+			Tipo.PARED_AUTO:
+				_dibujar_pared(0.5, true)
+
+	## El rectángulo útil del lienzo: cuadrado centrado con 1px de aire para que el trazo no se coma
+	## el borde (todos los glifos nuevos parten de aquí -- un solo sitio donde ajustar el encuadre).
+	func _marco() -> Rect2:
+		var lado: float = minf(size.x, size.y) - 2.0
+		return Rect2((size - Vector2(lado, lado)) * 0.5, Vector2(lado, lado))
+
+	## PLANO (categoría "Salas"): rectángulo con 2 líneas internas -- un plano de planta esquemático.
+	func _dibujar_plano() -> void:
+		var m: Rect2 = _marco()
+		var caja := Rect2(m.position + Vector2(0.0, m.size.y * 0.12), Vector2(m.size.x, m.size.y * 0.76))
+		draw_rect(caja, color, false, TRAZO)
+		var x_tabique: float = caja.position.x + caja.size.x * 0.42
+		draw_line(
+			Vector2(x_tabique, caja.position.y), Vector2(x_tabique, caja.position.y + caja.size.y * 0.55),
+			color, TRAZO, true
+		)
+		var y_tabique: float = caja.position.y + caja.size.y * 0.58
+		draw_line(
+			Vector2(x_tabique, y_tabique), Vector2(caja.position.x + caja.size.x, y_tabique),
+			color, TRAZO, true
+		)
+
+	## SILLÓN (categoría "Muebles"): silla DE PERFIL en 5 trazos -- respaldo, asiento y dos patas.
+	func _dibujar_sillon() -> void:
+		var m: Rect2 = _marco()
+		var izq: float = m.position.x + m.size.x * 0.24
+		var der: float = m.position.x + m.size.x * 0.86
+		var alto_respaldo: float = m.position.y + m.size.y * 0.10
+		var y_asiento: float = m.position.y + m.size.y * 0.58
+		var y_suelo: float = m.position.y + m.size.y * 0.92
+		draw_line(Vector2(izq, alto_respaldo), Vector2(izq, y_asiento), color, TRAZO, true)   # respaldo
+		draw_line(Vector2(izq, y_asiento), Vector2(der, y_asiento), color, TRAZO, true)       # asiento
+		draw_line(Vector2(izq, y_suelo), Vector2(izq, y_asiento), color, TRAZO, true)         # pata tras
+		draw_line(Vector2(der, y_asiento), Vector2(der, y_suelo), color, TRAZO, true)         # pata del
+		# Cojín: un trazo corto pegado al respaldo, lo que hace legible que es un asiento y no una "L".
+		draw_line(
+			Vector2(izq, m.position.y + m.size.y * 0.44),
+			Vector2(m.position.x + m.size.x * 0.58, m.position.y + m.size.y * 0.44), color, TRAZO, true
+		)
+
+	## MURO (categoría "Muros y suelos"): 3 hiladas de ladrillo con las juntas verticales alternadas.
+	func _dibujar_muro() -> void:
+		var m: Rect2 = _marco()
+		var alto_hilada: float = m.size.y * 0.24
+		var y0: float = m.position.y + m.size.y * 0.14
+		for i in 3:
+			var y: float = y0 + i * alto_hilada
+			draw_line(Vector2(m.position.x, y), Vector2(m.position.x + m.size.x, y), color, TRAZO, true)
+			# Junta vertical: centrada en las hiladas pares, a un tercio en las impares (aparejo).
+			var x: float = m.position.x + (m.size.x * 0.5 if i % 2 == 0 else m.size.x * 0.28)
+			draw_line(Vector2(x, y), Vector2(x, y + alto_hilada), color, TRAZO, true)
+		var y_base: float = y0 + 3.0 * alto_hilada
+		draw_line(
+			Vector2(m.position.x, y_base), Vector2(m.position.x + m.size.x, y_base), color, TRAZO, true
+		)
+
+	## PIN (categoría "Zonas"): gota de mapa -- arco superior + dos lados que caen a la punta + punto.
+	func _dibujar_pin() -> void:
+		var m: Rect2 = _marco()
+		var radio: float = m.size.x * 0.32
+		var centro := Vector2(m.position.x + m.size.x * 0.5, m.position.y + m.size.y * 0.36)
+		draw_arc(centro, radio, PI * 0.78, PI * 2.22, 20, color, TRAZO, true)
+		var punta := Vector2(centro.x, m.position.y + m.size.y * 0.95)
+		var izq := centro + Vector2(-radio, radio * 0.62)
+		var der := centro + Vector2(radio, radio * 0.62)
+		draw_line(izq, punta, color, TRAZO, true)
+		draw_line(der, punta, color, TRAZO, true)
+		draw_circle(centro, maxf(1.4, radio * 0.28), color)
+
+	## LLAVE (categoría "Herramientas"): llave inglesa esquemática -- boca en "C" + mango en diagonal.
+	func _dibujar_llave() -> void:
+		var m: Rect2 = _marco()
+		var radio: float = m.size.x * 0.26
+		var centro_boca := Vector2(m.position.x + m.size.x * 0.30, m.position.y + m.size.y * 0.28)
+		draw_arc(centro_boca, radio, PI * -0.55, PI * 1.10, 18, color, TRAZO, true)
+		draw_line(
+			centro_boca + Vector2(radio * 0.5, radio * 0.5),
+			Vector2(m.position.x + m.size.x * 0.86, m.position.y + m.size.y * 0.90), color, TRAZO, true
+		)
+
+	## LUPA (buscador): círculo + mango en diagonal hacia abajo-derecha.
+	func _dibujar_lupa() -> void:
+		var m: Rect2 = _marco()
+		var radio: float = m.size.x * 0.30
+		var centro := Vector2(m.position.x + m.size.x * 0.42, m.position.y + m.size.y * 0.40)
+		draw_arc(centro, radio, 0.0, TAU, 24, color, TRAZO, true)
+		var desde: Vector2 = centro + Vector2(radio, radio) * 0.72
+		draw_line(desde, Vector2(m.position.x + m.size.x * 0.92, m.position.y + m.size.y * 0.92),
+			color, TRAZO, true)
+
+	## PERSONA (chip Plantilla del HUD): cabeza (círculo) + hombros (arco) -- calcado del mockup
+	## ejecutable `maqueta_hud_v3.py` (`d.ellipse` + `d.arc` 180-360).
+	func _dibujar_persona() -> void:
+		var m: Rect2 = _marco()
+		var radio_cabeza: float = m.size.x * 0.22
+		var centro_cabeza := Vector2(m.position.x + m.size.x * 0.5, m.position.y + m.size.y * 0.30)
+		draw_arc(centro_cabeza, radio_cabeza, 0.0, TAU, 20, color, TRAZO, true)
+		var centro_hombros := Vector2(centro_cabeza.x, m.position.y + m.size.y * 0.94)
+		draw_arc(centro_hombros, m.size.x * 0.34, PI, TAU, 20, color, TRAZO, true)
+
+	## DOCUMENTO (chip Documentación del HUD): hoja vertical + 2 renglones.
+	func _dibujar_documento() -> void:
+		var m: Rect2 = _marco()
+		var caja := Rect2(
+			m.position + Vector2(m.size.x * 0.24, m.size.y * 0.08),
+			Vector2(m.size.x * 0.52, m.size.y * 0.84)
+		)
+		draw_rect(caja, color, false, TRAZO)
+		for i in 2:
+			var y: float = caja.position.y + caja.size.y * (0.34 + 0.24 * i)
+			draw_line(
+				Vector2(caja.position.x + caja.size.x * 0.22, y),
+				Vector2(caja.position.x + caja.size.x * 0.78, y), color, TRAZO * 0.7, true
+			)
+
+	## Pared en DIAGONAL isométrica (botón Paredes del HUD; referencia pedida por el usuario
+	## 2026-08-17: el icono de muro de Los Sims). El MODO vigente lo cuenta el propio dibujo:
+	## `altura` 1.0 = enteras, 0.5 = bajitas; con `techo_punteado`, la coronación de la pared entera
+	## se insinúa a trazos sobre la bajita (= Auto: "bajitas ahora, enteras cuando toque").
+	func _dibujar_pared(altura: float, techo_punteado: bool) -> void:
+		var m: Rect2 = _marco()
+		var base_a := m.position + Vector2(m.size.x * 0.04, m.size.y * 0.58)
+		var base_b := m.position + Vector2(m.size.x * 0.96, m.size.y * 0.94)
+		var alto_muro: float = m.size.y * 0.52
+		var subida := Vector2(0.0, alto_muro * altura)
+		draw_line(base_a, base_b, color, TRAZO, true)
+		draw_line(base_a, base_a - subida, color, TRAZO, true)
+		draw_line(base_b, base_b - subida, color, TRAZO, true)
+		draw_line(base_a - subida, base_b - subida, color, TRAZO, true)
+		if techo_punteado:
+			var corona := Vector2(0.0, alto_muro)
+			var ca := base_a - corona
+			var cb := base_b - corona
+			for i in 3:
+				var t0: float = i / 3.0 + 0.06
+				var t1: float = i / 3.0 + 0.24
+				draw_line(ca.lerp(cb, t0), ca.lerp(cb, t1), color, TRAZO, true)
 
 	## Círculo + manecillas (hora corta arriba, minutero más largo hacia la derecha) -- calcado del
 	## mockup ejecutable (`maqueta_hud_v3.py`, `d0.ellipse` + 2 `d0.line`), sin depender de ningún PNG.
@@ -458,6 +644,19 @@ class GlifoModerno extends Control:
 				Vector2(cx, y_centro + lado * 0.5),
 				Vector2(cx + lado * 0.55, y_centro),
 			]), color)
+
+
+## Glifo VECTORIAL por categoría de la barra de construcción -- gemelo moderno de
+## `ICONO_POR_CATEGORIA` (que apunta a los PNG del piloto de Summer): mismas 5 claves, pero
+## resolviendo a un `GlifoModerno.Tipo`. Vive aquí, después de la clase, porque un `const` no puede
+## referenciar una clase interna declarada más abajo en el mismo archivo.
+const GLIFO_POR_CATEGORIA: Dictionary[StringName, int] = {
+	&"salas": GlifoModerno.Tipo.PLANO,
+	&"muebles": GlifoModerno.Tipo.SILLON,
+	&"muros_suelos": GlifoModerno.Tipo.MURO,
+	&"zonas": GlifoModerno.Tipo.PIN,
+	&"herramientas": GlifoModerno.Tipo.LLAVE,
+}
 
 
 ## Fábrica de `GlifoModerno` -- tamaño cuadrado `lado`, sin recibir clics (decorativo, el `Button` que
