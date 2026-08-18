@@ -242,6 +242,13 @@ func _drenar_servicio(servicio: StringName, delta_min: float) -> void:
 	)
 	for persona: RefCounted in personas:
 		registrar(persona)
+		# EL RECLAMANTE NO TIENE PACIENCIA (decisión del usuario 2026-08-18): su cabreo ya está
+		# consumado y la hoja no se evapora sola — si la ODAC no le atiende, se queda ocupando
+		# cola y silla hasta que la mala gestión COLAPSE la oficina. El castigo se acumula,
+		# no desaparece. (El corte anti-recursión de `procesar_abandono` sigue como red por los
+		# abandonos FORZADOS — demoliciones, cierres—, que no pasan por aquí.)
+		if persona.tramite_id() == TRAMITE_RECLAMACION:
+			continue
 		if not _espera(persona):
 			continue   # llamada / en atención: conserva su barra tal cual, congelada
 		# ENMIENDA 2026-07-26: el paseo hasta su sitio NO es espera. Los minutos se gastan primero en
@@ -811,7 +818,7 @@ func procesar_abandono(persona: RefCounted) -> void:
 		return
 	if not _toca_reclamacion():
 		return
-	_generar_reclamacion()
+	_generar_reclamacion(persona.servicio())
 
 
 ## ¿Este abandono es GRAVE? Solo si era una denuncia PRIORITARIA de ODAC (VioGén, desaparecidos,
@@ -835,12 +842,16 @@ func _toca_reclamacion() -> bool:
 
 ## Fabrica la ficha de la reclamación y la suelta por el bus como una llegada más: quien la admite,
 ## encola y le da cuerpo visible es el mundo (Main), igual que con cualquier ciudadano — Paciencia no
-## se salta la puerta de entrada de nadie.
-func _generar_reclamacion() -> void:
+## se salta la puerta de entrada de nadie. La hoja SIEMPRE se pone EN la ODAC (realismo confirmado
+## por el usuario, 2026-08-18): por eso la persona nueva entra a &"ODAC" aunque el cabreo naciera en
+## otro servicio — `origen` es ese servicio quemado, y viaja en `reclamacion_generada` para que el
+## aviso del jugador diga DÓNDE se coció el problema (mejora ①, cierra el circuito con los toasts).
+func _generar_reclamacion(origen: StringName) -> void:
 	if _bus == null:
 		return
 	var minuto: int = int(_tiempo.minutos_juego) if _tiempo != null else 0
 	_bus.persona_generada.emit(PersonaScript.new(&"ODAC", TRAMITE_RECLAMACION, minuto))
+	_bus.reclamacion_generada.emit(origen)
 
 
 # ── Persistencia (story 007 · ADR-0002 — "cargar sitúa": ni señales ni efectos) ──────────────

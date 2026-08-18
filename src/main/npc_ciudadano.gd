@@ -89,6 +89,10 @@ var muneco: Node2D = null
 const MunecoScript := preload("res://src/main/muneco.gd")
 ## La señal de prohibido (bloqueo de camino), compartida con el caminante de NPCsFlujo.
 const IconoProhibidoScript := preload("res://src/main/icono_prohibido.gd")
+const IconoReclamacionScript := preload("res://src/main/icono_reclamacion.gd")
+## El id del trámite de la hoja de reclamaciones — el MISMO del catálogo
+## (`datos/denuncias/reclamacion.tres`) y de `Paciencia.TRAMITE_RECLAMACION`.
+const TRAMITE_RECLAMACION := &"reclamacion"
 ## Los 7 modelos de ciudadano civil (2026-08-04, serie CUTES de J-Toastie, poly.pizza, CC BY 3.0 —
 ## sustituyen a la prueba de arte "girl", que se conserva en disco pero deja de usarse). Renderizados
 ## con `tools/render_sprites_civiles.gd`. Los dos primeros conservan el género del nombre del asset
@@ -179,6 +183,16 @@ func configurar(
 	_icono_bloqueo.visible = false
 	_icono_bloqueo.z_index = Z_ROTULO_FLOTANTE   # ninguna pared tapa un dato (ver esa constante)
 	muneco.add_child(_icono_bloqueo)
+	# LA SEÑAL DEL RECLAMANTE (mejora ①, 2026-08-18): quien viene a poner la hoja lleva su "¡!"
+	# roja SIEMPRE visible (andando, en cola y en ventanilla) — el jugador ve de un vistazo que ese
+	# ciudadano "está ahí para reclamar" (palabras del usuario). Desplazada a la derecha para no
+	# pisar la señal de prohibido si coinciden (ambas viven en el mismo carril flotante).
+	if persona.tramite_id() == TRAMITE_RECLAMACION:
+		var icono_reclamacion: Node2D = IconoReclamacionScript.new()
+		icono_reclamacion.name = "IconoReclamacion"
+		icono_reclamacion.position = Vector2(12.0, -44.0)
+		icono_reclamacion.z_index = Z_ROTULO_FLOTANTE
+		muneco.add_child(icono_reclamacion)
 	_manager.registrar_muneco(muneco)
 
 
@@ -329,6 +343,10 @@ func _velocidad_adaptativa() -> float:
 ## cambian de verdad. Se oculta en cuanto la llaman: una vez te atienden, tu espera ya no cuenta.
 func _refrescar_animo() -> void:
 	if _animo == null:
+		return
+	# El reclamante NO tiene paciencia (decisión del usuario 2026-08-18): una barra llena y
+	# congelada solo confundiría — su señal es el "¡!" rojo, y la barra ni se enseña.
+	if persona.tramite_id() == TRAMITE_RECLAMACION:
 		return
 	var animo: StringName = _manager.animo_de(persona)
 	if animo == &"":

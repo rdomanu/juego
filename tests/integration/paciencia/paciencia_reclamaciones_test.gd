@@ -39,6 +39,63 @@ func test_abandono_suma_a_los_dos_contadores() -> void:
 	assert_int(sistema.reclamaciones_mes).is_equal(1)
 
 
+# ── Mejora ① (2026-08-18) · La hoja generada AVISA al jugador con su origen ────────────────
+## El toast de "Nueva reclamación" (AvisosComisario) escucha `reclamacion_generada(origen)`; el
+## origen es el SERVICIO que quemó a la persona — la hoja en sí entra SIEMPRE por la ODAC.
+func test_generar_reclamacion_emite_el_aviso_con_el_servicio_de_origen() -> void:
+	var bus: Node = auto_free(EventBusScript.new())
+	var origenes: Array[StringName] = []
+	bus.reclamacion_generada.connect(func(origen: StringName) -> void: origenes.append(origen))
+	var sistema: Node = _sistema(1.0)
+	sistema.usar_bus(bus)
+
+	sistema.procesar_abandono(_marchada(&"Documentacion", &"dni"))
+
+	assert_array(origenes).is_equal([&"Documentacion"])
+
+
+## El corte de recursión también vale para el aviso: una reclamación abandonada NO suena otra vez.
+func test_reclamacion_abandonada_no_emite_aviso() -> void:
+	var bus: Node = auto_free(EventBusScript.new())
+	# Array y no int: una lambda de GDScript captura los primitivos POR VALOR y el contador no
+	# subiria nunca (el test pasaria aunque la senal sonara) — el Array viaja por referencia.
+	var avisos: Array[StringName] = []
+	bus.reclamacion_generada.connect(func(origen: StringName) -> void: avisos.append(origen))
+	var sistema: Node = _sistema(1.0)
+	sistema.usar_bus(bus)
+
+	sistema.procesar_abandono(_marchada(&"ODAC", &"reclamacion"))
+
+	assert_array(avisos).is_empty()
+
+
+# ── Mejora ① bis (2026-08-18) · El reclamante NO tiene paciencia ──────────────────────────
+## Decisión del usuario: *"las reclamaciones sin paciencia, para que colapse en caso de mala
+## gestión"*. Una hora entera de cola sin atender: la hoja sigue ahí, con la barra intacta —
+## el castigo se acumula, no se evapora.
+func test_la_reclamacion_no_pierde_paciencia_ni_abandona() -> void:
+	var bus: Node = auto_free(EventBusScript.new())
+	var flujo: Node = auto_free(FlujoScript.new())
+	flujo.aplicar_config(ConfigFlujoScript.new())
+	flujo.usar_bus(bus)
+	bus.persona_generada.connect(func(ficha: RefCounted) -> void:
+		var persona: RefCounted = flujo.admitir(ficha)
+		if persona != null:
+			flujo.encolar(persona)
+	)
+	var sistema: Node = _sistema(1.0)
+	sistema.usar_bus(bus)
+	sistema.usar_flujo(flujo)
+	sistema.procesar_abandono(_marchada(&"Documentacion", &"dni"))
+	assert_int(flujo.personas_en_cola(&"ODAC")).is_equal(1)
+
+	sistema._al_tick(60.0)   # una hora de cola sin que nadie la atienda
+
+	assert_int(flujo.personas_en_cola(&"ODAC")).is_equal(1)
+	var hoja: RefCounted = flujo.personas_de_cola(&"ODAC")[0]
+	assert_float(sistema.paciencia_de(hoja)).is_equal(100.0)
+
+
 # ── AC-PS16 · Con probabilidad 1, la queja entra en la cola de ODAC ──────────────────────
 func test_abandono_doc_con_prob_uno_encola_reclamacion_en_odac() -> void:
 	var bus: Node = auto_free(EventBusScript.new())
