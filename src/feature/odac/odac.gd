@@ -10,16 +10,17 @@ class_name ODAC extends Node
 ##    reconfigurar un puesto (`reconfigurar_puesto`, FL9). ODAC no reimplementa nada de eso.
 ##  · **Paciencia #10** ya pondera la satisfacción con `peso_prioridad_prioritaria` (2.5): una
 ##    VioGén bien atendida cuenta 2,5× y dejarla abandonar hunde la media 2,5×.
-##  · **Datos** ya tiene las 13 denuncias con su `prioridad` ("Prioritaria" / "Normal").
+##  · **Datos** ya tiene las 14 denuncias con su `prioridad` ("Prioritaria" / "Normal").
+##    (Eran 13 al escribir esto; el catálogo REAL de `datos/denuncias/` manda — corregido 2026-08-18.)
 ##
 ## Lo que faltaba —y es lo que hay aquí— es **la palanca de gestión del jugador**: los MODOS de
 ## reconfiguración (OD4/OD5). Flujo sabe aplicar "este puesto admite estas denuncias"; ODAC es quien
 ## decide QUÉ listas tienen sentido y les pone nombre.
 ##
 ## ── POR QUÉ LOS MODOS Y NO UNA LISTA SUELTA ───────────────────────────────────────────────────
-## Sin modos, reconfigurar sería marcar 13 casillas por puesto. Con modos, el jugador toma la
+## Sin modos, reconfigurar sería marcar 14 casillas por puesto. Con modos, el jugador toma la
 ## decisión que de verdad importa —*"este puesto se dedica a lo urgente y este otro despacha
-## administrativo"*— de un clic. La lista de 13 casillas sigue estando (modo `SUBCONJUNTO`) para
+## administrativo"*— de un clic. La lista de 14 casillas sigue estando (modo `SUBCONJUNTO`) para
 ## quien quiera afinar.
 ##
 ## ── LA VÁLVULA ANTI-INANICIÓN (OD5) ───────────────────────────────────────────────────────────

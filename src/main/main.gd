@@ -168,6 +168,9 @@ const ID_SALA_VENTANILLA_BASE := 160
 ## zonas que solo se quieren delimitar (Documentacion, ODAC, las esperas) y otras que se quieren
 ## cerrar de verdad (la de descanso, para que no se vea a los funcionarios de cafe desde la cola).
 const ID_SALA_PAREDES := 106
+## "Dedicación de ODAC" — abre `PanelODAC` desde la sala (2026-08-18). El acceso por tecla (O) no es
+## descubrible: si el jugador está mirando su oficina de denuncias, la palanca tiene que estar AHÍ.
+const ID_SALA_ODAC := 107
 
 var _economia: Node
 var _demanda: Node
@@ -185,6 +188,8 @@ var _avisos: CanvasLayer
 var _panel_horario: CanvasLayer
 var _npcs: Node2D
 var _panel_personal: CanvasLayer
+## La pantalla de dedicación de ODAC (tecla O y menú de una sala de ODAC).
+var _panel_odac: CanvasLayer
 var _panel_admin: CanvasLayer
 ## Menú del clic derecho sobre un ciudadano (petición del usuario 2026-07-26) + a quién apunta.
 var _menu_ciudadano: PopupMenu
@@ -443,10 +448,10 @@ func _ready() -> void:
 	_avisos.usar_ficha(_panel_ventanilla)
 	# Solo para traducir "doc_1" a "DNI 1" en el aviso de una incidencia de plantilla.
 	_avisos.usar_personal(_personal)
-	var panel_odac: CanvasLayer = PanelODACScript.new()
-	panel_odac.name = "PanelODAC"
-	panel_odac.configurar(_odac, _flujo, _personal)
-	add_child(panel_odac)
+	_panel_odac = PanelODACScript.new()
+	_panel_odac.name = "PanelODAC"
+	_panel_odac.configurar(_odac, _flujo, _personal)
+	add_child(_panel_odac)
 	_panel_horario.usar_flujo(_flujo)   # para poder abrir/cerrar cada ventanilla desde el panel
 	# Panel de calibración: HERRAMIENTA DEL DESARROLLADOR, no una pantalla del juego (aclaración del
 	# usuario 2026-07-26). Solo existe en desarrollo — en un build exportado NI SE INSTANCIA, así que
@@ -825,7 +830,7 @@ func _abrir_menu_ciudadano(punto_mundo: Vector2, punto_pantalla: Vector2) -> voi
 		_menu_ciudadano.set_item_disabled(2, true)
 	else:
 		_menu_ciudadano.add_item(
-			"⬆ Colar (el resto de la cola se molesta)", ID_MENU_COLAR
+			"Colar (el resto de la cola se molesta)", ID_MENU_COLAR
 		)
 	_menu_ciudadano.add_separator()
 	_menu_ciudadano.add_item("Cancelar", ID_MENU_CANCELAR)
@@ -886,14 +891,14 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 	_menu_sala.set_item_disabled(0, true)
 	_menu_sala.add_separator()
 
-	_menu_sala.add_item("📐 Ampliar esta sala (dibuja pegado a ella)", ID_SALA_AMPLIAR)
+	_menu_sala.add_item("Ampliar esta sala (dibuja pegado a ella)", ID_SALA_AMPLIAR)
 	_menu_sala.add_item(
-		"🧱 Quitar las paredes" if _construccion.sala_con_paredes(sala_id)
-		else "🧱 Poner paredes",
+		"Quitar las paredes" if _construccion.sala_con_paredes(sala_id)
+		else "Poner paredes",
 		ID_SALA_PAREDES
 	)
 	if tipo != null and tipo.tipo == "espera":
-		_menu_sala.add_item("🪑 Añadir asientos", ID_SALA_ASIENTOS)
+		_menu_sala.add_item("Añadir asientos", ID_SALA_ASIENTOS)
 	# Una ventanilla por cada tipo que ESTA sala admite (del catálogo, nunca hardcodeado).
 	if tipo != null:
 		for puesto_id: StringName in tipo.puestos_admitidos:
@@ -901,16 +906,20 @@ func _abrir_menu_sala(punto_mundo: Vector2, punto_pantalla: Vector2) -> bool:
 			if puesto == null:
 				continue
 			_menu_sala.add_item(
-				"🏛 Añadir %s (%d €)" % [puesto.nombre, puesto.coste_construccion_eur],
+				"Añadir %s (%d €)" % [puesto.nombre, puesto.coste_construccion_eur],
 				ID_SALA_PUESTO_BASE + _puestos_del_menu.size()
 			)
 			_puestos_del_menu.append(puesto_id)
+	# La palanca de gestión de ODAC, ahí donde está la oficina (además de la tecla O).
+	if _sala_es_de_odac(tipo):
+		_menu_sala.add_separator()
+		_menu_sala.add_item("Dedicación de ODAC (qué atiende cada ventanilla)", ID_SALA_ODAC)
 	_menu_sala.add_separator()
 	# Comodidades #15 (story com-003): los objetos que puede comprar ESTA sala. La familia depende
 	# del tipo de sala — en la de espera se compra confort; en la oficina, material de trabajo.
 	_anadir_comodidades_al_menu(tipo, sala_id)
 	_anadir_ventanillas_al_menu(sala_id)
-	_menu_sala.add_item("❌ Demoler esta sala", ID_SALA_DEMOLER)
+	_menu_sala.add_item("Demoler esta sala", ID_SALA_DEMOLER)
 	_menu_sala.add_separator()
 	_menu_sala.add_item("Cancelar", ID_SALA_CANCELAR)
 	_menu_sala.reset_size()
@@ -966,7 +975,7 @@ func _anadir_ventanillas_al_menu(sala_id: StringName) -> void:
 		# Y con su NOMBRE del catalogo, no con el id interno: "Ventanilla Documentacion", no "doc_1".
 		var cerrada: bool = _flujo.estado_de_puesto(elemento_id) == &"cerrado"
 		_menu_sala.add_item(
-			("🔓 Abrir %s" if cerrada else "🔒 Cerrar %s") % tipo_puesto.nombre,
+			("Abrir %s" if cerrada else "Cerrar %s") % tipo_puesto.nombre,
 			ID_SALA_VENTANILLA_BASE + _ventanillas_del_menu.size()
 		)
 		_ventanillas_del_menu.append(elemento_id)
@@ -1035,16 +1044,13 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource, sala_id: StringName) -> vo
 	# nevera, máquina de café. No son confort del ciudadano ni material de oficina: son lo que hace
 	# que el café CUNDA y el funcionario vuelva antes a su ventanilla.
 	var familia: String = "funcionario"
-	var icono: String = "🖥"
 	var concepto: String = "rendimiento"
 	match tipo_sala.tipo:
 		"espera":
 			familia = "ciudadano"
-			icono = "🛋"
 			concepto = "confort"
 		"descanso":
 			familia = "descanso"
-			icono = "☕"
 			concepto = "descanso"
 	var catalogo: Array = Datos.obtener_todos(&"Comodidad")
 	catalogo.sort_custom(func(a: Resource, b: Resource) -> bool:
@@ -1059,8 +1065,10 @@ func _anadir_comodidades_al_menu(tipo_sala: Resource, sala_id: StringName) -> vo
 		var es_luz: bool = comodidad.familia == "iluminacion"
 		if comodidad.familia != familia and not es_luz:
 			continue
-		var etiqueta: String = "%s %s (%d €" % [
-			("💡" if es_luz else icono), comodidad.nombre, comodidad.coste_construccion_eur,
+		# Sin iconos-emoji delante del nombre (regla del proyecto: cero emojis en la UI — arrastran la
+		# fuente color del sistema, ignoran `modulate` y salen como tofu según la fuente).
+		var etiqueta: String = "%s (%d €" % [
+			comodidad.nombre, comodidad.coste_construccion_eur,
 		]
 		if comodidad.coste_mantenimiento_dia_eur > 0:
 			etiqueta += " + %d €/día" % comodidad.coste_mantenimiento_dia_eur
@@ -1163,6 +1171,24 @@ func _al_elegir_del_menu_sala(id: int) -> void:
 		ID_SALA_DEMOLER:
 			_modo_construccion.activar_con_herramienta(&"demoler", false)
 			_avisar_accion("Confirma en la sala lo que quieres demoler", COLOR_TENUE_HUD)
+		ID_SALA_ODAC:
+			# Lo mismo que la tecla O, pero descubrible con el ratón desde la propia oficina.
+			_abrir_odac()
+
+
+## ¿Esta sala pertenece al servicio de ODAC? Es la regla —y la ÚNICA— que decide si el menú
+## contextual ofrece "Dedicación de ODAC". Va por SERVICIO del catálogo (no por el id de la sala):
+## vale tanto para la oficina de denuncias como para su sala de espera, que es justo donde el jugador
+## ve la cola atascarse y le entran ganas de reorganizar las ventanillas.
+func _sala_es_de_odac(tipo_sala: Resource) -> bool:
+	return tipo_sala != null and String(tipo_sala.servicio) == "ODAC"
+
+
+## Abre la pantalla de dedicación de ODAC (lo mismo que la tecla O). Se puede usar EN PAUSA (OD10):
+## es gestión, y la gestión no consume tiempo de juego.
+func _abrir_odac() -> void:
+	if _panel_odac != null:
+		_panel_odac.abrir()
 
 
 ## Cuela al ciudadano que hay bajo el cursor: pasa a ser el siguiente al que llamen, y TODOS los
