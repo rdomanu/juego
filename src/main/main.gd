@@ -93,6 +93,9 @@ const PanelVentanillaScript := preload("res://src/main/panel_ventanilla.gd")
 const AvisosComisarioScript := preload("res://src/ui/avisos_comisario.gd")
 ## El modal del Comisario (2026-07-28): sin él, quedarse sin dinero BLOQUEABA la partida.
 const ModalComisarioScript := preload("res://src/main/modal_comisario.gd")
+## El kit de UI (aquí solo para vestir los dos menús del clic derecho — F4, 2026-08-18). `class_name`
+## no resuelve en headless frío (gotcha del proyecto) → preload.
+const KitUIComisarioScript := preload("res://src/ui/kit_ui_comisario.gd")
 ## El ciclo de luz día/noche (2026-07-28): la hora del día se VE (art bible §2).
 const CicloLuzScript := preload("res://src/main/ciclo_luz.gd")
 ## Las luces de los objetos comprados, que se encienden de noche (petición del usuario 2026-07-28).
@@ -788,6 +791,10 @@ func _instanciar_mundo() -> void:
 func _crear_menu_ciudadano() -> void:
 	_menu_ciudadano = PopupMenu.new()
 	_menu_ciudadano.name = "MenuCiudadano"
+	# Aspecto moderno (F4, 2026-08-18): panel blanco redondeado, fila resaltada en azul suave y Segoe
+	# UI — el mismo lenguaje del HUD y de los paneles. El estilo vive ENTERO en el kit; aquí solo se
+	# aplica. La lógica de los ítems (ids, separadores, deshabilitados) no cambia.
+	KitUIComisarioScript.moderno_estilizar_menu_contextual(_menu_ciudadano)
 	_menu_ciudadano.id_pressed.connect(_al_elegir_del_menu)
 	add_child(_menu_ciudadano)
 
@@ -852,6 +859,8 @@ func _al_elegir_del_menu(id: int) -> void:
 func _crear_menu_sala() -> void:
 	_menu_sala = PopupMenu.new()
 	_menu_sala.name = "MenuSala"
+	# Mismo estilo moderno que el menú del ciudadano — una sola función del kit para los dos.
+	KitUIComisarioScript.moderno_estilizar_menu_contextual(_menu_sala)
 	_menu_sala.id_pressed.connect(_al_elegir_del_menu_sala)
 	add_child(_menu_sala)
 

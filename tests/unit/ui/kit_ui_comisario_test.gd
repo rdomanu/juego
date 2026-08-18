@@ -124,3 +124,50 @@ func test_modulo_barra_superior_desconocido_devuelve_null_sin_reventar() -> void
 
 	# Assert
 	assert_object(textura).is_null()
+
+
+# ── Menú contextual moderno (F4, 2026-08-18) ─────────────────────────────────────────────────────
+
+## `moderno_estilizar_menu_contextual` es la ÚNICA fuente de estilo de los dos menús del clic derecho
+## (`Main._crear_menu_ciudadano` / `_crear_menu_sala`): tiene que dejar overrides POR INSTANCIA del
+## panel, del resaltado y de los colores de texto. Si un día dejan de aplicarse, los menús vuelven al
+## gris del tema por defecto sin que nadie se entere hasta mirarlos.
+func test_estilizar_menu_contextual_aplica_los_overrides() -> void:
+	# Arrange
+	var menu: PopupMenu = auto_free(PopupMenu.new())
+
+	# Act
+	KitUIComisarioScript.moderno_estilizar_menu_contextual(menu)
+
+	# Assert
+	assert_bool(menu.has_theme_stylebox_override("panel")).is_true()
+	assert_bool(menu.has_theme_stylebox_override("hover")).is_true()
+	assert_bool(menu.has_theme_stylebox_override("separator")).is_true()
+	assert_bool(menu.has_theme_color_override("font_color")).is_true()
+	assert_bool(menu.has_theme_color_override("font_hover_color")).is_true()
+	assert_bool(menu.has_theme_font_override("font")).is_true()
+
+
+## Los colores son los del kit moderno, no hex sueltos: fila resaltada en azul suave con el texto en
+## acento (el mismo par que usa el toggle segmentado del panel de construcción).
+func test_estilizar_menu_contextual_usa_los_colores_del_kit() -> void:
+	# Arrange
+	var menu: PopupMenu = auto_free(PopupMenu.new())
+
+	# Act
+	KitUIComisarioScript.moderno_estilizar_menu_contextual(menu)
+	var resaltado: StyleBoxFlat = menu.get_theme_stylebox("hover") as StyleBoxFlat
+
+	# Assert
+	assert_object(resaltado).is_not_null()
+	assert_bool(resaltado.bg_color.is_equal_approx(KitUIComisarioScript.MOD_COLOR_ACENTO_SUAVE)).is_true()
+	assert_bool(
+		menu.get_theme_color("font_hover_color").is_equal_approx(KitUIComisarioScript.MOD_COLOR_ACENTO)
+	).is_true()
+
+
+## Un `null` (menú que aún no existe) no revienta — mismo contrato defensivo que `icono()`.
+func test_estilizar_menu_contextual_con_null_no_revienta() -> void:
+	# Act / Assert — si lanzara, el test fallaría con el error del motor
+	KitUIComisarioScript.moderno_estilizar_menu_contextual(null)
+	assert_bool(true).is_true()

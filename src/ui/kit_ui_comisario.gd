@@ -28,10 +28,10 @@ const VARIANTE_BARRA_SUPERIOR := &"BarraSuperior"
 const VARIANTE_MODULO_RELOJ := &"ModuloReloj"
 const VARIANTE_MODULO_VELOCIDAD := &"ModuloVelocidad"
 const VARIANTE_MODULO_SALDO := &"ModuloSaldo"
-const VARIANTE_TOAST_INFO := &"ToastInfo"
-const VARIANTE_TOAST_AVISO := &"ToastAviso"
-const VARIANTE_TOAST_CRITICO := &"ToastCritico"
-const VARIANTE_TOAST_QUEJA := &"ToastQueja"
+## ⚠️ Las 4 variantes de TOAST del piloto (`ToastInfo`/`ToastAviso`/`ToastCritico`/`ToastQueja`) se
+## borraron de aquí el 2026-08-18 (F4): los toasts viejos los jubiló `AvisosComisario` en la F3 y
+## ningún consumidor las pedía ya. Los `StyleBox` siguen definidos en `theme_comisario.tres` (arte de
+## Summer, no se toca); si alguna vez vuelve a hacer falta un toast pixel-art, se re-declaran aquí.
 
 const RUTA_TEMA := "res://assets/ui/theme_comisario.tres"
 const RUTA_ICONOS := "res://assets/ui/kit/"
@@ -406,10 +406,39 @@ static func moderno_boton_pastilla(
 ) -> Button:
 	var boton := Button.new()
 	boton.text = texto
+	var color_texto: Color = moderno_vestir_boton_pastilla(
+		boton, estilo_id, alto, con_flecha, tam_fuente
+	)
+	if con_flecha:
+		# `Button` NO es un contenedor (gotcha del proyecto): el hijo se ancla a mano. Centro-derecha
+		# con offsets simétricos — el mismo patrón que el icono de `moderno_boton_icono`.
+		var flecha: Control = moderno_glifo(GlifoModerno.Tipo.TRIANGULO_ABAJO, color_texto, 10.0)
+		flecha.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		flecha.offset_left = -20.0
+		flecha.offset_top = -5.0
+		flecha.offset_right = -10.0
+		flecha.offset_bottom = 5.0
+		boton.add_child(flecha)
+	return boton
+
+
+## Viste un `Button` YA EXISTENTE con uno de los cuatro estilos de pastilla y devuelve el color de su
+## texto (lo necesita quien le cuelgue un glifo del mismo color). Se separó de
+## `moderno_boton_pastilla` en la F4 (reskin del modal del Comisario, 2026-08-18) porque ese modal
+## reutiliza EL MISMO botón en dos estados con estilos distintos ("Rechazar" secundario durante el
+## rescate, "Entendido" en tono peligro en el fin de partida): recrear el botón obligaría a reconectar
+## sus señales cada vez. No añade hijos (la flecha la cuelga la fábrica de arriba).
+static func moderno_vestir_boton_pastilla(
+	boton: Button, estilo_id: StringName = MOD_BOTON_SECUNDARIO, alto: float = 30.0,
+	con_flecha: bool = false, tam_fuente: int = 12
+) -> Color:
 	boton.focus_mode = Control.FOCUS_NONE
 	boton.custom_minimum_size.y = alto
 	boton.add_theme_font_size_override("font_size", tam_fuente)
 	boton.add_theme_font_override("font", moderno_fuente(true))
+	# Si se re-viste un botón que ANTES estuvo deshabilitado, hay que devolverlo a la vida: solo el
+	# estilo `MOD_BOTON_DESHABILITADO` (más abajo) vuelve a apagarlo.
+	boton.disabled = false
 	var color_fondo: Color = MOD_COLOR_TARJETA
 	var color_texto: Color = MOD_COLOR_TINTA
 	var con_borde: bool = false
@@ -444,17 +473,7 @@ static func moderno_boton_pastilla(
 	boton.add_theme_color_override("font_hover_color", color_texto)
 	boton.add_theme_color_override("font_pressed_color", color_texto)
 	boton.add_theme_color_override("font_disabled_color", MOD_COLOR_GRIS)
-	if con_flecha:
-		# `Button` NO es un contenedor (gotcha del proyecto): el hijo se ancla a mano. Centro-derecha
-		# con offsets simétricos — el mismo patrón que el icono de `moderno_boton_icono`.
-		var flecha: Control = moderno_glifo(GlifoModerno.Tipo.TRIANGULO_ABAJO, color_texto, 10.0)
-		flecha.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-		flecha.offset_left = -20.0
-		flecha.offset_top = -5.0
-		flecha.offset_right = -10.0
-		flecha.offset_bottom = 5.0
-		boton.add_child(flecha)
-	return boton
+	return color_texto
 
 
 ## Borde DISCONTINUO redondeado (el hueco "arrastra aquí" de un puesto vacante, F3): un `Control`
@@ -1083,9 +1102,74 @@ class CasillaModerna extends Button:
 		draw_line(p1, p2, color_marca, 2.0, true)
 
 
-## Formato de dinero de TODA la UI ("1.240 €"): miles con punto y SIN decimales — los céntimos no
-## existen de cara al jugador. Nació como `HudComisario._formato_euros` (spec §1.3-[3]); promovido
-## aquí el 2026-08-17 al necesitarlo también el panel de Personal (fuente única, como los colores).
+# ── MENÚ CONTEXTUAL del clic derecho (F4, 2026-08-18) ────────────────────────────────────────────
+## Radio y sombra del panel de un menú contextual (más pequeños que los de una tarjeta: un menú es
+## una pieza flotante y ligera, no un bloque de pantalla).
+const MOD_RADIO_MENU: float = 12.0
+
+
+## Viste un `PopupMenu` NATIVO con el lenguaje moderno (panel blanco redondeado con sombra, fila
+## resaltada en azul suave con el texto en acento, separadores finos, Segoe UI a 13). Es la ÚNICA
+## fuente de estilo de los menús del clic derecho — `Main._crear_menu_ciudadano` y
+## `Main._crear_menu_sala` la llaman y no escriben ni un color ni un `StyleBox` propio.
+##
+## Se estiliza el `PopupMenu` en vez de reconstruirlo como controles propios a propósito: el menú
+## nativo ya resuelve teclado, ratón, colocación en pantalla y cierre al clicar fuera; la lógica de
+## los ítems (ids, separadores, `set_item_disabled`) no cambia una línea.
+##
+## ⚠️ Godot 4.6 — nombres de ítem de tema de `PopupMenu` (`panel`/`hover`/`separator` en styleboxes,
+## `font_color`/`font_hover_color`/`font_disabled_color`/`font_separator_color` en colores): son los
+## de la API estable desde 4.0, pero el proyecto va pinado a 4.6. Si algún día un menú sale con el
+## gris del tema por defecto, verificar estos nombres contra `docs/engine-reference/godot/` antes de
+## tocar nada más. Los overrides van POR INSTANCIA (no por `Theme`) para no pelearse con
+## `theme_comisario.tres`, que gobierna el resto de la UI pixel-art.
+static func moderno_estilizar_menu_contextual(menu: PopupMenu) -> void:
+	if menu == null:
+		return
+	var panel := StyleBoxFlat.new()
+	panel.bg_color = MOD_COLOR_TARJETA
+	panel.set_corner_radius_all(int(MOD_RADIO_MENU))
+	panel.shadow_size = 12
+	panel.shadow_color = Color(0.02, 0.03, 0.06, 0.18)
+	panel.shadow_offset = Vector2(0.0, 4.0)
+	panel.set_border_width_all(1)
+	panel.border_color = MOD_COLOR_LINEA
+	# Aire generoso: el contenido nunca pega con la esquina redondeada.
+	panel.content_margin_left = 8.0
+	panel.content_margin_right = 8.0
+	panel.content_margin_top = 8.0
+	panel.content_margin_bottom = 8.0
+	menu.add_theme_stylebox_override("panel", panel)
+
+	var resaltado := StyleBoxFlat.new()
+	resaltado.bg_color = MOD_COLOR_ACENTO_SUAVE
+	resaltado.set_corner_radius_all(int(MOD_RADIO_PEQUENO * 0.5))
+	menu.add_theme_stylebox_override("hover", resaltado)
+
+	# Separador FINO del color de línea del kit (el del tema por defecto es un trazo gris grueso).
+	var separador := StyleBoxLine.new()
+	separador.color = MOD_COLOR_LINEA
+	separador.thickness = 1
+	menu.add_theme_stylebox_override("separator", separador)
+	menu.add_theme_stylebox_override("labeled_separator_left", separador)
+	menu.add_theme_stylebox_override("labeled_separator_right", separador)
+
+	menu.add_theme_font_override("font", moderno_fuente())
+	menu.add_theme_font_override("font_separator", moderno_fuente(true))
+	menu.add_theme_font_size_override("font_size", 13)
+	menu.add_theme_font_size_override("font_separator_size", 12)
+	menu.add_theme_color_override("font_color", MOD_COLOR_TINTA)
+	menu.add_theme_color_override("font_hover_color", MOD_COLOR_ACENTO)
+	menu.add_theme_color_override("font_disabled_color", MOD_COLOR_GRIS)
+	menu.add_theme_color_override("font_separator_color", MOD_COLOR_GRIS)
+	menu.add_theme_color_override("font_accelerator_color", MOD_COLOR_GRIS)
+	# Márgenes de contenido de cada fila + aire vertical entre filas (la maqueta compone las listas
+	# con filas holgadas: ninguna acción pegada a la de al lado).
+	menu.add_theme_constant_override("v_separation", 6)
+	menu.add_theme_constant_override("item_start_padding", 10)
+	menu.add_theme_constant_override("item_end_padding", 10)
+
+
 static func formato_euros(valor: float) -> String:
 	var negativo: bool = valor < 0.0
 	var texto: String = str(int(roundf(absf(valor))))
